@@ -3,6 +3,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Send, StopCircle, Globe, Bot, BrainCircuit, Paperclip, Sparkles, X, Mic, Server, ChevronDown, Check, Trash2, File as FileIcon, Image as ImageIcon } from 'lucide-react'
+import { useI18n } from '@/lib/i18n/i18n-context'
 import { cn } from '@/lib/utils'
 
 interface ChatInputProps {
@@ -17,17 +18,18 @@ interface ChatInputProps {
   setSearchMode: (mode: string) => void
 }
 
-export function ChatInput({ 
-  input, 
+export function ChatInput({
+  input,
   setInput,
   attachments,
-  setAttachments, 
-  onSubmit, 
-  isLoading, 
-  onStop, 
-  searchMode, 
-  setSearchMode 
+  setAttachments,
+  onSubmit,
+  isLoading,
+  onStop,
+  searchMode,
+  setSearchMode
 }: ChatInputProps) {
+  const { t } = useI18n()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isFocused, setIsFocused] = useState(false)
@@ -111,23 +113,23 @@ export function ChatInput({
   }
 
   const mcpOptions = [
-      { id: 'filesystem', label: 'Filesystem' },
-      { id: 'github', label: 'GitHub' },
-      { id: 'brave', label: 'Brave Search' },
-      { id: 'memory', label: 'Memory' }
+      { id: 'filesystem', label: t('filesystem') },
+      { id: 'github', label: t('github') },
+      { id: 'brave', label: t('braveSearch') },
+      { id: 'memory', label: t('memory') }
   ]
 
   const modes = [
-    { id: 'web', label: 'Web', icon: Globe, color: "text-blue-500", bg: "bg-blue-500/10", border: "border-blue-500/20" },
-    { id: 'agent', label: 'Agent', icon: Bot, color: "text-purple-500", bg: "bg-purple-500/10", border: "border-purple-500/20" },
-    { id: 'deep', label: 'Deep Search', icon: BrainCircuit, color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20" },
+    { id: 'web', label: t('web'), icon: Globe, color: "text-blue-500", bg: "bg-blue-500/10", border: "border-blue-500/20" },
+    { id: 'agent', label: t('agent'), icon: Bot, color: "text-purple-500", bg: "bg-purple-500/10", border: "border-purple-500/20" },
+    { id: 'deep', label: t('deepsearch'), icon: BrainCircuit, color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20" },
   ]
 
   const commands = [
-      { id: 'deep', label: 'Deep Mode', icon: BrainCircuit, desc: 'Switch to Deep Search' },
-      { id: 'agent', label: 'Agent Mode', icon: Bot, desc: 'Switch to Agent' },
-      { id: 'web', label: 'Web Mode', icon: Globe, desc: 'Switch to Web Search' },
-      { id: 'clear', label: 'Clear Chat', icon: Trash2, desc: 'Reset conversation' },
+      { id: 'deep', label: t('deepMode'), icon: BrainCircuit, desc: t('switchToDeepSearch') },
+      { id: 'agent', label: t('agentMode'), icon: Bot, desc: t('switchToAgent') },
+      { id: 'web', label: t('webMode'), icon: Globe, desc: t('switchToWebSearch') },
+      { id: 'clear', label: t('clearChat'), icon: Trash2, desc: t('resetConversation') },
   ]
   
   return (
@@ -137,7 +139,7 @@ export function ChatInput({
         {/* Command Menu */}
         {showCommandMenu && (
             <div className="absolute bottom-full left-4 mb-2 w-64 bg-popover border rounded-xl shadow-xl overflow-hidden animate-in slide-in-from-bottom-2 fade-in z-50">
-                <div className="px-3 py-2 text-xs font-semibold text-muted-foreground bg-muted/50 border-b">Commands</div>
+                <div className="px-3 py-2 text-xs font-semibold text-muted-foreground bg-muted/50 border-b">{t('commands')}</div>
                 <div className="p-1">
                     {commands.map(cmd => (
                         <button key={cmd.id} onClick={() => handleCommandSelect(cmd.id)} className="flex items-center gap-3 w-full px-2 py-2 text-sm rounded-lg hover:bg-accent hover:text-accent-foreground text-left transition-colors">
@@ -243,7 +245,7 @@ export function ChatInput({
                     <div className="p-4 rounded-full bg-primary/10">
                         <Paperclip className="h-8 w-8" />
                     </div>
-                    <span>Drop files here</span>
+                    <span>{t('dropFilesHere')}</span>
                 </div>
              </div>
            )}
@@ -299,7 +301,7 @@ export function ChatInput({
                 onKeyDown={handleKeyDown}
                 onFocus={() => setIsFocused(true)}
                 onBlur={() => setIsFocused(false)}
-                placeholder={`Ask ${searchMode === 'mcp' ? selectedMcp : 'anything'}...`}
+                placeholder={searchMode === 'mcp' ? `${mcpOptions.find(o => o.id === selectedMcp)?.label || 'MCP'}...` : t('askAnything')}
                 disabled={isLoading}
                 rows={1}
                 className={cn(
@@ -321,10 +323,10 @@ export function ChatInput({
             )}
           </div>
         </div>
-        
+
         <div className="flex justify-between px-4 text-[10px] text-muted-foreground opacity-60">
-            <span><strong>/</strong> for commands</span>
-            <span>AI can make mistakes.</span>
+            <span><strong>/</strong> {t('forCommands')}</span>
+            <span>{t('aiCanMakeMistakes')}</span>
         </div>
       </div>
     </div>

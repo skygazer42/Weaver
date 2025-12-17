@@ -341,22 +341,42 @@ def writer_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
 
     scraped_content = _compact_scraped(scraped_content_raw)
 
-    def _build_research_context(items: List[Dict[str, Any]]) -> str:
-        """Keep context compact: show top results with summary/snippet only."""
+    def _build_research_context(items: List[Dict[str, Any]], budget: int = 8000) -> tuple[str, str]:
+        """
+        Keep context compact: show top results with summary/snippet only.
+        Returns (context_text, sources_table).
+        """
         blocks: List[str] = []
+        sources: List[str] = []
+        remaining = budget
+
         for idx, item in enumerate(items):
             query = item.get("query", "")
-            blocks.append(f"Search #{idx+1}: {query}")
+            header = f"Search #{idx+1}: {query}"
+            if remaining - len(header) <= 0:
+                break
+            blocks.append(header)
+            remaining -= len(header)
+
             results = item.get("results", []) or []
-            for ridx, res in enumerate(results[:3]):
+            for ridx, res in enumerate(results):
+                if remaining <= 0:
+                    break
                 title = res.get("title", "") or "Untitled"
                 url = res.get("url", "")
                 summary = res.get("summary") or res.get("snippet") or res.get("content", "")
-                summary = summary[:800]  # guardrail
-                blocks.append(f"  [{ridx+1}] {title} ({url}) -> {summary}")
-        return "\n".join(blocks)
+                summary = (summary or "")[:600]
+                tag = f"S{idx+1}-{ridx+1}"
+                entry = f"  [{tag}] {title} ({url}) -> {summary}"
+                remaining -= len(entry)
+                if remaining <= 0:
+                    break
+                blocks.append(entry)
+                sources.append(f"[{tag}] {title} - {url}")
 
-    research_context = _build_research_context(scraped_content)
+        return "\n".join(blocks), "\n".join(sources)
+
+    research_context, sources_table = _build_research_context(scraped_content)
 
     # If no research context (e.g., search failed), fall back to direct answer style
     if not research_context.strip():
@@ -384,13 +404,16 @@ def writer_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
 Guidelines:
 1. Lead with a brief executive summary.
 2. Use markdown and bullets; keep paragraphs tight.
-3. Cite sources inline like [S1-1] where S1 = search #, -1 = result index.
+3. Cite sources inline like [S1-1] where S1 = search #, -1 = result index (see Sources list).
 4. Prefer the provided summaries/snippets; do not paste long raw text.
 5. Highlight key findings, contrasts, and open questions.
 6. If a visualization helps, WRITE PYTHON CODE using matplotlib with the 'execute_python_code' tool and interpret the chart.
 
 Research Context (compact):
-{context}""",), 
+{context}
+
+Sources:
+{sources}""",), 
         ("human", "Create a comprehensive report answering: {query}")
     ])
 

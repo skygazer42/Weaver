@@ -39,9 +39,17 @@ export function Header({ sidebarOpen, onToggleSidebar, selectedModel, onModelCha
   }, [])
 
   const models = [
-    { id: 'gpt-4o', name: 'GPT-4o' },
-    { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
-    { id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet' },
+    { id: 'gpt-4o', name: 'GPT-4o', provider: 'OpenAI' },
+    { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'OpenAI' },
+    { id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet', provider: 'Anthropic' },
+    { id: 'claude-3-opus', name: 'Claude 3 Opus', provider: 'Anthropic' },
+    { id: 'deepseek-chat', name: 'DeepSeek Chat', provider: 'DeepSeek' },
+    { id: 'deepseek-coder', name: 'DeepSeek Coder', provider: 'DeepSeek' },
+    { id: 'glm-4', name: 'GLM-4', provider: 'Zhipu AI' },
+    { id: 'glm-4-plus', name: 'GLM-4 Plus', provider: 'Zhipu AI' },
+    { id: 'qwen-max', name: 'Qwen Max', provider: 'Qwen' },
+    { id: 'qwen-plus', name: 'Qwen Plus', provider: 'Qwen' },
+    { id: 'qwen-turbo', name: 'Qwen Turbo', provider: 'Qwen' },
   ]
 
   const currentModelName = models.find(m => m.id === selectedModel)?.name || selectedModel

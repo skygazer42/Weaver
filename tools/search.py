@@ -78,7 +78,14 @@ def tavily_search(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
         results = []
         seen_urls = set()
 
-        for result in response.get("results", []):
+        # Sort results by score descending if score exists
+        sorted_results = sorted(
+            response.get("results", []),
+            key=lambda r: r.get("score", 0),
+            reverse=True
+        )
+
+        for result in sorted_results:
             url = result.get("url", "")
             if not url or url in seen_urls:
                 continue

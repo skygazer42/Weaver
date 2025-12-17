@@ -3,6 +3,7 @@
 import React from 'react'
 import { Button } from '@/components/ui/button'
 import { ArrowRight, Sparkles, TrendingUp, Code2, BookOpen } from 'lucide-react'
+import { useI18n } from '@/lib/i18n/i18n-context'
 import { cn } from '@/lib/utils'
 
 interface EmptyStateProps {
@@ -11,25 +12,27 @@ interface EmptyStateProps {
 }
 
 export function EmptyState({ selectedMode, onModeSelect }: EmptyStateProps) {
+  const { t } = useI18n()
+
   const starters = [
     {
       icon: TrendingUp,
-      text: "Analyze the current state of AI Agent frameworks in 2024",
+      text: t('starterAnalyze'),
       mode: "deep"
     },
     {
       icon: Code2,
-      text: "Write a Python script to visualize stock market data",
+      text: t('starterWrite'),
       mode: "agent"
     },
     {
       icon: BookOpen,
-      text: "Summarize the key findings of the 'Attention Is All You Need' paper",
+      text: t('starterSummarize'),
       mode: "web"
     },
     {
       icon: Sparkles,
-      text: "Plan a 3-day itinerary for a trip to Kyoto",
+      text: t('starterPlan'),
       mode: "agent"
     }
   ]
@@ -48,11 +51,11 @@ export function EmptyState({ selectedMode, onModeSelect }: EmptyStateProps) {
         
         <div className="space-y-2 max-w-lg">
             <h2 className="text-3xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-foreground to-foreground/70">
-                Weaver AI
+                {t('emptyStateTitle')}
             </h2>
             <p className="text-muted-foreground text-lg">
-                Your deep research companion. <br className="hidden sm:block"/>
-                Ask me anything to start a comprehensive investigation.
+                {t('emptyStateSubtitle')} <br className="hidden sm:block"/>
+                {t('emptyStateDescription')}
             </p>
         </div>
       </div>
@@ -82,7 +85,7 @@ export function EmptyState({ selectedMode, onModeSelect }: EmptyStateProps) {
                     {starter.text}
                 </p>
                 <div className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase tracking-wider font-semibold opacity-0 group-hover:opacity-100 transition-opacity translate-y-2 group-hover:translate-y-0">
-                    <span>Use {starter.mode} mode</span>
+                    <span>{t('useMode')} {starter.mode} {t('mode')}</span>
                     <ArrowRight className="h-3 w-3" />
                 </div>
             </div>
