@@ -3,7 +3,7 @@
 import React from 'react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { Plus, Settings, User, Compass, History, LayoutGrid, Zap, FolderOpen, MoreHorizontal, MessageSquare } from 'lucide-react'
+import { Plus, Settings, User, Compass, History, LayoutGrid, Zap, FolderOpen, MoreHorizontal, MessageSquare, PanelLeft } from 'lucide-react'
 
 interface SidebarProps {
   isOpen: boolean
