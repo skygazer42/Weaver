@@ -45,21 +45,16 @@ export function Header({ sidebarOpen, onToggleSidebar, selectedModel, onModelCha
   return (
     <header className="flex h-16 items-center justify-between border-b px-4 bg-background/80 backdrop-blur-md sticky top-0 z-30 transition-all">
       <div className="flex items-center gap-3">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onToggleSidebar}
-          className="hidden md:flex hover:bg-muted/50 rounded-full"
-        >
-          <PanelLeft className="h-5 w-5 text-muted-foreground" />
-        </Button>
-
-        <div className="flex items-center gap-2 select-none cursor-default">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl overflow-hidden shadow-lg shadow-primary/20 transition-transform hover:scale-105">
-            <img src="/logo.png" alt="Weaver" className="h-full w-full object-contain" />
-          </div>
-          <span className="font-bold text-lg tracking-tight">Weaver</span>
-        </div>
+        {!sidebarOpen && (
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={onToggleSidebar} 
+              className="hidden md:flex hover:bg-muted/50 rounded-full"
+            >
+              <PanelLeft className="h-5 w-5 text-muted-foreground" />
+            </Button>
+        )}
       </div>
 
       <div className="flex items-center gap-2">

@@ -34,6 +34,19 @@ export function Sidebar({ isOpen, onToggle, onNewChat, history, isLoading = fals
       >
         <div className="flex h-full flex-col p-3 gap-2">
           
+          {/* Sidebar Header */}
+          <div className="flex items-center justify-between px-2 mb-2 pt-1">
+             <div className="flex items-center gap-2 select-none">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground text-xs font-bold">
+                    W
+                </div>
+                <span className="font-bold text-base tracking-tight">Weaver</span>
+             </div>
+             <Button variant="ghost" size="icon" onClick={onToggle} className="h-7 w-7 text-muted-foreground">
+                <PanelLeft className="h-4 w-4" />
+             </Button>
+          </div>
+
           {/* Top Actions */}
           <div className="mb-2">
              <Button 
