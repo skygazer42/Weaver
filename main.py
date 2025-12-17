@@ -15,7 +15,7 @@ from langgraph.types import Command
 from agent import create_research_graph, create_checkpointer, AgentState
 from tools.mcp import init_mcp_tools, close_mcp_tools
 from tools.registry import set_registered_tools
-from tools.memory_client import fetch_memories, add_memory_entry
+from tools.memory_client import fetch_memories, add_memory_entry, store_interaction
 from logger import setup_logging, get_logger, LogContext
 
 # Initialize logging
@@ -285,7 +285,7 @@ async def stream_agent_events(
         }
 
         # Load long-term memories (optional)
-        mem_entries = fetch_memories()
+        mem_entries = fetch_memories(query=input_text)
         if mem_entries:
             memory_text = "\n".join(f"- {m}" for m in mem_entries)
             initial_state["messages"] = [
@@ -384,7 +384,10 @@ async def stream_agent_events(
                                 "content": final_report
                             })
                             # Store memory for future sessions
+                            # Store memory (long-term)
                             add_memory_entry(final_report)
+                            # Store interaction (question + answer)
+                            store_interaction(input_text, final_report)
 
             elif event_type == "on_tool_start":
                 tool_name = data_dict.get("name", "unknown")
@@ -518,7 +521,7 @@ async def chat(request: ChatRequest):
                 "errors": []
             }
 
-            mem_entries = fetch_memories()
+            mem_entries = fetch_memories(query=last_message)
             if mem_entries:
                 memory_text = "\n".join(f"- {m}" for m in mem_entries)
                 initial_state["messages"] = [
@@ -540,6 +543,7 @@ async def chat(request: ChatRequest):
             result = await research_graph.ainvoke(initial_state, config=config)
             final_report = result.get("final_report", "No response generated")
             add_memory_entry(final_report)
+            store_interaction(last_message, final_report)
 
             return ChatResponse(
                 id=f"msg_{datetime.now().timestamp()}",

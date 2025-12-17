@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import List
+from typing import List, Optional
 from pathlib import Path
 
 from config import settings
@@ -48,7 +48,7 @@ def _fallback_save(data: dict) -> None:
         logger.warning(f"Failed to write fallback memory store: {e}")
 
 
-def add_memory_entry(content: str, user_id: str | None = None) -> bool:
+def add_memory_entry(content: str, user_id: Optional[str] = None) -> bool:
     """Store a memory entry (long-term)."""
     user = user_id or settings.memory_user_id
     if not content:
@@ -74,7 +74,13 @@ def add_memory_entry(content: str, user_id: str | None = None) -> bool:
     return True
 
 
-def fetch_memories(user_id: str | None = None, limit: int | None = None) -> List[str]:
+def store_interaction(user_input: str, assistant_output: str, user_id: Optional[str] = None) -> bool:
+    """Store a combined interaction for better recall."""
+    combined = f"User: {user_input}\nAssistant: {assistant_output}"
+    return add_memory_entry(combined, user_id=user_id)
+
+
+def fetch_memories(query: str = "*", user_id: Optional[str] = None, limit: Optional[int] = None) -> List[str]:
     """Retrieve memories (most recent first)."""
     user = user_id or settings.memory_user_id
     k = limit or settings.memory_top_k
@@ -83,7 +89,7 @@ def fetch_memories(user_id: str | None = None, limit: int | None = None) -> List
     if client:
         try:
             results = client.search(
-                query="*",
+                query=query or "*",
                 user_id=user,
                 namespace=settings.memory_namespace,
                 top_k=k
@@ -100,7 +106,7 @@ def fetch_memories(user_id: str | None = None, limit: int | None = None) -> List
         except Exception as e:
             logger.warning(f"mem0 search failed: {e}")
 
-    # Fallback to local JSON store
+    # Fallback to local JSON store (no semantic search, just recent)
     data = _fallback_load()
     entries = data.get(user, [])
     return list(reversed(entries))[:k]
