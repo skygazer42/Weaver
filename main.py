@@ -13,7 +13,7 @@ import time
 from config import settings
 from langgraph.types import Command
 from agent import create_research_graph, create_checkpointer, AgentState
-from tools.mcp import init_mcp_tools, close_mcp_tools
+from tools.mcp import init_mcp_tools, close_mcp_tools, reload_mcp_tools
 from tools.registry import set_registered_tools
 from tools.memory_client import fetch_memories, add_memory_entry, store_interaction
 from logger import setup_logging, get_logger, LogContext
@@ -77,6 +77,9 @@ research_graph = create_research_graph(
     checkpointer=checkpointer,
     interrupt_before=settings.interrupt_nodes_list
 )
+mcp_enabled = settings.enable_mcp
+mcp_servers_config = settings.mcp_servers
+mcp_loaded_tools = 0
 
 
 @app.on_event("startup")
@@ -94,18 +97,20 @@ async def startup_event():
     logger.info(f"Checkpointer: {'Enabled' if checkpointer else 'Disabled'}")
 
     # Initialize MCP tools
+    global mcp_loaded_tools
     try:
         logger.info("Initializing MCP tools...")
-        mcp_tools = await init_mcp_tools()
+        mcp_tools = await init_mcp_tools(servers_override=mcp_servers_config, enabled=mcp_enabled)
         if mcp_tools:
             set_registered_tools(mcp_tools)
-            logger.info(f"✓ Successfully registered {len(mcp_tools)} MCP tools")
-            for tool_name in list(mcp_tools.keys())[:5]:  # Log first 5 tools
-                logger.debug(f"  - {tool_name}")
+            mcp_loaded_tools = len(mcp_tools)
+            logger.info(f"✓ Successfully registered {mcp_loaded_tools} MCP tools")
         else:
             logger.info("No MCP tools to register")
+            mcp_loaded_tools = 0
     except Exception as e:
         logger.warning(f"⚠ MCP tools initialization failed: {e}", exc_info=settings.debug)
+        mcp_loaded_tools = 0
 
     logger.info("=" * 80)
     logger.info("✓ Weaver Research Agent Ready")
@@ -162,6 +167,11 @@ class ResumeRequest(BaseModel):
     payload: Any
     model: Optional[str] = "gpt-4o"
     search_mode: Optional[SearchMode | Dict[str, Any] | str] = None
+
+
+class MCPConfigPayload(BaseModel):
+    enable: Optional[bool] = None
+    servers: Optional[Dict[str, Any]] = None
 
 
 def _serialize_interrupts(interrupts: Any) -> List[Any]:
@@ -594,6 +604,46 @@ async def resume_interrupt(request: ResumeRequest):
         content=final_report,
         timestamp=datetime.now().isoformat()
     )
+
+
+@app.get("/api/mcp/config")
+async def get_mcp_config():
+    """Return current MCP enable flag, servers config, and loaded tool count."""
+    return {
+        "enabled": mcp_enabled,
+        "servers": mcp_servers_config,
+        "loaded_tools": mcp_loaded_tools,
+    }
+
+
+@app.post("/api/mcp/config")
+async def update_mcp_config(payload: MCPConfigPayload):
+    """Update MCP enable flag and servers config at runtime."""
+    global mcp_enabled, mcp_servers_config, mcp_loaded_tools
+
+    if payload.enable is not None:
+        mcp_enabled = bool(payload.enable)
+    if payload.servers is not None:
+        mcp_servers_config = payload.servers
+
+    if mcp_enabled and mcp_servers_config:
+        try:
+            tools = await reload_mcp_tools(mcp_servers_config, enabled=True)
+            set_registered_tools(tools)
+            mcp_loaded_tools = len(tools)
+        except Exception as e:
+            logger.error(f"Failed to reload MCP tools: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Failed to reload MCP tools")
+    else:
+        await close_mcp_tools()
+        set_registered_tools([])
+        mcp_loaded_tools = 0
+
+    return {
+        "enabled": mcp_enabled,
+        "servers": mcp_servers_config,
+        "loaded_tools": mcp_loaded_tools,
+    }
 
 
 @app.post("/api/research")
