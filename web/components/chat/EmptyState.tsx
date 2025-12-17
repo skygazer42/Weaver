@@ -41,10 +41,9 @@ export function EmptyState({ selectedMode, onModeSelect }: EmptyStateProps) {
       <div className="flex flex-col items-center space-y-6 mb-12 text-center">
         <div className="relative group cursor-default">
             <div className="absolute inset-0 bg-primary/20 rounded-3xl blur-xl group-hover:blur-2xl transition-all duration-500 opacity-50" />
-            <div className="relative h-24 w-24 bg-gradient-to-br from-primary to-primary/80 text-primary-foreground rounded-3xl flex items-center justify-center text-5xl font-bold shadow-xl shadow-primary/20 ring-1 ring-white/20">
-              W
+            <div className="relative h-24 w-24 rounded-3xl flex items-center justify-center shadow-xl shadow-primary/20 ring-1 ring-white/20 overflow-hidden bg-white">
+              <img src="/logo.png" alt="Weaver" className="h-20 w-20 object-contain" />
             </div>
-            {/* Orbiting effect (CSS only via tailwind arbitrary values if complex, keeping simple here) */}
         </div>
         
         <div className="space-y-2 max-w-lg">

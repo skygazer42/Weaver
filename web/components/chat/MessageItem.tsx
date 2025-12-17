@@ -4,8 +4,7 @@ import React, { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { cn } from '@/lib/utils'
-import { Card } from '@/components/ui/card'
-import { Search, Code, Loader2, ChevronDown, Check, Copy, Terminal, Bot } from 'lucide-react'
+import { Search, Code, Loader2, ChevronDown, Check, Copy, Terminal, Bot, User, BrainCircuit, PenTool, Globe } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface Message {
@@ -37,45 +36,54 @@ export function MessageItem({ message }: { message: Message }) {
   // Filter tools to group them as "Thinking Process"
   const tools = message.toolInvocations || []
   const hasTools = tools.length > 0
+  const isThinking = tools.some(t => t.state === 'running')
 
   return (
     <div
       className={cn(
-        'group flex w-full gap-4 py-6 animate-in fade-in slide-in-from-bottom-2 duration-500',
+        'group flex w-full gap-2 py-4 animate-in fade-in slide-in-from-bottom-1 duration-300',
         isUser ? 'justify-end' : 'justify-start'
       )}
     >
-      <div className={cn('flex flex-col max-w-[85%] md:max-w-[75%]', isUser ? 'items-end' : 'items-start')}>
-        
-        {/* Avatar / Role Label */}
-        <div className={cn("flex items-center gap-2 mb-2 select-none", isUser ? "flex-row-reverse" : "flex-row")}>
-            <div className={cn(
-                "flex h-8 w-8 items-center justify-center rounded-xl text-xs font-bold shadow-sm ring-1 ring-inset",
-                isUser 
-                  ? "bg-primary text-primary-foreground ring-primary/20" 
-                  : "bg-muted text-foreground ring-border"
-            )}>
-                {isUser ? 'You' : <Bot className="h-5 w-5" />}
-            </div>
-            <span className="text-xs text-muted-foreground font-medium">
-                {isUser ? 'User' : 'Weaver'}
-            </span>
+      {/* Bot Avatar */}
+      {!isUser && (
+        <div className="flex-shrink-0 mt-1">
+             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted/50 border shadow-sm">
+                <Bot className="h-4 w-4 text-primary" />
+             </div>
         </div>
+      )}
 
-        {/* Thinking Process (Collapsible) - Only for Assistant */}
+      <div className={cn(
+          'flex flex-col max-w-[85%] md:max-w-[75%]', 
+          isUser ? 'items-end' : 'items-start'
+      )}>
+        
+        {/* Thinking Process Graph / Accordion */}
         {!isUser && hasTools && (
-          <div className="w-full mb-3">
+          <div className="mb-2 ml-1 w-full max-w-md">
+             {/* Graph Visualization (Mini) */}
+             <div className="flex items-center gap-2 mb-2 px-2 py-1 overflow-hidden">
+                <ThinkingNode icon={BrainCircuit} label="Plan" active={tools.length > 0} completed={tools.length > 1} />
+                <ThinkingLine active={tools.length > 1} />
+                <ThinkingNode icon={Globe} label="Search" active={tools.some(t => t.toolName.includes('search'))} completed={tools.some(t => t.toolName.includes('search') && t.state === 'completed')} />
+                <ThinkingLine active={tools.some(t => t.toolName.includes('code'))} />
+                <ThinkingNode icon={Code} label="Code" active={tools.some(t => t.toolName.includes('code'))} completed={tools.some(t => t.toolName.includes('code') && t.state === 'completed')} />
+                <ThinkingLine active={!isThinking && tools.length > 0} />
+                <ThinkingNode icon={PenTool} label="Write" active={!isThinking && tools.length > 0} completed={!isThinking && message.content.length > 0} />
+             </div>
+
              <button 
                 onClick={() => setIsThinkingOpen(!isThinkingOpen)}
-                className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors bg-muted/30 hover:bg-muted/50 px-3 py-2 rounded-lg w-full md:w-auto"
+                className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors bg-muted/30 hover:bg-muted/50 px-2.5 py-1.5 rounded-full border border-border/50"
              >
-                {isThinkingOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5 -rotate-90" />}
-                <span>Thinking Process</span>
-                <span className="bg-muted px-1.5 py-0.5 rounded-full text-[10px]">{tools.length} steps</span>
+                {isThinkingOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronDown className="h-3 w-3 -rotate-90" />}
+                <span>Process Logs</span>
+                {isThinking && <Loader2 className="h-3 w-3 animate-spin text-blue-500" />}
              </button>
 
              {isThinkingOpen && (
-                <div className="mt-2 pl-4 border-l-2 border-muted space-y-3 py-2">
+                <div className="mt-2 pl-2 space-y-2 py-1 border-l-2 border-muted ml-2">
                     {tools.map((tool) => (
                         <ToolInvocationItem key={tool.toolCallId} tool={tool} />
                     ))}
@@ -84,30 +92,43 @@ export function MessageItem({ message }: { message: Message }) {
           </div>
         )}
 
-        {/* Message Content */}
+        {/* Message Bubble */}
         <div className={cn(
-            "relative px-5 py-4 rounded-2xl shadow-sm ring-1 ring-inset",
+            "relative px-4 py-3 shadow-sm",
             isUser
-              ? "bg-primary text-primary-foreground ring-primary/20 rounded-tr-sm"
-              : "bg-card text-card-foreground ring-border rounded-tl-sm"
+              ? "bg-primary text-primary-foreground rounded-2xl rounded-tr-sm"
+              : "bg-muted/30 border text-foreground rounded-2xl rounded-tl-sm backdrop-blur-sm"
           )}
         >
-          {/* Markdown Content */}
-          <div className="prose prose-sm dark:prose-invert max-w-none break-words leading-relaxed">
+          <div className={cn(
+              "prose prose-sm max-w-none break-words leading-relaxed",
+              isUser ? "prose-invert" : "dark:prose-invert"
+          )}>
             <ReactMarkdown 
                 remarkPlugins={[remarkGfm]}
                 components={{
-                    pre: ({node, ...props}) => <div className="overflow-auto w-full my-2 bg-muted/50 p-2 rounded-lg" {...props} />,
-                    code: ({node, ...props}) => <code className="bg-muted/50 px-1 py-0.5 rounded text-sm font-mono" {...props} />
+                    pre: ({node, ...props}) => (
+                        <div className="overflow-auto w-full my-2 bg-black/10 dark:bg-black/30 p-2 rounded-lg border border-black/5 dark:border-white/5" {...props} />
+                    ),
+                    code: ({node, ...props}) => (
+                        <code className="bg-black/10 dark:bg-black/30 px-1 py-0.5 rounded text-sm font-mono" {...props} />
+                    ),
+                    a: ({node, ...props}) => (
+                        <a className={cn("underline underline-offset-2 font-medium", isUser ? "text-white" : "text-primary hover:text-primary/80")} {...props} />
+                    )
                 }}
             >
-              {message.content || (hasTools ? "..." : "")}
+              {message.content || (hasTools ? "" : "")}
             </ReactMarkdown>
+            
+            {/* Typing Indicator for AI if no content yet */}
+            {!isUser && !message.content && !hasTools && (
+               <span className="animate-pulse">...</span>
+            )}
           </div>
 
-          {/* Copy Action (Hover) */}
           {!isUser && message.content && (
-            <div className="absolute -bottom-6 right-0 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="absolute -bottom-6 left-0 opacity-0 group-hover:opacity-100 transition-opacity">
                 <Button 
                     variant="ghost" 
                     size="icon" 
@@ -124,6 +145,30 @@ export function MessageItem({ message }: { message: Message }) {
   )
 }
 
+// Graph Components
+function ThinkingNode({ icon: Icon, label, active, completed }: { icon: any, label: string, active: boolean, completed: boolean }) {
+    return (
+        <div className={cn(
+            "flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium transition-all duration-300",
+            completed ? "bg-primary/10 text-primary ring-1 ring-primary/20" :
+            active ? "bg-blue-500/10 text-blue-500 ring-1 ring-blue-500/50 animate-pulse" :
+            "bg-muted text-muted-foreground opacity-50"
+        )}>
+            <Icon className="h-3 w-3" />
+            <span>{label}</span>
+        </div>
+    )
+}
+
+function ThinkingLine({ active }: { active: boolean }) {
+    return (
+        <div className={cn(
+            "h-[1px] w-4 transition-colors duration-300",
+            active ? "bg-primary/50" : "bg-muted"
+        )} />
+    )
+}
+
 function ToolInvocationItem({ tool }: { tool: ToolInvocation }) {
   const getIcon = () => {
     if (tool.toolName.includes('search')) return <Search className="h-3.5 w-3.5" />
@@ -131,46 +176,21 @@ function ToolInvocationItem({ tool }: { tool: ToolInvocation }) {
     return <Terminal className="h-3.5 w-3.5" />
   }
 
-  const isComplete = tool.state === 'completed'
   const isRunning = tool.state === 'running'
 
   return (
-    <div className="flex items-start gap-3 text-sm group">
+    <div className="flex items-center gap-2 text-xs text-muted-foreground animate-in fade-in slide-in-from-left-1">
       <div className={cn(
-          "mt-0.5 flex h-5 w-5 items-center justify-center rounded bg-background border shadow-sm",
+          "flex h-4 w-4 items-center justify-center rounded-sm",
           isRunning ? "text-blue-500" : "text-muted-foreground"
       )}>
          {isRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : getIcon()}
       </div>
-      
-      <div className="flex-1 space-y-1">
-        <div className="flex items-center justify-between">
-            <span className={cn("font-medium text-xs", isRunning ? "text-foreground" : "text-muted-foreground")}>
-                {tool.toolName === 'tavily_search' && 'Searching Web'}
-                {tool.toolName === 'execute_python_code' && 'Executing Python'}
-                {!tool.toolName.includes('search') && !tool.toolName.includes('code') && tool.toolName}
-            </span>
-            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                {tool.state}
-            </span>
-        </div>
-        
-        {/* Tool Arguments (Collapsed preview) */}
-        {tool.args?.query && (
-          <div className="text-xs text-muted-foreground font-mono bg-muted/30 px-2 py-1 rounded w-fit max-w-[200px] truncate">
-            "{tool.args.query}"
-          </div>
-        )}
-        
-        {/* Code Preview (if applicable) */}
-        {tool.toolName.includes('code') && tool.args?.code && (
-           <div className="mt-1">
-              <div className="text-[10px] bg-muted/50 p-2 rounded font-mono overflow-hidden max-h-20 opacity-70 group-hover:opacity-100 transition-opacity">
-                 {tool.args.code.slice(0, 100)}...
-              </div>
-           </div>
-        )}
-      </div>
+      <span className="truncate max-w-[200px]">
+        {tool.toolName === 'tavily_search' && `Searching: ${tool.args?.query || '...'}`}
+        {tool.toolName === 'execute_python_code' && 'Executing Logic...'}
+        {!tool.toolName.includes('search') && !tool.toolName.includes('code') && tool.toolName}
+      </span>
     </div>
   )
 }

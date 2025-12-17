@@ -89,6 +89,7 @@ Event types:
 {
   "type": "interrupt",
   "data": {
+    "thread_id": "thread_123",
     "prompts": [
       {
         "instruction": "Review and edit the report if needed. Return the updated content or approve as-is.",

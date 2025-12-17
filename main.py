@@ -6,6 +6,7 @@ from typing import List, Dict, Any, Optional
 import json
 import logging
 import asyncio
+import uuid
 from datetime import datetime
 
 from config import settings
@@ -227,7 +228,8 @@ async def stream_agent_events(
         # Send initial status
         yield await format_stream_event("status", {
             "text": "Initializing research agent...",
-            "step": "init"
+            "step": "init",
+            "thread_id": thread_id
         })
 
         # Stream graph execution
@@ -267,6 +269,7 @@ async def stream_agent_events(
                     interrupts = output.get("__interrupt__")
                     if interrupts:
                         yield await format_stream_event("interrupt", {
+                            "thread_id": thread_id,
                             "prompts": _serialize_interrupts(interrupts)
                         })
                         return
@@ -377,9 +380,10 @@ async def chat(request: ChatRequest):
         logger.info(f"Processing chat request: {last_message[:100]}... Mode: {mode_info.get('mode')}")
 
         if request.stream:
+            thread_id = f"thread_{uuid.uuid4().hex}"
             # Return streaming response
             return StreamingResponse(
-                stream_agent_events(last_message, model=request.model, search_mode=mode_info),
+                stream_agent_events(last_message, thread_id=thread_id, model=request.model, search_mode=mode_info),
                 media_type="text/event-stream",
                 headers={
                     "Cache-Control": "no-cache",
