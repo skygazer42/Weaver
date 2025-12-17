@@ -44,22 +44,12 @@ export function Header({ sidebarOpen, onToggleSidebar, selectedModel, onModelCha
     { id: 'deepseek-reasoner', name: 'deepseek-reasoner', provider: 'DeepSeek' },
 
     // 通义千问系列
-    { id: 'qwen-max', name: 'Qwen-Max', provider: '通义千问' },
-    { id: 'qwen-plus', name: 'Qwen-Plus', provider: '通义千问' },
-    { id: 'qwen-turbo', name: 'Qwen-Turbo', provider: '通义千问' },
-    { id: 'qwen2.5-72b', name: 'Qwen2.5-72B', provider: '通义千问' },
-    { id: 'qwen-vl-max', name: 'Qwen-VL-Max 🖼️', provider: '通义千问' },
-    { id: 'qwen-vl-plus', name: 'Qwen-VL-Plus 🖼️', provider: '通义千问' },
-    { id: 'qwen-audio', name: 'Qwen-Audio 🎵', provider: '通义千问' },
+    { id: 'qwen-plus', name: 'qwen-plus', provider: '通义千问' },
+    { id: 'qwen3-vl-flash', name: 'qwen3-vl-flash 🖼️', provider: '通义千问' },
 
     // 智谱 GLM 系列
-    { id: 'glm-4-plus', name: 'GLM-4-Plus', provider: '智谱AI' },
-    { id: 'glm-4-0520', name: 'GLM-4-0520', provider: '智谱AI' },
-    { id: 'glm-4-air', name: 'GLM-4-Air', provider: '智谱AI' },
-    { id: 'glm-4-airx', name: 'GLM-4-AirX', provider: '智谱AI' },
-    { id: 'glm-4-flash', name: 'GLM-4-Flash', provider: '智谱AI' },
-    { id: 'glm-4v', name: 'GLM-4V 🖼️', provider: '智谱AI' },
-    { id: 'glm-4v-plus', name: 'GLM-4V-Plus 🖼️', provider: '智谱AI' },
+    { id: 'glm-4.6', name: 'GLM-4.6', provider: '智谱AI' },
+    { id: 'glm-4.6v', name: 'glm-4.6v 🖼️', provider: '智谱AI' },
   ]
 
   const currentModelName = models.find(m => m.id === selectedModel)?.name || selectedModel

@@ -26,14 +26,12 @@ interface ModelProvider {
   id: string
   name: string
   models: { id: string; name: string }[]
-  defaultBaseUrl?: string
 }
 
 const modelProviders: ModelProvider[] = [
   {
     id: 'deepseek',
     name: 'DeepSeek',
-    defaultBaseUrl: 'https://api.deepseek.com',
     models: [
       { id: 'deepseek-chat', name: 'deepseek-chat' },
       { id: 'deepseek-reasoner', name: 'deepseek-reasoner' },
@@ -42,29 +40,17 @@ const modelProviders: ModelProvider[] = [
   {
     id: 'qwen',
     name: '通义千问 (Qwen)',
-    defaultBaseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     models: [
-      { id: 'qwen-max', name: 'Qwen-Max' },
-      { id: 'qwen-plus', name: 'Qwen-Plus' },
-      { id: 'qwen-turbo', name: 'Qwen-Turbo' },
-      { id: 'qwen2.5-72b', name: 'Qwen2.5-72B' },
-      { id: 'qwen-vl-max', name: 'Qwen-VL-Max 🖼️' },
-      { id: 'qwen-vl-plus', name: 'Qwen-VL-Plus 🖼️' },
-      { id: 'qwen-audio', name: 'Qwen-Audio 🎵' },
+      { id: 'qwen-plus', name: 'qwen-plus' },
+      { id: 'qwen3-vl-flash', name: 'qwen3-vl-flash 🖼️' },
     ]
   },
   {
     id: 'zhipu',
     name: '智谱AI (GLM)',
-    defaultBaseUrl: 'https://open.bigmodel.cn/api/paas/v4',
     models: [
-      { id: 'glm-4-plus', name: 'GLM-4-Plus' },
-      { id: 'glm-4-0520', name: 'GLM-4-0520' },
-      { id: 'glm-4-air', name: 'GLM-4-Air' },
-      { id: 'glm-4-airx', name: 'GLM-4-AirX' },
-      { id: 'glm-4-flash', name: 'GLM-4-Flash' },
-      { id: 'glm-4v', name: 'GLM-4V 🖼️' },
-      { id: 'glm-4v-plus', name: 'GLM-4V-Plus 🖼️' },
+      { id: 'glm-4.6', name: 'GLM-4.6' },
+      { id: 'glm-4.6v', name: 'glm-4.6v 🖼️' },
     ]
   }
 ]
@@ -78,19 +64,14 @@ interface ApiKeys {
   [key: string]: string
 }
 
-interface BaseUrls {
-  [key: string]: string
-}
-
 export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChange }: SettingsDialogProps) {
   const { language, setLanguage, t } = useI18n()
   const [tempModel, setTempModel] = useState(selectedModel)
   const [tempLanguage, setTempLanguage] = useState(language)
   const [apiKeys, setApiKeys] = useState<ApiKeys>({})
-  const [baseUrls, setBaseUrls] = useState<BaseUrls>({})
   const [expandedProvider, setExpandedProvider] = useState<string | null>(null)
 
-  // Load API keys and base URLs from localStorage
+  // Load API keys from localStorage
   useEffect(() => {
     const savedKeys = localStorage.getItem('weaver-api-keys')
     if (savedKeys) {
@@ -98,15 +79,6 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
         setApiKeys(JSON.parse(savedKeys))
       } catch (e) {
         console.error('Failed to parse API keys', e)
-      }
-    }
-
-    const savedBaseUrls = localStorage.getItem('weaver-base-urls')
-    if (savedBaseUrls) {
-      try {
-        setBaseUrls(JSON.parse(savedBaseUrls))
-      } catch (e) {
-        console.error('Failed to parse base URLs', e)
       }
     }
   }, [])
@@ -126,39 +98,23 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
     }))
   }
 
-  const handleBaseUrlChange = (provider: string, value: string) => {
-    setBaseUrls(prev => ({
-      ...prev,
-      [provider]: value
-    }))
-  }
-
   const handleSave = () => {
     onModelChange(tempModel)
     setLanguage(tempLanguage as any)
     localStorage.setItem('weaver-api-keys', JSON.stringify(apiKeys))
-    localStorage.setItem('weaver-base-urls', JSON.stringify(baseUrls))
     onOpenChange(false)
   }
 
   const handleCancel = () => {
     setTempModel(selectedModel)
     setTempLanguage(language)
-    // Reload saved API keys and base URLs
+    // Reload saved API keys
     const savedKeys = localStorage.getItem('weaver-api-keys')
     if (savedKeys) {
       try {
         setApiKeys(JSON.parse(savedKeys))
       } catch (e) {
         console.error('Failed to parse API keys', e)
-      }
-    }
-    const savedBaseUrls = localStorage.getItem('weaver-base-urls')
-    if (savedBaseUrls) {
-      try {
-        setBaseUrls(JSON.parse(savedBaseUrls))
-      } catch (e) {
-        console.error('Failed to parse base URLs', e)
       }
     }
     onOpenChange(false)
@@ -263,22 +219,6 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
                   {expandedProvider === provider.id && (
                     <div className="p-3 border-t bg-muted/20 space-y-3">
                       <div>
-                        <Label className="text-xs font-medium mb-1.5 block">{t('baseUrl')}</Label>
-                        <Input
-                          type="text"
-                          placeholder={provider.defaultBaseUrl || t('baseUrlPlaceholder')}
-                          value={baseUrls[provider.id] || ''}
-                          onChange={(e) => handleBaseUrlChange(provider.id, e.target.value)}
-                          className="font-mono text-xs"
-                        />
-                        {provider.defaultBaseUrl && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            默认: {provider.defaultBaseUrl}
-                          </p>
-                        )}
-                      </div>
-
-                      <div>
                         <Label className="text-xs font-medium mb-1.5 block">{t('apiKey')}</Label>
                         <Input
                           type="password"
@@ -287,6 +227,9 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
                           onChange={(e) => handleApiKeyChange(provider.id, e.target.value)}
                           className="font-mono text-sm"
                         />
+                        <p className="text-xs text-muted-foreground mt-1.5">
+                          {t('apiKeyOptional')}
+                        </p>
                       </div>
 
                       <p className="text-xs text-muted-foreground pt-1 border-t">
