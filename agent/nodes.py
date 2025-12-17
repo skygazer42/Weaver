@@ -5,9 +5,10 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.types import Send, interrupt
 from typing import Dict, Any, List, Optional, Tuple
 import json
-import json
 import logging
 from datetime import datetime
+from pydantic import BaseModel, Field
+import time
 
 from .state import AgentState, ResearchPlan, QueryState
 from tools import tavily_search, execute_python_code
@@ -56,6 +57,19 @@ def _chat_model(
         params["extra_body"] = merged_extra
 
     return ChatOpenAI(**params)
+
+
+def _log_usage(response: Any, node: str) -> None:
+    """Best-effort logging of token usage."""
+    if not response:
+        return
+    usage = None
+    if hasattr(response, "usage_metadata"):
+        usage = getattr(response, "usage_metadata", None)
+    if not usage and hasattr(response, "response_metadata"):
+        usage = getattr(response, "response_metadata", None)
+    if usage:
+        logger.info(f"[usage] {node}: {usage}")
 
 
 def _extract_tool_call_fields(tool_call: Any) -> Tuple[Optional[str], Dict[str, Any], Optional[str]]:
@@ -129,12 +143,15 @@ def route_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
 def direct_answer_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     """Direct answer without research."""
     logger.info("Executing direct answer node")
+    t0 = time.time()
     llm = _chat_model(settings.primary_model, temperature=0.7)
     prompt = ChatPromptTemplate.from_messages([
         ("system", "You are a helpful assistant. Answer succinctly and accurately."),
         ("human", "{input}")
     ])
     response = llm.invoke(prompt.format_messages(input=state["input"]), config=config)
+    _log_usage(response, "direct_answer")
+    logger.info(f"[timing] direct_answer {(time.time()-t0):.3f}s")
     content = response.content if hasattr(response, "content") else str(response)
     return {
         "draft_report": content,
@@ -167,45 +184,24 @@ def planner_node(state: AgentState) -> Dict[str, Any]:
 
     # Use reasoning model for planning
     llm = _chat_model(settings.reasoning_model, temperature=1)
+    t0 = time.time()
+
+    class PlanResponse(BaseModel):
+        queries: List[str] = Field(description="3-7 targeted search queries")
+        reasoning: str = Field(description="Brief explanation of the research strategy")
 
     planner_prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are an expert research planner. Your task is to create a detailed research plan.
-
-Given a user query, break it down into 3-7 specific, targeted search queries that will gather comprehensive information.
-
-Rules:
-1. Each query should be focused and specific
-2. Queries should cover different aspects of the topic
-3. Use varied search terms to avoid redundancy
-4. Consider both direct and related information needs
-
-Return ONLY a JSON object with this structure:
-{{
-    "queries": ["query1", "query2", ...],
-    "reasoning": "Brief explanation of the research strategy"
-}}""",), 
+        ("system", "You are an expert research planner. Return JSON with 3-7 targeted search queries and a brief reasoning."),
         ("human", "Create a research plan for: {input}")
     ])
 
     try:
-        response = llm.invoke(planner_prompt.format_messages(input=state["input"]))
-
-        # Parse the response
-        content = response.content
-        if isinstance(content, str):
-            # Extract JSON from response
-            start = content.find("{")
-            end = content.rfind("}") + 1
-            if start >= 0 and end > start:
-                plan_data = json.loads(content[start:end])
-            else:
-                # Fallback: create basic plan
-                plan_data = {
-                    "queries": [state["input"]],
-                    "reasoning": "Direct query"
-                }
-        else:
-            plan_data = {"queries": [state["input"]], "reasoning": "Fallback"}
+        response = llm.with_structured_output(PlanResponse).invoke(
+            planner_prompt.format_messages(input=state["input"])
+        )
+        _log_usage(response, "planner")
+        logger.info(f"[timing] planner {(time.time()-t0):.3f}s")
+        plan_data = response.dict()
 
         raw_queries = plan_data.get("queries", [state["input"]])
         # Normalize, dedupe, and clamp to a manageable set
@@ -257,6 +253,7 @@ def refine_plan_node(state: AgentState) -> Dict[str, Any]:
     existing_plan = state.get("research_plan", []) or []
 
     llm = _chat_model(settings.reasoning_model, temperature=0.8)
+    t0 = time.time()
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", """You are a research strategist. Generate up to 3 follow-up search queries to close the gaps called out in feedback.
@@ -277,6 +274,8 @@ Return ONLY a JSON object:
             feedback=feedback,
             existing="\n".join(existing_plan)
         ))
+        _log_usage(response, "refine_plan")
+        logger.info(f"[timing] refine_plan {(time.time()-t0):.3f}s")
         content = response.content if hasattr(response, "content") else str(response)
         start = content.find("{")
         end = content.rfind("}") + 1
@@ -345,10 +344,8 @@ def writer_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     allow_interrupts = bool(configurable.get("allow_interrupts"))
     require_tool_approval = bool(configurable.get("tool_approval"))
 
-    llm = ChatOpenAI(
-        model=settings.primary_model,
-        temperature=0.7
-    ).bind_tools(_get_writer_tools())
+    llm = _chat_model(settings.primary_model, temperature=0.7).bind_tools(_get_writer_tools())
+    t0 = time.time()
 
     code_results: List[Dict[str, Any]] = []
 
@@ -418,6 +415,8 @@ def writer_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
             fallback_prompt.format_messages(input=state["input"]),
             config=config
         )
+        _log_usage(response, "writer_fallback")
+        logger.info(f"[timing] writer_fallback {(time.time()-t0):.3f}s")
         content = response.content if hasattr(response, "content") else str(response)
         return {
             "draft_report": content,
@@ -456,6 +455,7 @@ Sources:
         
         response = llm.invoke(messages, config=config)
         messages.append(response)
+        _log_usage(response, "writer_pass1")
 
         # Handle tool calls
         if response.tool_calls:
@@ -511,8 +511,10 @@ Sources:
             # Second LLM call to generate final report with tool outputs
             response = llm.invoke(messages, config=config)
             logger.info("Final report generated after tool execution")
+            _log_usage(response, "writer_pass2")
 
         report = response.content
+        logger.info(f"[timing] writer {(time.time()-t0):.3f}s")
 
         logger.info("Report generated successfully")
 
@@ -555,6 +557,12 @@ def evaluator_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     """Evaluate the draft report and decide if revision is needed."""
     logger.info("Executing evaluator node")
     llm = _chat_model(settings.reasoning_model, temperature=0)
+    t0 = time.time()
+
+    class EvalResponse(BaseModel):
+        verdict: str = Field(description='Either "pass" or "revise"')
+        feedback: str = Field(description="Actionable feedback if revision is needed.")
+
     prompt = ChatPromptTemplate.from_messages([
         ("system", """You are a strict report evaluator. Review the report and decide if it should be revised.
 
@@ -567,26 +575,18 @@ Return ONLY JSON in this format:
     ])
 
     report = state.get("draft_report") or state.get("final_report", "")
-    response = llm.invoke(
+    response = llm.with_structured_output(EvalResponse).invoke(
         prompt.format_messages(report=report, question=state["input"]),
         config=config
     )
-    content = response.content if hasattr(response, "content") else str(response)
-
-    verdict = "pass"
-    feedback = ""
-    if isinstance(content, str):
-        start = content.find("{")
-        end = content.rfind("}") + 1
-        if start >= 0 and end > start:
-            try:
-                data = json.loads(content[start:end])
-                verdict = data.get("verdict", verdict)
-                feedback = data.get("feedback", feedback)
-            except json.JSONDecodeError:
-                pass
-        if "revise" in content.lower():
-            verdict = "revise"
+    _log_usage(response, "evaluator")
+    logger.info(f"[timing] evaluator {(time.time()-t0):.3f}s")
+    verdict = response.verdict.lower() if getattr(response, "verdict", None) else "pass"
+    feedback = response.feedback if getattr(response, "feedback", None) else ""
+    if "revise" in verdict:
+        verdict = "revise"
+    elif verdict != "pass":
+        verdict = "pass"
 
     logger.info(f"Evaluator verdict: {verdict}")
     return {"evaluation": feedback, "verdict": verdict}
