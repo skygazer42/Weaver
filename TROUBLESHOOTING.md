@@ -283,8 +283,19 @@ docker exec -it manus_postgres psql -U manus -d manus_db
 
 # If you still see psycopg2 errors, uninstall the old driver and install the new one
 pip uninstall -y psycopg2-binary psycopg2
-pip install \"psycopg[binary]\"
+pip install "psycopg[binary]"
 ```
+
+## Interrupts / Human-in-the-loop
+
+**Problem**: Interrupts never resume or return errors.
+
+**Cause**: Interrupts require a checkpointer (PostgreSQL) and a stable `thread_id`.
+
+**Solution**:
+1. Ensure `DATABASE_URL` is set and Postgres is running.
+2. Use the same `thread_id` when calling `/api/interrupt/resume`.
+3. If you don’t need HITL, disable it via `HUMAN_REVIEW=false`.
 
 ### "relation does not exist"
 

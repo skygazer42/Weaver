@@ -9,7 +9,10 @@ import asyncio
 from datetime import datetime
 
 from config import settings
+from langgraph.types import Command
 from agent import create_research_graph, create_checkpointer, AgentState
+from tools.mcp import init_mcp_tools, close_mcp_tools
+from tools.registry import set_registered_tools
 
 # Configure logging
 logging.basicConfig(
@@ -39,17 +42,42 @@ checkpointer = create_checkpointer(settings.database_url) if settings.database_u
 research_graph = create_research_graph(checkpointer=checkpointer)
 
 
+@app.on_event("startup")
+async def startup_event():
+    try:
+        mcp_tools = await init_mcp_tools()
+        if mcp_tools:
+            set_registered_tools(mcp_tools)
+            logger.info(f"Registered {len(mcp_tools)} MCP tools")
+    except Exception as e:
+        logger.warning(f"MCP tools startup failed: {e}")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    try:
+        await close_mcp_tools()
+    except Exception:
+        pass
+
+
 # Request/Response models
 class Message(BaseModel):
     role: str
     content: str
 
 
+class SearchMode(BaseModel):
+    useWebSearch: bool = False
+    useAgent: bool = False
+    useDeepSearch: bool = False
+
+
 class ChatRequest(BaseModel):
     messages: List[Message]
     stream: bool = True
     model: Optional[str] = "gpt-4o"
-    search_mode: Optional[str] = "agent"  # web, agent, deep
+    search_mode: Optional[SearchMode | Dict[str, Any] | str] = None  # {"useWebSearch": bool, "useAgent": bool, "useDeepSearch": bool}
 
 
 class ChatResponse(BaseModel):
@@ -57,6 +85,27 @@ class ChatResponse(BaseModel):
     content: str
     role: str = "assistant"
     timestamp: str
+
+
+class ResumeRequest(BaseModel):
+    thread_id: str
+    payload: Any
+    model: Optional[str] = "gpt-4o"
+    search_mode: Optional[SearchMode | Dict[str, Any] | str] = None
+
+
+def _serialize_interrupts(interrupts: Any) -> List[Any]:
+    if not interrupts:
+        return []
+    result: List[Any] = []
+    for item in interrupts:
+        if hasattr(item, "value"):
+            result.append(item.value)
+        elif isinstance(item, dict):
+            result.append(item)
+        else:
+            result.append(str(item))
+    return result
 
 
 @app.get("/")
@@ -92,7 +141,49 @@ async def format_stream_event(event_type: str, data: Any) -> str:
     return f"0:{json.dumps(payload)}\n"
 
 
-async def stream_agent_events(input_text: str, thread_id: str = "default", model: str = "gpt-4o", search_mode: str = "agent"):
+def _normalize_search_mode(search_mode: SearchMode | Dict[str, Any] | str | None) -> Dict[str, Any]:
+    if isinstance(search_mode, SearchMode):
+        use_web = search_mode.useWebSearch
+        use_agent = search_mode.useAgent
+        use_deep = search_mode.useDeepSearch
+    elif isinstance(search_mode, dict):
+        use_web = bool(search_mode.get("useWebSearch"))
+        use_agent = bool(search_mode.get("useAgent"))
+        use_deep = bool(search_mode.get("useDeepSearch"))
+    elif isinstance(search_mode, str):
+        lowered = search_mode.lower()
+        use_web = lowered in {"web", "search", "tavily"}
+        use_agent = lowered in {"agent", "deep"}
+        use_deep = lowered == "deep"
+    else:
+        use_web = False
+        use_agent = False
+        use_deep = False
+
+    if use_deep and not use_agent:
+        use_deep = False
+
+    if use_agent:
+        mode = "deep" if use_deep else "agent"
+    elif use_web:
+        mode = "web"
+    else:
+        mode = "direct"
+
+    return {
+        "use_web": use_web,
+        "use_agent": use_agent,
+        "use_deep": use_deep,
+        "mode": mode,
+    }
+
+
+async def stream_agent_events(
+    input_text: str,
+    thread_id: str = "default",
+    model: str = "gpt-4o",
+    search_mode: Dict[str, Any] | None = None
+):
     """
     Stream agent execution events in real-time.
 
@@ -108,15 +199,27 @@ async def stream_agent_events(input_text: str, thread_id: str = "default", model
             "scraped_content": [],
             "code_results": [],
             "final_report": "",
+            "draft_report": "",
+            "evaluation": "",
+            "verdict": "",
+            "route": "",
+            "revision_count": 0,
+            "max_revisions": settings.max_revisions,
             "is_complete": False,
             "errors": []
         }
+
+        mode_info = _normalize_search_mode(search_mode)
 
         config = {
             "configurable": {
                 "thread_id": thread_id,
                 "model": model,
-                "search_mode": search_mode
+                "search_mode": mode_info,
+                "allow_interrupts": bool(checkpointer),
+                "tool_approval": settings.tool_approval or False,
+                "human_review": settings.human_review or False,
+                "max_revisions": settings.max_revisions
             },
             "recursion_limit": 50
         }
@@ -160,6 +263,14 @@ async def stream_agent_events(input_text: str, thread_id: str = "default", model
 
                 # Extract messages from output
                 if isinstance(output, dict):
+                    # Interrupt handling
+                    interrupts = output.get("__interrupt__")
+                    if interrupts:
+                        yield await format_stream_event("interrupt", {
+                            "prompts": _serialize_interrupts(interrupts)
+                        })
+                        return
+
                     messages = output.get("messages", [])
                     if messages:
                         for msg in messages:
@@ -262,12 +373,13 @@ async def chat(request: ChatRequest):
 
         last_message = user_messages[-1].content
 
-        logger.info(f"Processing chat request: {last_message[:100]}... Mode: {request.search_mode}")
+        mode_info = _normalize_search_mode(request.search_mode)
+        logger.info(f"Processing chat request: {last_message[:100]}... Mode: {mode_info.get('mode')}")
 
         if request.stream:
             # Return streaming response
             return StreamingResponse(
-                stream_agent_events(last_message, model=request.model, search_mode=request.search_mode),
+                stream_agent_events(last_message, model=request.model, search_mode=mode_info),
                 media_type="text/event-stream",
                 headers={
                     "Cache-Control": "no-cache",
@@ -285,11 +397,29 @@ async def chat(request: ChatRequest):
                 "scraped_content": [],
                 "code_results": [],
                 "final_report": "",
+                "draft_report": "",
+                "evaluation": "",
+                "verdict": "",
+                "route": mode_info.get("mode", "direct"),
+                "revision_count": 0,
+                "max_revisions": settings.max_revisions,
                 "is_complete": False,
                 "errors": []
             }
 
-            result = await research_graph.ainvoke(initial_state)
+            config = {
+                "configurable": {
+                    "thread_id": "default",
+                    "model": request.model,
+                    "search_mode": mode_info,
+                    "allow_interrupts": bool(checkpointer),
+                    "tool_approval": settings.tool_approval or False,
+                    "human_review": settings.human_review or False,
+                    "max_revisions": settings.max_revisions,
+                },
+                "recursion_limit": 50,
+            }
+            result = await research_graph.ainvoke(initial_state, config=config)
             final_report = result.get("final_report", "No response generated")
 
             return ChatResponse(
@@ -301,6 +431,41 @@ async def chat(request: ChatRequest):
     except Exception as e:
         logger.error(f"Chat error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/interrupt/resume")
+async def resume_interrupt(request: ResumeRequest):
+    """
+    Resume a LangGraph execution after an interrupt.
+    """
+    if not checkpointer:
+        raise HTTPException(status_code=400, detail="Interrupts require a checkpointer")
+
+    mode_info = _normalize_search_mode(request.search_mode)
+    config = {
+        "configurable": {
+            "thread_id": request.thread_id,
+            "model": request.model,
+            "search_mode": mode_info,
+            "allow_interrupts": True,
+            "tool_approval": settings.tool_approval or False,
+            "human_review": settings.human_review or False,
+            "max_revisions": settings.max_revisions,
+        },
+        "recursion_limit": 50,
+    }
+
+    result = await research_graph.ainvoke(Command(resume=request.payload), config=config)
+    interrupts = _serialize_interrupts(result.get("__interrupt__"))
+    if interrupts:
+        return {"status": "interrupted", "interrupts": interrupts}
+
+    final_report = result.get("final_report", "")
+    return ChatResponse(
+        id=f"msg_{datetime.now().timestamp()}",
+        content=final_report,
+        timestamp=datetime.now().isoformat()
+    )
 
 
 @app.post("/api/research")

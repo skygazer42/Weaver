@@ -10,6 +10,11 @@ class Settings(BaseSettings):
     tavily_api_key: str = ""
     e2b_api_key: str = ""
     anthropic_api_key: str = ""
+    enable_mcp: bool = False
+    mcp_servers: str = ""  # JSON mapping for MultiServerMCPClient
+    human_review: bool = False  # require manual approval before final report
+    tool_approval: bool = False  # require approval before executing tools
+    max_revisions: int = 2
 
     # Database
     database_url: str

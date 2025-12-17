@@ -35,21 +35,21 @@ export function EmptyState({ selectedMode, onModeSelect }: EmptyStateProps) {
   ]
 
   return (
-    <div className="flex flex-col items-center justify-center h-full w-full max-w-4xl mx-auto p-6 animate-in fade-in zoom-in-95 duration-500">
+    <div className="flex flex-col items-center justify-center h-full w-full max-w-4xl mx-auto p-6 pt-32 animate-in fade-in zoom-in-95 duration-500">
       
       {/* Hero Section */}
       <div className="flex flex-col items-center space-y-6 mb-12 text-center">
         <div className="relative group cursor-default">
             <div className="absolute inset-0 bg-primary/20 rounded-3xl blur-xl group-hover:blur-2xl transition-all duration-500 opacity-50" />
             <div className="relative h-24 w-24 bg-gradient-to-br from-primary to-primary/80 text-primary-foreground rounded-3xl flex items-center justify-center text-5xl font-bold shadow-xl shadow-primary/20 ring-1 ring-white/20">
-              M
+              W
             </div>
             {/* Orbiting effect (CSS only via tailwind arbitrary values if complex, keeping simple here) */}
         </div>
         
         <div className="space-y-2 max-w-lg">
             <h2 className="text-3xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-foreground to-foreground/70">
-                Manus AI
+                Weaver AI
             </h2>
             <p className="text-muted-foreground text-lg">
                 Your deep research companion. <br className="hidden sm:block"/>

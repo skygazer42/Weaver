@@ -31,6 +31,22 @@ class AgentState(TypedDict):
     # Final report/answer
     final_report: str
 
+    # Draft report for evaluator/optimizer loop
+    draft_report: str
+
+    # Evaluation feedback for optimizer
+    evaluation: str
+
+    # Evaluator verdict ("pass" / "revise")
+    verdict: str
+
+    # Routing decision
+    route: str
+
+    # Revision control
+    revision_count: int
+    max_revisions: int
+
     # Completion flag
     is_complete: bool
 

@@ -3,14 +3,17 @@
 import React from 'react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { Plus, Settings, User, Compass, History, LayoutGrid, Zap, FolderOpen, MoreHorizontal } from 'lucide-react'
+import { Plus, Settings, User, Compass, History, LayoutGrid, Zap, FolderOpen, MoreHorizontal, MessageSquare } from 'lucide-react'
 
 interface SidebarProps {
   isOpen: boolean
   onToggle: () => void
+  onNewChat: () => void
+  history: Array<{ id: string, title: string, date: string }>
+  isLoading?: boolean
 }
 
-export function Sidebar({ isOpen, onToggle }: SidebarProps) {
+export function Sidebar({ isOpen, onToggle, onNewChat, history, isLoading = false }: SidebarProps) {
   return (
     <>
       {/* Mobile Overlay */}
@@ -39,7 +42,7 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
                     !isOpen && "px-2"
                 )}
                 variant="outline"
-                onClick={() => window.location.reload()}
+                onClick={onNewChat}
              >
                 <Plus className="h-4 w-4" />
                 <span className={cn("truncate", !isOpen && "md:hidden")}>New Investigation</span>
@@ -64,9 +67,26 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
               <div className="px-3 text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-widest mb-1">
                 Recent Reports
               </div>
-              <SidebarItem icon={History} label="AI Trends 2024" />
-              <SidebarItem icon={History} label="Market Analysis" />
-              <SidebarItem icon={History} label="Python Visualization" />
+              
+              {isLoading ? (
+                  <div className="space-y-2 px-1">
+                      {[1,2,3].map(i => (
+                          <div key={i} className="h-8 w-full rounded-md bg-muted/40 animate-pulse" />
+                      ))}
+                  </div>
+              ) : history.length === 0 ? (
+                  <div className="px-3 text-xs text-muted-foreground italic py-2">No recent chats</div>
+              ) : (
+                  history.map((item) => (
+                    <button 
+                        key={item.id}
+                        className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm transition-all duration-200 text-muted-foreground hover:bg-muted/60 hover:text-foreground group text-left"
+                    >
+                        <MessageSquare className="h-4 w-4 shrink-0 transition-colors group-hover:text-primary" />
+                        <span className="truncate">{item.title}</span>
+                    </button>
+                  ))
+              )}
             </div>
           </div>
 

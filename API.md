@@ -38,7 +38,12 @@ Main chat endpoint with streaming support. Compatible with Vercel AI SDK.
       "content": "What are the latest trends in AI?"
     }
   ],
-  "stream": true
+  "stream": true,
+  "search_mode": {
+    "useWebSearch": true,
+    "useAgent": true,
+    "useDeepSearch": false
+  }
 }
 ```
 
@@ -75,6 +80,21 @@ Event types:
   "type": "message",
   "data": {
     "content": "Research Plan:\n1. Search for...\n2. Analyze..."
+  }
+}
+```
+
+4. **Interrupt Event** (requires resume):
+```json
+{
+  "type": "interrupt",
+  "data": {
+    "prompts": [
+      {
+        "instruction": "Review and edit the report if needed. Return the updated content or approve as-is.",
+        "content": "Draft report text..."
+      }
+    ]
   }
 }
 ```
@@ -121,7 +141,33 @@ Event types:
 }
 ```
 
-### 3. Chat (Non-Streaming)
+### 3. Interrupt Resume
+
+**POST** `/api/interrupt/resume`
+
+Resume a workflow after an interrupt (human review or tool approval).
+
+**Request**:
+```json
+{
+  "thread_id": "review-42",
+  "payload": {
+    "content": "Edited report content..."
+  }
+}
+```
+
+**Response**:
+```json
+{
+  "id": "msg_1705315800.123",
+  "content": "Final report content...",
+  "role": "assistant",
+  "timestamp": "2024-01-15T10:30:00"
+}
+```
+
+### 4. Chat (Non-Streaming)
 
 **POST** `/api/chat`
 
@@ -150,7 +196,7 @@ Same endpoint as above, but with `stream: false`.
 }
 ```
 
-### 4. Research (Dedicated)
+### 5. Research (Dedicated)
 
 **POST** `/api/research?query={query}`
 

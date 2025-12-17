@@ -58,7 +58,7 @@ export function MessageItem({ message }: { message: Message }) {
                 {isUser ? 'You' : <Bot className="h-5 w-5" />}
             </div>
             <span className="text-xs text-muted-foreground font-medium">
-                {isUser ? 'User' : 'Manus'}
+                {isUser ? 'User' : 'Weaver'}
             </span>
         </div>
 

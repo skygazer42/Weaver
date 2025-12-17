@@ -56,9 +56,9 @@ export function Header({ sidebarOpen, onToggleSidebar, selectedModel, onModelCha
         
         <div className="flex items-center gap-2 select-none group cursor-default">
           <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/20 text-primary-foreground text-sm font-bold transition-transform group-hover:scale-105">
-            M
+            W
           </div>
-          <span className="font-bold text-lg tracking-tight">Manus</span>
+          <span className="font-bold text-lg tracking-tight">Weaver</span>
         </div>
       </div>
 

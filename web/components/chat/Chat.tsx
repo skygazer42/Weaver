@@ -17,25 +17,63 @@ interface Message {
   toolInvocations?: any[]
 }
 
+interface ChatSession {
+    id: string
+    title: string
+    date: string
+}
+
 export function Chat() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [currentStatus, setCurrentStatus] = useState<string>('')
   const [artifacts, setArtifacts] = useState<Artifact[]>([])
+  const [history, setHistory] = useState<ChatSession[]>([])
+  const [isHistoryLoading, setIsHistoryLoading] = useState(true)
   
   // UI State
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [selectedModel, setSelectedModel] = useState('gpt-4o')
-  const [searchMode, setSearchMode] = useState('agent') // 'web', 'agent', 'deep'
+  const [searchMode, setSearchMode] = useState('agent') 
   
   const scrollRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
 
-  // Auto-scroll to bottom
+  // Load History from LocalStorage
+  useEffect(() => {
+      const savedHistory = localStorage.getItem('weaver-history')
+      if (savedHistory) {
+          try {
+              setHistory(JSON.parse(savedHistory))
+          } catch (e) {
+              console.error('Failed to parse history', e)
+          }
+      } else {
+          // Default data for demo
+          setHistory([
+             { id: '1', title: 'Market Analysis 2024', date: 'Today' },
+             { id: '2', title: 'Python Viz Script', date: 'Yesterday' }
+          ])
+      }
+      setIsHistoryLoading(false)
+  }, [])
+
+  // Save History to LocalStorage
+  useEffect(() => {
+      if (!isHistoryLoading) {
+        localStorage.setItem('weaver-history', JSON.stringify(history))
+      }
+  }, [history, isHistoryLoading])
+
+  // Auto-scroll
   useEffect(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollTop
+        setTimeout(() => {
+            if (scrollRef.current) {
+                 scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+            }
+        }, 100)
     }
   }, [messages, currentStatus])
 
@@ -46,6 +84,30 @@ export function Chat() {
       setIsLoading(false)
       setCurrentStatus('Stopped by user')
     }
+  }
+
+  const handleNewChat = () => {
+      // If current chat has messages, save it to history
+      if (messages.length > 0) {
+          const firstUserMsg = messages.find(m => m.role === 'user')
+          const title = firstUserMsg ? firstUserMsg.content.slice(0, 30) : 'New Conversation'
+          
+          const newSession: ChatSession = {
+              id: Date.now().toString(),
+              title: title,
+              date: 'Just now'
+          }
+          setHistory(prev => [newSession, ...prev])
+      }
+      
+      // Reset state
+      setMessages([])
+      setArtifacts([])
+      setCurrentStatus('')
+      setInput('')
+      if (abortControllerRef.current) {
+          abortControllerRef.current.abort()
+      }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -192,11 +254,14 @@ export function Chat() {
   }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
+    <div className="flex h-screen w-full overflow-hidden bg-background text-foreground font-sans selection:bg-primary/20">
       {/* Sidebar */}
       <Sidebar 
         isOpen={sidebarOpen} 
-        onToggle={() => setSidebarOpen(!sidebarOpen)} 
+        onToggle={() => setSidebarOpen(!sidebarOpen)}
+        onNewChat={handleNewChat}
+        history={history}
+        isLoading={isHistoryLoading}
       />
 
       {/* Main Content */}
@@ -212,14 +277,14 @@ export function Chat() {
         {/* Chat Area */}
         <ScrollArea className="flex-1 p-0 sm:p-4" ref={scrollRef}>
           {messages.length === 0 ? (
-            <div className="h-full flex items-center justify-center p-4">
+            <div className="h-full w-full p-4">
                <EmptyState 
                   selectedMode={searchMode}
                   onModeSelect={setSearchMode}
                />
             </div>
           ) : (
-            <div className="max-w-3xl mx-auto space-y-6 pb-4 px-4 sm:px-0 pt-4">
+            <div className="max-w-3xl mx-auto space-y-8 pb-8 px-4 sm:px-0 pt-6">
               {messages.map((message) => (
                 <MessageItem key={message.id} message={message} />
               ))}
@@ -228,7 +293,7 @@ export function Chat() {
               {currentStatus && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground p-2 animate-in fade-in slide-in-from-bottom-2">
                   <Loader2 className="h-3 w-3 animate-spin text-primary" />
-                  <span className="font-medium">{currentStatus}</span>
+                  <span className="font-medium animate-pulse">{currentStatus}</span>
                 </div>
               )}
             </div>
@@ -249,7 +314,7 @@ export function Chat() {
 
       {/* Artifacts Panel */}
       {artifacts.length > 0 && (
-        <div className="w-[400px] border-l hidden xl:block bg-card animate-in slide-in-from-right duration-300">
+        <div className="w-[400px] border-l hidden xl:flex flex-col bg-card animate-in slide-in-from-right duration-500 shadow-2xl z-20">
           <ArtifactsPanel artifacts={artifacts} />
         </div>
       )}

@@ -8,6 +8,7 @@ A full-stack application with Deep Search, Code Execution, and Generative UI cap
 - **Backend**: Python 3.11+ + FastAPI + LangGraph + LangChain
 - **Database**: PostgreSQL with pgvector
 - **Tools**: Tavily (Search) + E2B (Code Execution)
+- **New (LangGraph 1.x)**: routeable workflows (direct / web / agent / deep), evaluator-optimizer loop, optional human-in-the-loop interrupts, MCP tool bridge.
 
 ## Project Structure
 

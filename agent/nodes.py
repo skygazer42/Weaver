@@ -2,7 +2,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableConfig
-from langgraph.types import Send
+from langgraph.types import Send, interrupt
 from typing import Dict, Any, List, Optional, Tuple
 import json
 import logging
@@ -10,6 +10,7 @@ from datetime import datetime
 
 from .state import AgentState, ResearchPlan, QueryState
 from tools import tavily_search, execute_python_code
+from tools.registry import get_registered_tools
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,12 @@ def _extract_tool_call_fields(tool_call: Any) -> Tuple[Optional[str], Dict[str, 
     return name, raw_args, tool_call_id
 
 
+def _get_writer_tools() -> List[Any]:
+    tools: List[Any] = [execute_python_code]
+    tools.extend(get_registered_tools())
+    return tools
+
+
 def perform_parallel_search(state: QueryState, config: RunnableConfig) -> Dict[str, Any]:
     """
     Executes a single search query in parallel.
@@ -65,6 +72,38 @@ def perform_parallel_search(state: QueryState, config: RunnableConfig) -> Dict[s
         logger.error(f"Parallel search error for {query}: {str(e)}")
         # Return empty result to avoid failing the whole graph
         return {"scraped_content": []}
+
+
+def route_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
+    """Route execution based on search mode configuration."""
+    configurable = config.get("configurable", {}) if isinstance(config, dict) else {}
+    mode_info = configurable.get("search_mode", {}) or {}
+    route = mode_info.get("mode", "direct")
+    max_revisions = configurable.get("max_revisions", state.get("max_revisions", 0))
+    logger.info(f"Routing mode: {route}")
+    return {"route": route, "max_revisions": max_revisions}
+
+
+def direct_answer_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
+    """Direct answer without research."""
+    logger.info("Executing direct answer node")
+    llm = ChatOpenAI(
+        model=settings.primary_model,
+        temperature=0.7,
+        api_key=settings.openai_api_key
+    )
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", "You are a helpful assistant. Answer succinctly and accurately."),
+        ("human", "{input}")
+    ])
+    response = llm.invoke(prompt.format_messages(input=state["input"]), config=config)
+    content = response.content if hasattr(response, "content") else str(response)
+    return {
+        "draft_report": content,
+        "final_report": content,
+        "messages": [AIMessage(content=content)],
+        "is_complete": False
+    }
 
 
 def initiate_research(state: AgentState) -> List[Send]:
@@ -157,6 +196,16 @@ Return ONLY a JSON object with this structure:
         }
 
 
+def web_search_plan_node(state: AgentState) -> Dict[str, Any]:
+    """Simple plan for web search only mode."""
+    logger.info("Executing web search plan node")
+    return {
+        "research_plan": [state["input"]],
+        "current_step": 0,
+        "messages": [AIMessage(content=f"Web search plan: direct search for '{state['input']}'")]
+    }
+
+
 def writer_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     """
     Writer node: Synthesizes research into a comprehensive report.
@@ -166,11 +215,15 @@ def writer_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     """
     logger.info("Executing writer node")
 
+    configurable = config.get("configurable", {}) if isinstance(config, dict) else {}
+    allow_interrupts = bool(configurable.get("allow_interrupts"))
+    require_tool_approval = bool(configurable.get("tool_approval"))
+
     llm = ChatOpenAI(
         model=settings.primary_model,
         temperature=0.7,
         api_key=settings.openai_api_key
-    ).bind_tools([execute_python_code])
+    ).bind_tools(_get_writer_tools())
 
     code_results: List[Dict[str, Any]] = []
 
@@ -218,8 +271,26 @@ Research Context:
                 tool_name, tool_args, tool_call_id = _extract_tool_call_fields(tool_call)
 
                 if tool_name == "execute_python_code":
-                    logger.info("Executing Python code for visualization...")
-                    
+                    logger.info("Preparing to execute Python code for visualization...")
+
+                    # Optional approval interrupt
+                    if require_tool_approval and allow_interrupts:
+                        approval = interrupt({
+                            "action": "execute_python_code",
+                            "code": tool_args.get("code", ""),
+                            "message": "Approve or edit code before execution."
+                        })
+                        # approval could be boolean or edited payload
+                        if isinstance(approval, dict):
+                            if approval.get("reject"):
+                                logger.info("Code execution rejected by reviewer.")
+                                continue
+                            if "code" in approval:
+                                tool_args["code"] = approval["code"]
+                        elif approval is False:
+                            logger.info("Code execution rejected (boolean).")
+                            continue
+
                     # Execute code with config to trigger events
                     tool_result = execute_python_code.invoke(tool_args, config=config)
                     
@@ -252,8 +323,9 @@ Research Context:
         logger.info("Report generated successfully")
 
         return {
+            "draft_report": report,
             "final_report": report,
-            "is_complete": True,
+            "is_complete": False,  # further steps may follow (evaluator/human review)
             "messages": [AIMessage(content=report)],
             "code_results": code_results
         }
@@ -283,3 +355,114 @@ def should_continue_research(state: AgentState) -> str:
         return "continue"
     else:
         return "write"
+
+
+def evaluator_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
+    """Evaluate the draft report and decide if revision is needed."""
+    logger.info("Executing evaluator node")
+    llm = ChatOpenAI(
+        model=settings.reasoning_model,
+        temperature=0,
+        api_key=settings.openai_api_key
+    )
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", """You are a strict report evaluator. Review the report and decide if it should be revised.
+
+Return ONLY JSON in this format:
+{
+  "verdict": "pass" | "revise",
+  "feedback": "Actionable feedback if revision is needed."
+}"""),
+        ("human", "Report:\n{report}\n\nQuestion:\n{question}")
+    ])
+
+    report = state.get("draft_report") or state.get("final_report", "")
+    response = llm.invoke(
+        prompt.format_messages(report=report, question=state["input"]),
+        config=config
+    )
+    content = response.content if hasattr(response, "content") else str(response)
+
+    verdict = "pass"
+    feedback = ""
+    if isinstance(content, str):
+        start = content.find("{")
+        end = content.rfind("}") + 1
+        if start >= 0 and end > start:
+            try:
+                data = json.loads(content[start:end])
+                verdict = data.get("verdict", verdict)
+                feedback = data.get("feedback", feedback)
+            except json.JSONDecodeError:
+                pass
+        if "revise" in content.lower():
+            verdict = "revise"
+
+    logger.info(f"Evaluator verdict: {verdict}")
+    return {"evaluation": feedback, "verdict": verdict}
+
+
+def revise_report_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
+    """Revise the report based on evaluator feedback."""
+    logger.info("Executing revise report node")
+    llm = ChatOpenAI(
+        model=settings.primary_model,
+        temperature=0.5,
+        api_key=settings.openai_api_key
+    )
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", """You are a helpful editor. Revise the report using the feedback.
+Keep the structure clear and improve factual accuracy and clarity."""),
+        ("human", "Question:\n{question}\n\nFeedback:\n{feedback}\n\nCurrent report:\n{report}")
+    ])
+
+    report = state.get("draft_report") or state.get("final_report", "")
+    feedback = state.get("evaluation", "")
+    response = llm.invoke(
+        prompt.format_messages(question=state["input"], feedback=feedback, report=report),
+        config=config
+    )
+    content = response.content if hasattr(response, "content") else str(response)
+
+    revision_count = int(state.get("revision_count", 0)) + 1
+    return {
+        "draft_report": content,
+        "final_report": content,
+        "revision_count": revision_count,
+        "messages": [AIMessage(content=content)],
+        "is_complete": False
+    }
+
+
+def human_review_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
+    """Optional human review step using LangGraph interrupt."""
+    logger.info("Executing human review node")
+    configurable = config.get("configurable", {}) if isinstance(config, dict) else {}
+    allow_interrupts = bool(configurable.get("allow_interrupts"))
+    require_review = bool(configurable.get("human_review"))
+
+    report = state.get("final_report") or state.get("draft_report", "")
+
+    if not (allow_interrupts and require_review):
+        return {
+            "final_report": report,
+            "is_complete": True,
+            "messages": [AIMessage(content=report)]
+        }
+
+    updated = interrupt({
+        "instruction": "Review and edit the report if needed. Return the updated content or approve as-is.",
+        "content": report,
+    })
+
+    if isinstance(updated, dict):
+        if updated.get("content"):
+            report = updated["content"]
+    elif isinstance(updated, str) and updated.strip():
+        report = updated
+
+    return {
+        "final_report": report,
+        "is_complete": True,
+        "messages": [AIMessage(content=report)]
+    }
