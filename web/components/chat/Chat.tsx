@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useRef, useEffect, useState } from 'react'
+import { Virtuoso, VirtuosoHandle } from 'react-virtuoso'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { MessageItem } from './MessageItem'
 import { ArtifactsPanel, Artifact } from './ArtifactsPanel'
@@ -43,6 +44,7 @@ export function Chat() {
   const [showMobileArtifacts, setShowMobileArtifacts] = useState(false)
   
   const scrollRef = useRef<HTMLDivElement>(null)
+  const virtuosoRef = useRef<VirtuosoHandle>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
 
   // Load History and Model from LocalStorage
@@ -83,26 +85,13 @@ export function Chat() {
   }, [selectedModel])
 
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
-      if (scrollRef.current) {
-          const viewport = scrollRef.current.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement
-          if (viewport) {
-               viewport.scrollTo({ top: viewport.scrollHeight, behavior })
-          }
-      }
-  }
-
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-      const target = e.currentTarget
-      const diff = target.scrollHeight - target.scrollTop - target.clientHeight
-      setShowScrollButton(diff > 200) // Show if more than 200px from bottom
+      virtuosoRef.current?.scrollToIndex({ index: messages.length - 1, behavior })
   }
 
   // Auto-scroll
   useEffect(() => {
-    setTimeout(() => {
-        scrollToBottom('instant')
-    }, 100)
-  }, [messages, currentStatus])
+    // Virtuoso handles followOutput, but sometimes we want to force it
+  }, [messages])
 
   const handleStop = () => {
     if (abortControllerRef.current) {
@@ -137,22 +126,8 @@ export function Chat() {
       }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!input.trim() || isLoading) return
-
-    const userMessage: Message = {
-      id: `user-${Date.now()}`,
-      role: 'user',
-      content: input.trim(),
-    }
-
-    setMessages((prev) => [...prev, userMessage])
-    setInput('')
-    setAttachments([])
+  const processChat = async (messageHistory: Message[]) => {
     setIsLoading(true)
-
-    // Create new abort controller
     abortControllerRef.current = new AbortController()
 
     try {
@@ -164,7 +139,7 @@ export function Chat() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            messages: [{ role: 'user', content: userMessage.content }],
+            messages: messageHistory.map(m => ({ role: m.role, content: m.content })),
             stream: true,
             model: selectedModel,
             search_mode: searchMode
@@ -281,6 +256,42 @@ export function Chat() {
     }
   }
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!input.trim() || isLoading) return
+
+    const userMessage: Message = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      content: input.trim(),
+    }
+
+    const newHistory = [...messages, userMessage]
+    setMessages(newHistory)
+    setInput('')
+    setAttachments([])
+    
+    await processChat(newHistory)
+  }
+
+  const handleEditMessage = async (id: string, newContent: string) => {
+      const index = messages.findIndex(m => m.id === id)
+      if (index === -1) return
+
+      const previousMessages = messages.slice(0, index)
+      const updatedMessage: Message = {
+          ...messages[index],
+          content: newContent
+      }
+      
+      const newHistory = [...previousMessages, updatedMessage]
+      setMessages(newHistory)
+      
+      if (updatedMessage.role === 'user') {
+          await processChat(newHistory)
+      }
+  }
+
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background text-foreground font-sans selection:bg-primary/20">
       {/* Sidebar */}
@@ -305,34 +316,42 @@ export function Chat() {
         />
 
         {/* Chat Area */}
-        <ScrollArea 
-            className="flex-1 p-0 sm:p-4" 
-            ref={scrollRef}
-            onViewportScroll={handleScroll}
-        >
+        <div className="flex-1 flex flex-col min-h-0">
           {messages.length === 0 ? (
-            <div className="h-full w-full p-4">
+            <div className="h-full w-full p-4 overflow-y-auto">
                <EmptyState 
                   selectedMode={searchMode}
                   onModeSelect={setSearchMode}
                />
             </div>
           ) : (
-            <div className="max-w-3xl mx-auto space-y-8 pb-8 px-4 sm:px-0 pt-6">
-              {messages.map((message) => (
-                <MessageItem key={message.id} message={message} />
-              ))}
-              
-              {/* Status indicator inline */}
-              {currentStatus && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground p-2 animate-in fade-in slide-in-from-bottom-2">
-                  <Loader2 className="h-3 w-3 animate-spin text-primary" />
-                  <span className="font-medium animate-pulse">{currentStatus}</span>
-                </div>
-              )}
-            </div>
+            <Virtuoso
+                ref={virtuosoRef}
+                data={messages}
+                followOutput="auto"
+                atBottomStateChange={(atBottom) => setShowScrollButton(!atBottom)}
+                className="scrollbar-thin scrollbar-thumb-muted/20"
+                itemContent={(index, message) => (
+                    <div className="max-w-3xl mx-auto px-4 sm:px-0">
+                        <MessageItem key={message.id} message={message} onEdit={handleEditMessage} />
+                    </div>
+                )}
+                components={{
+                    Footer: () => (
+                        <div className="max-w-3xl mx-auto px-4 sm:px-0 pb-4">
+                            {currentStatus && (
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground py-2 animate-in fade-in slide-in-from-bottom-2">
+                                    <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                                    <span className="font-medium animate-pulse">{currentStatus}</span>
+                                </div>
+                            )}
+                            <div className="h-4" /> 
+                        </div>
+                    )
+                }}
+            />
           )}
-        </ScrollArea>
+        </div>
 
         {/* Scroll To Bottom Button */}
         <div className={cn("absolute bottom-24 right-6 z-30 transition-all duration-500", showScrollButton ? "translate-y-0 opacity-100" : "translate-y-10 opacity-0 pointer-events-none")}>

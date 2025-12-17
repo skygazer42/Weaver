@@ -4,8 +4,9 @@ import React, { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { cn } from '@/lib/utils'
-import { Search, Code, Loader2, ChevronDown, Check, Copy, Terminal, Bot, User, BrainCircuit, PenTool, Globe } from 'lucide-react'
+import { Search, Code, Loader2, ChevronDown, Check, Copy, Terminal, Bot, User, BrainCircuit, PenTool, Globe, Pencil } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { MermaidBlock } from './MermaidBlock'
 
 interface Message {
   id: string
@@ -22,15 +23,29 @@ interface ToolInvocation {
   result?: any
 }
 
-export function MessageItem({ message }: { message: Message }) {
+interface MessageItemProps {
+    message: Message
+    onEdit?: (id: string, newContent: string) => void
+}
+
+export function MessageItem({ message, onEdit }: MessageItemProps) {
   const isUser = message.role === 'user'
   const [isThinkingOpen, setIsThinkingOpen] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editContent, setEditContent] = useState(message.content)
 
   const handleCopy = () => {
     navigator.clipboard.writeText(message.content)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+  
+  const handleSaveEdit = () => {
+    if (onEdit && editContent.trim() !== message.content) {
+        onEdit(message.id, editContent)
+    }
+    setIsEditing(false)
   }
 
   // Filter tools to group them as "Thinking Process"
@@ -55,12 +70,14 @@ export function MessageItem({ message }: { message: Message }) {
       )}
 
       <div className={cn(
-          'flex flex-col max-w-[85%] md:max-w-[75%]',
-          isUser ? 'items-end' : 'items-start'
+          'flex flex-col max-w-[85%] md:max-w-[75%]', 
+          isUser ? 'items-end' : 'items-start',
+          // If editing, take full width available
+          isEditing && "w-full max-w-full md:max-w-full"
       )}>
         
         {/* Thinking Process Graph / Accordion */}
-        {!isUser && hasTools && (
+        {!isUser && hasTools && !isEditing && (
           <div className="mb-2 ml-1 w-full max-w-md">
              {/* Graph Visualization (Mini) */}
              <div className="flex items-center gap-2 mb-2 px-2 py-1 overflow-hidden">
@@ -92,67 +109,97 @@ export function MessageItem({ message }: { message: Message }) {
           </div>
         )}
 
-        {/* Message Bubble */}
-        <div className={cn(
-            "relative px-4 py-3 shadow-sm",
-            isUser
-              ? "bg-primary text-primary-foreground rounded-2xl rounded-tr-sm"
-              : "bg-muted/30 border text-foreground rounded-2xl rounded-tl-sm backdrop-blur-sm"
-          )}
-        >
-          <div className={cn(
-              "prose prose-sm max-w-none break-words leading-relaxed",
-              isUser ? "prose-invert" : "dark:prose-invert"
-          )}>
-            <ReactMarkdown 
-                remarkPlugins={[remarkGfm]}
-                components={{
-                    pre: ({node, ...props}) => (
-                        <div className="not-prose my-2 w-full overflow-hidden rounded-lg border bg-zinc-950 dark:bg-zinc-900" {...props} />
-                    ),
-                    code: ({node, className, children, ...props}: any) => {
-                        const match = /language-(\w+)/.exec(className || '')
-                        const isInline = !match && !String(children).includes('\n')
-                        
-                        if (isInline) {
-                           return (
-                                <code className="bg-black/10 dark:bg-black/30 px-1.5 py-0.5 rounded text-sm font-mono" {...props}>
-                                    {children}
-                                </code>
-                           )
-                        }
-
-                        return (
-                            <CodeBlock language={match ? match[1] : 'text'} value={String(children).replace(/\n$/, '')} />
-                        )
-                    },
-                    a: ({node, ...props}) => (
-                        <a className={cn("underline underline-offset-2 font-medium", isUser ? "text-white" : "text-primary hover:text-primary/80")} {...props} />
-                    )
-                }}
-            >
-              {message.content || (hasTools ? "" : "")}
-            </ReactMarkdown>
-            
-            {/* Typing Indicator for AI if no content yet */}
-            {!isUser && !message.content && !hasTools && (
-               <span className="animate-pulse">...</span>
-            )}
-          </div>
-
-          {!isUser && message.content && (
-            <div className="absolute -bottom-6 left-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                    onClick={handleCopy}
-                >
-                    {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                </Button>
+        {/* Message Bubble OR Edit Mode */}
+        {isEditing ? (
+            <div className="w-full bg-muted/30 p-4 rounded-xl border border-primary/20 shadow-sm animate-in fade-in zoom-in-95">
+                <textarea 
+                    value={editContent} 
+                    onChange={e => setEditContent(e.target.value)} 
+                    className="w-full bg-transparent resize-none focus:outline-none min-h-[100px] text-sm leading-relaxed"
+                />
+                <div className="flex justify-end gap-2 mt-3">
+                    <Button size="sm" variant="ghost" onClick={() => setIsEditing(false)}>Cancel</Button>
+                    <Button size="sm" onClick={handleSaveEdit}>Save & Submit</Button>
+                </div>
             </div>
-          )}
-        </div>
+        ) : (
+            <div className={cn(
+                "relative px-4 py-3 shadow-sm",
+                isUser
+                  ? "bg-primary text-primary-foreground rounded-2xl rounded-tr-sm"
+                  : "bg-muted/30 border text-foreground rounded-2xl rounded-tl-sm backdrop-blur-sm"
+              )}
+            >
+              <div className={cn(
+                  "prose prose-sm max-w-none break-words leading-relaxed",
+                  isUser ? "prose-invert" : "dark:prose-invert"
+              )}>
+                <ReactMarkdown 
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                        pre: ({node, ...props}) => (
+                            <div className="not-prose my-2 w-full overflow-hidden rounded-lg border bg-zinc-950 dark:bg-zinc-900" {...props} />
+                        ),
+                        code: ({node, className, children, ...props}: any) => {
+                            const match = /language-(\w+)/.exec(className || '')
+                            const isInline = !match && !String(children).includes('\n')
+                            
+                            // Check for Mermaid
+                            if (match && match[1] === 'mermaid') {
+                                return <MermaidBlock code={String(children).replace(/\n$/, '')} />
+                            }
+                            
+                            if (isInline) {
+                               return (
+                                    <code className="bg-black/10 dark:bg-black/30 px-1.5 py-0.5 rounded text-sm font-mono" {...props}>
+                                        {children}
+                                    </code>
+                               )
+                            }
+
+                            return (
+                                <CodeBlock language={match ? match[1] : 'text'} value={String(children).replace(/\n$/, '')} />
+                            )
+                        },
+                        a: ({node, ...props}) => (
+                            <a className={cn("underline underline-offset-2 font-medium", isUser ? "text-white" : "text-primary hover:text-primary/80")} {...props} />
+                        )
+                    }}
+                >
+                  {message.content || (hasTools ? "" : "")}
+                </ReactMarkdown>
+                
+                {/* Typing Indicator for AI if no content yet */}
+                {!isUser && !message.content && !hasTools && (
+                   <span className="animate-pulse">...</span>
+                )}
+              </div>
+
+              {/* Actions: Copy & Edit */}
+              <div className="absolute -bottom-6 left-0 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                 {!isUser && message.content && (
+                    <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                        onClick={handleCopy}
+                    >
+                        {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                    </Button>
+                 )}
+                 {isUser && onEdit && (
+                    <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-6 w-6 text-muted-foreground hover:text-foreground ml-auto" // Push to right if needed, but left is fine
+                        onClick={() => setIsEditing(true)}
+                    >
+                        <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                 )}
+              </div>
+            </div>
+        )}
       </div>
     </div>
   )
