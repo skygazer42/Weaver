@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import List, Any
+from typing import List, Any, Dict
 
 from langchain_core.tools import BaseTool
 from config import settings
@@ -15,6 +15,7 @@ async def init_mcp_tools() -> List[BaseTool]:
     global _CLIENT, _TOOLS
 
     if not settings.enable_mcp or not settings.mcp_servers:
+        logger.info("MCP disabled or no servers configured.")
         return []
 
     try:
@@ -26,7 +27,7 @@ async def init_mcp_tools() -> List[BaseTool]:
     if _CLIENT is not None and _TOOLS:
         return _TOOLS
 
-    servers = settings.mcp_servers
+    servers: Dict[str, Any] = settings.mcp_servers
     if isinstance(servers, str):
         try:
             servers = json.loads(servers)
@@ -35,8 +36,19 @@ async def init_mcp_tools() -> List[BaseTool]:
             return []
 
     _CLIENT = MultiServerMCPClient(servers)
-    _TOOLS = await _CLIENT.get_tools()
-    logger.info(f"Loaded {len(_TOOLS)} MCP tools")
+    try:
+        _TOOLS = await _CLIENT.get_tools()
+    except Exception as e:
+        logger.error(f"Failed to load MCP tools: {e}")
+        return []
+
+    logger.info(f"Loaded {len(_TOOLS)} MCP tools from {len(servers)} servers")
+    # Log a preview of tool names
+    try:
+        names = [t.name for t in _TOOLS if hasattr(t, "name")]
+        logger.debug(f"MCP tools: {names[:10]}")
+    except Exception:
+        pass
     return _TOOLS
 
 
