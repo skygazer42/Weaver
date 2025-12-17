@@ -2,65 +2,91 @@
 
 import React from 'react'
 import { Button } from '@/components/ui/button'
-import { Search, Bot, BrainCircuit } from 'lucide-react'
+import { ArrowRight, Sparkles, TrendingUp, Code2, BookOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface EmptyStateProps {
   selectedMode: string
-  onModeSelect: (mode: string) => void
+  onModeSelect: (mode: string) => void // Kept for compatibility but might be unused if pills are primary
 }
 
 export function EmptyState({ selectedMode, onModeSelect }: EmptyStateProps) {
-  const modes = [
+  const starters = [
     {
-      id: 'web',
-      label: 'Web Search',
-      icon: Search,
-      description: 'Fast internet search for quick answers'
+      icon: TrendingUp,
+      text: "Analyze the current state of AI Agent frameworks in 2024",
+      mode: "deep"
     },
     {
-      id: 'agent',
-      label: 'Agent',
-      icon: Bot,
-      description: 'Reasoning agent with tool use'
+      icon: Code2,
+      text: "Write a Python script to visualize stock market data",
+      mode: "agent"
     },
     {
-      id: 'deep',
-      label: 'Deep Search',
-      icon: BrainCircuit,
-      description: 'Comprehensive research with multiple steps'
+      icon: BookOpen,
+      text: "Summarize the key findings of the 'Attention Is All You Need' paper",
+      mode: "web"
+    },
+    {
+      icon: Sparkles,
+      text: "Plan a 3-day itinerary for a trip to Kyoto",
+      mode: "agent"
     }
   ]
 
   return (
-    <div className="flex flex-col items-center justify-center h-full max-w-2xl mx-auto p-4 space-y-8">
-      <div className="flex flex-col items-center space-y-2">
-        <div className="h-16 w-16 bg-primary text-primary-foreground rounded-2xl flex items-center justify-center text-3xl font-bold">
-          M
+    <div className="flex flex-col items-center justify-center h-full w-full max-w-4xl mx-auto p-6 animate-in fade-in zoom-in-95 duration-500">
+      
+      {/* Hero Section */}
+      <div className="flex flex-col items-center space-y-6 mb-12 text-center">
+        <div className="relative group cursor-default">
+            <div className="absolute inset-0 bg-primary/20 rounded-3xl blur-xl group-hover:blur-2xl transition-all duration-500 opacity-50" />
+            <div className="relative h-24 w-24 bg-gradient-to-br from-primary to-primary/80 text-primary-foreground rounded-3xl flex items-center justify-center text-5xl font-bold shadow-xl shadow-primary/20 ring-1 ring-white/20">
+              M
+            </div>
+            {/* Orbiting effect (CSS only via tailwind arbitrary values if complex, keeping simple here) */}
         </div>
-        <h2 className="text-2xl font-bold">How can I help you today?</h2>
+        
+        <div className="space-y-2 max-w-lg">
+            <h2 className="text-3xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-foreground to-foreground/70">
+                Manus AI
+            </h2>
+            <p className="text-muted-foreground text-lg">
+                Your deep research companion. <br className="hidden sm:block"/>
+                Ask me anything to start a comprehensive investigation.
+            </p>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
-        {modes.map((mode) => (
+      {/* Starter Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-2xl">
+        {starters.map((starter, i) => (
           <button
-            key={mode.id}
-            onClick={() => onModeSelect(mode.id)}
-            className={cn(
-              "flex flex-col items-center p-4 rounded-xl border-2 transition-all hover:bg-muted/50",
-              selectedMode === mode.id 
-                ? "border-primary bg-primary/5 ring-1 ring-primary" 
-                : "border-transparent bg-muted/20 hover:border-primary/20"
-            )}
+            key={i}
+            onClick={() => {
+                // In a real app, this would populate input
+                const input = document.querySelector('input') as HTMLInputElement
+                if (input) {
+                    input.value = starter.text
+                    input.focus()
+                    // Dispatch change event manually for React state? 
+                    // Simplified: We assume user types or this component accepts onSelect prop to bubble up
+                }
+            }}
+            className="group flex items-start gap-4 p-4 rounded-xl border bg-card/50 hover:bg-card hover:shadow-md hover:border-primary/20 transition-all duration-300 text-left"
           >
-            <mode.icon className={cn(
-              "h-8 w-8 mb-3",
-              selectedMode === mode.id ? "text-primary" : "text-muted-foreground"
-            )} />
-            <span className="font-semibold text-sm mb-1">{mode.label}</span>
-            <span className="text-xs text-center text-muted-foreground">
-              {mode.description}
-            </span>
+            <div className="p-2 rounded-lg bg-muted group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+                <starter.icon className="h-5 w-5" />
+            </div>
+            <div className="flex-1 space-y-1">
+                <p className="text-sm font-medium leading-snug group-hover:text-primary transition-colors">
+                    {starter.text}
+                </p>
+                <div className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase tracking-wider font-semibold opacity-0 group-hover:opacity-100 transition-opacity translate-y-2 group-hover:translate-y-0">
+                    <span>Use {starter.mode} mode</span>
+                    <ArrowRight className="h-3 w-3" />
+                </div>
+            </div>
           </button>
         ))}
       </div>

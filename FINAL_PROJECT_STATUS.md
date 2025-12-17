@@ -84,8 +84,8 @@ manus-app/                      # 根目录
 |------|------|------|
 | Python | 3.11+ | 主要编程语言 |
 | FastAPI | 0.109.0 | Web 框架 |
-| LangGraph | 0.2.28 | AI Agent 编排 |
-| LangChain | 0.3.0 | LLM 集成 |
+| LangGraph | 1.0.1 | AI Agent 编排 |
+| LangChain | 1.0.2 | LLM 集成 |
 | Uvicorn | 0.27.0 | ASGI 服务器 |
 | PostgreSQL | 16 | 数据库 |
 | pgvector | latest | 向量存储 |

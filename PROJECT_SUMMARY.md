@@ -194,8 +194,8 @@ manus-app/
 
 ### Backend
 - **Framework**: FastAPI 0.109.0
-- **AI Orchestration**: LangGraph 0.2.28
-- **LLM Integration**: LangChain 0.3.0
+- **AI Orchestration**: LangGraph 1.0.1
+- **LLM Integration**: LangChain 1.0.2
 - **Models**: OpenAI GPT-4o-mini, o1-mini
 - **Search**: Tavily API
 - **Code Execution**: E2B Code Interpreter

@@ -68,10 +68,10 @@ def create_checkpointer(database_url: str):
     This allows long-running agents to pause/resume and handle failures.
     """
     try:
-        from psycopg import Connection
+        import psycopg
 
-        # Create connection
-        conn = Connection.connect(database_url)
+        # Create connection (psycopg3)
+        conn = psycopg.connect(database_url)
 
         # Create checkpointer
         checkpointer = PostgresSaver(conn)

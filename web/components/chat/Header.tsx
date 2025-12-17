@@ -1,8 +1,10 @@
 'use client'
 
-import React from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { ChevronDown, PanelLeft } from 'lucide-react'
+import { PanelLeft, Sun, Moon, ChevronDown, Check } from 'lucide-react'
+import { useTheme } from '@/components/theme-provider'
+import { cn } from '@/lib/utils'
 
 interface HeaderProps {
   sidebarOpen: boolean
@@ -12,30 +14,97 @@ interface HeaderProps {
 }
 
 export function Header({ sidebarOpen, onToggleSidebar, selectedModel, onModelChange }: HeaderProps) {
+  const { theme, setTheme } = useTheme()
+  const [isModelOpen, setIsModelOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  const toggleTheme = () => {
+    if (theme === 'dark') setTheme('light')
+    else setTheme('dark')
+  }
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsModelOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
+
+  const models = [
+    { id: 'gpt-4o', name: 'GPT-4o' },
+    { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
+    { id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet' },
+  ]
+
+  const currentModelName = models.find(m => m.id === selectedModel)?.name || selectedModel
+
   return (
-    <header className="flex h-14 items-center justify-between border-b px-4 bg-background">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={onToggleSidebar}>
-          <PanelLeft className="h-5 w-5" />
+    <header className="flex h-16 items-center justify-between border-b px-4 bg-background/80 backdrop-blur-md sticky top-0 z-30 transition-all">
+      <div className="flex items-center gap-3">
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          onClick={onToggleSidebar} 
+          className="hidden md:flex hover:bg-muted/50 rounded-full"
+        >
+          <PanelLeft className="h-5 w-5 text-muted-foreground" />
         </Button>
-        <span className="font-bold text-lg flex items-center gap-2">
-          <span className="bg-primary text-primary-foreground rounded-md px-2 py-0.5 text-sm">M</span>
-          Manus
-        </span>
+        
+        <div className="flex items-center gap-2 select-none group cursor-default">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/20 text-primary-foreground text-sm font-bold transition-transform group-hover:scale-105">
+            M
+          </div>
+          <span className="font-bold text-lg tracking-tight">Manus</span>
+        </div>
       </div>
 
       <div className="flex items-center gap-2">
-         <div className="relative">
-            <select 
-              value={selectedModel}
-              onChange={(e) => onModelChange(e.target.value)}
-              className="h-9 w-[180px] rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+         {/* Custom Model Dropdown */}
+         <div className="relative" ref={dropdownRef}>
+            <button
+              onClick={() => setIsModelOpen(!isModelOpen)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-full border bg-muted/20 hover:bg-muted/50 text-sm font-medium transition-colors"
             >
-                <option value="gpt-4o">GPT-4o</option>
-                <option value="gpt-4o-mini">GPT-4o Mini</option>
-                <option value="claude-3-5-sonnet">Claude 3.5 Sonnet</option>
-            </select>
+              <span>{currentModelName}</span>
+              <ChevronDown className={cn("h-3.5 w-3.5 opacity-50 transition-transform", isModelOpen && "rotate-180")} />
+            </button>
+            
+            {isModelOpen && (
+              <div className="absolute right-0 top-full mt-2 w-48 rounded-xl border bg-popover p-1 shadow-lg animate-in fade-in zoom-in-95 z-50">
+                {models.map((model) => (
+                  <button
+                    key={model.id}
+                    onClick={() => {
+                      onModelChange(model.id)
+                      setIsModelOpen(false)
+                    }}
+                    className={cn(
+                      "flex w-full items-center justify-between rounded-lg px-2 py-2 text-sm transition-colors hover:bg-muted",
+                      selectedModel === model.id && "bg-muted font-medium text-primary"
+                    )}
+                  >
+                    {model.name}
+                    {selectedModel === model.id && <Check className="h-3.5 w-3.5" />}
+                  </button>
+                ))}
+              </div>
+            )}
          </div>
+
+         <Button 
+           variant="ghost" 
+           size="icon" 
+           onClick={toggleTheme} 
+           className="rounded-full hover:bg-muted/50"
+         >
+            <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+            <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+            <span className="sr-only">Toggle theme</span>
+         </Button>
       </div>
     </header>
   )

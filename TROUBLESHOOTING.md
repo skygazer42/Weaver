@@ -263,9 +263,9 @@ Make sure your frontend splits on `\n` and checks for `0:` prefix.
 
 ## Database Issues
 
-### "psycopg2.OperationalError: could not connect"
+### "psycopg.OperationalError: could not connect"
 
-**Problem**: Database connection failed.
+**Problem**: Database connection failed (psycopg3).
 
 **Solution**:
 ```bash
@@ -280,6 +280,10 @@ docker-compose logs postgres
 
 # Test connection
 docker exec -it manus_postgres psql -U manus -d manus_db
+
+# If you still see psycopg2 errors, uninstall the old driver and install the new one
+pip uninstall -y psycopg2-binary psycopg2
+pip install \"psycopg[binary]\"
 ```
 
 ### "relation does not exist"

@@ -1,4 +1,6 @@
 from typing import TypedDict, List, Annotated, Dict, Any
+from langchain_core.messages import BaseMessage
+from langgraph.graph.message import add_messages
 import operator
 
 
@@ -12,7 +14,7 @@ class AgentState(TypedDict):
     input: str
 
     # Message history for LLM context
-    messages: Annotated[List[Dict[str, Any]], operator.add]
+    messages: Annotated[List[BaseMessage], add_messages]
 
     # Structured research plan (list of search queries/steps)
     research_plan: List[str]

@@ -130,33 +130,33 @@ async def stream_agent_events(input_text: str, thread_id: str = "default", model
         # Stream graph execution
         async for event in research_graph.astream_events(
             initial_state,
-            config=config,
-            version="v1"
+            config=config
         ):
             event_type = event.get("event")
-            name = event.get("name", "")
+            name = event.get("name", "") or event.get("run_name", "")
             data_dict = event.get("data", {})
+            node_name = name.lower() if isinstance(name, str) else ""
 
             # Handle different event types
-            if event_type == "on_chain_start":
-                if "planner" in name:
+            if event_type in {"on_chain_start", "on_node_start", "on_graph_start"}:
+                if "planner" in node_name:
                     yield await format_stream_event("status", {
                         "text": "Creating research plan...",
                         "step": "planning"
                     })
-                elif "researcher" in name or "perform_parallel_search" in name:
+                elif "perform_parallel_search" in node_name or "search" in node_name:
                     yield await format_stream_event("status", {
                         "text": "Conducting research...",
                         "step": "researching"
                     })
-                elif "writer" in name:
+                elif "writer" in node_name:
                     yield await format_stream_event("status", {
                         "text": "Synthesizing findings...",
                         "step": "writing"
                     })
 
-            elif event_type == "on_chain_end":
-                output = data_dict.get("output", {})
+            elif event_type in {"on_chain_end", "on_node_end", "on_graph_end"}:
+                output = data_dict.get("output", {}) if isinstance(data_dict, dict) else {}
 
                 # Extract messages from output
                 if isinstance(output, dict):
@@ -223,15 +223,17 @@ async def stream_agent_events(input_text: str, thread_id: str = "default", model
                             "image": image_data
                         })
 
-            elif event_type == "on_chat_model_stream":
+            elif event_type in {"on_chat_model_stream", "on_llm_stream"}:
                 # Stream LLM tokens
-                chunk = data_dict.get("chunk")
-                if chunk and hasattr(chunk, 'content'):
-                    content = chunk.content
+                chunk = data_dict.get("chunk") or data_dict.get("output")
+                if chunk is not None:
+                    content = None
+                    if hasattr(chunk, "content"):
+                        content = chunk.content
+                    elif isinstance(chunk, dict):
+                        content = chunk.get("content")
                     if content:
-                        yield await format_stream_event("text", {
-                            "content": content
-                        })
+                        yield await format_stream_event("text", {"content": content})
 
         # Send final completion
         yield await format_stream_event("done", {

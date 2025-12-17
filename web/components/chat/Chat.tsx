@@ -1,15 +1,14 @@
 'use client'
 
 import React, { useRef, useEffect, useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { MessageItem } from './MessageItem'
 import { ArtifactsPanel, Artifact } from './ArtifactsPanel'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
 import { EmptyState } from './EmptyState'
-import { Send, Loader2, StopCircle } from 'lucide-react'
+import { ChatInput } from './ChatInput'
+import { Loader2 } from 'lucide-react'
 
 interface Message {
   id: string
@@ -193,7 +192,7 @@ export function Chat() {
   }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background">
+    <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
       {/* Sidebar */}
       <Sidebar 
         isOpen={sidebarOpen} 
@@ -201,7 +200,7 @@ export function Chat() {
       />
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0 transition-all duration-300 ease-in-out">
+      <div className="flex-1 flex flex-col min-w-0 relative">
         {/* Header */}
         <Header 
           sidebarOpen={sidebarOpen}
@@ -211,23 +210,25 @@ export function Chat() {
         />
 
         {/* Chat Area */}
-        <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+        <ScrollArea className="flex-1 p-0 sm:p-4" ref={scrollRef}>
           {messages.length === 0 ? (
-            <EmptyState 
-              selectedMode={searchMode}
-              onModeSelect={setSearchMode}
-            />
+            <div className="h-full flex items-center justify-center p-4">
+               <EmptyState 
+                  selectedMode={searchMode}
+                  onModeSelect={setSearchMode}
+               />
+            </div>
           ) : (
-            <div className="max-w-3xl mx-auto space-y-4 pb-4">
+            <div className="max-w-3xl mx-auto space-y-6 pb-4 px-4 sm:px-0 pt-4">
               {messages.map((message) => (
                 <MessageItem key={message.id} message={message} />
               ))}
               
               {/* Status indicator inline */}
               {currentStatus && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground p-2 animate-pulse">
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  <span>{currentStatus}</span>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground p-2 animate-in fade-in slide-in-from-bottom-2">
+                  <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                  <span className="font-medium">{currentStatus}</span>
                 </div>
               )}
             </div>
@@ -235,49 +236,20 @@ export function Chat() {
         </ScrollArea>
 
         {/* Input Area */}
-        <div className="border-t p-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="max-w-3xl mx-auto">
-            <form onSubmit={handleSubmit} className="relative flex items-center">
-               <Input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder={`Ask in ${searchMode} mode...`}
-                disabled={isLoading}
-                className="flex-1 pr-12 py-6 text-base rounded-xl shadow-sm"
-              />
-              <div className="absolute right-2 flex items-center">
-                {isLoading ? (
-                  <Button 
-                    type="button" 
-                    size="icon" 
-                    variant="ghost" 
-                    onClick={handleStop}
-                    className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
-                  >
-                    <StopCircle className="h-5 w-5" />
-                  </Button>
-                ) : (
-                  <Button 
-                    type="submit" 
-                    size="icon" 
-                    disabled={!input.trim()}
-                    className="h-8 w-8 rounded-lg"
-                  >
-                    <Send className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            </form>
-            <div className="text-xs text-muted-foreground text-center mt-2">
-              Using {selectedModel} • {searchMode === 'deep' ? 'Deep Research' : searchMode === 'web' ? 'Web Search' : 'Agent'} Mode
-            </div>
-          </div>
-        </div>
+        <ChatInput 
+          input={input}
+          setInput={setInput}
+          onSubmit={handleSubmit}
+          isLoading={isLoading}
+          onStop={handleStop}
+          searchMode={searchMode}
+          setSearchMode={setSearchMode}
+        />
       </div>
 
-      {/* Artifacts Panel - Collapsible or Overlay on mobile */}
+      {/* Artifacts Panel */}
       {artifacts.length > 0 && (
-        <div className="w-[400px] border-l hidden xl:block bg-card">
+        <div className="w-[400px] border-l hidden xl:block bg-card animate-in slide-in-from-right duration-300">
           <ArtifactsPanel artifacts={artifacts} />
         </div>
       )}

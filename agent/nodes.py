@@ -2,8 +2,8 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableConfig
-from langgraph.graph import Send
-from typing import Dict, Any, List, Optional
+from langgraph.types import Send
+from typing import Dict, Any, List, Optional, Tuple
 import json
 import logging
 from datetime import datetime
@@ -13,6 +13,34 @@ from tools import tavily_search, execute_python_code
 from config import settings
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_tool_call_fields(tool_call: Any) -> Tuple[Optional[str], Dict[str, Any], Optional[str]]:
+    """
+    Normalize tool call objects across LangChain 0.x/1.x.
+    Returns (name, args_dict, tool_call_id).
+    """
+    if isinstance(tool_call, dict):
+        name = tool_call.get("name")
+        raw_args = tool_call.get("args") or tool_call.get("arguments")
+        tool_call_id = tool_call.get("id") or tool_call.get("tool_call_id")
+    else:
+        name = getattr(tool_call, "name", None)
+        raw_args = getattr(tool_call, "args", None) or getattr(tool_call, "arguments", None)
+        tool_call_id = getattr(tool_call, "id", None) or getattr(tool_call, "tool_call_id", None)
+
+    if isinstance(raw_args, str):
+        try:
+            raw_args = json.loads(raw_args)
+        except json.JSONDecodeError:
+            # If LLM sent raw code string, wrap it for the tool signature
+            raw_args = {"code": raw_args}
+    elif raw_args is None:
+        raw_args = {}
+    elif not isinstance(raw_args, dict):
+        raw_args = {"code": raw_args}
+
+    return name, raw_args, tool_call_id
 
 
 def perform_parallel_search(state: QueryState, config: RunnableConfig) -> Dict[str, Any]:
@@ -144,6 +172,8 @@ def writer_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
         api_key=settings.openai_api_key
     ).bind_tools([execute_python_code])
 
+    code_results: List[Dict[str, Any]] = []
+
     # Prepare research context
     scraped_content = state.get("scraped_content", [])
     research_context = "\n\n".join([
@@ -185,28 +215,30 @@ Research Context:
             logger.info(f"Writer decided to use tools: {len(response.tool_calls)}")
             
             for tool_call in response.tool_calls:
-                if tool_call["name"] == "execute_python_code":
+                tool_name, tool_args, tool_call_id = _extract_tool_call_fields(tool_call)
+
+                if tool_name == "execute_python_code":
                     logger.info("Executing Python code for visualization...")
                     
                     # Execute code with config to trigger events
-                    tool_result = execute_python_code.invoke(tool_call["args"], config=config)
+                    tool_result = execute_python_code.invoke(tool_args, config=config)
                     
                     # Create tool message
                     tool_msg = ToolMessage(
-                        tool_call_id=tool_call["id"],
+                        tool_call_id=tool_call_id or f"{tool_name}_call",
                         content=json.dumps({
                             "stdout": tool_result.get("stdout"),
                             "stderr": tool_result.get("stderr"),
                             "success": tool_result.get("success")
                         }),
-                        name=tool_call["name"]
+                        name=tool_name
                     )
                     messages.append(tool_msg)
                     
                     # If we got an image, we might want to store it
                     if tool_result.get("image"):
-                        state["code_results"].append({
-                            "code": tool_call["args"].get("code"),
+                        code_results.append({
+                            "code": tool_args.get("code"),
                             "image": tool_result["image"],
                             "timestamp": datetime.now().isoformat()
                         })
@@ -222,7 +254,8 @@ Research Context:
         return {
             "final_report": report,
             "is_complete": True,
-            "messages": [AIMessage(content=report)]
+            "messages": [AIMessage(content=report)],
+            "code_results": code_results
         }
 
     except Exception as e:
