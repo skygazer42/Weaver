@@ -48,6 +48,8 @@ class Message(BaseModel):
 class ChatRequest(BaseModel):
     messages: List[Message]
     stream: bool = True
+    model: Optional[str] = "gpt-4o"
+    search_mode: Optional[str] = "agent"  # web, agent, deep
 
 
 class ChatResponse(BaseModel):
@@ -90,7 +92,7 @@ async def format_stream_event(event_type: str, data: Any) -> str:
     return f"0:{json.dumps(payload)}\n"
 
 
-async def stream_agent_events(input_text: str, thread_id: str = "default"):
+async def stream_agent_events(input_text: str, thread_id: str = "default", model: str = "gpt-4o", search_mode: str = "agent"):
     """
     Stream agent execution events in real-time.
 
@@ -111,7 +113,11 @@ async def stream_agent_events(input_text: str, thread_id: str = "default"):
         }
 
         config = {
-            "configurable": {"thread_id": thread_id},
+            "configurable": {
+                "thread_id": thread_id,
+                "model": model,
+                "search_mode": search_mode
+            },
             "recursion_limit": 50
         }
 
@@ -138,7 +144,7 @@ async def stream_agent_events(input_text: str, thread_id: str = "default"):
                         "text": "Creating research plan...",
                         "step": "planning"
                     })
-                elif "researcher" in name:
+                elif "researcher" in name or "perform_parallel_search" in name:
                     yield await format_stream_event("status", {
                         "text": "Conducting research...",
                         "step": "researching"
@@ -162,7 +168,7 @@ async def stream_agent_events(input_text: str, thread_id: str = "default"):
                                 "content": content
                             })
 
-                    # Check for completion
+                    # Check for completion and final report artifact
                     if output.get("is_complete"):
                         final_report = output.get("final_report", "")
                         if final_report:
@@ -254,12 +260,12 @@ async def chat(request: ChatRequest):
 
         last_message = user_messages[-1].content
 
-        logger.info(f"Processing chat request: {last_message[:100]}...")
+        logger.info(f"Processing chat request: {last_message[:100]}... Mode: {request.search_mode}")
 
         if request.stream:
             # Return streaming response
             return StreamingResponse(
-                stream_agent_events(last_message),
+                stream_agent_events(last_message, model=request.model, search_mode=request.search_mode),
                 media_type="text/event-stream",
                 headers={
                     "Cache-Control": "no-cache",

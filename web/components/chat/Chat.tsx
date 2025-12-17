@@ -6,7 +6,10 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { MessageItem } from './MessageItem'
 import { ArtifactsPanel, Artifact } from './ArtifactsPanel'
-import { Send, Loader2 } from 'lucide-react'
+import { Sidebar } from './Sidebar'
+import { Header } from './Header'
+import { EmptyState } from './EmptyState'
+import { Send, Loader2, StopCircle } from 'lucide-react'
 
 interface Message {
   id: string
@@ -21,14 +24,30 @@ export function Chat() {
   const [isLoading, setIsLoading] = useState(false)
   const [currentStatus, setCurrentStatus] = useState<string>('')
   const [artifacts, setArtifacts] = useState<Artifact[]>([])
+  
+  // UI State
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [selectedModel, setSelectedModel] = useState('gpt-4o')
+  const [searchMode, setSearchMode] = useState('agent') // 'web', 'agent', 'deep'
+  
   const scrollRef = useRef<HTMLDivElement>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   // Auto-scroll to bottom
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollTop
     }
-  }, [messages])
+  }, [messages, currentStatus])
+
+  const handleStop = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+      setIsLoading(false)
+      setCurrentStatus('Stopped by user')
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -44,6 +63,9 @@ export function Chat() {
     setInput('')
     setIsLoading(true)
 
+    // Create new abort controller
+    abortControllerRef.current = new AbortController()
+
     try {
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/chat`,
@@ -55,7 +77,10 @@ export function Chat() {
           body: JSON.stringify({
             messages: [{ role: 'user', content: userMessage.content }],
             stream: true,
+            model: selectedModel,
+            search_mode: searchMode
           }),
+          signal: abortControllerRef.current.signal
         }
       )
 
@@ -147,86 +172,112 @@ export function Chat() {
       }
 
       setCurrentStatus('')
-    } catch (error) {
-      console.error('Error:', error)
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `error-${Date.now()}`,
-          role: 'assistant',
-          content: 'Sorry, an error occurred. Please try again.',
-        },
-      ])
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.log('Request aborted')
+      } else {
+        console.error('Error:', error)
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `error-${Date.now()}`,
+            role: 'assistant',
+            content: 'Sorry, an error occurred. Please try again.',
+          },
+        ])
+      }
     } finally {
       setIsLoading(false)
+      abortControllerRef.current = null
     }
   }
 
   return (
-    <div className="flex h-screen flex-row overflow-hidden">
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
-        <div className="border-b p-4">
-          <h1 className="text-2xl font-bold">Manus Research Agent</h1>
-          <p className="text-sm text-muted-foreground">
-            Deep search and code execution AI assistant
-          </p>
-        </div>
+    <div className="flex h-screen w-full overflow-hidden bg-background">
+      {/* Sidebar */}
+      <Sidebar 
+        isOpen={sidebarOpen} 
+        onToggle={() => setSidebarOpen(!sidebarOpen)} 
+      />
 
-        {/* Messages */}
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col min-w-0 transition-all duration-300 ease-in-out">
+        {/* Header */}
+        <Header 
+          sidebarOpen={sidebarOpen}
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+          selectedModel={selectedModel}
+          onModelChange={setSelectedModel}
+        />
+
+        {/* Chat Area */}
         <ScrollArea className="flex-1 p-4" ref={scrollRef}>
           {messages.length === 0 ? (
-            <div className="flex h-full items-center justify-center">
-              <div className="text-center">
-                <h2 className="text-xl font-semibold mb-2">
-                  Welcome to Manus
-                </h2>
-                <p className="text-muted-foreground">
-                  Ask me anything and I'll conduct deep research to find answers
-                </p>
-              </div>
-            </div>
+            <EmptyState 
+              selectedMode={searchMode}
+              onModeSelect={setSearchMode}
+            />
           ) : (
-            <div className="space-y-4">
+            <div className="max-w-3xl mx-auto space-y-4 pb-4">
               {messages.map((message) => (
                 <MessageItem key={message.id} message={message} />
               ))}
-            </div>
-          )}
-
-          {/* Status indicator */}
-          {currentStatus && (
-            <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span>{currentStatus}</span>
+              
+              {/* Status indicator inline */}
+              {currentStatus && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground p-2 animate-pulse">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <span>{currentStatus}</span>
+                </div>
+              )}
             </div>
           )}
         </ScrollArea>
 
-        {/* Input */}
-        <div className="border-t p-4">
-          <form onSubmit={handleSubmit} className="flex gap-2">
-            <Input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask me anything..."
-              disabled={isLoading}
-              className="flex-1"
-            />
-            <Button type="submit" disabled={isLoading || !input.trim()}>
-              {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="h-4 w-4" />
-              )}
-            </Button>
-          </form>
+        {/* Input Area */}
+        <div className="border-t p-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="max-w-3xl mx-auto">
+            <form onSubmit={handleSubmit} className="relative flex items-center">
+               <Input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={`Ask in ${searchMode} mode...`}
+                disabled={isLoading}
+                className="flex-1 pr-12 py-6 text-base rounded-xl shadow-sm"
+              />
+              <div className="absolute right-2 flex items-center">
+                {isLoading ? (
+                  <Button 
+                    type="button" 
+                    size="icon" 
+                    variant="ghost" 
+                    onClick={handleStop}
+                    className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <StopCircle className="h-5 w-5" />
+                  </Button>
+                ) : (
+                  <Button 
+                    type="submit" 
+                    size="icon" 
+                    disabled={!input.trim()}
+                    className="h-8 w-8 rounded-lg"
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            </form>
+            <div className="text-xs text-muted-foreground text-center mt-2">
+              Using {selectedModel} • {searchMode === 'deep' ? 'Deep Research' : searchMode === 'web' ? 'Web Search' : 'Agent'} Mode
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Artifacts Panel */}
+      {/* Artifacts Panel - Collapsible or Overlay on mobile */}
       {artifacts.length > 0 && (
-        <div className="w-[400px] hidden md:block">
+        <div className="w-[400px] border-l hidden xl:block bg-card">
           <ArtifactsPanel artifacts={artifacts} />
         </div>
       )}
