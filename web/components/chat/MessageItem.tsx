@@ -87,7 +87,7 @@ export function MessageItem({ message, onEdit }: MessageItemProps) {
       )}
 
       <div className={cn(
-          'flex flex-col max-w-[85%] md:max-w-[75%] ',
+          'flex flex-col max-w-[85%] md:max-w-[75%]', 
           isUser ? 'items-end' : 'items-start',
           // If editing, take full width available
           isEditing && "w-full max-w-full md:max-w-full"
@@ -160,39 +160,37 @@ export function MessageItem({ message, onEdit }: MessageItemProps) {
                         ),
                         p: ({node, children, ...props}) => (
                              <p className="mb-2 last:mb-0 leading-7" {...props}>
-                                {{'{'}}
-                                React.Children.map(children, child => {{
-                                    if (typeof child === 'string') {{
-                                        const parts = child.split(/(\d+)/g)
-                                        return parts.map((part, i) => {{
-                                            const match = part.match(/^(\[(\d+)\])$/)
-                                            if (match) {{
-                                                return <CitationBadge key={i} num={match[2]} />
-                                            }}
+                                {React.Children.map(children, child => {
+                                    if (typeof child === 'string') {
+                                        const parts = child.split(/(\[d+]) /g) // Corrected regex for citation
+                                        return parts.map((part, i) => {
+                                            const match = part.match(/^\\\[(\\d+)\\\]$/) // Corrected regex for citation
+                                            if (match) {
+                                                return <CitationBadge key={i} num={match[1]} />
+                                            }
                                             return part
-                                        }})
-                                    }}
+                                        })
+                                    }
                                     return child
-                                }})
-                                }}
+                                })}
                              </p>
                         ),
-                        code: ({node, className, children, ...props}: any) => {{
+                        code: ({node, className, children, ...props}: any) => {
                             const match = /language-(\w+)/.exec(className || '')
                             const isInline = !match && !String(children).includes('\n')
                             const content = String(children).replace(/\n$/, '')
                             
                             // Check for Mermaid
-                            if (match && match[1] === 'mermaid') {{
+                            if (match && match[1] === 'mermaid') {
                                 return (
                                     <ErrorBoundary FallbackComponent={ErrorFallback}>
                                         <MermaidBlock code={content} />
                                     </ErrorBoundary>
                                 )
-                            }}
+                            }
                             
                             // Check for JSON/CSV
-                            if (match && (match[1] === 'json' || match[1] === 'csv')) {{
+                            if (match && (match[1] === 'json' || match[1] === 'csv')) {
                                 return (
                                     <div className="flex flex-col gap-2">
                                         <ErrorBoundary FallbackComponent={() => null}>
@@ -201,30 +199,26 @@ export function MessageItem({ message, onEdit }: MessageItemProps) {
                                         <CodeBlock language={match[1]} value={content} />
                                     </div>
                                 )
-                            }}
+                            }
                             
-                            if (isInline) {{
+                            if (isInline) {
                                return (
                                     <code className="bg-black/10 dark:bg-black/30 px-1.5 py-0.5 rounded text-sm font-mono" {...props}>
-                                        {{'{'}}
-                                        children
-                                        }}
+                                        {children}
                                     </code>
                                )
-                            }}
+                            }
 
                             return (
                                 <CodeBlock language={match ? match[1] : 'text'} value={content} />
                             )
-                        }},
+                        },
                         a: ({node, ...props}) => (
                             <a className={cn("underline underline-offset-2 font-medium", isUser ? "text-white" : "text-primary hover:text-primary/80")} {...props} />
                         )
                     }}
                 >
-                  {{'{'}}
-                  message.content || (hasTools ? "" : "")
-                  }}
+                  {message.content || (hasTools ? "" : "")}
                 </ReactMarkdown>
                 
                 {/* Typing Indicator for AI if no content yet */}
@@ -242,9 +236,7 @@ export function MessageItem({ message, onEdit }: MessageItemProps) {
                         className="h-6 w-6 text-muted-foreground hover:text-foreground"
                         onClick={handleCopy}
                     >
-                        {{'{'}}
-                        copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />
-                        }}
+                        {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                     </Button>
                  )}
                  {isUser && onEdit && (
@@ -271,16 +263,12 @@ function CitationBadge({ num }: { num: string }) {
             <Tooltip delayDuration={300}>
                 <TooltipTrigger asChild>
                     <sup className="ml-0.5 cursor-pointer text-xs font-bold text-primary hover:underline decoration-dotted select-none">
-                        [{{'{'}}
-                        num
-                        }}
+                        [{num}]
                     </sup>
                 </TooltipTrigger>
                 <TooltipContent className="max-w-[300px] break-words">
                     <div className="space-y-1">
-                        <p className="font-semibold text-xs">Source [{'{'}}
-                        num
-                        {'{'}}]</p>
+                        <p className="font-semibold text-xs">Source [{num}]</p>
                         <p className="text-xs text-muted-foreground">Reference details would appear here.</p>
                     </div>
                 </TooltipContent>
@@ -302,26 +290,19 @@ function CodeBlock({ language, value }: { language: string, value: string }) {
     return (
       <div className="relative w-full">
         <div className="flex items-center justify-between px-4 py-1.5 bg-zinc-900 border-b border-white/5">
-          <span className="text-xs font-medium text-zinc-400">{{'{'}}
-          language
-          }}
-          </span>
+          <span className="text-xs font-medium text-zinc-400">{language}</span>
           <Button
             variant="ghost"
             size="icon"
             className="h-6 w-6 text-zinc-400 hover:text-white hover:bg-white/10"
             onClick={handleCopy}
           >
-            {{'{'}}
-            copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />
-            }}
+            {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
           </Button>
         </div>
         <div className="overflow-x-auto p-4 bg-zinc-950">
           <code className="text-sm font-mono text-zinc-300 whitespace-pre">
-            {{'{'}}
-            value
-            }}
+            {value}
           </code>
         </div>
       </div>
@@ -338,10 +319,7 @@ function ThinkingNode({ icon: Icon, label, active, completed }: { icon: any, lab
             "bg-muted text-muted-foreground opacity-50"
         )}>
             <Icon className="h-3 w-3" />
-            <span>{{'{'}}
-            label
-            }}
-            </span>
+            <span>{label}</span>
         </div>
     )
 }
@@ -373,10 +351,7 @@ function ToolInvocationItem({ tool }: { tool: ToolInvocation }) {
          {isRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : getIcon()}
       </div>
       <span className="truncate max-w-[200px]">
-        {tool.toolName === 'tavily_search' && `Searching: ${{'{'}}
-        tool.args?.query
-        {'{'}}
-        || '...'}`}
+        {tool.toolName === 'tavily_search' && `Searching: ${tool.args?.query || '...'}`}
         {tool.toolName === 'execute_python_code' && 'Executing Logic...'}
         {!tool.toolName.includes('search') && !tool.toolName.includes('code') && tool.toolName}
       </span>
