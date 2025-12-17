@@ -1,0 +1,30 @@
+# Web Framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.6
+
+# LangChain & LangGraph
+langgraph==0.2.28
+langchain==0.3.0
+langchain-openai==0.2.0
+langchain-anthropic==0.2.0
+langchain-core==0.3.0
+langchain-community==0.3.0
+
+# Database & Persistence
+psycopg2-binary==2.9.9
+pgvector==0.2.5
+sqlalchemy==2.0.25
+
+# Tools
+tavily-python==0.5.0
+e2b-code-interpreter==1.0.2
+
+# Utilities
+python-dotenv==1.0.0
+pydantic==2.5.3
+pydantic-settings==2.1.0
+httpx==0.26.0
+
+# Async support
+aiofiles==23.2.1
