@@ -1,26 +1,24 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import json
-import logging
 import asyncio
 import uuid
 from datetime import datetime
+import time
 
 from config import settings
 from langgraph.types import Command
 from agent import create_research_graph, create_checkpointer, AgentState
 from tools.mcp import init_mcp_tools, close_mcp_tools
 from tools.registry import set_registered_tools
+from logger import setup_logging, get_logger, LogContext
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO if settings.debug else logging.WARNING,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+# Initialize logging
+setup_logging()
+logger = get_logger(__name__)
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -28,6 +26,39 @@ app = FastAPI(
     description="Deep research AI agent with code execution capabilities",
     version="0.1.0"
 )
+
+# Request logging middleware
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Log all HTTP requests with timing information."""
+    request_id = str(uuid.uuid4())[:8]
+    start_time = time.time()
+
+    logger.info(
+        f"→ Request started | {request.method} {request.url.path} | "
+        f"ID: {request_id} | Client: {request.client.host if request.client else 'unknown'}"
+    )
+
+    try:
+        response = await call_next(request)
+        duration = time.time() - start_time
+
+        logger.info(
+            f"← Request completed | {request.method} {request.url.path} | "
+            f"ID: {request_id} | Status: {response.status_code} | "
+            f"Duration: {duration:.3f}s"
+        )
+
+        return response
+    except Exception as e:
+        duration = time.time() - start_time
+        logger.error(
+            f"✗ Request failed | {request.method} {request.url.path} | "
+            f"ID: {request_id} | Duration: {duration:.3f}s | Error: {str(e)}",
+            exc_info=True
+        )
+        raise
+
 
 # Configure CORS
 app.add_middleware(
@@ -48,21 +79,54 @@ research_graph = create_research_graph(
 
 @app.on_event("startup")
 async def startup_event():
+    """Initialize application on startup."""
+    logger.info("=" * 80)
+    logger.info("🚀 Weaver Research Agent Starting...")
+    logger.info("=" * 80)
+
+    # Log configuration
+    logger.info(f"Environment: {'DEBUG' if settings.debug else 'PRODUCTION'}")
+    logger.info(f"Primary Model: {settings.primary_model}")
+    logger.info(f"Reasoning Model: {settings.reasoning_model}")
+    logger.info(f"Database: {'Configured' if settings.database_url else 'Not configured'}")
+    logger.info(f"Checkpointer: {'Enabled' if checkpointer else 'Disabled'}")
+
+    # Initialize MCP tools
     try:
+        logger.info("Initializing MCP tools...")
         mcp_tools = await init_mcp_tools()
         if mcp_tools:
             set_registered_tools(mcp_tools)
-            logger.info(f"Registered {len(mcp_tools)} MCP tools")
+            logger.info(f"✓ Successfully registered {len(mcp_tools)} MCP tools")
+            for tool_name in list(mcp_tools.keys())[:5]:  # Log first 5 tools
+                logger.debug(f"  - {tool_name}")
+        else:
+            logger.info("No MCP tools to register")
     except Exception as e:
-        logger.warning(f"MCP tools startup failed: {e}")
+        logger.warning(f"⚠ MCP tools initialization failed: {e}", exc_info=settings.debug)
+
+    logger.info("=" * 80)
+    logger.info("✓ Weaver Research Agent Ready")
+    logger.info("=" * 80)
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
+    """Cleanup on application shutdown."""
+    logger.info("=" * 80)
+    logger.info("🛑 Weaver Research Agent Shutting Down...")
+    logger.info("=" * 80)
+
     try:
+        logger.info("Closing MCP tools...")
         await close_mcp_tools()
-    except Exception:
-        pass
+        logger.info("✓ MCP tools closed successfully")
+    except Exception as e:
+        logger.error(f"✗ Error closing MCP tools: {e}", exc_info=True)
+
+    logger.info("=" * 80)
+    logger.info("✓ Shutdown Complete")
+    logger.info("=" * 80)
 
 
 # Request/Response models
@@ -193,7 +257,12 @@ async def stream_agent_events(
 
     Converts LangGraph events to Vercel AI SDK format.
     """
+    event_count = 0
+    start_time = time.time()
+
     try:
+        logger.info(f"🎯 Agent stream started | Thread: {thread_id} | Model: {model}")
+        logger.debug(f"  Input: {input_text[:100]}...")
         # Initialize state
         initial_state: AgentState = {
             "input": input_text,
@@ -247,17 +316,21 @@ async def stream_agent_events(
 
             # Handle different event types
             if event_type in {"on_chain_start", "on_node_start", "on_graph_start"}:
+                event_count += 1
                 if "planner" in node_name:
+                    logger.debug(f"  📋 Planning node started | Thread: {thread_id}")
                     yield await format_stream_event("status", {
                         "text": "Creating research plan...",
                         "step": "planning"
                     })
                 elif "perform_parallel_search" in node_name or "search" in node_name:
+                    logger.debug(f"  🔍 Search node started | Thread: {thread_id}")
                     yield await format_stream_event("status", {
                         "text": "Conducting research...",
                         "step": "researching"
                     })
                 elif "writer" in node_name:
+                    logger.debug(f"  ✍️  Writer node started | Thread: {thread_id}")
                     yield await format_stream_event("status", {
                         "text": "Synthesizing findings...",
                         "step": "writing"
@@ -353,12 +426,22 @@ async def stream_agent_events(
                         yield await format_stream_event("text", {"content": content})
 
         # Send final completion
+        duration = time.time() - start_time
+        logger.info(
+            f"✓ Agent stream completed | Thread: {thread_id} | "
+            f"Events: {event_count} | Duration: {duration:.2f}s"
+        )
         yield await format_stream_event("done", {
             "timestamp": datetime.now().isoformat()
         })
 
     except Exception as e:
-        logger.error(f"Stream error: {str(e)}", exc_info=True)
+        duration = time.time() - start_time
+        logger.error(
+            f"✗ Agent stream error | Thread: {thread_id} | "
+            f"Duration: {duration:.2f}s | Error: {str(e)}",
+            exc_info=True
+        )
         yield await format_stream_event("error", {
             "message": str(e)
         })
@@ -371,19 +454,28 @@ async def chat(request: ChatRequest):
 
     Compatible with Vercel AI SDK useChat hook.
     """
+    thread_id = None
     try:
         # Get the last user message
         user_messages = [msg for msg in request.messages if msg.role == "user"]
         if not user_messages:
+            logger.warning("Chat request received with no user messages")
             raise HTTPException(status_code=400, detail="No user message found")
 
         last_message = user_messages[-1].content
-
         mode_info = _normalize_search_mode(request.search_mode)
-        logger.info(f"Processing chat request: {last_message[:100]}... Mode: {mode_info.get('mode')}")
+
+        logger.info(f"📨 Chat request received")
+        logger.info(f"  Model: {request.model}")
+        logger.info(f"  Mode: {mode_info.get('mode')}")
+        logger.info(f"  Stream: {request.stream}")
+        logger.info(f"  Message length: {len(last_message)} chars")
+        logger.debug(f"  Message preview: {last_message[:200]}...")
 
         if request.stream:
             thread_id = f"thread_{uuid.uuid4().hex}"
+            logger.info(f"🌊 Starting streaming response | Thread: {thread_id}")
+
             # Return streaming response
             return StreamingResponse(
                 stream_agent_events(last_message, thread_id=thread_id, model=request.model, search_mode=mode_info),
@@ -436,7 +528,12 @@ async def chat(request: ChatRequest):
             )
 
     except Exception as e:
-        logger.error(f"Chat error: {str(e)}", exc_info=True)
+        logger.error(
+            f"✗ Chat error | Thread: {thread_id or 'N/A'} | "
+            f"Model: {request.model if 'request' in locals() else 'N/A'} | "
+            f"Error: {str(e)}",
+            exc_info=True
+        )
         raise HTTPException(status_code=500, detail=str(e))
 
 
