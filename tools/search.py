@@ -1,10 +1,54 @@
 from tavily import TavilyClient
 from langchain_core.tools import tool
-from typing import List, Dict, Any
+from langchain_openai import ChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate
+from typing import List, Dict, Any, Optional
 from config import settings
 import logging
+import textwrap
 
 logger = logging.getLogger(__name__)
+
+
+def _trim_text(text: str, max_len: int = 4000) -> str:
+    """Truncate long text to avoid token blow-ups."""
+    if not text:
+        return ""
+    return text[:max_len]
+
+
+def _summarize_content(raw_content: str) -> Optional[str]:
+    """
+    Summarize raw content to keep writer context small.
+    Returns None on failure so callers can fallback gracefully.
+    """
+    if not raw_content:
+        return None
+    if not settings.openai_api_key:
+        return None
+
+    try:
+        llm = ChatOpenAI(
+            model=settings.primary_model,
+            temperature=0.3,
+            api_key=settings.openai_api_key
+        )
+        prompt = ChatPromptTemplate.from_messages([
+            (
+                "system",
+                "You are a concise analyst. Summarize the page into 3-5 bullet points. "
+                "Keep key facts, avoid filler, cite numbers if present."
+            ),
+            ("human", "{content}")
+        ])
+        response = llm.invoke(
+            prompt.format_messages(content=_trim_text(raw_content, 3500))
+        )
+        content = getattr(response, "content", None) or ""
+        return textwrap.dedent(content).strip() or None
+    except Exception as e:
+        logger.warning(f"Summarization failed: {e}")
+        return None
 
 
 @tool
@@ -32,21 +76,36 @@ def tavily_search(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
         )
 
         results = []
+        seen_urls = set()
+
         for result in response.get("results", []):
+            url = result.get("url", "")
+            if not url or url in seen_urls:
+                continue
+            seen_urls.add(url)
+
+            raw_content = result.get("raw_content", "") or result.get("content", "")
+            summary = _summarize_content(raw_content)
+
             results.append({
                 "title": result.get("title", ""),
-                "url": result.get("url", ""),
-                "content": result.get("content", ""),
-                "raw_content": result.get("raw_content", "")[:2000],  # Limit size
+                "url": url,
+                "summary": summary or _trim_text(result.get("content", ""), 600),
+                "snippet": _trim_text(result.get("content", ""), 600),
+                "raw_excerpt": _trim_text(raw_content, 1200),
                 "score": result.get("score", 0),
             })
+
+            if len(results) >= max_results:
+                break
 
         logger.info(f"Tavily search for '{query}' returned {len(results)} results")
         return results
 
     except Exception as e:
         logger.error(f"Tavily search error: {str(e)}")
-        return [{"error": str(e)}]
+        # Return empty list to let upstream fallback gracefully
+        return []
 
 
 def search_multiple_queries(queries: List[str], max_results_per_query: int = 5) -> List[Dict[str, Any]]:

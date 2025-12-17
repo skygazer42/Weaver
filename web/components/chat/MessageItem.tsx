@@ -55,7 +55,7 @@ export function MessageItem({ message }: { message: Message }) {
       )}
 
       <div className={cn(
-          'flex flex-col max-w-[85%] md:max-w-[75%]', 
+          'flex flex-col max-w-[85%] md:max-w-[75%]',
           isUser ? 'items-end' : 'items-start'
       )}>
         
@@ -108,11 +108,24 @@ export function MessageItem({ message }: { message: Message }) {
                 remarkPlugins={[remarkGfm]}
                 components={{
                     pre: ({node, ...props}) => (
-                        <div className="overflow-auto w-full my-2 bg-black/10 dark:bg-black/30 p-2 rounded-lg border border-black/5 dark:border-white/5" {...props} />
+                        <div className="not-prose my-2 w-full overflow-hidden rounded-lg border bg-zinc-950 dark:bg-zinc-900" {...props} />
                     ),
-                    code: ({node, ...props}) => (
-                        <code className="bg-black/10 dark:bg-black/30 px-1 py-0.5 rounded text-sm font-mono" {...props} />
-                    ),
+                    code: ({node, className, children, ...props}: any) => {
+                        const match = /language-(\w+)/.exec(className || '')
+                        const isInline = !match && !String(children).includes('\n')
+                        
+                        if (isInline) {
+                           return (
+                                <code className="bg-black/10 dark:bg-black/30 px-1.5 py-0.5 rounded text-sm font-mono" {...props}>
+                                    {children}
+                                </code>
+                           )
+                        }
+
+                        return (
+                            <CodeBlock language={match ? match[1] : 'text'} value={String(children).replace(/\n$/, '')} />
+                        )
+                    },
                     a: ({node, ...props}) => (
                         <a className={cn("underline underline-offset-2 font-medium", isUser ? "text-white" : "text-primary hover:text-primary/80")} {...props} />
                     )
@@ -143,6 +156,37 @@ export function MessageItem({ message }: { message: Message }) {
       </div>
     </div>
   )
+}
+
+function CodeBlock({ language, value }: { language: string, value: string }) {
+    const [copied, setCopied] = useState(false)
+  
+    const handleCopy = () => {
+      navigator.clipboard.writeText(value)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  
+    return (
+      <div className="relative w-full">
+        <div className="flex items-center justify-between px-4 py-1.5 bg-zinc-900 border-b border-white/5">
+          <span className="text-xs font-medium text-zinc-400">{language}</span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-zinc-400 hover:text-white hover:bg-white/10"
+            onClick={handleCopy}
+          >
+            {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+          </Button>
+        </div>
+        <div className="overflow-x-auto p-4 bg-zinc-950">
+          <code className="text-sm font-mono text-zinc-300 whitespace-pre">
+            {value}
+          </code>
+        </div>
+      </div>
+    )
 }
 
 // Graph Components

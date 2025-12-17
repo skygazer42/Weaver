@@ -1,9 +1,9 @@
 'use client'
 
-import React from 'react'
+import React, { useState, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { Plus, Settings, User, Compass, History, LayoutGrid, Zap, FolderOpen, MoreHorizontal, MessageSquare, PanelLeft } from 'lucide-react'
+import { Plus, Compass, LayoutGrid, FolderOpen, MessageSquare, PanelLeft } from 'lucide-react'
 
 interface SidebarProps {
   isOpen: boolean
@@ -14,6 +14,20 @@ interface SidebarProps {
 }
 
 export function Sidebar({ isOpen, onToggle, onNewChat, history, isLoading = false }: SidebarProps) {
+  
+  const groupedHistory = useMemo(() => {
+    const groups: Record<string, typeof history> = {}
+    history.forEach(item => {
+        let key = item.date
+        if (key === 'Just now') key = 'Today'
+        if (!groups[key]) groups[key] = []
+        groups[key].push(item)
+    })
+    return groups
+  }, [history])
+
+  const groupOrder = ['Today', 'Yesterday', 'Previous 7 Days', 'Older']
+
   return (
     <>
       {/* Mobile Overlay */}
@@ -76,12 +90,7 @@ export function Sidebar({ isOpen, onToggle, onNewChat, history, isLoading = fals
             </div>
 
             {/* History Section */}
-            <div className="space-y-1">
-              <div className="px-3 text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-widest mb-1">
-                Recent Reports
-              </div>
-              
-              {isLoading ? (
+            {isLoading ? (
                   <div className="space-y-2 px-1">
                       {[1,2,3].map(i => (
                           <div key={i} className="h-8 w-full rounded-md bg-muted/40 animate-pulse" />
@@ -90,40 +99,47 @@ export function Sidebar({ isOpen, onToggle, onNewChat, history, isLoading = fals
               ) : history.length === 0 ? (
                   <div className="px-3 text-xs text-muted-foreground italic py-2">No recent chats</div>
               ) : (
-                  history.map((item) => (
-                    <button 
-                        key={item.id}
-                        className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm transition-all duration-200 text-muted-foreground hover:bg-muted/60 hover:text-foreground group text-left"
-                    >
-                        <MessageSquare className="h-4 w-4 shrink-0 transition-colors group-hover:text-primary" />
-                        <span className="truncate">{item.title}</span>
-                    </button>
-                  ))
+                  <div className="space-y-4">
+                      {groupOrder.map(dateLabel => {
+                          const items = groupedHistory[dateLabel]
+                          if (!items || items.length === 0) return null
+                          
+                          return (
+                              <div key={dateLabel} className="space-y-1">
+                                  <div className="px-3 text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-widest mb-1">
+                                      {dateLabel}
+                                  </div>
+                                  {items.map((item) => (
+                                    <button 
+                                        key={item.id}
+                                        className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm transition-all duration-200 text-muted-foreground hover:bg-muted/60 hover:text-foreground group text-left"
+                                    >
+                                        <MessageSquare className="h-4 w-4 shrink-0 transition-colors group-hover:text-primary" />
+                                        <span className="truncate">{item.title}</span>
+                                    </button>
+                                  ))}
+                              </div>
+                          )
+                      })}
+                      {/* Handle items that didn't fall into the main groups if any */}
+                      {Object.keys(groupedHistory).filter(k => !groupOrder.includes(k)).map(dateLabel => (
+                           <div key={dateLabel} className="space-y-1">
+                                <div className="px-3 text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-widest mb-1">
+                                    {dateLabel}
+                                </div>
+                                {groupedHistory[dateLabel].map((item) => (
+                                  <button 
+                                      key={item.id}
+                                      className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm transition-all duration-200 text-muted-foreground hover:bg-muted/60 hover:text-foreground group text-left"
+                                  >
+                                      <MessageSquare className="h-4 w-4 shrink-0 transition-colors group-hover:text-primary" />
+                                      <span className="truncate">{item.title}</span>
+                                  </button>
+                                ))}
+                            </div>
+                      ))}
+                  </div>
               )}
-            </div>
-          </div>
-
-          {/* User Profile */}
-          <div className="mt-auto pt-3 border-t border-border/50">
-            <button className="flex items-center gap-3 w-full p-2 rounded-lg hover:bg-muted/50 transition-colors group">
-                <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-primary/20 to-secondary flex items-center justify-center ring-1 ring-border">
-                    <User className="h-4 w-4 text-primary" />
-                </div>
-                <div className="flex-1 text-left overflow-hidden">
-                    <div className="text-sm font-medium truncate group-hover:text-primary transition-colors">User Account</div>
-                    <div className="text-xs text-muted-foreground truncate">Pro Plan</div>
-                </div>
-                <MoreHorizontal className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-            </button>
-            
-            <div className="flex gap-1 mt-1">
-               <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
-                  <Settings className="h-4 w-4" />
-               </Button>
-               <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
-                  <Zap className="h-4 w-4" />
-               </Button>
-            </div>
           </div>
         </div>
       </div>

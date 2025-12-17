@@ -173,7 +173,23 @@ Return ONLY a JSON object with this structure:
         else:
             plan_data = {"queries": [state["input"]], "reasoning": "Fallback"}
 
-        queries = plan_data.get("queries", [state["input"]])
+        raw_queries = plan_data.get("queries", [state["input"]])
+        # Normalize, dedupe, and clamp to a manageable set
+        seen = set()
+        queries: List[str] = []
+        for q in raw_queries:
+            if not isinstance(q, str):
+                continue
+            q = q.strip()
+            if not q or q.lower() in seen:
+                continue
+            seen.add(q.lower())
+            queries.append(q)
+            if len(queries) >= 6:
+                break
+        if not queries:
+            queries = [state["input"]]
+
         reasoning = plan_data.get("reasoning", "")
 
         logger.info(f"Generated {len(queries)} research queries")
@@ -229,26 +245,36 @@ def writer_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
 
     # Prepare research context
     scraped_content = state.get("scraped_content", [])
-    research_context = "\n\n".join([
-        f"Search: {item['query']}\nResults: {json.dumps(item['results'][:3], indent=2)}"
-        for item in scraped_content
-    ])
+
+    def _build_research_context(items: List[Dict[str, Any]]) -> str:
+        """Keep context compact: show top results with summary/snippet only."""
+        blocks: List[str] = []
+        for idx, item in enumerate(items):
+            query = item.get("query", "")
+            blocks.append(f"Search #{idx+1}: {query}")
+            results = item.get("results", []) or []
+            for ridx, res in enumerate(results[:3]):
+                title = res.get("title", "") or "Untitled"
+                url = res.get("url", "")
+                summary = res.get("summary") or res.get("snippet") or res.get("content", "")
+                summary = summary[:800]  # guardrail
+                blocks.append(f"  [{ridx+1}] {title} ({url}) -> {summary}")
+        return "\n".join(blocks)
+
+    research_context = _build_research_context(scraped_content)
 
     writer_prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are an expert research analyst. Synthesize the research findings into a comprehensive, well-structured report.
+        ("system", """You are an expert research analyst. Synthesize the research findings into a concise, well-structured report.
 
 Guidelines:
-1. Start with a clear executive summary
-2. Organize information logically
-3. Cite sources where relevant
-4. Highlight key findings and insights
-5. Use markdown formatting
-6. If data visualization would help, WRITE PYTHON CODE to create charts using matplotlib.
-   - Use the 'execute_python_code' tool.
-   - The tool returns an image if you create a plot.
-   - Include the analysis of the visualization in your report.
+1. Lead with a brief executive summary.
+2. Use markdown and bullets; keep paragraphs tight.
+3. Cite sources inline like [S1-1] where S1 = search #, -1 = result index.
+4. Prefer the provided summaries/snippets; do not paste long raw text.
+5. Highlight key findings, contrasts, and open questions.
+6. If a visualization helps, WRITE PYTHON CODE using matplotlib with the 'execute_python_code' tool and interpret the chart.
 
-Research Context:
+Research Context (compact):
 {context}""",), 
         ("human", "Create a comprehensive report answering: {query}")
     ])

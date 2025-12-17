@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { PanelLeft, Sun, Moon, ChevronDown, Check } from 'lucide-react'
+import { PanelLeft, Sun, Moon, ChevronDown, Check, LayoutPanelLeft } from 'lucide-react'
 import { useTheme } from '@/components/theme-provider'
 import { cn } from '@/lib/utils'
 
@@ -11,9 +11,11 @@ interface HeaderProps {
   onToggleSidebar: () => void
   selectedModel: string
   onModelChange: (model: string) => void
+  onToggleArtifacts?: () => void
+  hasArtifacts?: boolean
 }
 
-export function Header({ sidebarOpen, onToggleSidebar, selectedModel, onModelChange }: HeaderProps) {
+export function Header({ sidebarOpen, onToggleSidebar, selectedModel, onModelChange, onToggleArtifacts, hasArtifacts }: HeaderProps) {
   const { theme, setTheme } = useTheme()
   const [isModelOpen, setIsModelOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -58,6 +60,18 @@ export function Header({ sidebarOpen, onToggleSidebar, selectedModel, onModelCha
       </div>
 
       <div className="flex items-center gap-2">
+         {/* Artifacts Toggle (Mobile/Tablet) */}
+         {hasArtifacts && (
+             <Button
+                variant="ghost"
+                size="icon"
+                onClick={onToggleArtifacts}
+                className="xl:hidden hover:bg-muted/50 rounded-full text-orange-500"
+             >
+                <LayoutPanelLeft className="h-5 w-5" />
+             </Button>
+         )}
+
          {/* Custom Model Dropdown */}
          <div className="relative" ref={dropdownRef}>
             <button

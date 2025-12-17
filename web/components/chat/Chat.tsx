@@ -8,7 +8,9 @@ import { Sidebar } from './Sidebar'
 import { Header } from './Header'
 import { EmptyState } from './EmptyState'
 import { ChatInput } from './ChatInput'
-import { Loader2 } from 'lucide-react'
+import { Loader2, ArrowDown, X } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 interface Message {
   id: string
@@ -28,6 +30,7 @@ export function Chat() {
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [currentStatus, setCurrentStatus] = useState<string>('')
+  const [attachments, setAttachments] = useState<File[]>([])
   const [artifacts, setArtifacts] = useState<Artifact[]>([])
   const [history, setHistory] = useState<ChatSession[]>([])
   const [isHistoryLoading, setIsHistoryLoading] = useState(true)
@@ -36,6 +39,8 @@ export function Chat() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [selectedModel, setSelectedModel] = useState('gpt-4o')
   const [searchMode, setSearchMode] = useState('agent') 
+  const [showScrollButton, setShowScrollButton] = useState(false)
+  const [showMobileArtifacts, setShowMobileArtifacts] = useState(false)
   
   const scrollRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -66,15 +71,26 @@ export function Chat() {
       }
   }, [history, isHistoryLoading])
 
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+      if (scrollRef.current) {
+          const viewport = scrollRef.current.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement
+          if (viewport) {
+               viewport.scrollTo({ top: viewport.scrollHeight, behavior })
+          }
+      }
+  }
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+      const target = e.currentTarget
+      const diff = target.scrollHeight - target.scrollTop - target.clientHeight
+      setShowScrollButton(diff > 200) // Show if more than 200px from bottom
+  }
+
   // Auto-scroll
   useEffect(() => {
-    if (scrollRef.current) {
-        setTimeout(() => {
-            if (scrollRef.current) {
-                 scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-            }
-        }, 100)
-    }
+    setTimeout(() => {
+        scrollToBottom('instant')
+    }, 100)
   }, [messages, currentStatus])
 
   const handleStop = () => {
@@ -122,6 +138,7 @@ export function Chat() {
 
     setMessages((prev) => [...prev, userMessage])
     setInput('')
+    setAttachments([])
     setIsLoading(true)
 
     // Create new abort controller
@@ -272,10 +289,16 @@ export function Chat() {
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
           selectedModel={selectedModel}
           onModelChange={setSelectedModel}
+          onToggleArtifacts={() => setShowMobileArtifacts(!showMobileArtifacts)}
+          hasArtifacts={artifacts.length > 0}
         />
 
         {/* Chat Area */}
-        <ScrollArea className="flex-1 p-0 sm:p-4" ref={scrollRef}>
+        <ScrollArea 
+            className="flex-1 p-0 sm:p-4" 
+            ref={scrollRef}
+            onViewportScroll={handleScroll}
+        >
           {messages.length === 0 ? (
             <div className="h-full w-full p-4">
                <EmptyState 
@@ -300,10 +323,19 @@ export function Chat() {
           )}
         </ScrollArea>
 
+        {/* Scroll To Bottom Button */}
+        <div className={cn("absolute bottom-24 right-6 z-30 transition-all duration-500", showScrollButton ? "translate-y-0 opacity-100" : "translate-y-10 opacity-0 pointer-events-none")}>
+             <Button variant="outline" size="icon" className="rounded-full shadow-lg bg-background/80 backdrop-blur border-primary/20 hover:bg-background" onClick={() => scrollToBottom()}>
+                 <ArrowDown className="h-4 w-4" />
+             </Button>
+        </div>
+
         {/* Input Area */}
         <ChatInput 
           input={input}
           setInput={setInput}
+          attachments={attachments}
+          setAttachments={setAttachments}
           onSubmit={handleSubmit}
           isLoading={isLoading}
           onStop={handleStop}
@@ -312,11 +344,26 @@ export function Chat() {
         />
       </div>
 
-      {/* Artifacts Panel */}
+      {/* Desktop Artifacts Panel */}
       {artifacts.length > 0 && (
         <div className="w-[400px] border-l hidden xl:flex flex-col bg-card animate-in slide-in-from-right duration-500 shadow-2xl z-20">
           <ArtifactsPanel artifacts={artifacts} />
         </div>
+      )}
+
+      {/* Mobile Artifacts Overlay */}
+      {showMobileArtifacts && (
+         <div className="fixed inset-0 z-50 bg-background xl:hidden flex flex-col animate-in slide-in-from-right duration-300">
+             <div className="flex items-center justify-between p-4 border-b">
+                 <h2 className="font-semibold">Artifacts</h2>
+                 <Button variant="ghost" size="icon" onClick={() => setShowMobileArtifacts(false)}>
+                     <X className="h-5 w-5" />
+                 </Button>
+             </div>
+             <div className="flex-1 overflow-hidden">
+                 <ArtifactsPanel artifacts={artifacts} />
+             </div>
+         </div>
       )}
     </div>
   )
