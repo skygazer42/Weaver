@@ -61,7 +61,7 @@ chmod +x scripts/setup.sh
 
 **Solution**:
 ```bash
-cd backend
+# Backend now in root
 python3 -m venv venv
 source venv/bin/activate
 python -m ensurepip
@@ -92,7 +92,7 @@ source ~/.bashrc
 
 **Solution**:
 ```bash
-cd backend
+# Backend now in root
 source venv/bin/activate
 pip install -r requirements.txt
 ```
@@ -126,7 +126,7 @@ docker-compose ps
 docker-compose logs postgres
 ```
 
-### Frontend won't start
+### Web won't start
 
 #### Error: "Cannot find module 'next'"
 
@@ -231,7 +231,7 @@ To enable:
 # Check main.py uses:
 async for event in research_graph.astream_events(...)
 
-# Frontend: Check headers
+# Web: Check headers
 headers: {
   'Cache-Control': 'no-cache',
   'Connection': 'keep-alive'
@@ -289,7 +289,7 @@ docker exec -it manus_postgres psql -U manus -d manus_db
 **Solution**:
 ```bash
 # LangGraph should auto-create tables, but if not:
-cd backend
+# Backend now in root
 source venv/bin/activate
 python
 
@@ -326,11 +326,11 @@ services:
 
 **Solutions**:
 ```python
-# Use faster models (backend/config.py)
+# Use faster models (config.py)
 primary_model = "gpt-4o-mini"  # Faster
 reasoning_model = "gpt-4o"      # Instead of o1-mini
 
-# Reduce search results (backend/tools/search.py)
+# Reduce search results (tools/search.py)
 max_results = 3  # Instead of 5
 ```
 
@@ -340,7 +340,7 @@ max_results = 3  # Instead of 5
 
 **Solution**:
 ```python
-# Limit context size (backend/agent/nodes.py)
+# Limit context size (agent/nodes.py)
 context=research_context[:4000]  # Instead of 8000
 
 # Clear old checkpoints
@@ -348,7 +348,7 @@ docker-compose exec postgres psql -U manus -d manus_db
 # DELETE FROM checkpoints WHERE created_at < NOW() - INTERVAL '1 day';
 ```
 
-### Frontend lag
+### Web lag
 
 **Problem**: Too many re-renders.
 
@@ -411,11 +411,11 @@ docker-compose ps
 
 ### "CORS policy: No 'Access-Control-Allow-Origin'"
 
-**Problem**: Frontend domain not in CORS whitelist.
+**Problem**: Web domain not in CORS whitelist.
 
 **Solution**:
 ```bash
-# Update backend/.env
+# Update .env
 CORS_ORIGINS=http://localhost:3000,http://localhost:3001
 
 # Or for development (not production!)
@@ -431,12 +431,12 @@ CORS_ORIGINS=*
 **Solution**:
 ```bash
 # Backend
-cd backend
+# Backend now in root
 # Kill server (Ctrl+C)
 source venv/bin/activate
 uvicorn main:app --reload
 
-# Frontend
+# Web
 cd frontend
 # Kill server (Ctrl+C)
 npm run dev
@@ -448,7 +448,7 @@ npm run dev
 
 **Solution**:
 ```bash
-# Check required vars in backend/config.py:
+# Check required vars in config.py:
 # - OPENAI_API_KEY (required)
 # - TAVILY_API_KEY (required)
 # - DATABASE_URL (required)
@@ -469,7 +469,7 @@ cat .env | grep -E 'OPENAI|TAVILY|DATABASE'
 curl http://localhost:8000/health
 
 # Check frontend .env.local
-cat frontend/.env.local
+cat web/.env.local
 # Should be:
 NEXT_PUBLIC_API_URL=http://localhost:8000
 
@@ -501,7 +501,7 @@ curl -X POST http://localhost:8000/api/chat \
 **Check**:
 ```bash
 # Backend logs
-cd backend
+# Backend now in root
 source venv/bin/activate
 uvicorn main:app --reload
 
@@ -510,7 +510,7 @@ uvicorn main:app --reload
 
 ### "TypeError: Cannot read properties of undefined"
 
-**Likely Cause**: Frontend trying to access data that hasn't loaded.
+**Likely Cause**: Web trying to access data that hasn't loaded.
 
 **Fix**:
 Add null checks:
@@ -536,9 +536,9 @@ If none of these solve your issue:
 1. **Check logs**:
    ```bash
    # Backend
-   cd backend && source venv/bin/activate && uvicorn main:app --reload
+   # Backend now in root && source venv/bin/activate && uvicorn main:app --reload
 
-   # Frontend
+   # Web
    cd frontend && npm run dev
 
    # Database
@@ -570,7 +570,7 @@ If none of these solve your issue:
 5. **Fresh install**:
    ```bash
    # Nuclear option - start from scratch
-   rm -rf node_modules frontend/node_modules backend/venv
+   rm -rf node_modules web/node_modules backend/venv
    docker-compose down -v
    ./scripts/setup.sh
    ```

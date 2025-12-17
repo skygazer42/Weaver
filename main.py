@@ -169,6 +169,14 @@ async def stream_agent_events(input_text: str, thread_id: str = "default"):
                             yield await format_stream_event("completion", {
                                 "content": final_report
                             })
+                            
+                            # Also emit as artifact
+                            yield await format_stream_event("artifact", {
+                                "id": f"report_{datetime.now().timestamp()}",
+                                "type": "report",
+                                "title": "Research Report",
+                                "content": final_report
+                            })
 
             elif event_type == "on_tool_start":
                 tool_name = data_dict.get("name", "unknown")
@@ -189,10 +197,25 @@ async def stream_agent_events(input_text: str, thread_id: str = "default"):
 
             elif event_type == "on_tool_end":
                 tool_name = data_dict.get("name", "unknown")
+                output = data_dict.get("output", {})
+                
                 yield await format_stream_event("tool", {
                     "name": tool_name,
                     "status": "completed"
                 })
+
+                # Check for artifacts from code execution
+                if tool_name == "execute_python_code" and isinstance(output, dict):
+                    image_data = output.get("image")
+                    
+                    if image_data:
+                        yield await format_stream_event("artifact", {
+                            "id": f"art_{datetime.now().timestamp()}",
+                            "type": "chart",
+                            "title": "Generated Visualization",
+                            "content": "Chart generated from Python code",
+                            "image": image_data
+                        })
 
             elif event_type == "on_chat_model_stream":
                 # Stream LLM tokens

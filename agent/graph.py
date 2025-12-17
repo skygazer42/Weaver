@@ -2,12 +2,12 @@ from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.postgres import PostgresSaver
 import logging
 
-from .state import AgentState
+from .state import AgentState, QueryState
 from .nodes import (
     planner_node,
-    researcher_node,
     writer_node,
-    should_continue_research
+    perform_parallel_search,
+    initiate_research
 )
 
 logger = logging.getLogger(__name__)
@@ -19,10 +19,8 @@ def create_research_graph(checkpointer=None):
 
     The graph flow:
     1. START -> planner (creates research plan)
-    2. planner -> researcher (executes searches)
-    3. researcher -> [conditional]
-       - If more queries: researcher (loop)
-       - If done: writer
+    2. planner -> [parallel] perform_parallel_search (executes searches)
+    3. perform_parallel_search -> writer (aggregates results)
     4. writer -> END
     """
 
@@ -31,24 +29,23 @@ def create_research_graph(checkpointer=None):
 
     # Add nodes
     workflow.add_node("planner", planner_node)
-    workflow.add_node("researcher", researcher_node)
+    workflow.add_node("perform_parallel_search", perform_parallel_search)
     workflow.add_node("writer", writer_node)
 
     # Set entry point
     workflow.set_entry_point("planner")
 
-    # Add edges
-    workflow.add_edge("planner", "researcher")
-
-    # Conditional edge: continue researching or move to writing
+    # Conditional edge: Map-Reduce pattern
+    # The planner creates the plan, then initiate_research creates a Send object
+    # for each query, triggering parallel execution of perform_parallel_search.
     workflow.add_conditional_edges(
-        "researcher",
-        should_continue_research,
-        {
-            "continue": "researcher",  # Loop back for next query
-            "write": "writer"
-        }
+        "planner",
+        initiate_research,
+        ["perform_parallel_search"]
     )
+
+    # Fan-in: All parallel searches feed into the writer
+    workflow.add_edge("perform_parallel_search", "writer")
 
     # Final edge
     workflow.add_edge("writer", END)

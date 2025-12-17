@@ -34,12 +34,8 @@ if [ ! -f .env ]; then
     echo "⚠️  Created .env file. Please fill in your API keys!"
 fi
 
-if [ ! -f frontend/.env.local ]; then
-    cp frontend/.env.local.example frontend/.env.local
-fi
-
-if [ ! -f backend/.env ]; then
-    cp backend/.env.example backend/.env
+if [ ! -f web/.env.local ]; then
+    cp web/.env.local.example web/.env.local
 fi
 
 echo "✅ Environment files created"
@@ -48,15 +44,14 @@ echo "✅ Environment files created"
 echo "📦 Installing root dependencies..."
 npm install
 
-# Install frontend dependencies
-echo "📦 Installing frontend dependencies..."
-cd frontend
+# Install web dependencies
+echo "📦 Installing web dependencies..."
+cd web
 npm install
 cd ..
 
 # Setup Python virtual environment
 echo "🐍 Setting up Python virtual environment..."
-cd backend
 python3 -m venv venv
 source venv/bin/activate
 
@@ -66,7 +61,6 @@ pip install --upgrade pip
 pip install -r requirements.txt
 
 deactivate
-cd ..
 
 # Start database
 echo "🗄️  Starting PostgreSQL database..."

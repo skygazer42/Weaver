@@ -311,7 +311,7 @@ This provides:
 Configure CORS for production:
 
 ```python
-# backend/config.py
+# config.py
 cors_origins = "https://your-frontend.com"
 ```
 

@@ -55,3 +55,8 @@ class CodeExecution(TypedDict):
     output: str
     error: str | None
     image: str | None  # Base64 encoded image if generated
+
+
+class QueryState(TypedDict):
+    """State for a single parallel research query."""
+    query: str

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { MessageItem } from './MessageItem'
+import { ArtifactsPanel, Artifact } from './ArtifactsPanel'
 import { Send, Loader2 } from 'lucide-react'
 
 interface Message {
@@ -19,6 +20,7 @@ export function Chat() {
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [currentStatus, setCurrentStatus] = useState<string>('')
+  const [artifacts, setArtifacts] = useState<Artifact[]>([])
   const scrollRef = useRef<HTMLDivElement>(null)
 
   // Auto-scroll to bottom
@@ -130,6 +132,12 @@ export function Chat() {
                     msg.id === assistantMessage.id ? { ...assistantMessage } : msg
                   )
                 )
+              } else if (data.type === 'artifact') {
+                const newArtifact = data.data as Artifact
+                setArtifacts((prev) => {
+                  if (prev.some(a => a.id === newArtifact.id)) return prev
+                  return [...prev, newArtifact]
+                })
               }
             } catch (err) {
               console.error('Error parsing stream data:', err)
@@ -155,64 +163,73 @@ export function Chat() {
   }
 
   return (
-    <div className="flex h-screen flex-col">
-      {/* Header */}
-      <div className="border-b p-4">
-        <h1 className="text-2xl font-bold">Manus Research Agent</h1>
-        <p className="text-sm text-muted-foreground">
-          Deep search and code execution AI assistant
-        </p>
-      </div>
+    <div className="flex h-screen flex-row overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Header */}
+        <div className="border-b p-4">
+          <h1 className="text-2xl font-bold">Manus Research Agent</h1>
+          <p className="text-sm text-muted-foreground">
+            Deep search and code execution AI assistant
+          </p>
+        </div>
 
-      {/* Messages */}
-      <ScrollArea className="flex-1 p-4" ref={scrollRef}>
-        {messages.length === 0 ? (
-          <div className="flex h-full items-center justify-center">
-            <div className="text-center">
-              <h2 className="text-xl font-semibold mb-2">
-                Welcome to Manus
-              </h2>
-              <p className="text-muted-foreground">
-                Ask me anything and I'll conduct deep research to find answers
-              </p>
+        {/* Messages */}
+        <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+          {messages.length === 0 ? (
+            <div className="flex h-full items-center justify-center">
+              <div className="text-center">
+                <h2 className="text-xl font-semibold mb-2">
+                  Welcome to Manus
+                </h2>
+                <p className="text-muted-foreground">
+                  Ask me anything and I'll conduct deep research to find answers
+                </p>
+              </div>
             </div>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {messages.map((message) => (
-              <MessageItem key={message.id} message={message} />
-            ))}
-          </div>
-        )}
+          ) : (
+            <div className="space-y-4">
+              {messages.map((message) => (
+                <MessageItem key={message.id} message={message} />
+              ))}
+            </div>
+          )}
 
-        {/* Status indicator */}
-        {currentStatus && (
-          <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            <span>{currentStatus}</span>
-          </div>
-        )}
-      </ScrollArea>
-
-      {/* Input */}
-      <div className="border-t p-4">
-        <form onSubmit={handleSubmit} className="flex gap-2">
-          <Input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask me anything..."
-            disabled={isLoading}
-            className="flex-1"
-          />
-          <Button type="submit" disabled={isLoading || !input.trim()}>
-            {isLoading ? (
+          {/* Status indicator */}
+          {currentStatus && (
+            <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
-          </Button>
-        </form>
+              <span>{currentStatus}</span>
+            </div>
+          )}
+        </ScrollArea>
+
+        {/* Input */}
+        <div className="border-t p-4">
+          <form onSubmit={handleSubmit} className="flex gap-2">
+            <Input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Ask me anything..."
+              disabled={isLoading}
+              className="flex-1"
+            />
+            <Button type="submit" disabled={isLoading || !input.trim()}>
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+            </Button>
+          </form>
+        </div>
       </div>
+
+      {/* Artifacts Panel */}
+      {artifacts.length > 0 && (
+        <div className="w-[400px] hidden md:block">
+          <ArtifactsPanel artifacts={artifacts} />
+        </div>
+      )}
     </div>
   )
 }

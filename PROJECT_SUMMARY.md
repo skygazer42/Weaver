@@ -12,7 +12,7 @@ A full-stack AI research agent inspired by Manus, featuring:
 
 - **Total Files Created**: 35+
 - **Backend Files**: 11 Python files
-- **Frontend Files**: 13 TypeScript/React files
+- **Web Files**: 13 TypeScript/React files
 - **Configuration Files**: 11
 - **Lines of Code**: ~3,000+
 - **Technologies**: 10+ (Python, TypeScript, React, FastAPI, LangGraph, etc.)
@@ -21,7 +21,7 @@ A full-stack AI research agent inspired by Manus, featuring:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                         Frontend                             │
+│                         Web                             │
 │  Next.js 14 + Tailwind CSS + Shadcn UI + Vercel AI SDK     │
 │                                                              │
 │  Components:                                                 │
@@ -83,7 +83,7 @@ manus-app/
 │   ├── Dockerfile             # Container config
 │   └── .env.example           # Environment template
 │
-├── frontend/                   # Next.js 14 frontend
+├── web/                   # Next.js 14 frontend
 │   ├── app/                   # App router
 │   │   ├── page.tsx          # Main page
 │   │   ├── layout.tsx        # Root layout
@@ -126,26 +126,26 @@ manus-app/
 
 ### 1. **Deep Research Agent** ✅
 
-**Location**: `backend/agent/`
+**Location**: `agent/`
 
 - **Planner Node**: Creates structured research plans
   - Uses reasoning model (o1-mini)
   - Generates 3-7 targeted queries
-  - File: `backend/agent/nodes.py:15-59`
+  - File: `agent/nodes.py:15-59`
 
 - **Researcher Node**: Executes searches
   - Tavily deep search integration
   - Parallel query execution capability
-  - File: `backend/agent/nodes.py:62-102`
+  - File: `agent/nodes.py:62-102`
 
 - **Writer Node**: Synthesizes findings
   - Generates comprehensive reports
   - Markdown formatting
-  - File: `backend/agent/nodes.py:105-157`
+  - File: `agent/nodes.py:105-157`
 
 ### 2. **Streaming Interface** ✅
 
-**Location**: `backend/main.py` + `frontend/components/chat/Chat.tsx`
+**Location**: `main.py` + `web/components/chat/Chat.tsx`
 
 - Server-Sent Events (SSE) streaming
 - Real-time status updates
@@ -158,7 +158,7 @@ manus-app/
 
 ### 3. **Tool Integration** ✅
 
-**Location**: `backend/tools/`
+**Location**: `tools/`
 
 - **Tavily Search** (`search.py`)
   - Deep search mode
@@ -172,7 +172,7 @@ manus-app/
 
 ### 4. **Generative UI** ✅
 
-**Location**: `frontend/components/chat/ArtifactsPanel.tsx`
+**Location**: `web/components/chat/ArtifactsPanel.tsx`
 
 - Dynamic artifact rendering
 - Support for:
@@ -183,7 +183,7 @@ manus-app/
 
 ### 5. **State Persistence** ✅
 
-**Location**: `backend/agent/graph.py`
+**Location**: `agent/graph.py`
 
 - PostgreSQL checkpointing
 - Pause/resume capability
@@ -202,7 +202,7 @@ manus-app/
 - **Database**: PostgreSQL + pgvector
 - **Language**: Python 3.11+
 
-### Frontend
+### Web
 - **Framework**: Next.js 14.2.0 (App Router)
 - **UI Library**: Shadcn UI + Radix UI
 - **Styling**: Tailwind CSS 3.4.1
@@ -263,7 +263,7 @@ GET /health
 
 See `API.md` for full documentation.
 
-## 🎨 Frontend Components
+## 🎨 Web Components
 
 ### Core Components
 
@@ -354,7 +354,7 @@ User Query
 
 ## 🌐 Deployment Options
 
-### Frontend
+### Web
 - **Vercel** (Recommended)
   - Zero config
   - Automatic deployments

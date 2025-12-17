@@ -4,7 +4,7 @@ A full-stack application with Deep Search, Code Execution, and Generative UI cap
 
 ## Architecture
 
-- **Frontend**: Next.js 14 (App Router) + Tailwind CSS + Shadcn UI + Vercel AI SDK
+- **Web**: Next.js 14 (App Router) + Tailwind CSS + Shadcn UI + Vercel AI SDK
 - **Backend**: Python 3.11+ + FastAPI + LangGraph + LangChain
 - **Database**: PostgreSQL with pgvector
 - **Tools**: Tavily (Search) + E2B (Code Execution)
@@ -13,14 +13,15 @@ A full-stack application with Deep Search, Code Execution, and Generative UI cap
 
 ```
 manus-app/
-├── frontend/          # Next.js application
+├── web/              # Next.js application
 │   ├── app/          # App router pages
 │   ├── components/   # React components
 │   └── lib/          # Utilities
-├── backend/          # Python FastAPI application
-│   ├── agent/       # LangGraph agent logic
-│   ├── tools/       # Search & code execution tools
-│   └── main.py      # API entry point
+├── agent/            # LangGraph agent logic
+├── tools/            # Search & code execution tools
+├── main.py           # FastAPI API entry point
+├── config.py         # Configuration
+├── requirements.txt  # Python dependencies
 └── docker-compose.yml
 ```
 
@@ -60,15 +61,15 @@ npm run install:all
 ### 4. Run Development Servers
 
 ```bash
-# Run both frontend and backend
+# Run both backend and web
 npm run dev
 
 # Or run separately:
 # Backend: npm run dev:backend
-# Frontend: npm run dev:frontend
+# Web: npm run dev:web
 ```
 
-- Frontend: http://localhost:3000
+- Web: http://localhost:3000
 - Backend API: http://localhost:8000
 - API Docs: http://localhost:8000/docs
 
@@ -99,27 +100,27 @@ npm run dev
 ### Backend Development
 
 ```bash
-cd backend
+# Backend is now in root directory
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 uvicorn main:app --reload
 ```
 
-### Frontend Development
+### Web Development
 
 ```bash
-cd frontend
+cd web
 npm install
 npm run dev
 ```
 
 ## Deployment
 
-### Frontend (Vercel)
+### Web (Vercel)
 
 ```bash
-cd frontend
+cd web
 vercel deploy
 ```
 
@@ -128,7 +129,7 @@ vercel deploy
 The backend requires long-running containers due to extended research times (5-10 minutes).
 
 ```bash
-docker build -t manus-backend ./backend
+docker build -t manus-backend .
 # Deploy to Railway, AWS Fargate, or similar
 ```
 

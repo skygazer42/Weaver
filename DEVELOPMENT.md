@@ -26,12 +26,12 @@ npm run dev
 
 # Option 3: Start individually
 npm run dev:backend  # Backend only
-npm run dev:frontend # Frontend only
+npm run dev:frontend # Web only
 ```
 
 ### 3. Access the Application
 
-- **Frontend**: http://localhost:3000
+- **Web**: http://localhost:3000
 - **Backend API**: http://localhost:8000
 - **API Documentation**: http://localhost:8000/docs
 
@@ -39,7 +39,7 @@ npm run dev:frontend # Frontend only
 
 ```
 manus-app/
-├── frontend/              # Next.js 14 application
+├── web/              # Next.js 14 application
 │   ├── app/              # App router
 │   │   ├── page.tsx      # Main page
 │   │   ├── layout.tsx    # Root layout
@@ -86,10 +86,10 @@ LangGraph Agent (agent/graph.py)
 │  Writer Node    │ → Synthesizes report
 └────────┬────────┘
          ↓
-Stream Events to Frontend
+Stream Events to Web
 ```
 
-### Frontend Flow
+### Web Flow
 
 ```
 User Input
@@ -110,7 +110,7 @@ Update UI:
 
 ### 1. Deep Search
 
-**Backend** (backend/agent/nodes.py:44-82):
+**Backend** (agent/nodes.py:44-82):
 - Planner creates 3-7 targeted queries
 - Researcher executes each query using Tavily
 - Advanced search depth returns full content
@@ -121,19 +121,19 @@ Update UI:
 
 ### 2. Streaming
 
-**Backend** (backend/main.py:116-209):
+**Backend** (main.py:116-209):
 - Uses `research_graph.astream_events()` for real-time updates
 - Converts LangGraph events to Vercel AI SDK format
 - Event types: status, text, tool, completion
 
-**Frontend** (frontend/components/chat/Chat.tsx:48-122):
+**Web** (web/components/chat/Chat.tsx:48-122):
 - Fetches streaming response
 - Parses data stream protocol (`0:{json}\n`)
 - Updates UI in real-time
 
 ### 3. Code Execution
 
-**Backend** (backend/tools/code_executor.py):
+**Backend** (tools/code_executor.py):
 - E2B Sandbox for safe Python execution
 - Supports matplotlib for visualizations
 - Returns base64 encoded images
@@ -162,7 +162,7 @@ docker-compose up -d postgres
 
 ```bash
 # Activate virtual environment
-cd backend
+# Backend now in root
 source venv/bin/activate
 
 # Run with auto-reload
@@ -175,7 +175,7 @@ DEBUG=True uvicorn main:app --reload
 curl http://localhost:8000/health
 ```
 
-### Frontend Development
+### Web Development
 
 ```bash
 cd frontend
@@ -231,7 +231,7 @@ docker-compose ps
 ### Import Errors (Python)
 
 ```bash
-cd backend
+# Backend now in root
 source venv/bin/activate
 pip install -r requirements.txt
 ```
@@ -288,7 +288,7 @@ ANTHROPIC_API_KEY=sk-ant-...   # Claude models
 DEBUG=True                      # Enable debug logs
 ```
 
-### Frontend (.env.local)
+### Web (.env.local)
 
 ```bash
 NEXT_PUBLIC_API_URL=http://localhost:8000
@@ -310,7 +310,7 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
    - Use LangGraph's `Send` API for concurrent queries
    - Set `max_concurrency` to avoid rate limits
 
-### Frontend
+### Web
 
 1. **Optimize re-renders**:
    - Use React.memo for MessageItem

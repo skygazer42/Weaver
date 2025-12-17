@@ -150,7 +150,7 @@ cat .env
 # ❌ OPENAI_API_KEY="sk-abc123"
 ```
 
-### Frontend shows blank page
+### Web shows blank page
 
 ```bash
 # Check frontend logs
@@ -190,18 +190,18 @@ lsof -ti:3000 | xargs kill -9
 
 ### Customize
 
-1. **Change AI models** (backend/config.py):
+1. **Change AI models** (config.py):
    ```python
    primary_model = "gpt-4o"  # For better quality
    reasoning_model = "o1-preview"  # For deeper reasoning
    ```
 
-2. **Adjust search depth** (backend/tools/search.py):
+2. **Adjust search depth** (tools/search.py):
    ```python
    max_results = 10  # More results per query
    ```
 
-3. **Modify UI** (frontend/components/):
+3. **Modify UI** (web/components/):
    - Customize colors in `tailwind.config.ts`
    - Edit components in `components/chat/`
 
@@ -214,8 +214,8 @@ lsof -ti:3000 | xargs kill -9
    - Server auto-reloads (uvicorn --reload)
    - Check terminal for errors
 
-2. **Frontend changes**:
-   - Edit files in `frontend/`
+2. **Web changes**:
+   - Edit files in `web/`
    - Next.js auto-reloads
    - Check browser console for errors
 
@@ -305,7 +305,7 @@ You'll see:
 - [ ] API keys configured
 - [ ] Database running
 - [ ] Backend started (port 8000)
-- [ ] Frontend started (port 3000)
+- [ ] Web started (port 3000)
 - [ ] Can access http://localhost:3000
 - [ ] Can send a test query
 - [ ] Receives a response

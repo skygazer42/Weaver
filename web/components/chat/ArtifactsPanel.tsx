@@ -7,7 +7,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { FileText, Code, BarChart } from 'lucide-react'
 
-interface Artifact {
+export interface Artifact {
   id: string
   type: 'report' | 'code' | 'chart' | 'data'
   title: string

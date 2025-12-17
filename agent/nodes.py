@@ -1,16 +1,54 @@
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
 from langchain_core.prompts import ChatPromptTemplate
-from typing import Dict, Any
+from langchain_core.runnables import RunnableConfig
+from langgraph.graph import Send
+from typing import Dict, Any, List, Optional
 import json
 import logging
 from datetime import datetime
 
-from .state import AgentState, ResearchPlan
+from .state import AgentState, ResearchPlan, QueryState
 from tools import tavily_search, execute_python_code
 from config import settings
 
 logger = logging.getLogger(__name__)
+
+
+def perform_parallel_search(state: QueryState, config: RunnableConfig) -> Dict[str, Any]:
+    """
+    Executes a single search query in parallel.
+    """
+    query = state["query"]
+    logger.info(f"Executing parallel search for: {query}")
+    
+    try:
+        results = tavily_search.invoke({"query": query, "max_results": 5}, config=config)
+        
+        search_data = {
+            "query": query,
+            "results": results,
+            "timestamp": datetime.now().isoformat(),
+        }
+        
+        return {"scraped_content": [search_data]}
+        
+    except Exception as e:
+        logger.error(f"Parallel search error for {query}: {str(e)}")
+        # Return empty result to avoid failing the whole graph
+        return {"scraped_content": []}
+
+
+def initiate_research(state: AgentState) -> List[Send]:
+    """
+    Map step: Generates search tasks for each query in the plan.
+    """
+    plan = state.get("research_plan", [])
+    logger.info(f"Initiating parallel research for {len(plan)} queries")
+    
+    return [
+        Send("perform_parallel_search", {"query": q}) for q in plan
+    ]
 
 
 def planner_node(state: AgentState) -> Dict[str, Any]:
@@ -44,7 +82,7 @@ Return ONLY a JSON object with this structure:
 {{
     "queries": ["query1", "query2", ...],
     "reasoning": "Brief explanation of the research strategy"
-}}"""),
+}}""",), 
         ("human", "Create a research plan for: {input}")
     ])
 
@@ -91,56 +129,7 @@ Return ONLY a JSON object with this structure:
         }
 
 
-def researcher_node(state: AgentState) -> Dict[str, Any]:
-    """
-    Research node: Executes searches and gathers information.
-
-    Executes the current query from the research plan and
-    evaluates if more information is needed.
-    """
-    logger.info("Executing researcher node")
-
-    plan = state.get("research_plan", [])
-    current_step = state.get("current_step", 0)
-
-    if current_step >= len(plan):
-        logger.info("All research steps completed")
-        return {"current_step": current_step}
-
-    # Get current query
-    query = plan[current_step]
-    logger.info(f"Researching step {current_step + 1}/{len(plan)}: {query}")
-
-    try:
-        # Execute search
-        results = tavily_search.invoke({"query": query, "max_results": 5})
-
-        # Store results
-        search_data = {
-            "query": query,
-            "results": results,
-            "timestamp": datetime.now().isoformat(),
-            "step": current_step
-        }
-
-        return {
-            "scraped_content": [search_data],
-            "current_step": current_step + 1,
-            "messages": [
-                AIMessage(content=f"Completed search: {query}\nFound {len(results)} results")
-            ]
-        }
-
-    except Exception as e:
-        logger.error(f"Research error: {str(e)}")
-        return {
-            "current_step": current_step + 1,
-            "errors": [f"Search error for '{query}': {str(e)}"],
-            "messages": [AIMessage(content=f"Search failed for: {query}")]
-        }
-
-
-def writer_node(state: AgentState) -> Dict[str, Any]:
+def writer_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     """
     Writer node: Synthesizes research into a comprehensive report.
 
@@ -153,7 +142,7 @@ def writer_node(state: AgentState) -> Dict[str, Any]:
         model=settings.primary_model,
         temperature=0.7,
         api_key=settings.openai_api_key
-    )
+    ).bind_tools([execute_python_code])
 
     # Prepare research context
     scraped_content = state.get("scraped_content", [])
@@ -171,20 +160,60 @@ Guidelines:
 3. Cite sources where relevant
 4. Highlight key findings and insights
 5. Use markdown formatting
-6. If data visualization would help, describe what chart to create
+6. If data visualization would help, WRITE PYTHON CODE to create charts using matplotlib.
+   - Use the 'execute_python_code' tool.
+   - The tool returns an image if you create a plot.
+   - Include the analysis of the visualization in your report.
 
 Research Context:
-{context}"""),
+{context}""",), 
         ("human", "Create a comprehensive report answering: {query}")
     ])
 
     try:
-        response = llm.invoke(
-            writer_prompt.format_messages(
-                context=research_context[:8000],  # Limit context size
-                query=state["input"]
-            )
+        # First LLM call - might decide to use tools
+        messages = writer_prompt.format_messages(
+            context=research_context[:15000],  # Increased context size
+            query=state["input"]
         )
+        
+        response = llm.invoke(messages, config=config)
+        messages.append(response)
+
+        # Handle tool calls
+        if response.tool_calls:
+            logger.info(f"Writer decided to use tools: {len(response.tool_calls)}")
+            
+            for tool_call in response.tool_calls:
+                if tool_call["name"] == "execute_python_code":
+                    logger.info("Executing Python code for visualization...")
+                    
+                    # Execute code with config to trigger events
+                    tool_result = execute_python_code.invoke(tool_call["args"], config=config)
+                    
+                    # Create tool message
+                    tool_msg = ToolMessage(
+                        tool_call_id=tool_call["id"],
+                        content=json.dumps({
+                            "stdout": tool_result.get("stdout"),
+                            "stderr": tool_result.get("stderr"),
+                            "success": tool_result.get("success")
+                        }),
+                        name=tool_call["name"]
+                    )
+                    messages.append(tool_msg)
+                    
+                    # If we got an image, we might want to store it
+                    if tool_result.get("image"):
+                        state["code_results"].append({
+                            "code": tool_call["args"].get("code"),
+                            "image": tool_result["image"],
+                            "timestamp": datetime.now().isoformat()
+                        })
+            
+            # Second LLM call to generate final report with tool outputs
+            response = llm.invoke(messages, config=config)
+            logger.info("Final report generated after tool execution")
 
         report = response.content
 
