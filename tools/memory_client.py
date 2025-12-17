@@ -3,7 +3,7 @@ import logging
 from typing import List, Optional
 from pathlib import Path
 
-from config import settings
+from common.config import settings
 
 logger = logging.getLogger(__name__)
 

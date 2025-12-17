@@ -178,7 +178,7 @@ frontend/lib/*               → web/lib/*
 ### Python 导入（无需更改）
 ```python
 # Before 和 After 都相同
-from config import settings
+from common.config import settings
 from agent import create_research_graph, AgentState
 from tools import tavily_search, execute_python_code
 ```

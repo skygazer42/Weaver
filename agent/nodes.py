@@ -13,7 +13,7 @@ import time
 from .state import AgentState, ResearchPlan, QueryState
 from tools import tavily_search, execute_python_code
 from tools.registry import get_registered_tools
-from config import settings
+from common.config import settings
 
 logger = logging.getLogger(__name__)
 

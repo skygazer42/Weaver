@@ -6,12 +6,11 @@ Provides structured logging with file rotation and optional JSON formatting.
 import logging
 import logging.handlers
 import json
-import os
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any
 
-from config import settings
+from common.config import settings
 
 
 class JSONFormatter(logging.Formatter):

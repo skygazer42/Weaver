@@ -309,7 +309,7 @@ source venv/bin/activate
 python
 
 >>> from agent.graph import create_checkpointer
->>> from config import settings
+>>> from common.config import settings
 >>> checkpointer = create_checkpointer(settings.database_url)
 >>> checkpointer.setup()
 ```

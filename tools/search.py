@@ -3,7 +3,7 @@ from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from typing import List, Dict, Any, Optional
-from config import settings
+from common.config import settings
 import logging
 import textwrap
 import json

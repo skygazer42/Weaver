@@ -97,7 +97,7 @@ manus-app/
 
 #### Python 导入
 ✅ **无需修改** - 所有 Python 导入路径保持不变：
-- `from config import settings`
+- `from common.config import settings`
 - `from agent import create_research_graph`
 - `from tools import tavily_search`
 

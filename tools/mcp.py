@@ -3,7 +3,7 @@ import logging
 from typing import List, Any, Dict, Optional
 
 from langchain_core.tools import BaseTool
-from config import settings
+from common.config import settings
 
 logger = logging.getLogger(__name__)
 

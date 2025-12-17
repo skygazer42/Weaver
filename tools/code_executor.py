@@ -1,6 +1,6 @@
 from langchain_core.tools import tool
 from typing import Dict, Any
-from config import settings
+from common.config import settings
 import logging
 
 logger = logging.getLogger(__name__)
