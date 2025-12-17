@@ -7,6 +7,7 @@ import { useTheme } from '@/components/theme-provider'
 import { useI18n } from '@/lib/i18n/i18n-context'
 import { SettingsDialog } from '@/components/settings/SettingsDialog'
 import { cn } from '@/lib/utils'
+import { McpConfigDialog } from '@/components/settings/McpConfigDialog'
 
 interface HeaderProps {
   sidebarOpen: boolean
@@ -84,41 +85,42 @@ export function Header({ sidebarOpen, onToggleSidebar, selectedModel, onModelCha
              </Button>
          )}
 
-         {/* Custom Model Dropdown */}
-         <div className="relative" ref={dropdownRef}>
-            <button
-              onClick={() => setIsModelOpen(!isModelOpen)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-full border bg-muted/20 hover:bg-muted/50 text-sm font-medium transition-colors"
-            >
-              <span>{currentModelName}</span>
-              <ChevronDown className={cn("h-3.5 w-3.5 opacity-50 transition-transform", isModelOpen && "rotate-180")} />
-            </button>
-            
-            {isModelOpen && (
-              <div className="absolute right-0 top-full mt-2 w-48 rounded-xl border bg-popover p-1 shadow-lg animate-in fade-in zoom-in-95 z-50">
-                {models.map((model) => (
-                  <button
-                    key={model.id}
-                    onClick={() => {
-                      onModelChange(model.id)
-                      setIsModelOpen(false)
-                    }}
-                    className={cn(
-                      "flex w-full items-center justify-between rounded-lg px-2 py-2 text-sm transition-colors hover:bg-muted",
-                      selectedModel === model.id && "bg-muted font-medium text-primary"
-                    )}
-                  >
-                    {model.name}
-                    {selectedModel === model.id && <Check className="h-3.5 w-3.5" />}
-                  </button>
-                ))}
-              </div>
-            )}
-         </div>
-
-         <Button
-           variant="ghost"
-           size="icon"
+                  {/* Custom Model Dropdown */}
+                  <div className="relative" ref={dropdownRef}>
+                     <button
+                       onClick={() => setIsModelOpen(!isModelOpen)}
+                       className="flex items-center gap-2 px-3 py-1.5 rounded-full border bg-muted/20 hover:bg-muted/50 text-sm font-medium transition-colors"
+                     >
+                       <span>{currentModelName}</span>
+                       <ChevronDown className={cn("h-3.5 w-3.5 opacity-50 transition-transform", isModelOpen && "rotate-180")} />
+                     </button>
+                     
+                     {isModelOpen && (
+                       <div className="absolute right-0 top-full mt-2 w-48 rounded-xl border bg-popover p-1 shadow-lg animate-in fade-in zoom-in-95 z-50">
+                         {models.map((model) => (
+                           <button
+                             key={model.id}
+                             onClick={() => {
+                               onModelChange(model.id)
+                               setIsModelOpen(false)
+                             }}
+                             className={cn(
+                               "flex w-full items-center justify-between rounded-lg px-2 py-2 text-sm transition-colors hover:bg-muted",
+                               selectedModel === model.id && "bg-muted font-medium text-primary"
+                             )}
+                           >
+                             {model.name}
+                             {selectedModel === model.id && <Check className="h-3.5 w-3.5" />}
+                           </button>
+                         ))}
+                       </div>
+                     )}
+                  </div>
+         
+                  <McpConfigDialog />
+         
+                  <Button 
+                    variant="ghost"           size="icon"
            onClick={toggleTheme}
            className="rounded-full hover:bg-muted/50"
          >

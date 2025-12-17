@@ -1,6 +1,7 @@
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.postgres import PostgresSaver
 import logging
+from pathlib import Path
 
 from .state import AgentState, QueryState
 from .nodes import (
@@ -125,6 +126,18 @@ def create_research_graph(checkpointer=None, interrupt_before=None):
     logger.info("Research graph compiled successfully")
 
     return graph
+
+
+def export_graph_mermaid(output_path: str = "graph_mermaid.md", xray: bool = True) -> Path:
+    """
+    Export the compiled graph to a mermaid markdown file for visualization.
+    """
+    graph = create_research_graph(checkpointer=None, interrupt_before=None)
+    mermaid = graph.get_graph(xray=xray).draw_mermaid()
+    path = Path(output_path)
+    path.write_text(f"```mermaid\n{mermaid}\n```", encoding="utf-8")
+    logger.info(f"Graph mermaid exported to {path}")
+    return path
 
 
 def create_checkpointer(database_url: str):

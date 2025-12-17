@@ -26,7 +26,7 @@ manus-app/
 └── docker-compose.yml
 ```
 
-## Getting Started
+## Getting Started (Backend)
 
 ### Prerequisites
 
@@ -46,6 +46,8 @@ Required API keys:
 - **OpenAI API Key**: Get from https://platform.openai.com/api-keys
 - **Tavily API Key**: Get from https://tavily.com
 - **E2B API Key**: Get from https://e2b.dev
+- **(Optional) Mem0**: `ENABLE_MEMORY=true` + `MEM0_API_KEY` for long-term memory (fallback to local JSON if not installed).
+- **(Optional) MCP**: `ENABLE_MCP=true` and set `MCP_SERVERS` JSON; can also configure at runtime via `POST /api/mcp/config`.
 
 ### 2. Start Database
 
@@ -57,6 +59,12 @@ docker-compose up postgres -d
 
 ```bash
 npm run install:all
+```
+
+Or only backend:
+
+```bash
+pip install -r requirements.txt
 ```
 
 ### 4. Run Development Servers
@@ -73,6 +81,12 @@ npm run dev
 - Web: http://localhost:3000
 - Backend API: http://localhost:8000
 - API Docs: http://localhost:8000/docs
+
+### Quick Backend Smoke
+
+```bash
+pytest tests/test_smoke_api.py -q
+```
 
 ## Features
 
