@@ -40,7 +40,10 @@ app.add_middleware(
 
 # Initialize agent graph
 checkpointer = create_checkpointer(settings.database_url) if settings.database_url else None
-research_graph = create_research_graph(checkpointer=checkpointer)
+research_graph = create_research_graph(
+    checkpointer=checkpointer,
+    interrupt_before=settings.interrupt_nodes_list
+)
 
 
 @app.on_event("startup")

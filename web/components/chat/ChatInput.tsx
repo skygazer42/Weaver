@@ -2,9 +2,10 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
-import { Send, StopCircle, Globe, Bot, BrainCircuit, Paperclip, Sparkles, X, Mic, Server, ChevronDown, Check, Trash2, File as FileIcon, Image as ImageIcon } from 'lucide-react'
+import { Send, StopCircle, Globe, Bot, BrainCircuit, Paperclip, Sparkles, X, Mic, MicOff, Server, ChevronDown, Check, Trash2, File as FileIcon, Image as ImageIcon, Bug, BookOpen, PenTool, TestTube } from 'lucide-react'
 import { useI18n } from '@/lib/i18n/i18n-context'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
 interface ChatInputProps {
   input: string
@@ -93,10 +94,61 @@ export function ChatInput({
       else if (showCommandMenu && !val.startsWith('/')) setShowCommandMenu(false)
   }
 
+  const [isListening, setIsListening] = useState(false)
+  const recognitionRef = useRef<any>(null)
+
+  const startListening = () => {
+    if (typeof window !== 'undefined' && !('webkitSpeechRecognition' in window)) {
+        toast.error('Speech recognition not supported')
+        return
+    }
+    
+    // @ts-ignore
+    const SpeechRecognition = window.webkitSpeechRecognition
+    const recognition = new SpeechRecognition()
+    recognition.continuous = false
+    recognition.interimResults = true
+    recognition.lang = 'zh-CN'
+
+    recognition.onstart = () => setIsListening(true)
+    recognition.onend = () => setIsListening(false)
+    recognition.onerror = (event: any) => {
+        setIsListening(false)
+        console.error('Speech error:', event.error)
+    }
+    recognition.onresult = (event: any) => {
+        let finalTranscript = ''
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+                finalTranscript += event.results[i][0].transcript
+            }
+        }
+        if (finalTranscript) {
+             setInput(prev => prev + (prev ? ' ' : '') + finalTranscript)
+        }
+    }
+    
+    recognitionRef.current = recognition
+    recognition.start()
+  }
+
+  const stopListening = () => {
+      if (recognitionRef.current) {
+          recognitionRef.current.stop()
+      }
+      setIsListening(false)
+  }
+
   const handleCommandSelect = (cmd: string) => {
       if (['deep','agent','web'].includes(cmd)) setSearchMode(cmd)
       if (cmd === 'clear') window.location.reload()
-      setInput('')
+      
+      if (cmd === 'fix') setInput('Please fix the following code:\n\n')
+      if (cmd === 'explain') setInput('Please explain this concept:\n\n')
+      if (cmd === 'refactor') setInput('Please refactor this code to be more efficient:\n\n')
+      if (cmd === 'test') setInput('Please generate unit tests for:\n\n')
+
+      if (!['fix','explain','refactor','test'].includes(cmd)) setInput('')
       setShowCommandMenu(false)
       textareaRef.current?.focus()
   }
@@ -126,10 +178,14 @@ export function ChatInput({
   ]
 
   const commands = [
-      { id: 'deep', label: t('deepMode'), icon: BrainCircuit, desc: t('switchToDeepSearch') },
-      { id: 'agent', label: t('agentMode'), icon: Bot, desc: t('switchToAgent') },
-      { id: 'web', label: t('webMode'), icon: Globe, desc: t('switchToWebSearch') },
-      { id: 'clear', label: t('clearChat'), icon: Trash2, desc: t('resetConversation') },
+      { id: 'deep', label: 'Deep Mode', icon: BrainCircuit, desc: 'Switch to Deep Search' },
+      { id: 'agent', label: 'Agent Mode', icon: Bot, desc: 'Switch to Agent' },
+      { id: 'web', label: 'Web Mode', icon: Globe, desc: 'Switch to Web Search' },
+      { id: 'fix', label: 'Fix Code', icon: Bug, desc: 'Debug & Fix' },
+      { id: 'explain', label: 'Explain', icon: BookOpen, desc: 'Explain concept' },
+      { id: 'refactor', label: 'Refactor', icon: PenTool, desc: 'Optimize code' },
+      { id: 'test', label: 'Write Tests', icon: TestTube, desc: 'Generate tests' },
+      { id: 'clear', label: 'Clear Chat', icon: Trash2, desc: 'Reset conversation' },
   ]
   
   return (
@@ -312,6 +368,21 @@ export function ChatInput({
           </div>
 
           <div className="absolute bottom-3 right-3 flex items-center gap-2">
+            {!isLoading && (
+                 <Button 
+                    type="button" 
+                    size="icon" 
+                    variant="ghost" 
+                    onClick={isListening ? stopListening : startListening}
+                    className={cn(
+                        "h-8 w-8 rounded-full hover:bg-muted transition-all duration-300",
+                        isListening && "bg-red-500/10 text-red-500 animate-pulse hover:bg-red-500/20"
+                    )}
+                 >
+                    {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                 </Button>
+            )}
+
             {isLoading ? (
               <Button type="button" size="icon" variant="ghost" onClick={onStop} className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive rounded-full">
                 <div className="h-2.5 w-2.5 bg-current rounded-sm animate-pulse" />

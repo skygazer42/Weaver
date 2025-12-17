@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     # App Config
     debug: bool = False
     cors_origins: str = "http://localhost:3000"
+    interrupt_before_nodes: str = ""  # comma-separated node names for LangGraph interrupts
 
     # Model Config
     primary_model: str = "gpt-4o-mini"
@@ -42,6 +43,13 @@ class Settings(BaseSettings):
     def cors_origins_list(self) -> List[str]:
         """Parse CORS origins string into list."""
         return [origin.strip() for origin in self.cors_origins.split(",")]
+
+    @property
+    def interrupt_nodes_list(self) -> List[str]:
+        """Parse interrupt_before_nodes into list for LangGraph compile."""
+        return [
+            node.strip() for node in self.interrupt_before_nodes.split(",") if node.strip()
+        ]
 
 
 settings = Settings()

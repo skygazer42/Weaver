@@ -7,12 +7,24 @@ import { cn } from '@/lib/utils'
 import { Search, Code, Loader2, ChevronDown, Check, Copy, Terminal, Bot, User, BrainCircuit, PenTool, Globe, Pencil } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { MermaidBlock } from './MermaidBlock'
+import { DataTableView } from './DataTableView'
+import { ErrorBoundary } from 'react-error-boundary'
+import { toast } from 'sonner'
 
 interface Message {
   id: string
   role: 'user' | 'assistant' | 'system'
   content: string
   toolInvocations?: ToolInvocation[]
+}
+
+function ErrorFallback({ error }: { error: Error }) {
+    return (
+        <div className="p-4 rounded-lg bg-destructive/10 text-destructive text-xs">
+            <p className="font-semibold">Visualization Error</p>
+            <pre className="mt-1 opacity-70">{error.message}</pre>
+        </div>
+    )
 }
 
 interface ToolInvocation {
@@ -38,6 +50,7 @@ export function MessageItem({ message, onEdit }: MessageItemProps) {
   const handleCopy = () => {
     navigator.clipboard.writeText(message.content)
     setCopied(true)
+    toast.success('Message copied')
     setTimeout(() => setCopied(false), 2000)
   }
   
@@ -143,10 +156,27 @@ export function MessageItem({ message, onEdit }: MessageItemProps) {
                         code: ({node, className, children, ...props}: any) => {
                             const match = /language-(\w+)/.exec(className || '')
                             const isInline = !match && !String(children).includes('\n')
+                            const content = String(children).replace(/\n$/, '')
                             
                             // Check for Mermaid
                             if (match && match[1] === 'mermaid') {
-                                return <MermaidBlock code={String(children).replace(/\n$/, '')} />
+                                return (
+                                    <ErrorBoundary FallbackComponent={ErrorFallback}>
+                                        <MermaidBlock code={content} />
+                                    </ErrorBoundary>
+                                )
+                            }
+                            
+                            // Check for JSON/CSV
+                            if (match && (match[1] === 'json' || match[1] === 'csv')) {
+                                return (
+                                    <div className="flex flex-col gap-2">
+                                        <ErrorBoundary FallbackComponent={() => null}>
+                                            <DataTableView data={content} type={match[1] as 'json'|'csv'} />
+                                        </ErrorBoundary>
+                                        <CodeBlock language={match[1]} value={content} />
+                                    </div>
+                                )
                             }
                             
                             if (isInline) {
@@ -158,7 +188,7 @@ export function MessageItem({ message, onEdit }: MessageItemProps) {
                             }
 
                             return (
-                                <CodeBlock language={match ? match[1] : 'text'} value={String(children).replace(/\n$/, '')} />
+                                <CodeBlock language={match ? match[1] : 'text'} value={content} />
                             )
                         },
                         a: ({node, ...props}) => (
@@ -211,6 +241,7 @@ function CodeBlock({ language, value }: { language: string, value: string }) {
     const handleCopy = () => {
       navigator.clipboard.writeText(value)
       setCopied(true)
+      toast.success('Code copied')
       setTimeout(() => setCopied(false), 2000)
     }
   
