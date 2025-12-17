@@ -37,7 +37,7 @@ export function Chat() {
   
   // UI State
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [selectedModel, setSelectedModel] = useState('gpt-4o')
+  const [selectedModel, setSelectedModel] = useState('deepseek-chat')
   const [searchMode, setSearchMode] = useState('agent') 
   const [showScrollButton, setShowScrollButton] = useState(false)
   const [showMobileArtifacts, setShowMobileArtifacts] = useState(false)

@@ -39,17 +39,27 @@ export function Header({ sidebarOpen, onToggleSidebar, selectedModel, onModelCha
   }, [])
 
   const models = [
-    { id: 'gpt-4o', name: 'GPT-4o', provider: 'OpenAI' },
-    { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'OpenAI' },
-    { id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet', provider: 'Anthropic' },
-    { id: 'claude-3-opus', name: 'Claude 3 Opus', provider: 'Anthropic' },
-    { id: 'deepseek-chat', name: 'DeepSeek Chat', provider: 'DeepSeek' },
-    { id: 'deepseek-coder', name: 'DeepSeek Coder', provider: 'DeepSeek' },
-    { id: 'glm-4', name: 'GLM-4', provider: 'Zhipu AI' },
-    { id: 'glm-4-plus', name: 'GLM-4 Plus', provider: 'Zhipu AI' },
-    { id: 'qwen-max', name: 'Qwen Max', provider: 'Qwen' },
-    { id: 'qwen-plus', name: 'Qwen Plus', provider: 'Qwen' },
-    { id: 'qwen-turbo', name: 'Qwen Turbo', provider: 'Qwen' },
+    // DeepSeek 系列
+    { id: 'deepseek-chat', name: 'deepseek-chat', provider: 'DeepSeek' },
+    { id: 'deepseek-reasoner', name: 'deepseek-reasoner', provider: 'DeepSeek' },
+
+    // 通义千问系列
+    { id: 'qwen-max', name: 'Qwen-Max', provider: '通义千问' },
+    { id: 'qwen-plus', name: 'Qwen-Plus', provider: '通义千问' },
+    { id: 'qwen-turbo', name: 'Qwen-Turbo', provider: '通义千问' },
+    { id: 'qwen2.5-72b', name: 'Qwen2.5-72B', provider: '通义千问' },
+    { id: 'qwen-vl-max', name: 'Qwen-VL-Max 🖼️', provider: '通义千问' },
+    { id: 'qwen-vl-plus', name: 'Qwen-VL-Plus 🖼️', provider: '通义千问' },
+    { id: 'qwen-audio', name: 'Qwen-Audio 🎵', provider: '通义千问' },
+
+    // 智谱 GLM 系列
+    { id: 'glm-4-plus', name: 'GLM-4-Plus', provider: '智谱AI' },
+    { id: 'glm-4-0520', name: 'GLM-4-0520', provider: '智谱AI' },
+    { id: 'glm-4-air', name: 'GLM-4-Air', provider: '智谱AI' },
+    { id: 'glm-4-airx', name: 'GLM-4-AirX', provider: '智谱AI' },
+    { id: 'glm-4-flash', name: 'GLM-4-Flash', provider: '智谱AI' },
+    { id: 'glm-4v', name: 'GLM-4V 🖼️', provider: '智谱AI' },
+    { id: 'glm-4v-plus', name: 'GLM-4V-Plus 🖼️', provider: '智谱AI' },
   ]
 
   const currentModelName = models.find(m => m.id === selectedModel)?.name || selectedModel

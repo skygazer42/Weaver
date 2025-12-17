@@ -23,15 +23,15 @@ export const translations = {
     apiKey: 'API Key',
     apiKeyPlaceholder: 'Enter your API key',
     apiKeyOptional: 'Optional - Leave empty to use default',
+    baseUrl: 'Base URL',
+    baseUrlPlaceholder: 'Enter custom base URL',
     save: 'Save',
     cancel: 'Cancel',
 
     // Model Providers
-    openai: 'OpenAI',
-    anthropic: 'Anthropic',
     deepseek: 'DeepSeek',
-    zhipu: 'Zhipu AI (GLM)',
-    qwen: 'Qwen (Alibaba)',
+    zhipu: 'Zhipu AI',
+    qwen: 'Qwen (Tongyi)',
 
     // Search modes
     agent: 'Agent',
@@ -105,15 +105,15 @@ export const translations = {
     apiKey: 'API 密钥',
     apiKeyPlaceholder: '请输入您的 API 密钥',
     apiKeyOptional: '可选 - 留空使用默认配置',
+    baseUrl: 'Base URL',
+    baseUrlPlaceholder: '输入自定义 Base URL',
     save: '保存',
     cancel: '取消',
 
     // Model Providers
-    openai: 'OpenAI',
-    anthropic: 'Anthropic',
     deepseek: 'DeepSeek',
-    zhipu: '智谱 AI (GLM)',
-    qwen: '通义千问（阿里）',
+    zhipu: '智谱 AI',
+    qwen: '通义千问',
 
     // Search modes
     agent: '智能体',

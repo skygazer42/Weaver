@@ -7,6 +7,13 @@ class Settings(BaseSettings):
 
     # API Keys
     openai_api_key: str
+    openai_base_url: str = ""
+    use_azure: bool = False
+    azure_api_key: str = ""
+    azure_endpoint: str = ""
+    azure_api_version: str = "2025-03-01-preview"
+    openai_timeout: int = 60
+    openai_extra_body: str = ""  # JSON string for extra OpenAI-compatible params
     tavily_api_key: str = ""
     e2b_api_key: str = ""
     anthropic_api_key: str = ""

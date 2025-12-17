@@ -5,6 +5,7 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.types import Send, interrupt
 from typing import Dict, Any, List, Optional, Tuple
 import json
+import json
 import logging
 from datetime import datetime
 
@@ -14,6 +15,47 @@ from tools.registry import get_registered_tools
 from config import settings
 
 logger = logging.getLogger(__name__)
+
+
+def _chat_model(
+    model: str,
+    temperature: float,
+    extra_body: Optional[Dict[str, Any]] = None,
+) -> ChatOpenAI:
+    """
+    Build a ChatOpenAI instance honoring custom base URL / Azure / timeout / extra body.
+    """
+    params: Dict[str, Any] = {
+        "temperature": temperature,
+        "model": model,
+        "api_key": settings.openai_api_key,
+        "timeout": settings.openai_timeout or None,
+    }
+
+    if settings.use_azure:
+        # azure_deployment maps to deployment name; reuse model name by default
+        params.update({
+            "azure_endpoint": settings.azure_endpoint or None,
+            "azure_deployment": model,
+            "api_version": settings.azure_api_version or None,
+            "api_key": settings.azure_api_key or settings.openai_api_key,
+        })
+    elif settings.openai_base_url:
+        params["base_url"] = settings.openai_base_url
+
+    # Merge extra body if provided in settings
+    merged_extra: Dict[str, Any] = {}
+    if settings.openai_extra_body:
+        try:
+            merged_extra.update(json.loads(settings.openai_extra_body))
+        except json.JSONDecodeError:
+            logger.warning("Invalid JSON in openai_extra_body; ignoring.")
+    if extra_body:
+        merged_extra.update(extra_body)
+    if merged_extra:
+        params["extra_body"] = merged_extra
+
+    return ChatOpenAI(**params)
 
 
 def _extract_tool_call_fields(tool_call: Any) -> Tuple[Optional[str], Dict[str, Any], Optional[str]]:
@@ -87,11 +129,7 @@ def route_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
 def direct_answer_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     """Direct answer without research."""
     logger.info("Executing direct answer node")
-    llm = ChatOpenAI(
-        model=settings.primary_model,
-        temperature=0.7,
-        api_key=settings.openai_api_key
-    )
+    llm = _chat_model(settings.primary_model, temperature=0.7)
     prompt = ChatPromptTemplate.from_messages([
         ("system", "You are a helpful assistant. Answer succinctly and accurately."),
         ("human", "{input}")
@@ -128,11 +166,7 @@ def planner_node(state: AgentState) -> Dict[str, Any]:
     logger.info("Executing planner node")
 
     # Use reasoning model for planning
-    llm = ChatOpenAI(
-        model=settings.reasoning_model,
-        temperature=1,
-        api_key=settings.openai_api_key
-    )
+    llm = _chat_model(settings.reasoning_model, temperature=1)
 
     planner_prompt = ChatPromptTemplate.from_messages([
         ("system", """You are an expert research planner. Your task is to create a detailed research plan.
@@ -222,11 +256,7 @@ def refine_plan_node(state: AgentState) -> Dict[str, Any]:
     original_question = state.get("input", "")
     existing_plan = state.get("research_plan", []) or []
 
-    llm = ChatOpenAI(
-        model=settings.reasoning_model,
-        temperature=0.8,
-        api_key=settings.openai_api_key
-    )
+    llm = _chat_model(settings.reasoning_model, temperature=0.8)
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", """You are a research strategist. Generate up to 3 follow-up search queries to close the gaps called out in feedback.
@@ -317,8 +347,7 @@ def writer_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
 
     llm = ChatOpenAI(
         model=settings.primary_model,
-        temperature=0.7,
-        api_key=settings.openai_api_key
+        temperature=0.7
     ).bind_tools(_get_writer_tools())
 
     code_results: List[Dict[str, Any]] = []
@@ -408,6 +437,7 @@ Guidelines:
 4. Prefer the provided summaries/snippets; do not paste long raw text.
 5. Highlight key findings, contrasts, and open questions.
 6. If a visualization helps, WRITE PYTHON CODE using matplotlib with the 'execute_python_code' tool and interpret the chart.
+7. End with a "Sources" section listing each tag and URL: e.g., - [S1-1] Title — URL.
 
 Research Context (compact):
 {context}
@@ -524,11 +554,7 @@ def should_continue_research(state: AgentState) -> str:
 def evaluator_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     """Evaluate the draft report and decide if revision is needed."""
     logger.info("Executing evaluator node")
-    llm = ChatOpenAI(
-        model=settings.reasoning_model,
-        temperature=0,
-        api_key=settings.openai_api_key
-    )
+    llm = _chat_model(settings.reasoning_model, temperature=0)
     prompt = ChatPromptTemplate.from_messages([
         ("system", """You are a strict report evaluator. Review the report and decide if it should be revised.
 
@@ -569,11 +595,7 @@ Return ONLY JSON in this format:
 def revise_report_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     """Revise the report based on evaluator feedback."""
     logger.info("Executing revise report node")
-    llm = ChatOpenAI(
-        model=settings.primary_model,
-        temperature=0.5,
-        api_key=settings.openai_api_key
-    )
+    llm = _chat_model(settings.primary_model, temperature=0.5)
     prompt = ChatPromptTemplate.from_messages([
         ("system", """You are a helpful editor. Revise the report using the feedback.
 Keep the structure clear and improve factual accuracy and clarity."""),

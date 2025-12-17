@@ -26,48 +26,45 @@ interface ModelProvider {
   id: string
   name: string
   models: { id: string; name: string }[]
+  defaultBaseUrl?: string
 }
 
 const modelProviders: ModelProvider[] = [
   {
-    id: 'openai',
-    name: 'OpenAI',
-    models: [
-      { id: 'gpt-4o', name: 'GPT-4o' },
-      { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
-    ]
-  },
-  {
-    id: 'anthropic',
-    name: 'Anthropic',
-    models: [
-      { id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet' },
-      { id: 'claude-3-opus', name: 'Claude 3 Opus' },
-    ]
-  },
-  {
     id: 'deepseek',
     name: 'DeepSeek',
+    defaultBaseUrl: 'https://api.deepseek.com',
     models: [
-      { id: 'deepseek-chat', name: 'DeepSeek Chat' },
-      { id: 'deepseek-coder', name: 'DeepSeek Coder' },
-    ]
-  },
-  {
-    id: 'zhipu',
-    name: 'Zhipu AI (GLM)',
-    models: [
-      { id: 'glm-4', name: 'GLM-4' },
-      { id: 'glm-4-plus', name: 'GLM-4 Plus' },
+      { id: 'deepseek-chat', name: 'deepseek-chat' },
+      { id: 'deepseek-reasoner', name: 'deepseek-reasoner' },
     ]
   },
   {
     id: 'qwen',
-    name: 'Qwen (Alibaba)',
+    name: '通义千问 (Qwen)',
+    defaultBaseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     models: [
-      { id: 'qwen-max', name: 'Qwen Max' },
-      { id: 'qwen-plus', name: 'Qwen Plus' },
-      { id: 'qwen-turbo', name: 'Qwen Turbo' },
+      { id: 'qwen-max', name: 'Qwen-Max' },
+      { id: 'qwen-plus', name: 'Qwen-Plus' },
+      { id: 'qwen-turbo', name: 'Qwen-Turbo' },
+      { id: 'qwen2.5-72b', name: 'Qwen2.5-72B' },
+      { id: 'qwen-vl-max', name: 'Qwen-VL-Max 🖼️' },
+      { id: 'qwen-vl-plus', name: 'Qwen-VL-Plus 🖼️' },
+      { id: 'qwen-audio', name: 'Qwen-Audio 🎵' },
+    ]
+  },
+  {
+    id: 'zhipu',
+    name: '智谱AI (GLM)',
+    defaultBaseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+    models: [
+      { id: 'glm-4-plus', name: 'GLM-4-Plus' },
+      { id: 'glm-4-0520', name: 'GLM-4-0520' },
+      { id: 'glm-4-air', name: 'GLM-4-Air' },
+      { id: 'glm-4-airx', name: 'GLM-4-AirX' },
+      { id: 'glm-4-flash', name: 'GLM-4-Flash' },
+      { id: 'glm-4v', name: 'GLM-4V 🖼️' },
+      { id: 'glm-4v-plus', name: 'GLM-4V-Plus 🖼️' },
     ]
   }
 ]
@@ -81,14 +78,19 @@ interface ApiKeys {
   [key: string]: string
 }
 
+interface BaseUrls {
+  [key: string]: string
+}
+
 export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChange }: SettingsDialogProps) {
   const { language, setLanguage, t } = useI18n()
   const [tempModel, setTempModel] = useState(selectedModel)
   const [tempLanguage, setTempLanguage] = useState(language)
   const [apiKeys, setApiKeys] = useState<ApiKeys>({})
+  const [baseUrls, setBaseUrls] = useState<BaseUrls>({})
   const [expandedProvider, setExpandedProvider] = useState<string | null>(null)
 
-  // Load API keys from localStorage
+  // Load API keys and base URLs from localStorage
   useEffect(() => {
     const savedKeys = localStorage.getItem('weaver-api-keys')
     if (savedKeys) {
@@ -96,6 +98,15 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
         setApiKeys(JSON.parse(savedKeys))
       } catch (e) {
         console.error('Failed to parse API keys', e)
+      }
+    }
+
+    const savedBaseUrls = localStorage.getItem('weaver-base-urls')
+    if (savedBaseUrls) {
+      try {
+        setBaseUrls(JSON.parse(savedBaseUrls))
+      } catch (e) {
+        console.error('Failed to parse base URLs', e)
       }
     }
   }, [])
@@ -115,23 +126,39 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
     }))
   }
 
+  const handleBaseUrlChange = (provider: string, value: string) => {
+    setBaseUrls(prev => ({
+      ...prev,
+      [provider]: value
+    }))
+  }
+
   const handleSave = () => {
     onModelChange(tempModel)
     setLanguage(tempLanguage as any)
     localStorage.setItem('weaver-api-keys', JSON.stringify(apiKeys))
+    localStorage.setItem('weaver-base-urls', JSON.stringify(baseUrls))
     onOpenChange(false)
   }
 
   const handleCancel = () => {
     setTempModel(selectedModel)
     setTempLanguage(language)
-    // Reload saved API keys
+    // Reload saved API keys and base URLs
     const savedKeys = localStorage.getItem('weaver-api-keys')
     if (savedKeys) {
       try {
         setApiKeys(JSON.parse(savedKeys))
       } catch (e) {
         console.error('Failed to parse API keys', e)
+      }
+    }
+    const savedBaseUrls = localStorage.getItem('weaver-base-urls')
+    if (savedBaseUrls) {
+      try {
+        setBaseUrls(JSON.parse(savedBaseUrls))
+      } catch (e) {
+        console.error('Failed to parse base URLs', e)
       }
     }
     onOpenChange(false)
@@ -234,16 +261,36 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
                   </button>
 
                   {expandedProvider === provider.id && (
-                    <div className="p-3 border-t bg-muted/20">
-                      <Input
-                        type="password"
-                        placeholder={t('apiKeyPlaceholder')}
-                        value={apiKeys[provider.id] || ''}
-                        onChange={(e) => handleApiKeyChange(provider.id, e.target.value)}
-                        className="font-mono text-sm"
-                      />
-                      <p className="text-xs text-muted-foreground mt-2">
-                        {provider.models.map(m => m.name).join(', ')}
+                    <div className="p-3 border-t bg-muted/20 space-y-3">
+                      <div>
+                        <Label className="text-xs font-medium mb-1.5 block">{t('baseUrl')}</Label>
+                        <Input
+                          type="text"
+                          placeholder={provider.defaultBaseUrl || t('baseUrlPlaceholder')}
+                          value={baseUrls[provider.id] || ''}
+                          onChange={(e) => handleBaseUrlChange(provider.id, e.target.value)}
+                          className="font-mono text-xs"
+                        />
+                        {provider.defaultBaseUrl && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            默认: {provider.defaultBaseUrl}
+                          </p>
+                        )}
+                      </div>
+
+                      <div>
+                        <Label className="text-xs font-medium mb-1.5 block">{t('apiKey')}</Label>
+                        <Input
+                          type="password"
+                          placeholder={t('apiKeyPlaceholder')}
+                          value={apiKeys[provider.id] || ''}
+                          onChange={(e) => handleApiKeyChange(provider.id, e.target.value)}
+                          className="font-mono text-sm"
+                        />
+                      </div>
+
+                      <p className="text-xs text-muted-foreground pt-1 border-t">
+                        <span className="font-medium">支持模型:</span> {provider.models.map(m => m.name).join(', ')}
                       </p>
                     </div>
                   )}
