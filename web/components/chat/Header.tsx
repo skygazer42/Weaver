@@ -2,8 +2,9 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { PanelLeft, Sun, Moon, ChevronDown, Check, LayoutPanelLeft } from 'lucide-react'
+import { PanelLeft, Sun, Moon, ChevronDown, Check, LayoutPanelLeft, Settings } from 'lucide-react'
 import { useTheme } from '@/components/theme-provider'
+import { SettingsDialog } from '@/components/settings/SettingsDialog'
 import { cn } from '@/lib/utils'
 
 interface HeaderProps {
@@ -18,6 +19,7 @@ interface HeaderProps {
 export function Header({ sidebarOpen, onToggleSidebar, selectedModel, onModelChange, onToggleArtifacts, hasArtifacts }: HeaderProps) {
   const { theme, setTheme } = useTheme()
   const [isModelOpen, setIsModelOpen] = useState(false)
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const toggleTheme = () => {
@@ -104,17 +106,34 @@ export function Header({ sidebarOpen, onToggleSidebar, selectedModel, onModelCha
             )}
          </div>
 
-         <Button 
-           variant="ghost" 
-           size="icon" 
-           onClick={toggleTheme} 
+         <Button
+           variant="ghost"
+           size="icon"
+           onClick={toggleTheme}
            className="rounded-full hover:bg-muted/50"
          >
             <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
             <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
             <span className="sr-only">Toggle theme</span>
          </Button>
+
+         <Button
+           variant="ghost"
+           size="icon"
+           onClick={() => setIsSettingsOpen(true)}
+           className="rounded-full hover:bg-muted/50"
+         >
+            <Settings className="h-5 w-5" />
+            <span className="sr-only">Settings</span>
+         </Button>
       </div>
+
+      <SettingsDialog
+        open={isSettingsOpen}
+        onOpenChange={setIsSettingsOpen}
+        selectedModel={selectedModel}
+        onModelChange={onModelChange}
+      />
     </header>
   )
 }

@@ -45,7 +45,7 @@ export function Chat() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
 
-  // Load History from LocalStorage
+  // Load History and Model from LocalStorage
   useEffect(() => {
       const savedHistory = localStorage.getItem('weaver-history')
       if (savedHistory) {
@@ -61,6 +61,12 @@ export function Chat() {
              { id: '2', title: 'Python Viz Script', date: 'Yesterday' }
           ])
       }
+
+      const savedModel = localStorage.getItem('weaver-model')
+      if (savedModel) {
+          setSelectedModel(savedModel)
+      }
+
       setIsHistoryLoading(false)
   }, [])
 
@@ -70,6 +76,11 @@ export function Chat() {
         localStorage.setItem('weaver-history', JSON.stringify(history))
       }
   }, [history, isHistoryLoading])
+
+  // Save Model to LocalStorage
+  useEffect(() => {
+      localStorage.setItem('weaver-model', selectedModel)
+  }, [selectedModel])
 
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
       if (scrollRef.current) {

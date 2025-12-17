@@ -11,6 +11,7 @@ from .nodes import (
     writer_node,
     perform_parallel_search,
     initiate_research,
+    refine_plan_node,
     evaluator_node,
     revise_report_node,
     human_review_node
@@ -38,6 +39,7 @@ def create_research_graph(checkpointer=None):
     workflow.add_node("direct_answer", direct_answer_node)
     workflow.add_node("planner", planner_node)
     workflow.add_node("web_plan", web_search_plan_node)
+    workflow.add_node("refine_plan", refine_plan_node)
     workflow.add_node("perform_parallel_search", perform_parallel_search)
     workflow.add_node("writer", writer_node)
     workflow.add_node("evaluator", evaluator_node)
@@ -67,6 +69,11 @@ def create_research_graph(checkpointer=None):
         initiate_research,
         ["perform_parallel_search"]
     )
+    workflow.add_conditional_edges(
+        "refine_plan",
+        initiate_research,
+        ["perform_parallel_search"]
+    )
 
     # Web search only path
     workflow.add_conditional_edges(
@@ -92,14 +99,15 @@ def create_research_graph(checkpointer=None):
         revision_count = int(state.get("revision_count", 0))
         max_revisions = int(state.get("max_revisions", 0))
         if verdict == "revise" and revision_count < max_revisions:
-            return "reviser"
+            return "refine_plan"
         return "human_review"
 
     workflow.add_conditional_edges(
         "evaluator",
         after_evaluator,
-        ["reviser", "human_review"]
+        ["refine_plan", "human_review"]
     )
+    workflow.add_edge("refine_plan", "perform_parallel_search")
     workflow.add_edge("reviser", "evaluator")
 
     # Direct answer path

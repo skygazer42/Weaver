@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { Inter, JetBrains_Mono } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
+import { I18nProvider } from "@/lib/i18n/i18n-context"
 import { cn } from "@/lib/utils"
 
 const inter = Inter({ 
@@ -38,7 +39,9 @@ export default function RootLayout({
           defaultTheme="system"
           storageKey="weaver-theme"
         >
-          {children}
+          <I18nProvider>
+            {children}
+          </I18nProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -212,6 +212,86 @@ Return ONLY a JSON object with this structure:
         }
 
 
+def refine_plan_node(state: AgentState) -> Dict[str, Any]:
+    """
+    Refinement node: creates follow-up queries based on evaluator feedback.
+    """
+    logger.info("Executing refine plan node (feedback-driven queries)")
+
+    feedback = state.get("evaluation", "") or state.get("verdict", "")
+    original_question = state.get("input", "")
+    existing_plan = state.get("research_plan", []) or []
+
+    llm = ChatOpenAI(
+        model=settings.reasoning_model,
+        temperature=0.8,
+        api_key=settings.openai_api_key
+    )
+
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", """You are a research strategist. Generate up to 3 follow-up search queries to close the gaps called out in feedback.
+
+Rules:
+- Target missing evidence, data, or counterpoints.
+- Avoid repeating prior queries unless wording needs to be more specific.
+- Keep queries concise and specific.
+
+Return ONLY a JSON object:
+{"queries": ["q1", "q2", ...]}"""),
+        ("human", "Question: {question}\nFeedback: {feedback}\nExisting queries: {existing}")
+    ])
+
+    try:
+        response = llm.invoke(prompt.format_messages(
+            question=original_question,
+            feedback=feedback,
+            existing="\n".join(existing_plan)
+        ))
+        content = response.content if hasattr(response, "content") else str(response)
+        start = content.find("{")
+        end = content.rfind("}") + 1
+        new_queries: List[str] = []
+        if start >= 0 and end > start:
+            try:
+                data = json.loads(content[start:end])
+                raw_queries = data.get("queries", [])
+                seen = {q.lower().strip() for q in existing_plan if isinstance(q, str)}
+                for q in raw_queries:
+                    if not isinstance(q, str):
+                        continue
+                    q_norm = q.strip()
+                    if not q_norm or q_norm.lower() in seen:
+                        continue
+                    seen.add(q_norm.lower())
+                    new_queries.append(q_norm)
+                    if len(new_queries) >= 3:
+                        break
+            except json.JSONDecodeError:
+                pass
+
+        if not new_queries:
+            # Fallback: reuse original question with feedback hint
+            new_queries = [f"{original_question} {feedback}".strip()]
+
+        merged_plan = existing_plan + new_queries
+        revision_count = int(state.get("revision_count", 0)) + 1
+
+        logger.info(f"Refine plan added {len(new_queries)} queries; total plan size {len(merged_plan)}")
+        return {
+            "research_plan": merged_plan,
+            "revision_count": revision_count,
+            "messages": [AIMessage(content="Added follow-up queries:\n" + "\n".join(f"- {q}" for q in new_queries))]
+        }
+    except Exception as e:
+        logger.error(f"Refine plan error: {str(e)}")
+        return {
+            "research_plan": existing_plan,
+            "revision_count": int(state.get("revision_count", 0)) + 1,
+            "errors": [f"Refine plan error: {str(e)}"],
+            "messages": [AIMessage(content="Continuing with existing plan; failed to create new queries.")]
+        }
+
+
 def web_search_plan_node(state: AgentState) -> Dict[str, Any]:
     """Simple plan for web search only mode."""
     logger.info("Executing web search plan node")
@@ -244,7 +324,22 @@ def writer_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     code_results: List[Dict[str, Any]] = []
 
     # Prepare research context
-    scraped_content = state.get("scraped_content", [])
+    scraped_content_raw = state.get("scraped_content", [])
+
+    # Compact and clean scraped content to avoid bloat
+    def _compact_scraped(items: List[Dict[str, Any]], max_results: int = 3) -> List[Dict[str, Any]]:
+        compact: List[Dict[str, Any]] = []
+        for item in items:
+            results = item.get("results") or []
+            if not results:
+                continue
+            compact.append({
+                "query": item.get("query", ""),
+                "results": results[:max_results]
+            })
+        return compact
+
+    scraped_content = _compact_scraped(scraped_content_raw)
 
     def _build_research_context(items: List[Dict[str, Any]]) -> str:
         """Keep context compact: show top results with summary/snippet only."""
@@ -262,6 +357,26 @@ def writer_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
         return "\n".join(blocks)
 
     research_context = _build_research_context(scraped_content)
+
+    # If no research context (e.g., search failed), fall back to direct answer style
+    if not research_context.strip():
+        logger.info("No research context available; falling back to direct answer mode inside writer.")
+        fallback_prompt = ChatPromptTemplate.from_messages([
+            ("system", "You are a helpful assistant. Answer succinctly and accurately."),
+            ("human", "{input}")
+        ])
+        response = llm.invoke(
+            fallback_prompt.format_messages(input=state["input"]),
+            config=config
+        )
+        content = response.content if hasattr(response, "content") else str(response)
+        return {
+            "draft_report": content,
+            "final_report": content,
+            "is_complete": False,
+            "messages": [AIMessage(content=content)],
+            "code_results": code_results
+        }
 
     writer_prompt = ChatPromptTemplate.from_messages([
         ("system", """You are an expert research analyst. Synthesize the research findings into a concise, well-structured report.

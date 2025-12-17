@@ -3,6 +3,7 @@
 import React, { useState, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { useI18n } from '@/lib/i18n/i18n-context'
 import { Plus, Compass, LayoutGrid, FolderOpen, MessageSquare, PanelLeft } from 'lucide-react'
 
 interface SidebarProps {
@@ -14,7 +15,8 @@ interface SidebarProps {
 }
 
 export function Sidebar({ isOpen, onToggle, onNewChat, history, isLoading = false }: SidebarProps) {
-  
+  const { t } = useI18n()
+
   const groupedHistory = useMemo(() => {
     const groups: Record<string, typeof history> = {}
     history.forEach(item => {
@@ -54,7 +56,7 @@ export function Sidebar({ isOpen, onToggle, onNewChat, history, isLoading = fals
                 <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground text-xs font-bold">
                     W
                 </div>
-                <span className="font-bold text-base tracking-tight">Weaver</span>
+                <span className="font-bold text-base tracking-tight">{t('weaver')}</span>
              </div>
              <Button variant="ghost" size="icon" onClick={onToggle} className="h-7 w-7 text-muted-foreground">
                 <PanelLeft className="h-4 w-4" />
@@ -72,7 +74,7 @@ export function Sidebar({ isOpen, onToggle, onNewChat, history, isLoading = fals
                 onClick={onNewChat}
              >
                 <Plus className="h-4 w-4" />
-                <span className={cn("truncate", !isOpen && "md:hidden")}>New Investigation</span>
+                <span className={cn("truncate", !isOpen && "md:hidden")}>{t('newInvestigation')}</span>
              </Button>
           </div>
 
@@ -82,11 +84,11 @@ export function Sidebar({ isOpen, onToggle, onNewChat, history, isLoading = fals
             {/* Workspace */}
             <div className="space-y-1">
                <div className="px-3 text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-widest mb-1">
-                 Workspace
+                 {t('workspace')}
                </div>
-               <SidebarItem icon={LayoutGrid} label="Dashboard" active />
-               <SidebarItem icon={Compass} label="Discover" />
-               <SidebarItem icon={FolderOpen} label="Library" />
+               <SidebarItem icon={LayoutGrid} label={t('dashboard')} active />
+               <SidebarItem icon={Compass} label={t('discover')} />
+               <SidebarItem icon={FolderOpen} label={t('library')} />
             </div>
 
             {/* History Section */}
@@ -97,7 +99,7 @@ export function Sidebar({ isOpen, onToggle, onNewChat, history, isLoading = fals
                       ))}
                   </div>
               ) : history.length === 0 ? (
-                  <div className="px-3 text-xs text-muted-foreground italic py-2">No recent chats</div>
+                  <div className="px-3 text-xs text-muted-foreground italic py-2">{t('noRecentChats')}</div>
               ) : (
                   <div className="space-y-4">
                       {groupOrder.map(dateLabel => {
