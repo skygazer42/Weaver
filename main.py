@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from langchain_core.messages import SystemMessage
 from typing import List, Dict, Any, Optional
 import json
 import asyncio
@@ -14,6 +15,7 @@ from langgraph.types import Command
 from agent import create_research_graph, create_checkpointer, AgentState
 from tools.mcp import init_mcp_tools, close_mcp_tools
 from tools.registry import set_registered_tools
+from tools.memory_client import fetch_memories, add_memory_entry
 from logger import setup_logging, get_logger, LogContext
 
 # Initialize logging
@@ -282,6 +284,14 @@ async def stream_agent_events(
             "errors": []
         }
 
+        # Load long-term memories (optional)
+        mem_entries = fetch_memories()
+        if mem_entries:
+            memory_text = "\n".join(f"- {m}" for m in mem_entries)
+            initial_state["messages"] = [
+                SystemMessage(content=f"Relevant past knowledge:\n{memory_text}")
+            ]
+
         mode_info = _normalize_search_mode(search_mode)
 
         config = {
@@ -373,6 +383,8 @@ async def stream_agent_events(
                                 "title": "Research Report",
                                 "content": final_report
                             })
+                            # Store memory for future sessions
+                            add_memory_entry(final_report)
 
             elif event_type == "on_tool_start":
                 tool_name = data_dict.get("name", "unknown")
@@ -506,6 +518,13 @@ async def chat(request: ChatRequest):
                 "errors": []
             }
 
+            mem_entries = fetch_memories()
+            if mem_entries:
+                memory_text = "\n".join(f"- {m}" for m in mem_entries)
+                initial_state["messages"] = [
+                    SystemMessage(content=f"Relevant past knowledge:\n{memory_text}")
+                ]
+
             config = {
                 "configurable": {
                     "thread_id": "default",
@@ -520,6 +539,7 @@ async def chat(request: ChatRequest):
             }
             result = await research_graph.ainvoke(initial_state, config=config)
             final_report = result.get("final_report", "No response generated")
+            add_memory_entry(final_report)
 
             return ChatResponse(
                 id=f"msg_{datetime.now().timestamp()}",

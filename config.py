@@ -17,6 +17,12 @@ class Settings(BaseSettings):
     tavily_api_key: str = ""
     e2b_api_key: str = ""
     anthropic_api_key: str = ""
+    mem0_api_key: str = ""
+    enable_memory: bool = False
+    memory_namespace: str = "default"
+    memory_user_id: str = "default_user"
+    memory_max_entries: int = 20
+    memory_top_k: int = 5
     enable_mcp: bool = False
     mcp_servers: str = ""  # JSON mapping for MultiServerMCPClient
     human_review: bool = False  # require manual approval before final report
