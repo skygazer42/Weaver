@@ -28,10 +28,10 @@ interface ModelProvider {
   models: { id: string; name: string }[]
 }
 
-const modelProviders: ModelProvider[] = [
+const getModelProviders = (t: (key: any) => string): ModelProvider[] => [
   {
     id: 'deepseek',
-    name: 'DeepSeek',
+    name: t('deepseek'),
     models: [
       { id: 'deepseek-chat', name: 'deepseek-chat' },
       { id: 'deepseek-reasoner', name: 'deepseek-reasoner' },
@@ -39,7 +39,7 @@ const modelProviders: ModelProvider[] = [
   },
   {
     id: 'qwen',
-    name: '通义千问 (Qwen)',
+    name: t('qwen'),
     models: [
       { id: 'qwen-plus', name: 'qwen-plus' },
       { id: 'qwen3-vl-flash', name: 'qwen3-vl-flash 🖼️' },
@@ -47,7 +47,7 @@ const modelProviders: ModelProvider[] = [
   },
   {
     id: 'zhipu',
-    name: '智谱AI (GLM)',
+    name: t('zhipu'),
     models: [
       { id: 'glm-4.6', name: 'GLM-4.6' },
       { id: 'glm-4.6v', name: 'glm-4.6v 🖼️' },
@@ -70,6 +70,8 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
   const [tempLanguage, setTempLanguage] = useState(language)
   const [apiKeys, setApiKeys] = useState<ApiKeys>({})
   const [expandedProvider, setExpandedProvider] = useState<string | null>(null)
+
+  const modelProviders = getModelProviders(t)
 
   // Load API keys from localStorage
   useEffect(() => {

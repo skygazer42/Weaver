@@ -30,8 +30,8 @@ export const translations = {
 
     // Model Providers
     deepseek: 'DeepSeek',
-    zhipu: 'Zhipu AI',
-    qwen: 'Qwen (Tongyi)',
+    zhipu: 'Zhipu',
+    qwen: 'Qwen',
 
     // Search modes
     agent: 'Agent',
@@ -112,7 +112,7 @@ export const translations = {
 
     // Model Providers
     deepseek: 'DeepSeek',
-    zhipu: '智谱 AI',
+    zhipu: '智谱AI',
     qwen: '通义千问',
 
     // Search modes

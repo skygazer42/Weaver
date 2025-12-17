@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { PanelLeft, Sun, Moon, ChevronDown, Check, LayoutPanelLeft, Settings } from 'lucide-react'
 import { useTheme } from '@/components/theme-provider'
+import { useI18n } from '@/lib/i18n/i18n-context'
 import { SettingsDialog } from '@/components/settings/SettingsDialog'
 import { cn } from '@/lib/utils'
 
@@ -18,6 +19,7 @@ interface HeaderProps {
 
 export function Header({ sidebarOpen, onToggleSidebar, selectedModel, onModelChange, onToggleArtifacts, hasArtifacts }: HeaderProps) {
   const { theme, setTheme } = useTheme()
+  const { t } = useI18n()
   const [isModelOpen, setIsModelOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -40,16 +42,16 @@ export function Header({ sidebarOpen, onToggleSidebar, selectedModel, onModelCha
 
   const models = [
     // DeepSeek 系列
-    { id: 'deepseek-chat', name: 'deepseek-chat', provider: 'DeepSeek' },
-    { id: 'deepseek-reasoner', name: 'deepseek-reasoner', provider: 'DeepSeek' },
+    { id: 'deepseek-chat', name: 'deepseek-chat', provider: t('deepseek') },
+    { id: 'deepseek-reasoner', name: 'deepseek-reasoner', provider: t('deepseek') },
 
     // 通义千问系列
-    { id: 'qwen-plus', name: 'qwen-plus', provider: '通义千问' },
-    { id: 'qwen3-vl-flash', name: 'qwen3-vl-flash 🖼️', provider: '通义千问' },
+    { id: 'qwen-plus', name: 'qwen-plus', provider: t('qwen') },
+    { id: 'qwen3-vl-flash', name: 'qwen3-vl-flash 🖼️', provider: t('qwen') },
 
     // 智谱 GLM 系列
-    { id: 'glm-4.6', name: 'GLM-4.6', provider: '智谱AI' },
-    { id: 'glm-4.6v', name: 'glm-4.6v 🖼️', provider: '智谱AI' },
+    { id: 'glm-4.6', name: 'GLM-4.6', provider: t('zhipu') },
+    { id: 'glm-4.6v', name: 'glm-4.6v 🖼️', provider: t('zhipu') },
   ]
 
   const currentModelName = models.find(m => m.id === selectedModel)?.name || selectedModel
