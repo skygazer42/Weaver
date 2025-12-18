@@ -2,7 +2,7 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
-import { Send, StopCircle, Globe, Bot, BrainCircuit, Paperclip, Sparkles, X, Mic, MicOff, Server, ChevronDown, Check, Trash2, File as FileIcon, Image as ImageIcon, Bug, BookOpen, PenTool, TestTube } from 'lucide-react'
+import { Send, StopCircle, Globe, Bot, BrainCircuit, Paperclip, Sparkles, X, Mic, MicOff, Server, ChevronDown, Check, Trash2, File as FileIcon, Image as ImageIcon, Bug, BookOpen, PenTool, TestTube, Plug } from 'lucide-react'
 import { useI18n } from '@/lib/i18n/i18n-context'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -251,7 +251,7 @@ export function ChatInput({
                      : "text-muted-foreground border-transparent hover:bg-muted/50"
                  )}
                >
-                 <Server className={cn("h-3.5 w-3.5 transition-colors", searchMode === 'mcp' ? "text-green-500" : "text-muted-foreground")} />
+                 <Plug className={cn("h-3.5 w-3.5 transition-colors", searchMode === 'mcp' ? "text-green-500" : "text-muted-foreground")} />
                  {searchMode === 'mcp' ? (mcpOptions.find(o => o.id === selectedMcp)?.label || 'MCP') : 'MCP'}
                  <ChevronDown className="h-3 w-3 opacity-50" />
                </button>

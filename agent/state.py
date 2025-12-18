@@ -12,6 +12,10 @@ class AgentState(TypedDict):
 
     # User's original input/query
     input: str
+    # Optional base64-encoded images from the user
+    images: List[Dict[str, Any]]
+    # Flag for clarify step
+    needs_clarification: bool
 
     # Message history for LLM context
     messages: Annotated[List[BaseMessage], add_messages]

@@ -7,7 +7,6 @@ import { useTheme } from '@/components/theme-provider'
 import { useI18n } from '@/lib/i18n/i18n-context'
 import { SettingsDialog } from '@/components/settings/SettingsDialog'
 import { cn } from '@/lib/utils'
-import { McpConfigDialog } from '@/components/settings/McpConfigDialog'
 
 interface HeaderProps {
   sidebarOpen: boolean
@@ -85,7 +84,7 @@ export function Header({ sidebarOpen, onToggleSidebar, selectedModel, onModelCha
              </Button>
          )}
 
-                  {/* Custom Model Dropdown */}
+                  {/* Custom Model Dropdown - Refreshed */}
                   <div className="relative" ref={dropdownRef}>
                      <button
                        onClick={() => setIsModelOpen(!isModelOpen)}
@@ -116,9 +115,7 @@ export function Header({ sidebarOpen, onToggleSidebar, selectedModel, onModelCha
                        </div>
                      )}
                   </div>
-         
-                  <McpConfigDialog />
-         
+
                   <Button 
                     variant="ghost"           size="icon"
            onClick={toggleTheme}

@@ -9,6 +9,7 @@ from .nodes import (
     direct_answer_node,
     planner_node,
     web_search_plan_node,
+    clarify_node,
     writer_node,
     perform_parallel_search,
     initiate_research,
@@ -38,6 +39,7 @@ def create_research_graph(checkpointer=None, interrupt_before=None):
     # Add nodes
     workflow.add_node("router", route_node)
     workflow.add_node("direct_answer", direct_answer_node)
+    workflow.add_node("clarify", clarify_node)
     workflow.add_node("planner", planner_node)
     workflow.add_node("web_plan", web_search_plan_node)
     workflow.add_node("refine_plan", refine_plan_node)
@@ -56,12 +58,21 @@ def create_research_graph(checkpointer=None, interrupt_before=None):
             return "web_plan"
         if route == "direct":
             return "direct_answer"
-        return "planner"
+        return "clarify"
 
     workflow.add_conditional_edges(
         "router",
         route_decision,
-        ["direct_answer", "web_plan", "planner"]
+        ["direct_answer", "web_plan", "clarify"]
+    )
+
+    def after_clarify(state: AgentState) -> str:
+        return "human_review" if state.get("needs_clarification") else "planner"
+
+    workflow.add_conditional_edges(
+        "clarify",
+        after_clarify,
+        ["planner", "human_review"]
     )
 
     # Planning path (agent + deep)

@@ -11,12 +11,20 @@ export interface MessageSource {
   url: string
 }
 
+export interface ImageAttachment {
+  name?: string
+  mime?: string
+  data?: string
+  preview?: string
+}
+
 export interface Message {
   id: string
   role: 'user' | 'assistant' | 'system'
   content: string
   toolInvocations?: ToolInvocation[]
   sources?: MessageSource[]
+  attachments?: ImageAttachment[]
 }
 
 export interface ChatSession {

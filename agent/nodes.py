@@ -10,6 +10,7 @@ import asyncio
 from datetime import datetime
 from pydantic import BaseModel, Field
 import time
+import mimetypes
 
 from .state import AgentState, ResearchPlan, QueryState
 from tools import tavily_search, execute_python_code
@@ -137,6 +138,69 @@ def _get_writer_tools() -> List[Any]:
     return tools
 
 
+def _guess_mime(name: Optional[str]) -> str:
+    mime, _ = mimetypes.guess_type(name or "")
+    return mime or "image/png"
+
+
+def _normalize_images(images: Optional[List[Dict[str, Any]]]) -> List[Dict[str, str]]:
+    """
+    Normalize image payloads to data URLs for OpenAI-compatible multimodal inputs.
+    Accepts items with either `data` (base64 without prefix) or `url` (already data URL).
+    """
+    normalized: List[Dict[str, str]] = []
+    if not images:
+        return normalized
+
+    for img in images:
+        if not isinstance(img, dict):
+            continue
+        raw_data = (img.get("data") or img.get("url") or "").strip()
+        if not raw_data:
+            continue
+        mime = img.get("mime") or _guess_mime(img.get("name"))
+
+        if raw_data.startswith("data:"):
+            data_url = raw_data
+        else:
+            data_url = f"data:{mime};base64,{raw_data}"
+
+        normalized.append({
+            "url": data_url,
+            "name": img.get("name", ""),
+            "mime": mime,
+        })
+    return normalized
+
+
+def _build_user_content(text: str, images: Optional[List[Dict[str, Any]]]) -> Union[str, List[Dict[str, Any]]]:
+    """
+    Build multimodal content for HumanMessage.
+    Returns plain text if no images, otherwise a mixed list with text + image_url parts.
+    """
+    parts: List[Dict[str, Any]] = []
+    text = text or ""
+    normalized_images = _normalize_images(images)
+
+    if text:
+        parts.append({"type": "text", "text": text})
+    elif normalized_images:
+        # Ensure the model gets some textual anchor when only images are provided
+        parts.append({"type": "text", "text": "See attached images and respond accordingly."})
+
+    for img in normalized_images:
+        parts.append({
+            "type": "image_url",
+            "image_url": {"url": img["url"]}
+        })
+
+    if not parts:
+        return ""
+    if len(parts) == 1 and parts[0].get("type") == "text":
+        return parts[0]["text"]
+    return parts
+
+
 def perform_parallel_search(state: QueryState, config: RunnableConfig) -> Dict[str, Any]:
     """
     Executes a single search query in parallel.
@@ -181,16 +245,66 @@ def route_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     return {"route": route, "max_revisions": max_revisions}
 
 
+def clarify_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
+    """
+    Light-weight guardrail to decide if the query needs clarification before planning.
+    Uses structured output with retry for robustness.
+    """
+    logger.info("Executing clarify node")
+    llm = _chat_model(settings.reasoning_model, temperature=0.3)
+
+    class ClarifyResponse(BaseModel):
+        need_clarification: bool = Field(description="Whether the user request is ambiguous or incomplete.")
+        question: str = Field(default="", description="A concise clarifying question.")
+        verification: str = Field(default="", description="A brief confirmation to proceed when clear.")
+
+    system_msg = SystemMessage(content=(
+        "You are a safety check that decides if the user's request needs clarification before research.\n"
+        "If the ask is ambiguous, missing key details, or multi-intent, set need_clarification=true and propose ONE concise question.\n"
+        "Otherwise, set need_clarification=false and provide a short confirmation to proceed."
+    ))
+    human_msg = HumanMessage(content=_build_user_content(state.get("input", ""), state.get("images")))
+
+    try:
+        response = llm.with_structured_output(ClarifyResponse).with_retry(stop_after_attempt=2).invoke(
+            [system_msg, human_msg],
+            config=config
+        )
+        _log_usage(response, "clarify")
+    except Exception as e:
+        logger.warning(f"Clarify step failed, proceeding without clarification: {e}")
+        return {"needs_clarification": False}
+
+    needs_clarification = bool(getattr(response, "need_clarification", False))
+    question = getattr(response, "question", "") or "Could you clarify your request?"
+    verification = getattr(response, "verification", "") or "Understood. Proceeding."
+
+    if needs_clarification:
+        logger.info("Clarification required; returning question to user.")
+        return {
+            "needs_clarification": True,
+            "final_report": question,
+            "messages": [AIMessage(content=question)],
+            "is_complete": True
+        }
+
+    logger.info("No clarification needed; proceeding to planning.")
+    return {
+        "needs_clarification": False,
+        "messages": [AIMessage(content=verification)]
+    }
+
+
 def direct_answer_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     """Direct answer without research."""
     logger.info("Executing direct answer node")
     t0 = time.time()
     llm = _chat_model(settings.primary_model, temperature=0.7)
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", "You are a helpful assistant. Answer succinctly and accurately."),
-        ("human", "{input}")
-    ])
-    response = llm.invoke(prompt.format_messages(input=state["input"]), config=config)
+    messages = [
+        SystemMessage(content="You are a helpful assistant. Answer succinctly and accurately."),
+        HumanMessage(content=_build_user_content(state["input"], state.get("images")))
+    ]
+    response = llm.invoke(messages, config=config)
     _log_usage(response, "direct_answer")
     logger.info(f"[timing] direct_answer {(time.time()-t0):.3f}s")
     content = response.content if hasattr(response, "content") else str(response)
@@ -236,13 +350,12 @@ def planner_node(state: AgentState) -> Dict[str, Any]:
             queries: List[str] = Field(description="3-7 targeted search queries")
             reasoning: str = Field(description="Brief explanation of the research strategy")
 
-        planner_prompt = ChatPromptTemplate.from_messages([
-            ("system", "You are an expert research planner. Return JSON with 3-7 targeted search queries and a brief reasoning."),
-            ("human", "Create a research plan for: {input}")
-        ])
+        system_msg = SystemMessage(content="You are an expert research planner. Return JSON with 3-7 targeted search queries and a brief reasoning.")
+        human_msg = HumanMessage(content=_build_user_content(state["input"], state.get("images")))
 
-        response = llm.with_structured_output(PlanResponse).invoke(
-            planner_prompt.format_messages(input=state["input"])
+        response = llm.with_structured_output(PlanResponse).with_retry(stop_after_attempt=2).invoke(
+            [system_msg, human_msg],
+            config=config
         )
 
         # LLM 调用后检查取消状态
@@ -463,14 +576,11 @@ def writer_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
         # If no research context (e.g., search failed), fall back to direct answer style
         if not research_context.strip():
             logger.info("No research context available; falling back to direct answer mode inside writer.")
-            fallback_prompt = ChatPromptTemplate.from_messages([
-                ("system", "You are a helpful assistant. Answer succinctly and accurately."),
-                ("human", "{input}")
-            ])
-            response = llm.invoke(
-                fallback_prompt.format_messages(input=state["input"]),
-                config=config
-            )
+            messages = [
+                SystemMessage(content="You are a helpful assistant. Answer succinctly and accurately."),
+                HumanMessage(content=_build_user_content(state["input"], state.get("images")))
+            ]
+            response = llm.invoke(messages, config=config)
             _log_usage(response, "writer_fallback")
             logger.info(f"[timing] writer_fallback {(time.time()-t0):.3f}s")
             content = response.content if hasattr(response, "content") else str(response)
@@ -482,8 +592,7 @@ def writer_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
                 "code_results": code_results
             }
 
-        writer_prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are an expert research analyst. Synthesize the research findings into a concise, well-structured report.
+        system_content = f"""You are an expert research analyst. Synthesize the research findings into a concise, well-structured report.
 
 Guidelines:
 1. Lead with a brief executive summary.
@@ -495,19 +604,19 @@ Guidelines:
 7. End with a "Sources" section listing each tag and URL: e.g., - [S1-1] Title — URL.
 
 Research Context (compact):
-{context}
+{research_context[:15000]}
 
 Sources:
-{sources}""",),
-            ("human", "Create a comprehensive report answering: {query}")
-        ])
+{sources_table}"""
 
         # First LLM call - might decide to use tools
-        messages = writer_prompt.format_messages(
-            context=research_context[:15000],  # Increased context size
-            sources=sources_table,
-            query=state["input"]
-        )
+        messages = [
+            SystemMessage(content=system_content),
+            HumanMessage(content=_build_user_content(
+                f"Create a comprehensive report answering: {state['input']}",
+                state.get("images")
+            ))
+        ]
 
         response = llm.invoke(messages, config=config)
         messages.append(response)

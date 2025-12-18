@@ -149,11 +149,18 @@ class SearchMode(BaseModel):
     useDeepSearch: bool = False
 
 
+class ImagePayload(BaseModel):
+    name: Optional[str] = None
+    data: str
+    mime: Optional[str] = None
+
+
 class ChatRequest(BaseModel):
     messages: List[Message]
     stream: bool = True
     model: Optional[str] = "gpt-4o"
     search_mode: Optional[SearchMode | Dict[str, Any] | str] = None  # {"useWebSearch": bool, "useAgent": bool, "useDeepSearch": bool}
+    images: Optional[List[ImagePayload]] = None  # Base64 images for multimodal input
 
 
 class ChatResponse(BaseModel):
@@ -345,11 +352,34 @@ def _normalize_search_mode(search_mode: SearchMode | Dict[str, Any] | str | None
     }
 
 
+def _normalize_images_payload(images: Optional[List[ImagePayload]]) -> List[Dict[str, Any]]:
+    """
+    Normalize incoming image payloads; strip data URL prefix if present.
+    """
+    normalized: List[Dict[str, Any]] = []
+    if not images:
+        return normalized
+
+    for img in images:
+        if not img or not img.data:
+            continue
+        data = img.data
+        if data.startswith("data:") and "," in data:
+            data = data.split(",", 1)[1]
+        normalized.append({
+            "name": img.name or "",
+            "mime": img.mime or "",
+            "data": data
+        })
+    return normalized
+
+
 async def stream_agent_events(
     input_text: str,
     thread_id: str = "default",
     model: str = "gpt-4o",
-    search_mode: Dict[str, Any] | None = None
+    search_mode: Dict[str, Any] | None = None,
+    images: Optional[List[Dict[str, Any]]] = None
 ):
     """
     Stream agent execution events in real-time.
@@ -359,6 +389,7 @@ async def stream_agent_events(
     """
     event_count = 0
     start_time = time.time()
+    images = images or []
 
     # 创建取消令牌
     cancel_token = await cancellation_manager.create_token(
@@ -373,6 +404,8 @@ async def stream_agent_events(
         # Initialize state with cancellation support
         initial_state: AgentState = {
             "input": input_text,
+            "images": images,
+            "needs_clarification": False,
             "messages": [],
             "research_plan": [],
             "current_step": 0,
@@ -444,7 +477,13 @@ async def stream_agent_events(
             # Handle different event types
             if event_type in {"on_chain_start", "on_node_start", "on_graph_start"}:
                 event_count += 1
-                if "planner" in node_name:
+                if "clarify" in node_name:
+                    logger.debug(f"  ❓ Clarify node started | Thread: {thread_id}")
+                    yield await format_stream_event("status", {
+                        "text": "Checking if clarification is needed...",
+                        "step": "clarifying"
+                    })
+                elif "planner" in node_name:
                     logger.debug(f"  📋 Planning node started | Thread: {thread_id}")
                     yield await format_stream_event("status", {
                         "text": "Creating research plan...",
@@ -629,7 +668,13 @@ async def chat(request: ChatRequest):
 
             # Return streaming response with thread_id in header for cancellation
             return StreamingResponse(
-                stream_agent_events(last_message, thread_id=thread_id, model=request.model, search_mode=mode_info),
+                stream_agent_events(
+                    last_message,
+                    thread_id=thread_id,
+                    model=request.model,
+                    search_mode=mode_info,
+                    images=_normalize_images_payload(request.images)
+                ),
                 media_type="text/event-stream",
                 headers={
                     "Cache-Control": "no-cache",
@@ -642,6 +687,8 @@ async def chat(request: ChatRequest):
             # Non-streaming response (fallback)
             initial_state: AgentState = {
                 "input": last_message,
+                "images": _normalize_images_payload(request.images),
+                "needs_clarification": False,
                 "messages": [],
                 "research_plan": [],
                 "current_step": 0,

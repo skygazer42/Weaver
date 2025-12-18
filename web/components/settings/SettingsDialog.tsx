@@ -11,9 +11,12 @@ import {
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
 import { useI18n } from '@/lib/i18n/i18n-context'
 import { cn } from '@/lib/utils'
-import { Check, ChevronDown } from 'lucide-react'
+import { Check, ChevronDown, Plug, RefreshCw, CheckCircle2 } from 'lucide-react'
+import { toast } from 'sonner'
 
 interface SettingsDialogProps {
   open: boolean
@@ -71,7 +74,67 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
   const [apiKeys, setApiKeys] = useState<ApiKeys>({})
   const [expandedProvider, setExpandedProvider] = useState<string | null>(null)
 
+  // MCP state
+  const [mcpEnabled, setMcpEnabled] = useState(false)
+  const [mcpConfig, setMcpConfig] = useState('')
+  const [mcpLoadedTools, setMcpLoadedTools] = useState(0)
+  const [mcpLoading, setMcpLoading] = useState(false)
+
   const modelProviders = getModelProviders(t)
+
+  // Fetch MCP config
+  const fetchMcpConfig = async () => {
+    try {
+      setMcpLoading(true)
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/mcp/config`)
+      if (!res.ok) throw new Error('Failed to fetch config')
+      const data = await res.json()
+      setMcpEnabled(data.enabled)
+      setMcpConfig(JSON.stringify(data.servers, null, 2))
+      setMcpLoadedTools(data.loaded_tools || 0)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setMcpLoading(false)
+    }
+  }
+
+  // Save MCP config
+  const saveMcpConfig = async () => {
+    try {
+      setMcpLoading(true)
+      let parsedServers = {}
+      try {
+        parsedServers = JSON.parse(mcpConfig)
+      } catch (e) {
+        toast.error('Invalid JSON configuration')
+        setMcpLoading(false)
+        return false
+      }
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/mcp/config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          enable: mcpEnabled,
+          servers: parsedServers
+        })
+      })
+
+      if (!res.ok) throw new Error('Failed to save config')
+
+      const data = await res.json()
+      setMcpLoadedTools(data.loaded_tools || 0)
+      toast.success(data.message || 'MCP configuration saved')
+      return true
+    } catch (e) {
+      console.error(e)
+      toast.error('Failed to save MCP config')
+      return false
+    } finally {
+      setMcpLoading(false)
+    }
+  }
 
   // Load API keys from localStorage
   useEffect(() => {
@@ -84,6 +147,13 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
       }
     }
   }, [])
+
+  // Fetch MCP config when dialog opens
+  useEffect(() => {
+    if (open) {
+      fetchMcpConfig()
+    }
+  }, [open])
 
   useEffect(() => {
     setTempModel(selectedModel)
@@ -100,10 +170,11 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
     }))
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     onModelChange(tempModel)
     setLanguage(tempLanguage as any)
     localStorage.setItem('weaver-api-keys', JSON.stringify(apiKeys))
+    await saveMcpConfig()
     onOpenChange(false)
   }
 
@@ -241,6 +312,52 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
                   )}
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* MCP Configuration */}
+          <div className="space-y-3 border-t pt-4">
+            <Label className="text-sm font-medium flex items-center gap-2">
+              <Plug className="h-4 w-4" />
+              MCP Configuration
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Configure Model Context Protocol servers to extend capabilities.
+            </p>
+
+            <div className="flex items-center justify-between space-x-2 border p-3 rounded-lg bg-muted/20">
+              <div className="space-y-0.5">
+                <Label className="text-sm font-medium">Enable MCP</Label>
+                <div className="text-xs text-muted-foreground">
+                  {mcpEnabled ? 'MCP is currently active.' : 'MCP is disabled.'}
+                </div>
+              </div>
+              <Switch
+                checked={mcpEnabled}
+                onCheckedChange={setMcpEnabled}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-medium">Servers Configuration (JSON)</Label>
+              <Textarea
+                value={mcpConfig}
+                onChange={(e) => setMcpConfig(e.target.value)}
+                className="font-mono text-xs min-h-[120px]"
+                placeholder='{ "server-name": { "command": "...", "args": [...] } }'
+              />
+              <p className="text-xs text-muted-foreground">
+                Define servers with transport, command, and args.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 p-2 rounded">
+              {mcpLoading ? (
+                <RefreshCw className="h-3 w-3 animate-spin" />
+              ) : (
+                <CheckCircle2 className="h-3 w-3 text-green-500" />
+              )}
+              <span>Loaded Tools: {mcpLoadedTools}</span>
             </div>
           </div>
         </div>

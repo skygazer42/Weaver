@@ -205,6 +205,29 @@ export function MessageItem({ message, onEdit }: MessageItemProps) {
                 >
                   {message.content || (hasTools ? "" : "")}
                 </ReactMarkdown>
+
+                {message.attachments && message.attachments.length > 0 && (
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    {message.attachments.map((att, idx) => (
+                      <div key={idx} className="rounded-md overflow-hidden border bg-background/60">
+                        {att.preview ? (
+                          <img
+                            src={att.preview}
+                            alt={att.name || `attachment-${idx}`}
+                            className="w-full h-auto max-h-40 object-cover bg-white"
+                          />
+                        ) : (
+                          <div className="p-3 text-xs text-muted-foreground">
+                            {att.name || 'Image attachment'}
+                          </div>
+                        )}
+                        <div className="px-2 py-1 text-[10px] text-muted-foreground truncate border-t border-border/50">
+                          {att.name || att.mime || 'Image'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 
                 {/* Typing Indicator for AI if no content yet */}
                 {!isUser && !message.content && !hasTools && (

@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
-import { Settings, Server, RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Plug, Server, RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react'
 
 export function McpConfigDialog() {
   const [open, setOpen] = useState(false)
@@ -78,14 +78,14 @@ export function McpConfigDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" className="rounded-full hover:bg-muted/50" title="MCP Settings">
-            <Settings className="h-5 w-5 text-muted-foreground" />
+        <Button variant="ghost" size="icon" className="rounded-full hover:bg-muted/50" title="MCP Configuration">
+            <Plug className="h-5 w-5 text-muted-foreground transition-all" />
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Server className="h-5 w-5" />
+            <Plug className="h-5 w-5 text-primary" />
             MCP Configuration
           </DialogTitle>
           <DialogDescription>

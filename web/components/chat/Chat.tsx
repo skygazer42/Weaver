@@ -11,7 +11,7 @@ import { ChatInput } from './ChatInput'
 import { Loader2, ArrowDown, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { Message, Artifact, ChatSession, ToolInvocation } from '@/types/chat'
+import { Message, Artifact, ChatSession, ToolInvocation, ImageAttachment } from '@/types/chat'
 import { STORAGE_KEYS, DEFAULT_MODEL, SEARCH_MODES } from '@/lib/constants'
 import { useChatHistory } from '@/hooks/useChatHistory'
 
@@ -80,7 +80,27 @@ export function Chat() {
       }
   }
 
-  const processChat = async (messageHistory: Message[]) => {
+  const filesToImageAttachments = async (files: File[]): Promise<ImageAttachment[]> => {
+    const convert = (file: File) => new Promise<ImageAttachment>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const result = reader.result as string
+        const base64 = result && result.includes(',') ? result.split(',')[1] : result
+        const mime = file.type || 'image/png'
+        resolve({
+          name: file.name,
+          mime,
+          data: base64,
+          preview: result?.startsWith('data:') ? result : `data:${mime};base64,${base64}`
+        })
+      }
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+    return Promise.all(files.map(convert))
+  }
+
+  const processChat = async (messageHistory: Message[], images?: ImageAttachment[]) => {
     setIsLoading(true)
     abortControllerRef.current = new AbortController()
 
@@ -96,7 +116,12 @@ export function Chat() {
             messages: messageHistory.map(m => ({ role: m.role, content: m.content })),
             stream: true,
             model: selectedModel,
-            search_mode: searchMode
+            search_mode: searchMode,
+            images: (images || []).map(img => ({
+              name: img.name,
+              mime: img.mime,
+              data: img.data
+            }))
           }),
           signal: abortControllerRef.current.signal
         }
@@ -212,12 +237,15 @@ export function Chat() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!input.trim() || isLoading) return
+    if ((!input.trim() && attachments.length === 0) || isLoading) return
+
+    const imagePayloads = await filesToImageAttachments(attachments)
 
     const userMessage: Message = {
       id: `user-${Date.now()}`,
       role: 'user',
       content: input.trim(),
+      attachments: imagePayloads
     }
 
     const newHistory = [...messages, userMessage]
@@ -225,7 +253,7 @@ export function Chat() {
     setInput('')
     setAttachments([])
     
-    await processChat(newHistory)
+    await processChat(newHistory, imagePayloads)
   }
 
   const handleEditMessage = async (id: string, newContent: string) => {
@@ -242,7 +270,7 @@ export function Chat() {
       setMessages(newHistory)
       
       if (updatedMessage.role === 'user') {
-          await processChat(newHistory)
+          await processChat(newHistory, updatedMessage.attachments)
       }
   }
 

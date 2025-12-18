@@ -38,7 +38,7 @@ export function EmptyState({ selectedMode, onModeSelect }: EmptyStateProps) {
   ]
 
   return (
-    <div className="flex flex-col items-center justify-center h-full w-full max-w-4xl mx-auto p-6 pt-32 animate-in fade-in zoom-in-95 duration-500">
+    <div className="flex flex-col items-center justify-center h-full w-full max-w-4xl mx-auto p-6 animate-in fade-in zoom-in-95 duration-500">
       
       {/* Hero Section */}
       <div className="flex flex-col items-center space-y-6 mb-12 text-center">
