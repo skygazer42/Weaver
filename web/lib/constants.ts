@@ -9,4 +9,5 @@ export const SEARCH_MODES = {
   AGENT: 'agent',
   WEB: 'web',
   DEEP: 'deep',
+  DEEP_AGENT: 'deep_agent',
 }

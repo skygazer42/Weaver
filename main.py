@@ -1,8 +1,9 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+import base64
 from pydantic import BaseModel
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import SystemMessage, HumanMessage
 from typing import List, Dict, Any, Optional
 import json
 import asyncio
@@ -15,9 +16,12 @@ import logging
 from common.config import settings
 from langgraph.types import Command
 from agent import create_research_graph, create_checkpointer, AgentState
+from agent.deep_agent import get_deep_agent_prompt
+from support_agent import create_support_graph
 from tools.mcp import init_mcp_tools, close_mcp_tools, reload_mcp_tools
 from tools.registry import set_registered_tools
 from tools.memory_client import fetch_memories, add_memory_entry, store_interaction
+from tools.asr import get_asr_service, init_asr_service
 from common.logger import setup_logging, get_logger, LogContext
 from common.cancellation import cancellation_manager
 
@@ -80,6 +84,7 @@ research_graph = create_research_graph(
     checkpointer=checkpointer,
     interrupt_before=settings.interrupt_nodes_list
 )
+support_graph = create_support_graph()
 mcp_enabled = settings.enable_mcp
 mcp_servers_config = settings.mcp_servers
 mcp_loaded_tools = 0
@@ -114,6 +119,17 @@ async def startup_event():
     except Exception as e:
         logger.warning(f"⚠ MCP tools initialization failed: {e}", exc_info=settings.debug)
         mcp_loaded_tools = 0
+
+    # Initialize ASR service
+    if settings.dashscope_api_key:
+        try:
+            logger.info("Initializing ASR service...")
+            init_asr_service(settings.dashscope_api_key)
+            logger.info("✓ ASR service initialized")
+        except Exception as e:
+            logger.warning(f"⚠ ASR service initialization failed: {e}")
+    else:
+        logger.info("ASR service not configured (no DASHSCOPE_API_KEY)")
 
     logger.info("=" * 80)
     logger.info("✓ Weaver Research Agent Ready")
@@ -182,6 +198,18 @@ class ResumeRequest(BaseModel):
 class MCPConfigPayload(BaseModel):
     enable: Optional[bool] = None
     servers: Optional[Dict[str, Any]] = None
+
+
+class SupportChatRequest(BaseModel):
+    message: str
+    user_id: Optional[str] = "default_user"
+    stream: bool = False  # reserved for future
+
+
+class SupportChatResponse(BaseModel):
+    content: str
+    role: str = "assistant"
+    timestamp: str
 
 
 class CancelRequest(BaseModel):
@@ -329,8 +357,8 @@ def _normalize_search_mode(search_mode: SearchMode | Dict[str, Any] | str | None
     elif isinstance(search_mode, str):
         lowered = search_mode.lower()
         use_web = lowered in {"web", "search", "tavily"}
-        use_agent = lowered in {"agent", "deep"}
-        use_deep = lowered == "deep"
+        use_agent = lowered in {"agent", "deep", "deep_agent", "deep-agent"}
+        use_deep = lowered in {"deep", "deep_agent", "deep-agent"}
     else:
         use_web = False
         use_agent = False
@@ -351,6 +379,7 @@ def _normalize_search_mode(search_mode: SearchMode | Dict[str, Any] | str | None
         "use_agent": use_agent,
         "use_deep": use_deep,
         "mode": mode,
+        "use_deep_prompt": use_deep,
     }
 
 
@@ -374,6 +403,32 @@ def _normalize_images_payload(images: Optional[List[ImagePayload]]) -> List[Dict
             "data": data
         })
     return normalized
+
+
+@app.post("/api/support/chat")
+async def support_chat(request: SupportChatRequest):
+    """Simple customer support chat backed by Mem0 memory."""
+    try:
+        state = {
+            "messages": [SystemMessage(content="You are a helpful support assistant."), HumanMessage(content=request.message)],
+            "user_id": request.user_id or "default_user",
+        }
+        result = support_graph.invoke(state)
+        messages = result.get("messages", [])
+        reply = ""
+        for msg in reversed(messages):
+            if hasattr(msg, "content"):
+                reply = msg.content
+                break
+        if not reply:
+            reply = "No response generated."
+        return SupportChatResponse(
+            content=reply,
+            timestamp=datetime.now().isoformat()
+        )
+    except Exception as e:
+        logger.error(f"Support chat error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 async def stream_agent_events(
@@ -426,6 +481,8 @@ async def stream_agent_events(
         logger.info(f"🎯 Agent stream started | Thread: {thread_id} | Model: {model}")
         logger.debug(f"  Input: {input_text[:100]}...")
 
+        mode_info = _normalize_search_mode(search_mode)
+
         # Initialize state with cancellation support
         initial_state: AgentState = {
             "input": input_text,
@@ -452,15 +509,18 @@ async def stream_agent_events(
             "is_cancelled": False
         }
 
-        # Load long-term memories (optional)
+        # Load long-term memories (optional) and inject deep prompt if needed
+        messages: list[Any] = []
+        if mode_info.get("use_deep_prompt"):
+            messages.append(SystemMessage(content=get_deep_agent_prompt()))
+
         mem_entries = fetch_memories(query=input_text)
         if mem_entries:
             memory_text = "\n".join(f"- {m}" for m in mem_entries)
-            initial_state["messages"] = [
-                SystemMessage(content=f"Relevant past knowledge:\n{memory_text}")
-            ]
+            messages.append(SystemMessage(content=f"Relevant past knowledge:\n{memory_text}"))
 
-        mode_info = _normalize_search_mode(search_mode)
+        if messages:
+            initial_state["messages"] = messages
 
         config = {
             "configurable": {
@@ -740,12 +800,17 @@ async def chat(request: ChatRequest):
                 "errors": []
             }
 
+            messages: list[Any] = []
+            if mode_info.get("use_deep_prompt"):
+                messages.append(SystemMessage(content=get_deep_agent_prompt()))
+
             mem_entries = fetch_memories(query=last_message)
             if mem_entries:
                 memory_text = "\n".join(f"- {m}" for m in mem_entries)
-                initial_state["messages"] = [
-                    SystemMessage(content=f"Relevant past knowledge:\n{memory_text}")
-                ]
+                messages.append(SystemMessage(content=f"Relevant past knowledge:\n{memory_text}"))
+
+            if messages:
+                initial_state["messages"] = messages
 
             config = {
                 "configurable": {
@@ -852,6 +917,139 @@ async def update_mcp_config(payload: MCPConfigPayload):
         "enabled": mcp_enabled,
         "servers": mcp_servers_config,
         "loaded_tools": mcp_loaded_tools,
+    }
+
+
+# ==================== ASR 语音识别 API ====================
+
+class ASRRequest(BaseModel):
+    """ASR 请求 - Base64 编码的音频数据"""
+    audio_data: str  # Base64 encoded audio
+    format: str = "wav"
+    sample_rate: int = 16000
+    language_hints: Optional[List[str]] = None
+
+
+@app.post("/api/asr/recognize")
+async def recognize_speech(request: ASRRequest):
+    """
+    语音识别端点 - 接收 Base64 编码的音频数据
+
+    Args:
+        request: ASR 请求，包含 Base64 编码的音频数据
+
+    Returns:
+        识别结果
+    """
+    try:
+        asr_service = get_asr_service()
+
+        if not asr_service.enabled:
+            raise HTTPException(
+                status_code=503,
+                detail="ASR service not available. Please configure DASHSCOPE_API_KEY."
+            )
+
+        # 解码 Base64 音频数据
+        try:
+            audio_bytes = base64.b64decode(request.audio_data)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid base64 audio data: {str(e)}")
+
+        # 调用 ASR 服务
+        result = asr_service.recognize_bytes(
+            audio_data=audio_bytes,
+            format=request.format,
+            sample_rate=request.sample_rate,
+            language_hints=request.language_hints or ['zh', 'en']
+        )
+
+        if result["success"]:
+            return {
+                "success": True,
+                "text": result["text"],
+                "metrics": result.get("metrics", {})
+            }
+        else:
+            return {
+                "success": False,
+                "text": "",
+                "error": result.get("error", "Unknown error")
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"ASR error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"ASR processing error: {str(e)}")
+
+
+@app.post("/api/asr/upload")
+async def recognize_speech_upload(
+    file: UploadFile = File(...),
+    sample_rate: int = 16000
+):
+    """
+    语音识别端点 - 接收上传的音频文件
+
+    Args:
+        file: 上传的音频文件
+        sample_rate: 采样率
+
+    Returns:
+        识别结果
+    """
+    try:
+        asr_service = get_asr_service()
+
+        if not asr_service.enabled:
+            raise HTTPException(
+                status_code=503,
+                detail="ASR service not available. Please configure DASHSCOPE_API_KEY."
+            )
+
+        # 读取文件内容
+        audio_bytes = await file.read()
+
+        # 根据文件扩展名确定格式
+        filename = file.filename or "audio.wav"
+        format_ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "wav"
+
+        # 调用 ASR 服务
+        result = asr_service.recognize_bytes(
+            audio_data=audio_bytes,
+            format=format_ext,
+            sample_rate=sample_rate,
+            language_hints=['zh', 'en']
+        )
+
+        if result["success"]:
+            return {
+                "success": True,
+                "text": result["text"],
+                "metrics": result.get("metrics", {})
+            }
+        else:
+            return {
+                "success": False,
+                "text": "",
+                "error": result.get("error", "Unknown error")
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"ASR upload error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"ASR processing error: {str(e)}")
+
+
+@app.get("/api/asr/status")
+async def get_asr_status():
+    """获取 ASR 服务状态"""
+    asr_service = get_asr_service()
+    return {
+        "enabled": asr_service.enabled,
+        "api_key_configured": bool(settings.dashscope_api_key)
     }
 
 

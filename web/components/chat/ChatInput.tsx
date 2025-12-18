@@ -95,14 +95,113 @@ export function ChatInput({
   }
 
   const [isListening, setIsListening] = useState(false)
-  const recognitionRef = useRef<any>(null)
+  const [isProcessingAudio, setIsProcessingAudio] = useState(false)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
 
-  const startListening = () => {
-    if (typeof window !== 'undefined' && !('webkitSpeechRecognition' in window)) {
-        toast.error('Speech recognition not supported')
-        return
+  // 使用后端 DashScope ASR 进行语音识别
+  const startListening = async () => {
+    try {
+      // 请求麦克风权限
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          sampleRate: 16000,
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true
+        }
+      })
+
+      // 创建 MediaRecorder
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
+      })
+
+      mediaRecorderRef.current = mediaRecorder
+      audioChunksRef.current = []
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data)
+        }
+      }
+
+      mediaRecorder.onstop = async () => {
+        // 停止所有音轨
+        stream.getTracks().forEach(track => track.stop())
+
+        if (audioChunksRef.current.length === 0) {
+          setIsListening(false)
+          setIsProcessingAudio(false)
+          return
+        }
+
+        setIsProcessingAudio(true)
+
+        try {
+          // 合并音频数据
+          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+
+          // 转换为 Base64
+          const reader = new FileReader()
+          reader.onloadend = async () => {
+            const base64Audio = (reader.result as string).split(',')[1]
+
+            // 调用后端 ASR API
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/asr/recognize`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                audio_data: base64Audio,
+                format: 'webm',
+                sample_rate: 16000,
+                language_hints: ['zh', 'en']
+              })
+            })
+
+            const result = await response.json()
+
+            if (result.success && result.text) {
+              setInput(prev => prev + (prev ? ' ' : '') + result.text)
+              toast.success('语音识别成功')
+            } else if (result.error) {
+              // 如果后端 ASR 不可用，回退到 Web Speech API
+              if (response.status === 503) {
+                toast.info('后端 ASR 不可用，使用浏览器语音识别')
+                fallbackToWebSpeech()
+              } else {
+                toast.error(`语音识别失败: ${result.error}`)
+              }
+            }
+          }
+          reader.readAsDataURL(audioBlob)
+        } catch (error) {
+          console.error('ASR error:', error)
+          toast.error('语音识别失败，请重试')
+        } finally {
+          setIsProcessingAudio(false)
+          setIsListening(false)
+        }
+      }
+
+      mediaRecorder.start(100) // 每 100ms 收集一次数据
+      setIsListening(true)
+      toast.info('正在录音...点击停止按钮结束录音')
+
+    } catch (error) {
+      console.error('Microphone error:', error)
+      toast.error('无法访问麦克风，请检查权限设置')
+      setIsListening(false)
     }
-    
+  }
+
+  // 回退到 Web Speech API
+  const fallbackToWebSpeech = () => {
+    if (typeof window !== 'undefined' && !('webkitSpeechRecognition' in window)) {
+      toast.error('浏览器不支持语音识别')
+      return
+    }
+
     // @ts-ignore
     const SpeechRecognition = window.webkitSpeechRecognition as any
     const recognition = new SpeechRecognition()
@@ -113,30 +212,29 @@ export function ChatInput({
     recognition.onstart = () => setIsListening(true)
     recognition.onend = () => setIsListening(false)
     recognition.onerror = (event: any) => {
-        setIsListening(false)
-        console.error('Speech error:', event.error)
+      setIsListening(false)
+      console.error('Speech error:', event.error)
     }
     recognition.onresult = (event: any) => {
-        let finalTranscript = ''
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-            if (event.results[i].isFinal) {
-                finalTranscript += event.results[i][0].transcript
-            }
+      let finalTranscript = ''
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript
         }
-        if (finalTranscript) {
-             setInput(prev => prev + (prev ? ' ' : '') + finalTranscript)
-        }
+      }
+      if (finalTranscript) {
+        setInput(prev => prev + (prev ? ' ' : '') + finalTranscript)
+      }
     }
-    
-    recognitionRef.current = recognition
+
     recognition.start()
   }
 
   const stopListening = () => {
-      if (recognitionRef.current) {
-          recognitionRef.current.stop()
-      }
-      setIsListening(false)
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop()
+    }
+    setIsListening(false)
   }
 
   const handleCommandSelect = (cmd: string) => {
@@ -175,12 +273,14 @@ export function ChatInput({
     { id: 'web', label: t('web'), icon: Globe, color: "text-blue-500", bg: "bg-blue-500/10", border: "border-blue-500/20" },
     { id: 'agent', label: t('agent'), icon: Bot, color: "text-purple-500", bg: "bg-purple-500/10", border: "border-purple-500/20" },
     { id: 'deep', label: t('deepsearch'), icon: BrainCircuit, color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20" },
+    { id: 'deep_agent', label: 'Deep Agent', icon: BrainCircuit, color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20" },
   ]
 
   const commands = [
       { id: 'deep', label: 'Deep Mode', icon: BrainCircuit, desc: 'Switch to Deep Search' },
       { id: 'agent', label: 'Agent Mode', icon: Bot, desc: 'Switch to Agent' },
       { id: 'web', label: 'Web Mode', icon: Globe, desc: 'Switch to Web Search' },
+      { id: 'deep_agent', label: 'Deep Agent', icon: BrainCircuit, desc: 'Deep agent with long-form prompt' },
       { id: 'fix', label: 'Fix Code', icon: Bug, desc: 'Debug & Fix' },
       { id: 'explain', label: 'Explain', icon: BookOpen, desc: 'Explain concept' },
       { id: 'refactor', label: 'Refactor', icon: PenTool, desc: 'Optimize code' },
@@ -369,17 +469,25 @@ export function ChatInput({
 
           <div className="absolute bottom-3 right-3 flex items-center gap-2">
             {!isLoading && (
-                 <Button 
-                    type="button" 
-                    size="icon" 
-                    variant="ghost" 
+                 <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
                     onClick={isListening ? stopListening : startListening}
+                    disabled={isProcessingAudio}
                     className={cn(
                         "h-8 w-8 rounded-full hover:bg-muted transition-all duration-300",
-                        isListening && "bg-red-500/10 text-red-500 animate-pulse hover:bg-red-500/20"
+                        isListening && "bg-red-500/10 text-red-500 animate-pulse hover:bg-red-500/20",
+                        isProcessingAudio && "bg-blue-500/10 text-blue-500 animate-spin"
                     )}
                  >
-                    {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                    {isProcessingAudio ? (
+                      <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    ) : isListening ? (
+                      <MicOff className="h-4 w-4" />
+                    ) : (
+                      <Mic className="h-4 w-4" />
+                    )}
                  </Button>
             )}
 

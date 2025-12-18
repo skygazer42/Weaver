@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     tavily_api_key: str = ""
     e2b_api_key: str = ""
     anthropic_api_key: str = ""
+    dashscope_api_key: str = ""  # 阿里云 DashScope API Key (语音识别)
     mem0_api_key: str = ""
     enable_memory: bool = False
     memory_namespace: str = "default"
