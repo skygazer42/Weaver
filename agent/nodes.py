@@ -625,35 +625,47 @@ Sources:
         # LLM 调用后检查取消状态
         check_cancellation(state)
 
-        # Handle tool calls
-        if response.tool_calls:
-            logger.info(f"Writer decided to use tools: {len(response.tool_calls)}")
+        # Handle tool calls with approval + resume support
+        tool_calls = list(getattr(response, "tool_calls", []) or [])
 
-            for tool_call in response.tool_calls:
+        if tool_calls:
+            logger.info(f"Writer decided to use tools: {len(tool_calls)}")
+
+            # Normalize calls for interrupt payload
+            normalized_calls: List[Dict[str, Any]] = []
+            for tool_call in tool_calls:
+                name, tool_args, tool_call_id = _extract_tool_call_fields(tool_call)
+                normalized_calls.append({
+                    "id": tool_call_id or name,
+                    "name": name,
+                    "args": tool_args,
+                })
+
+            if require_tool_approval and allow_interrupts:
+                logger.info("Tool approval required; emitting interrupt before execution.")
+                approval = interrupt({
+                    "type": "tool_approval",
+                    "message": "Approve tool execution requests.",
+                    "tool_calls": normalized_calls,
+                    "node": "writer"
+                })
+                # approval payload can edit tool calls or reject
+                if isinstance(approval, dict):
+                    if approval.get("reject"):
+                        logger.info("Tool execution rejected by reviewer.")
+                        tool_calls = []
+                    elif approval.get("tool_calls"):
+                        tool_calls = approval.get("tool_calls") or tool_calls
+                elif approval is False:
+                    logger.info("Tool execution rejected (boolean).")
+                    tool_calls = []
+
+            # Execute approved calls
+            for tool_call in tool_calls:
                 # 每个工具调用前检查取消
                 check_cancellation(state)
 
                 tool_name, tool_args, tool_call_id = _extract_tool_call_fields(tool_call)
-
-                # Optional approval interrupt for any tool
-                if require_tool_approval and allow_interrupts:
-                    approval = interrupt({
-                        "action": tool_name,
-                        "args": tool_args,
-                        "tool_call_id": tool_call_id,
-                        "message": "Approve or edit tool call before execution."
-                    })
-                    if isinstance(approval, dict):
-                        if approval.get("reject"):
-                            logger.info(f"Tool call {tool_name} rejected by reviewer.")
-                            continue
-                        if "args" in approval:
-                            tool_args = approval["args"]
-                        if "code" in approval and tool_name == "execute_python_code":
-                            tool_args["code"] = approval["code"]
-                    elif approval is False:
-                        logger.info(f"Tool call {tool_name} rejected (boolean).")
-                        continue
 
                 if tool_name == "execute_python_code":
                     logger.info("Preparing to execute Python code for visualization...")
@@ -685,6 +697,9 @@ Sources:
             response = llm.invoke(messages, config=config)
             logger.info("Final report generated after tool execution")
             _log_usage(response, "writer_pass2")
+            # Reset approval flags
+            state["pending_tool_calls"] = []
+            state["tool_approved"] = False
 
         report = response.content
         logger.info(f"[timing] writer {(time.time()-t0):.3f}s")

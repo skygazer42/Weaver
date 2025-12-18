@@ -23,6 +23,7 @@ export function Chat() {
   const [attachments, setAttachments] = useState<File[]>([])
   const [artifacts, setArtifacts] = useState<Artifact[]>([])
   const [pendingInterrupt, setPendingInterrupt] = useState<any>(null)
+  const [threadId, setThreadId] = useState<string | null>(null)
   
   const { history, setHistory, isHistoryLoading, saveToHistory } = useChatHistory()
   
@@ -76,6 +77,8 @@ export function Chat() {
       setArtifacts([])
       setCurrentStatus('')
       setInput('')
+      setThreadId(null)
+      setPendingInterrupt(null)
       if (abortControllerRef.current) {
           abortControllerRef.current.abort()
       }
@@ -132,6 +135,11 @@ export function Chat() {
         throw new Error('Failed to get response')
       }
 
+      const threadHeader = response.headers.get('x-thread-id')
+      if (threadHeader) {
+        setThreadId(threadHeader)
+      }
+
       const reader = response.body?.getReader()
       const decoder = new TextDecoder()
 
@@ -180,13 +188,14 @@ export function Chat() {
               } else if (data.type === 'interrupt') {
                 interrupted = true
                 setPendingInterrupt(data.data)
-                setCurrentStatus(data.data?.message || 'Approval required before continuing')
+                const msg = data.data?.message || data.data?.prompts?.[0]?.message
+                setCurrentStatus(msg || 'Approval required before continuing')
                 setMessages((prev) => [
                   ...prev,
                   {
                     id: `interrupt-${Date.now()}`,
                     role: 'assistant',
-                    content: data.data?.message || 'Approval required before running a tool.',
+                    content: msg || 'Approval required before running a tool.',
                   },
                 ])
                 break
@@ -291,6 +300,52 @@ export function Chat() {
       }
   }
 
+  const handleApproveInterrupt = async () => {
+    if (!pendingInterrupt || !threadId) return
+    setIsLoading(true)
+    setCurrentStatus('Resuming after approval...')
+    try {
+      const toolCalls = pendingInterrupt?.prompts?.[0]?.tool_calls
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/interrupt/resume`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            thread_id: threadId,
+            payload: { tool_approved: true, tool_calls: toolCalls },
+            model: selectedModel,
+            search_mode: searchMode
+          })
+        }
+      )
+      if (!res.ok) throw new Error('Failed to resume')
+      const data = await res.json()
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `assistant-${Date.now()}`,
+          role: 'assistant',
+          content: data.content || 'Resumed and completed.',
+        }
+      ])
+    } catch (err) {
+      console.error('Failed to resume interrupt', err)
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `error-${Date.now()}`,
+          role: 'assistant',
+          content: 'Resume failed. Please retry.',
+        }
+      ])
+    } finally {
+      setPendingInterrupt(null)
+      setIsLoading(false)
+      setCurrentStatus('')
+    }
+  }
+
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background text-foreground font-sans selection:bg-primary/20">
       {/* Sidebar */}
@@ -358,6 +413,23 @@ export function Chat() {
                  <ArrowDown className="h-4 w-4" />
              </Button>
         </div>
+
+        {pendingInterrupt && (
+          <div className="mx-4 mb-3 p-3 border rounded-xl bg-amber-50 text-amber-900 shadow-sm flex flex-col gap-2">
+            <div className="text-sm font-semibold">Tool approval required</div>
+            <div className="text-xs text-amber-800">
+              {pendingInterrupt.message || pendingInterrupt?.prompts?.[0]?.message || 'Approve tool execution to continue.'}
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" onClick={handleApproveInterrupt} disabled={isLoading}>
+                Approve & Continue
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setPendingInterrupt(null)} disabled={isLoading}>
+                Dismiss
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Input Area */}
         <ChatInput 
