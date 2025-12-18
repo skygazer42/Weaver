@@ -22,6 +22,7 @@ export function Chat() {
   const [currentStatus, setCurrentStatus] = useState<string>('')
   const [attachments, setAttachments] = useState<File[]>([])
   const [artifacts, setArtifacts] = useState<Artifact[]>([])
+  const [pendingInterrupt, setPendingInterrupt] = useState<any>(null)
   
   const { history, setHistory, isHistoryLoading, saveToHistory } = useChatHistory()
   
@@ -147,6 +148,7 @@ export function Chat() {
 
       setMessages((prev) => [...prev, assistantMessage])
 
+      let interrupted = false
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
@@ -175,6 +177,19 @@ export function Chat() {
                     msg.id === assistantMessage.id ? { ...assistantMessage } : msg
                   )
                 )
+              } else if (data.type === 'interrupt') {
+                interrupted = true
+                setPendingInterrupt(data.data)
+                setCurrentStatus(data.data?.message || 'Approval required before continuing')
+                setMessages((prev) => [
+                  ...prev,
+                  {
+                    id: `interrupt-${Date.now()}`,
+                    role: 'assistant',
+                    content: data.data?.message || 'Approval required before running a tool.',
+                  },
+                ])
+                break
               } else if (data.type === 'tool') {
                 const toolInvocation: ToolInvocation = {
                   toolCallId: `tool-${Date.now()}-${Math.random()}`,
@@ -212,6 +227,8 @@ export function Chat() {
             }
           }
         }
+
+        if (interrupted) break
       }
 
       setCurrentStatus('')

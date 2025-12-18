@@ -8,7 +8,9 @@ import json
 import asyncio
 import uuid
 from datetime import datetime
+from pathlib import Path
 import time
+import logging
 
 from common.config import settings
 from langgraph.types import Command
@@ -391,6 +393,29 @@ async def stream_agent_events(
     start_time = time.time()
     images = images or []
 
+    # Optional per-thread log handler for easier debugging
+    thread_handler = None
+    root_logger = logging.getLogger()
+    if settings.enable_file_logging:
+        try:
+            log_path = Path(settings.log_file)
+            thread_log_dir = log_path.parent / "threads"
+            thread_log_dir.mkdir(parents=True, exist_ok=True)
+            thread_log_file = thread_log_dir / f"{thread_id}.log"
+
+            # Reuse formatter from existing handlers if available
+            formatter = None
+            if root_logger.handlers:
+                formatter = root_logger.handlers[0].formatter
+            thread_handler = logging.FileHandler(thread_log_file, encoding="utf-8")
+            if formatter:
+                thread_handler.setFormatter(formatter)
+            thread_handler.setLevel(root_logger.level)
+            root_logger.addHandler(thread_handler)
+            logger.info(f"Thread log file attached: {thread_log_file}")
+        except Exception as e:
+            logger.warning(f"Failed to attach thread log handler: {e}")
+
     # 创建取消令牌
     cancel_token = await cancellation_manager.create_token(
         thread_id,
@@ -406,6 +431,8 @@ async def stream_agent_events(
             "input": input_text,
             "images": images,
             "needs_clarification": False,
+            "tool_approved": False,
+            "pending_tool_calls": [],
             "messages": [],
             "research_plan": [],
             "current_step": 0,
@@ -635,6 +662,12 @@ async def stream_agent_events(
         # 清理活跃流记录
         if thread_id in active_streams:
             del active_streams[thread_id]
+        if thread_handler:
+            try:
+                root_logger.removeHandler(thread_handler)
+                thread_handler.close()
+            except Exception:
+                pass
 
 
 @app.post("/api/chat")
@@ -689,6 +722,8 @@ async def chat(request: ChatRequest):
                 "input": last_message,
                 "images": _normalize_images_payload(request.images),
                 "needs_clarification": False,
+                "tool_approved": False,
+                "pending_tool_calls": [],
                 "messages": [],
                 "research_plan": [],
                 "current_step": 0,

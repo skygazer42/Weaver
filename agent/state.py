@@ -16,6 +16,9 @@ class AgentState(TypedDict):
     images: List[Dict[str, Any]]
     # Flag for clarify step
     needs_clarification: bool
+    # Tool approval gating
+    tool_approved: bool
+    pending_tool_calls: List[Dict[str, Any]]
 
     # Message history for LLM context
     messages: Annotated[List[BaseMessage], add_messages]

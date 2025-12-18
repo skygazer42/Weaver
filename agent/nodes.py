@@ -635,26 +635,28 @@ Sources:
 
                 tool_name, tool_args, tool_call_id = _extract_tool_call_fields(tool_call)
 
+                # Optional approval interrupt for any tool
+                if require_tool_approval and allow_interrupts:
+                    approval = interrupt({
+                        "action": tool_name,
+                        "args": tool_args,
+                        "tool_call_id": tool_call_id,
+                        "message": "Approve or edit tool call before execution."
+                    })
+                    if isinstance(approval, dict):
+                        if approval.get("reject"):
+                            logger.info(f"Tool call {tool_name} rejected by reviewer.")
+                            continue
+                        if "args" in approval:
+                            tool_args = approval["args"]
+                        if "code" in approval and tool_name == "execute_python_code":
+                            tool_args["code"] = approval["code"]
+                    elif approval is False:
+                        logger.info(f"Tool call {tool_name} rejected (boolean).")
+                        continue
+
                 if tool_name == "execute_python_code":
                     logger.info("Preparing to execute Python code for visualization...")
-
-                    # Optional approval interrupt
-                    if require_tool_approval and allow_interrupts:
-                        approval = interrupt({
-                            "action": "execute_python_code",
-                            "code": tool_args.get("code", ""),
-                            "message": "Approve or edit code before execution."
-                        })
-                        # approval could be boolean or edited payload
-                        if isinstance(approval, dict):
-                            if approval.get("reject"):
-                                logger.info("Code execution rejected by reviewer.")
-                                continue
-                            if "code" in approval:
-                                tool_args["code"] = approval["code"]
-                        elif approval is False:
-                            logger.info("Code execution rejected (boolean).")
-                            continue
 
                     # Execute code with config to trigger events
                     tool_result = execute_python_code.invoke(tool_args, config=config)
