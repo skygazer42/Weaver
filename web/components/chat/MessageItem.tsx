@@ -1,19 +1,30 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, memo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
+import dynamic from 'next/dynamic'
 import { cn } from '@/lib/utils'
 import { Search, Code, Loader2, ChevronDown, Check, Copy, Terminal, Bot, User, BrainCircuit, PenTool, Globe, Pencil } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { MermaidBlock } from './MermaidBlock'
 import { DataTableView } from './DataTableView'
 import { ErrorBoundary } from 'react-error-boundary'
 import { toast } from 'sonner'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Message, ToolInvocation } from '@/types/chat'
+
+// Lazy load MermaidBlock as it's a heavy dependency
+const MermaidBlock = dynamic(() => import('./MermaidBlock').then(mod => mod.MermaidBlock), {
+    loading: () => (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground py-8 justify-center border rounded-lg bg-muted/10">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>Loading visualization...</span>
+        </div>
+    ),
+    ssr: false 
+})
 
 function ErrorFallback({ error }: { error: Error }) {
     return (
@@ -29,7 +40,7 @@ interface MessageItemProps {
     onEdit?: (id: string, newContent: string) => void
 }
 
-export function MessageItem({ message, onEdit }: MessageItemProps) {
+const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
   const isUser = message.role === 'user'
   const [isThinkingOpen, setIsThinkingOpen] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -264,6 +275,8 @@ export function MessageItem({ message, onEdit }: MessageItemProps) {
     </div>
   )
 }
+
+export const MessageItem = memo(MessageItemBase)
 
 function CitationBadge({ num }: { num: string }) {
     return (
