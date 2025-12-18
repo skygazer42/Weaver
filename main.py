@@ -15,6 +15,7 @@ import logging
 
 from common.config import settings
 from langgraph.types import Command
+from langgraph.checkpoint.memory import InMemorySaver
 from agent import create_research_graph, create_checkpointer, AgentState
 from agent.deep_agent import get_deep_agent_prompt
 from support_agent import create_support_graph
@@ -78,13 +79,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize agent graph
-checkpointer = create_checkpointer(settings.database_url) if settings.database_url else None
+# Initialize agent graphs with short-term memory (checkpointer)
+if settings.database_url:
+    checkpointer = create_checkpointer(settings.database_url)
+else:
+    # Fallback to in-memory checkpointer for short-term memory
+    checkpointer = InMemorySaver()
+
 research_graph = create_research_graph(
     checkpointer=checkpointer,
     interrupt_before=settings.interrupt_nodes_list
 )
-support_graph = create_support_graph()
+support_graph = create_support_graph(checkpointer=checkpointer)
 mcp_enabled = settings.enable_mcp
 mcp_servers_config = settings.mcp_servers
 mcp_loaded_tools = 0
@@ -413,7 +419,8 @@ async def support_chat(request: SupportChatRequest):
             "messages": [SystemMessage(content="You are a helpful support assistant."), HumanMessage(content=request.message)],
             "user_id": request.user_id or "default_user",
         }
-        result = support_graph.invoke(state)
+        config = {"configurable": {"thread_id": request.user_id or "support_default"}}
+        result = support_graph.invoke(state, config=config)
         messages = result.get("messages", [])
         reply = ""
         for msg in reversed(messages):
