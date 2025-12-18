@@ -5,12 +5,13 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useI18n } from '@/lib/i18n/i18n-context'
 import { Plus, Compass, LayoutGrid, FolderOpen, MessageSquare, PanelLeft } from 'lucide-react'
+import { ChatSession } from '@/types/chat'
 
 interface SidebarProps {
   isOpen: boolean
   onToggle: () => void
   onNewChat: () => void
-  history: Array<{ id: string, title: string, date: string }>
+  history: ChatSession[]
   isLoading?: boolean
 }
 

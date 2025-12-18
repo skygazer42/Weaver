@@ -8,14 +8,7 @@ import remarkGfm from 'remark-gfm'
 import { FileText, Code, BarChart, Download, Maximize2, Minimize2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-
-interface Artifact {
-  id: string
-  type: 'report' | 'code' | 'chart' | 'data'
-  title: string
-  content: string
-  image?: string // Base64 encoded image
-}
+import { Artifact } from '@/types/chat'
 
 interface ArtifactsPanelProps {
   artifacts: Artifact[]

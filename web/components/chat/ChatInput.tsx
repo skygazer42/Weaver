@@ -9,7 +9,7 @@ import { toast } from 'sonner'
 
 interface ChatInputProps {
   input: string
-  setInput: (value: string) => void
+  setInput: React.Dispatch<React.SetStateAction<string>>
   attachments: File[]
   setAttachments: (files: File[]) => void
   onSubmit: (e: React.FormEvent) => void
@@ -104,7 +104,7 @@ export function ChatInput({
     }
     
     // @ts-ignore
-    const SpeechRecognition = window.webkitSpeechRecognition
+    const SpeechRecognition = window.webkitSpeechRecognition as any
     const recognition = new SpeechRecognition()
     recognition.continuous = false
     recognition.interimResults = true

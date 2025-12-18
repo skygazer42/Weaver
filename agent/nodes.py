@@ -3,9 +3,10 @@ from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, Tool
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableConfig
 from langgraph.types import Send, interrupt
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional, Tuple, Union
 import json
 import logging
+import asyncio
 from datetime import datetime
 from pydantic import BaseModel, Field
 import time
@@ -14,8 +15,38 @@ from .state import AgentState, ResearchPlan, QueryState
 from tools import tavily_search, execute_python_code
 from tools.registry import get_registered_tools
 from common.config import settings
+from common.cancellation import cancellation_manager, check_cancellation as _check_cancellation
 
 logger = logging.getLogger(__name__)
+
+
+def check_cancellation(state: Union[AgentState, QueryState, Dict[str, Any]]) -> None:
+    """
+    检查取消状态，如果已取消则抛出 CancelledError
+
+    在长时间操作的关键点调用此函数
+    """
+    # 检查 state 中的取消标志
+    if state.get("is_cancelled"):
+        raise asyncio.CancelledError("Task was cancelled (state flag)")
+
+    # 检查取消令牌
+    token_id = state.get("cancel_token_id")
+    if token_id:
+        _check_cancellation(token_id)
+
+
+def handle_cancellation(state: AgentState, error: Exception) -> Dict[str, Any]:
+    """
+    处理取消异常，返回取消状态
+    """
+    logger.info(f"Task cancelled: {error}")
+    return {
+        "is_cancelled": True,
+        "is_complete": True,
+        "errors": [f"Cancelled: {str(error)}"],
+        "final_report": "任务已被用户取消。"
+    }
 
 
 def _chat_model(
@@ -109,21 +140,31 @@ def _get_writer_tools() -> List[Any]:
 def perform_parallel_search(state: QueryState, config: RunnableConfig) -> Dict[str, Any]:
     """
     Executes a single search query in parallel.
+    Includes cancellation check for graceful termination.
     """
     query = state["query"]
     logger.info(f"Executing parallel search for: {query}")
-    
+
     try:
+        # 搜索前检查取消状态
+        check_cancellation(state)
+
         results = tavily_search.invoke({"query": query, "max_results": 5}, config=config)
-        
+
+        # 搜索后检查取消状态
+        check_cancellation(state)
+
         search_data = {
             "query": query,
             "results": results,
             "timestamp": datetime.now().isoformat(),
         }
-        
+
         return {"scraped_content": [search_data]}
-        
+
+    except asyncio.CancelledError as e:
+        logger.info(f"Search cancelled for {query}: {e}")
+        return {"scraped_content": [], "is_cancelled": True}
     except Exception as e:
         logger.error(f"Parallel search error for {query}: {str(e)}")
         # Return empty result to avoid failing the whole graph
@@ -179,26 +220,34 @@ def planner_node(state: AgentState) -> Dict[str, Any]:
 
     Uses a reasoning model (o1-mini or similar) to break down
     the user's query into specific, actionable search steps.
+    Includes cancellation check for graceful termination.
     """
     logger.info("Executing planner node")
 
-    # Use reasoning model for planning
-    llm = _chat_model(settings.reasoning_model, temperature=1)
-    t0 = time.time()
-
-    class PlanResponse(BaseModel):
-        queries: List[str] = Field(description="3-7 targeted search queries")
-        reasoning: str = Field(description="Brief explanation of the research strategy")
-
-    planner_prompt = ChatPromptTemplate.from_messages([
-        ("system", "You are an expert research planner. Return JSON with 3-7 targeted search queries and a brief reasoning."),
-        ("human", "Create a research plan for: {input}")
-    ])
-
     try:
+        # 规划前检查取消状态
+        check_cancellation(state)
+
+        # Use reasoning model for planning
+        llm = _chat_model(settings.reasoning_model, temperature=1)
+        t0 = time.time()
+
+        class PlanResponse(BaseModel):
+            queries: List[str] = Field(description="3-7 targeted search queries")
+            reasoning: str = Field(description="Brief explanation of the research strategy")
+
+        planner_prompt = ChatPromptTemplate.from_messages([
+            ("system", "You are an expert research planner. Return JSON with 3-7 targeted search queries and a brief reasoning."),
+            ("human", "Create a research plan for: {input}")
+        ])
+
         response = llm.with_structured_output(PlanResponse).invoke(
             planner_prompt.format_messages(input=state["input"])
         )
+
+        # LLM 调用后检查取消状态
+        check_cancellation(state)
+
         _log_usage(response, "planner")
         logger.info(f"[timing] planner {(time.time()-t0):.3f}s")
         plan_data = response.dict()
@@ -232,6 +281,8 @@ def planner_node(state: AgentState) -> Dict[str, Any]:
             ]
         }
 
+    except asyncio.CancelledError as e:
+        return handle_cancellation(state, e)
     except Exception as e:
         logger.error(f"Planner error: {str(e)}")
         return {
@@ -337,97 +388,102 @@ def writer_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
 
     Uses collected data to generate a well-structured answer.
     Can invoke code execution for visualizations.
+    Includes cancellation check for graceful termination.
     """
     logger.info("Executing writer node")
 
-    configurable = config.get("configurable", {}) if isinstance(config, dict) else {}
-    allow_interrupts = bool(configurable.get("allow_interrupts"))
-    require_tool_approval = bool(configurable.get("tool_approval"))
+    try:
+        # 写入前检查取消状态
+        check_cancellation(state)
 
-    llm = _chat_model(settings.primary_model, temperature=0.7).bind_tools(_get_writer_tools())
-    t0 = time.time()
+        configurable = config.get("configurable", {}) if isinstance(config, dict) else {}
+        allow_interrupts = bool(configurable.get("allow_interrupts"))
+        require_tool_approval = bool(configurable.get("tool_approval"))
 
-    code_results: List[Dict[str, Any]] = []
+        llm = _chat_model(settings.primary_model, temperature=0.7).bind_tools(_get_writer_tools())
+        t0 = time.time()
 
-    # Prepare research context
-    scraped_content_raw = state.get("scraped_content", [])
+        code_results: List[Dict[str, Any]] = []
 
-    # Compact and clean scraped content to avoid bloat
-    def _compact_scraped(items: List[Dict[str, Any]], max_results: int = 3) -> List[Dict[str, Any]]:
-        compact: List[Dict[str, Any]] = []
-        for item in items:
-            results = item.get("results") or []
-            if not results:
-                continue
-            compact.append({
-                "query": item.get("query", ""),
-                "results": results[:max_results]
-            })
-        return compact
+        # Prepare research context
+        scraped_content_raw = state.get("scraped_content", [])
 
-    scraped_content = _compact_scraped(scraped_content_raw)
+        # Compact and clean scraped content to avoid bloat
+        def _compact_scraped(items: List[Dict[str, Any]], max_results: int = 3) -> List[Dict[str, Any]]:
+            compact: List[Dict[str, Any]] = []
+            for item in items:
+                results = item.get("results") or []
+                if not results:
+                    continue
+                compact.append({
+                    "query": item.get("query", ""),
+                    "results": results[:max_results]
+                })
+            return compact
 
-    def _build_research_context(items: List[Dict[str, Any]], budget: int = 8000) -> tuple[str, str]:
-        """
-        Keep context compact: show top results with summary/snippet only.
-        Returns (context_text, sources_table).
-        """
-        blocks: List[str] = []
-        sources: List[str] = []
-        remaining = budget
+        scraped_content = _compact_scraped(scraped_content_raw)
 
-        for idx, item in enumerate(items):
-            query = item.get("query", "")
-            header = f"Search #{idx+1}: {query}"
-            if remaining - len(header) <= 0:
-                break
-            blocks.append(header)
-            remaining -= len(header)
+        def _build_research_context(items: List[Dict[str, Any]], budget: int = 8000) -> tuple[str, str]:
+            """
+            Keep context compact: show top results with summary/snippet only.
+            Returns (context_text, sources_table).
+            """
+            blocks: List[str] = []
+            sources: List[str] = []
+            remaining = budget
 
-            results = item.get("results", []) or []
-            for ridx, res in enumerate(results):
-                if remaining <= 0:
+            for idx, item in enumerate(items):
+                query = item.get("query", "")
+                header = f"Search #{idx+1}: {query}"
+                if remaining - len(header) <= 0:
                     break
-                title = res.get("title", "") or "Untitled"
-                url = res.get("url", "")
-                summary = res.get("summary") or res.get("snippet") or res.get("content", "")
-                summary = (summary or "")[:600]
-                tag = f"S{idx+1}-{ridx+1}"
-                entry = f"  [{tag}] {title} ({url}) -> {summary}"
-                remaining -= len(entry)
-                if remaining <= 0:
-                    break
-                blocks.append(entry)
-                sources.append(f"[{tag}] {title} - {url}")
+                blocks.append(header)
+                remaining -= len(header)
 
-        return "\n".join(blocks), "\n".join(sources)
+                results = item.get("results", []) or []
+                for ridx, res in enumerate(results):
+                    if remaining <= 0:
+                        break
+                    title = res.get("title", "") or "Untitled"
+                    url = res.get("url", "")
+                    summary = res.get("summary") or res.get("snippet") or res.get("content", "")
+                    summary = (summary or "")[:600]
+                    tag = f"S{idx+1}-{ridx+1}"
+                    entry = f"  [{tag}] {title} ({url}) -> {summary}"
+                    remaining -= len(entry)
+                    if remaining <= 0:
+                        break
+                    blocks.append(entry)
+                    sources.append(f"[{tag}] {title} - {url}")
 
-    research_context, sources_table = _build_research_context(scraped_content)
+            return "\n".join(blocks), "\n".join(sources)
 
-    # If no research context (e.g., search failed), fall back to direct answer style
-    if not research_context.strip():
-        logger.info("No research context available; falling back to direct answer mode inside writer.")
-        fallback_prompt = ChatPromptTemplate.from_messages([
-            ("system", "You are a helpful assistant. Answer succinctly and accurately."),
-            ("human", "{input}")
-        ])
-        response = llm.invoke(
-            fallback_prompt.format_messages(input=state["input"]),
-            config=config
-        )
-        _log_usage(response, "writer_fallback")
-        logger.info(f"[timing] writer_fallback {(time.time()-t0):.3f}s")
-        content = response.content if hasattr(response, "content") else str(response)
-        return {
-            "draft_report": content,
-            "final_report": content,
-            "is_complete": False,
-            "messages": [AIMessage(content=content)],
-            "code_results": code_results
-        }
+        research_context, sources_table = _build_research_context(scraped_content)
 
-    writer_prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are an expert research analyst. Synthesize the research findings into a concise, well-structured report.
+        # If no research context (e.g., search failed), fall back to direct answer style
+        if not research_context.strip():
+            logger.info("No research context available; falling back to direct answer mode inside writer.")
+            fallback_prompt = ChatPromptTemplate.from_messages([
+                ("system", "You are a helpful assistant. Answer succinctly and accurately."),
+                ("human", "{input}")
+            ])
+            response = llm.invoke(
+                fallback_prompt.format_messages(input=state["input"]),
+                config=config
+            )
+            _log_usage(response, "writer_fallback")
+            logger.info(f"[timing] writer_fallback {(time.time()-t0):.3f}s")
+            content = response.content if hasattr(response, "content") else str(response)
+            return {
+                "draft_report": content,
+                "final_report": content,
+                "is_complete": False,
+                "messages": [AIMessage(content=content)],
+                "code_results": code_results
+            }
+
+        writer_prompt = ChatPromptTemplate.from_messages([
+            ("system", """You are an expert research analyst. Synthesize the research findings into a concise, well-structured report.
 
 Guidelines:
 1. Lead with a brief executive summary.
@@ -442,26 +498,32 @@ Research Context (compact):
 {context}
 
 Sources:
-{sources}""",), 
-        ("human", "Create a comprehensive report answering: {query}")
-    ])
+{sources}""",),
+            ("human", "Create a comprehensive report answering: {query}")
+        ])
 
-    try:
         # First LLM call - might decide to use tools
         messages = writer_prompt.format_messages(
             context=research_context[:15000],  # Increased context size
+            sources=sources_table,
             query=state["input"]
         )
-        
+
         response = llm.invoke(messages, config=config)
         messages.append(response)
         _log_usage(response, "writer_pass1")
 
+        # LLM 调用后检查取消状态
+        check_cancellation(state)
+
         # Handle tool calls
         if response.tool_calls:
             logger.info(f"Writer decided to use tools: {len(response.tool_calls)}")
-            
+
             for tool_call in response.tool_calls:
+                # 每个工具调用前检查取消
+                check_cancellation(state)
+
                 tool_name, tool_args, tool_call_id = _extract_tool_call_fields(tool_call)
 
                 if tool_name == "execute_python_code":
@@ -487,7 +549,7 @@ Sources:
 
                     # Execute code with config to trigger events
                     tool_result = execute_python_code.invoke(tool_args, config=config)
-                    
+
                     # Create tool message
                     tool_msg = ToolMessage(
                         tool_call_id=tool_call_id or f"{tool_name}_call",
@@ -499,7 +561,7 @@ Sources:
                         name=tool_name
                     )
                     messages.append(tool_msg)
-                    
+
                     # If we got an image, we might want to store it
                     if tool_result.get("image"):
                         code_results.append({
@@ -507,7 +569,7 @@ Sources:
                             "image": tool_result["image"],
                             "timestamp": datetime.now().isoformat()
                         })
-            
+
             # Second LLM call to generate final report with tool outputs
             response = llm.invoke(messages, config=config)
             logger.info("Final report generated after tool execution")
@@ -526,6 +588,8 @@ Sources:
             "code_results": code_results
         }
 
+    except asyncio.CancelledError as e:
+        return handle_cancellation(state, e)
     except Exception as e:
         logger.error(f"Writer error: {str(e)}")
         return {

@@ -17,6 +17,7 @@ from tools.mcp import init_mcp_tools, close_mcp_tools, reload_mcp_tools
 from tools.registry import set_registered_tools
 from tools.memory_client import fetch_memories, add_memory_entry, store_interaction
 from common.logger import setup_logging, get_logger, LogContext
+from common.cancellation import cancellation_manager
 
 # Initialize logging
 setup_logging()
@@ -174,6 +175,15 @@ class MCPConfigPayload(BaseModel):
     servers: Optional[Dict[str, Any]] = None
 
 
+class CancelRequest(BaseModel):
+    """取消任务请求"""
+    reason: Optional[str] = "User requested cancellation"
+
+
+# 存储活跃的流式任务
+active_streams: Dict[str, asyncio.Task] = {}
+
+
 def _serialize_interrupts(interrupts: Any) -> List[Any]:
     if not interrupts:
         return []
@@ -206,6 +216,83 @@ async def health():
         "database": "connected" if checkpointer else "not configured",
         "timestamp": datetime.now().isoformat()
     }
+
+
+# ==================== 取消任务 API ====================
+
+@app.post("/api/chat/cancel/{thread_id}")
+async def cancel_chat(thread_id: str, request: CancelRequest = None):
+    """
+    取消正在进行的聊天任务
+
+    Args:
+        thread_id: 任务线程 ID
+        request: 可选的取消原因
+    """
+    reason = request.reason if request else "User requested cancellation"
+    logger.info(f"Cancel request received for thread: {thread_id}, reason: {reason}")
+
+    # 1. 通过 cancellation_manager 取消令牌
+    cancelled = await cancellation_manager.cancel(thread_id, reason)
+
+    # 2. 取消对应的异步任务（如果存在）
+    if thread_id in active_streams:
+        task = active_streams[thread_id]
+        task.cancel()
+        del active_streams[thread_id]
+        logger.info(f"Async task for {thread_id} cancelled")
+
+    if cancelled:
+        return {
+            "status": "cancelled",
+            "thread_id": thread_id,
+            "reason": reason,
+            "timestamp": datetime.now().isoformat()
+        }
+    else:
+        return {
+            "status": "not_found",
+            "thread_id": thread_id,
+            "message": "Task not found or already completed"
+        }
+
+
+@app.post("/api/chat/cancel-all")
+async def cancel_all_chats():
+    """取消所有正在进行的任务"""
+    logger.info("Cancel all tasks requested")
+
+    # 取消所有令牌
+    await cancellation_manager.cancel_all("Batch cancellation requested")
+
+    # 取消所有异步任务
+    cancelled_count = len(active_streams)
+    for task in active_streams.values():
+        task.cancel()
+    active_streams.clear()
+
+    return {
+        "status": "all_cancelled",
+        "cancelled_count": cancelled_count,
+        "timestamp": datetime.now().isoformat()
+    }
+
+
+@app.get("/api/tasks/active")
+async def get_active_tasks():
+    """获取所有活跃任务列表"""
+    active_tasks = cancellation_manager.get_active_tasks()
+    stats = cancellation_manager.get_stats()
+
+    return {
+        "active_tasks": active_tasks,
+        "stats": stats,
+        "stream_count": len(active_streams),
+        "timestamp": datetime.now().isoformat()
+    }
+
+
+# ==================== 流式事件格式化 ====================
 
 
 async def format_stream_event(event_type: str, data: Any) -> str:
@@ -268,14 +355,22 @@ async def stream_agent_events(
     Stream agent execution events in real-time.
 
     Converts LangGraph events to Vercel AI SDK format.
+    Supports cancellation via cancellation_manager.
     """
     event_count = 0
     start_time = time.time()
 
+    # 创建取消令牌
+    cancel_token = await cancellation_manager.create_token(
+        thread_id,
+        metadata={"model": model, "input_preview": input_text[:100]}
+    )
+
     try:
         logger.info(f"🎯 Agent stream started | Thread: {thread_id} | Model: {model}")
         logger.debug(f"  Input: {input_text[:100]}...")
-        # Initialize state
+
+        # Initialize state with cancellation support
         initial_state: AgentState = {
             "input": input_text,
             "messages": [],
@@ -291,7 +386,10 @@ async def stream_agent_events(
             "revision_count": 0,
             "max_revisions": settings.max_revisions,
             "is_complete": False,
-            "errors": []
+            "errors": [],
+            # 取消控制字段
+            "cancel_token_id": thread_id,
+            "is_cancelled": False
         }
 
         # Load long-term memories (optional)
@@ -329,6 +427,15 @@ async def stream_agent_events(
             initial_state,
             config=config
         ):
+            # 检查取消状态
+            if cancel_token.is_cancelled:
+                logger.info(f"Stream cancelled for thread {thread_id}")
+                yield await format_stream_event("cancelled", {
+                    "message": "Task was cancelled by user",
+                    "thread_id": thread_id
+                })
+                return
+
             event_type = event.get("event")
             name = event.get("name", "") or event.get("run_name", "")
             data_dict = event.get("data", {})
@@ -452,6 +559,7 @@ async def stream_agent_events(
 
         # Send final completion
         duration = time.time() - start_time
+        cancel_token.mark_completed()
         logger.info(
             f"✓ Agent stream completed | Thread: {thread_id} | "
             f"Events: {event_count} | Duration: {duration:.2f}s"
@@ -460,8 +568,21 @@ async def stream_agent_events(
             "timestamp": datetime.now().isoformat()
         })
 
+    except asyncio.CancelledError:
+        duration = time.time() - start_time
+        logger.info(
+            f"⊘ Agent stream cancelled | Thread: {thread_id} | "
+            f"Duration: {duration:.2f}s"
+        )
+        yield await format_stream_event("cancelled", {
+            "message": "Task was cancelled",
+            "thread_id": thread_id,
+            "duration": duration
+        })
+
     except Exception as e:
         duration = time.time() - start_time
+        cancel_token.mark_failed(str(e))
         logger.error(
             f"✗ Agent stream error | Thread: {thread_id} | "
             f"Duration: {duration:.2f}s | Error: {str(e)}",
@@ -470,6 +591,11 @@ async def stream_agent_events(
         yield await format_stream_event("error", {
             "message": str(e)
         })
+
+    finally:
+        # 清理活跃流记录
+        if thread_id in active_streams:
+            del active_streams[thread_id]
 
 
 @app.post("/api/chat")
@@ -501,14 +627,15 @@ async def chat(request: ChatRequest):
             thread_id = f"thread_{uuid.uuid4().hex}"
             logger.info(f"🌊 Starting streaming response | Thread: {thread_id}")
 
-            # Return streaming response
+            # Return streaming response with thread_id in header for cancellation
             return StreamingResponse(
                 stream_agent_events(last_message, thread_id=thread_id, model=request.model, search_mode=mode_info),
                 media_type="text/event-stream",
                 headers={
                     "Cache-Control": "no-cache",
                     "Connection": "keep-alive",
-                    "X-Accel-Buffering": "no"
+                    "X-Accel-Buffering": "no",
+                    "X-Thread-ID": thread_id  # 供前端用于取消请求
                 }
             )
         else:

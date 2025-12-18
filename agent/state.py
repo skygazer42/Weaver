@@ -1,4 +1,4 @@
-from typing import TypedDict, List, Annotated, Dict, Any
+from typing import TypedDict, List, Annotated, Dict, Any, Optional
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 import operator
@@ -52,6 +52,10 @@ class AgentState(TypedDict):
 
     # Error tracking
     errors: Annotated[List[str], operator.add]
+
+    # Cancellation support (取消控制)
+    cancel_token_id: Optional[str]   # 取消令牌 ID，用于任务取消
+    is_cancelled: bool               # 是否已取消
 
 
 class ResearchPlan(TypedDict):

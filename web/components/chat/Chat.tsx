@@ -2,9 +2,8 @@
 
 import React, { useRef, useEffect, useState } from 'react'
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { MessageItem } from './MessageItem'
-import { ArtifactsPanel, Artifact } from './ArtifactsPanel'
+import { ArtifactsPanel } from './ArtifactsPanel'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
 import { EmptyState } from './EmptyState'
@@ -12,19 +11,9 @@ import { ChatInput } from './ChatInput'
 import { Loader2, ArrowDown, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-
-interface Message {
-  id: string
-  role: 'user' | 'assistant' | 'system'
-  content: string
-  toolInvocations?: any[]
-}
-
-interface ChatSession {
-    id: string
-    title: string
-    date: string
-}
+import { Message, Artifact, ChatSession, ToolInvocation } from '@/types/chat'
+import { STORAGE_KEYS, DEFAULT_MODEL, SEARCH_MODES } from '@/lib/constants'
+import { useChatHistory } from '@/hooks/useChatHistory'
 
 export function Chat() {
   const [messages, setMessages] = useState<Message[]>([])
@@ -33,13 +22,13 @@ export function Chat() {
   const [currentStatus, setCurrentStatus] = useState<string>('')
   const [attachments, setAttachments] = useState<File[]>([])
   const [artifacts, setArtifacts] = useState<Artifact[]>([])
-  const [history, setHistory] = useState<ChatSession[]>([])
-  const [isHistoryLoading, setIsHistoryLoading] = useState(true)
+  
+  const { history, setHistory, isHistoryLoading, saveToHistory } = useChatHistory()
   
   // UI State
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [selectedModel, setSelectedModel] = useState('deepseek-chat')
-  const [searchMode, setSearchMode] = useState('agent') 
+  const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL)
+  const [searchMode, setSearchMode] = useState(SEARCH_MODES.AGENT) 
   const [showScrollButton, setShowScrollButton] = useState(false)
   const [showMobileArtifacts, setShowMobileArtifacts] = useState(false)
   
@@ -47,44 +36,20 @@ export function Chat() {
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
 
-  // Load History and Model from LocalStorage
+  // Load Model from LocalStorage
   useEffect(() => {
-      const savedHistory = localStorage.getItem('weaver-history')
-      if (savedHistory) {
-          try {
-              setHistory(JSON.parse(savedHistory))
-          } catch (e) {
-              console.error('Failed to parse history', e)
-          }
-      } else {
-          // Default data for demo
-          setHistory([
-             { id: '1', title: 'Market Analysis 2024', date: 'Today' },
-             { id: '2', title: 'Python Viz Script', date: 'Yesterday' }
-          ])
-      }
-
-      const savedModel = localStorage.getItem('weaver-model')
+      const savedModel = localStorage.getItem(STORAGE_KEYS.MODEL)
       if (savedModel) {
           setSelectedModel(savedModel)
       }
-
-      setIsHistoryLoading(false)
   }, [])
-
-  // Save History to LocalStorage
-  useEffect(() => {
-      if (!isHistoryLoading) {
-        localStorage.setItem('weaver-history', JSON.stringify(history))
-      }
-  }, [history, isHistoryLoading])
 
   // Save Model to LocalStorage
   useEffect(() => {
-      localStorage.setItem('weaver-model', selectedModel)
+      localStorage.setItem(STORAGE_KEYS.MODEL, selectedModel)
   }, [selectedModel])
 
-  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+  const scrollToBottom = (behavior: 'auto' | 'smooth' = 'smooth') => {
       virtuosoRef.current?.scrollToIndex({ index: messages.length - 1, behavior })
   }
 
@@ -103,18 +68,7 @@ export function Chat() {
   }
 
   const handleNewChat = () => {
-      // If current chat has messages, save it to history
-      if (messages.length > 0) {
-          const firstUserMsg = messages.find(m => m.role === 'user')
-          const title = firstUserMsg ? firstUserMsg.content.slice(0, 30) : 'New Conversation'
-          
-          const newSession: ChatSession = {
-              id: Date.now().toString(),
-              title: title,
-              date: 'Just now'
-          }
-          setHistory(prev => [newSession, ...prev])
-      }
+      saveToHistory(messages)
       
       // Reset state
       setMessages([])
@@ -197,7 +151,7 @@ export function Chat() {
                   )
                 )
               } else if (data.type === 'tool') {
-                const toolInvocation = {
+                const toolInvocation: ToolInvocation = {
                   toolCallId: `tool-${Date.now()}-${Math.random()}`,
                   toolName: data.data.name,
                   state: data.data.status === 'completed' ? 'completed' : 'running',

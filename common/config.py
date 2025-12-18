@@ -50,6 +50,16 @@ class Settings(BaseSettings):
     primary_model: str = "gpt-4o-mini"
     reasoning_model: str = "o1-mini"  # For planning
 
+    # Concurrency Control (并发控制)
+    max_concurrency: int = 5          # 最大并发数
+    search_batch_size: int = 3        # 搜索批次大小
+    api_rate_limit: float = 0.5       # API 调用间隔（秒）
+
+    # Prompt Optimization (Prompt 优化)
+    prompt_optimizer_model: str = "gpt-4o"  # 用于优化 Prompt 的模型
+    prompt_optimization_epochs: int = 3      # 优化迭代轮次
+    prompt_optimization_sample_size: int = 50  # 每轮评估样本数
+
     class Config:
         env_file = ".env"
         case_sensitive = False

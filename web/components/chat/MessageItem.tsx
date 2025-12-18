@@ -13,14 +13,7 @@ import { DataTableView } from './DataTableView'
 import { ErrorBoundary } from 'react-error-boundary'
 import { toast } from 'sonner'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-
-interface Message {
-  id: string
-  role: 'user' | 'assistant' | 'system'
-  content: string
-  toolInvocations?: ToolInvocation[]
-  sources?: Array<{ title: string, url: string }>
-}
+import { Message, ToolInvocation } from '@/types/chat'
 
 function ErrorFallback({ error }: { error: Error }) {
     return (
@@ -29,14 +22,6 @@ function ErrorFallback({ error }: { error: Error }) {
             <pre className="mt-1 opacity-70">{error.message}</pre>
         </div>
     )
-}
-
-interface ToolInvocation {
-  toolName: string
-  toolCallId: string
-  state: 'running' | 'completed' | 'failed'
-  args?: any
-  result?: any
 }
 
 interface MessageItemProps {
@@ -156,7 +141,7 @@ export function MessageItem({ message, onEdit }: MessageItemProps) {
                     rehypePlugins={[rehypeKatex]}
                     components={{
                         pre: ({node, ...props}) => (
-                            <div className="not-prose my-2 w-full overflow-hidden rounded-lg border bg-zinc-950 dark:bg-zinc-900" {...props} />
+                            <pre className="not-prose my-2 w-full overflow-hidden rounded-lg border bg-zinc-950 dark:bg-zinc-900" {...props} />
                         ),
                         p: ({node, children, ...props}) => (
                              <p className="mb-2 last:mb-0 leading-7" {...props}>
