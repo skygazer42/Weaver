@@ -51,6 +51,10 @@ class Settings(BaseSettings):
     primary_model: str = "gpt-4o-mini"
     reasoning_model: str = "o1-mini"  # For planning
 
+    # LangGraph Store (long-term memory)
+    memory_store_backend: str = "memory"  # memory | postgres | redis
+    memory_store_url: str = ""  # connection string for store backend
+
     # Concurrency Control (并发控制)
     max_concurrency: int = 5          # 最大并发数
     search_batch_size: int = 3        # 搜索批次大小

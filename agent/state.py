@@ -19,6 +19,8 @@ class AgentState(TypedDict):
     # Tool approval gating
     tool_approved: bool
     pending_tool_calls: List[Dict[str, Any]]
+    # User identifier for memory/namespace
+    user_id: str
 
     # Message history for LLM context
     messages: Annotated[List[BaseMessage], add_messages]

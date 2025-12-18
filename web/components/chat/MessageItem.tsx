@@ -7,7 +7,7 @@ import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import dynamic from 'next/dynamic'
 import { cn } from '@/lib/utils'
-import { Search, Code, Loader2, ChevronDown, Check, Copy, Terminal, Bot, User, BrainCircuit, PenTool, Globe, Pencil } from 'lucide-react'
+import { Search, Code, Loader2, ChevronDown, Check, Copy, Terminal, Bot, User, BrainCircuit, PenTool, Globe, Pencil, Volume2, VolumeX, Loader } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DataTableView } from './DataTableView'
 import { ErrorBoundary } from 'react-error-boundary'
@@ -46,12 +46,99 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
   const [copied, setCopied] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editContent, setEditContent] = useState(message.content)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [isTTSLoading, setIsTTSLoading] = useState(false)
+  const [audioRef, setAudioRef] = useState<HTMLAudioElement | null>(null)
 
   const handleCopy = () => {
     navigator.clipboard.writeText(message.content)
     setCopied(true)
     toast.success('Message copied')
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const handleSpeak = async () => {
+    // 如果正在播放，停止
+    if (isPlaying && audioRef) {
+      audioRef.pause()
+      audioRef.currentTime = 0
+      setIsPlaying(false)
+      return
+    }
+
+    // 提取纯文本（去除 markdown 格式）
+    const plainText = message.content
+      .replace(/```[\s\S]*?```/g, '') // 移除代码块
+      .replace(/`[^`]+`/g, '') // 移除行内代码
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // 链接只保留文字
+      .replace(/[#*_~]/g, '') // 移除 markdown 标记
+      .replace(/\n+/g, ' ') // 换行改空格
+      .trim()
+
+    if (!plainText) {
+      toast.error('没有可朗读的内容')
+      return
+    }
+
+    setIsTTSLoading(true)
+
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/tts/synthesize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: plainText.slice(0, 2000), // 限制长度
+          voice: 'longxiaochun'
+        })
+      })
+
+      const result = await response.json()
+
+      if (result.success && result.audio) {
+        // 创建音频并播放
+        const audio = new Audio(`data:audio/mp3;base64,${result.audio}`)
+        setAudioRef(audio)
+
+        audio.onended = () => {
+          setIsPlaying(false)
+        }
+
+        audio.onerror = () => {
+          toast.error('音频播放失败')
+          setIsPlaying(false)
+        }
+
+        await audio.play()
+        setIsPlaying(true)
+      } else if (response.status === 503) {
+        // TTS 服务不可用，使用浏览器 TTS
+        fallbackToWebTTS(plainText)
+      } else {
+        toast.error(result.error || '语音合成失败')
+      }
+    } catch (error) {
+      console.error('TTS error:', error)
+      // 回退到浏览器 TTS
+      fallbackToWebTTS(plainText)
+    } finally {
+      setIsTTSLoading(false)
+    }
+  }
+
+  const fallbackToWebTTS = (text: string) => {
+    if ('speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance(text.slice(0, 500))
+      utterance.lang = 'zh-CN'
+      utterance.onend = () => setIsPlaying(false)
+      utterance.onerror = () => {
+        toast.error('浏览器语音合成失败')
+        setIsPlaying(false)
+      }
+      speechSynthesis.speak(utterance)
+      setIsPlaying(true)
+    } else {
+      toast.error('浏览器不支持语音合成')
+    }
   }
   
   const handleSaveEdit = () => {
@@ -246,17 +333,37 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
                 )}
               </div>
 
-              {/* Actions: Copy & Edit */}
+              {/* Actions: Copy, Speak & Edit */}
               <div className="absolute -bottom-6 left-0 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
                  {!isUser && message.content && (
-                    <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                        onClick={handleCopy}
-                    >
-                        {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                    </Button>
+                    <>
+                      <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                          onClick={handleCopy}
+                      >
+                          {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                      </Button>
+                      <Button
+                          variant="ghost"
+                          size="icon"
+                          className={cn(
+                            "h-6 w-6 text-muted-foreground hover:text-foreground",
+                            isPlaying && "text-primary"
+                          )}
+                          onClick={handleSpeak}
+                          disabled={isTTSLoading}
+                      >
+                          {isTTSLoading ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : isPlaying ? (
+                            <VolumeX className="h-3.5 w-3.5" />
+                          ) : (
+                            <Volume2 className="h-3.5 w-3.5" />
+                          )}
+                      </Button>
+                    </>
                  )}
                  {isUser && onEdit && (
                     <Button 

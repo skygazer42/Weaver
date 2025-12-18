@@ -16,6 +16,7 @@ import logging
 from common.config import settings
 from langgraph.types import Command
 from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.store.memory import InMemoryStore
 from agent import create_research_graph, create_checkpointer, AgentState
 from agent.deep_agent import get_deep_agent_prompt
 from support_agent import create_support_graph
@@ -23,6 +24,7 @@ from tools.mcp import init_mcp_tools, close_mcp_tools, reload_mcp_tools
 from tools.registry import set_registered_tools
 from tools.memory_client import fetch_memories, add_memory_entry, store_interaction
 from tools.asr import get_asr_service, init_asr_service
+from tools.tts import get_tts_service, init_tts_service, AVAILABLE_VOICES
 from common.logger import setup_logging, get_logger, LogContext
 from common.cancellation import cancellation_manager
 
@@ -86,11 +88,40 @@ else:
     # Fallback to in-memory checkpointer for short-term memory
     checkpointer = InMemorySaver()
 
+def _init_store():
+    backend = settings.memory_store_backend.lower().strip()
+    url = settings.memory_store_url.strip()
+    if backend == "postgres" and url:
+        try:
+            from langgraph.store.postgres import PostgresStore
+            store_obj = PostgresStore.from_conn_string(url)
+            store_obj.setup()
+            logger.info("Initialized PostgresStore for long-term memory")
+            return store_obj
+        except Exception as e:
+            logger.warning(f"Failed to init PostgresStore, falling back to in-memory. Error: {e}")
+    if backend == "redis" and url:
+        try:
+            from langgraph.store.redis import RedisStore
+            store_obj = RedisStore.from_conn_string(url)
+            store_obj.setup()
+            logger.info("Initialized RedisStore for long-term memory")
+            return store_obj
+        except Exception as e:
+            logger.warning(f"Failed to init RedisStore, falling back to in-memory. Error: {e}")
+
+    logger.info("Using InMemoryStore for long-term memory")
+    return InMemoryStore()
+
+# Long-term memory store (configurable via .env)
+store = _init_store()
+
 research_graph = create_research_graph(
     checkpointer=checkpointer,
-    interrupt_before=settings.interrupt_nodes_list
+    interrupt_before=settings.interrupt_nodes_list,
+    store=store,
 )
-support_graph = create_support_graph(checkpointer=checkpointer)
+support_graph = create_support_graph(checkpointer=checkpointer, store=store)
 mcp_enabled = settings.enable_mcp
 mcp_servers_config = settings.mcp_servers
 mcp_loaded_tools = 0
@@ -136,6 +167,17 @@ async def startup_event():
             logger.warning(f"⚠ ASR service initialization failed: {e}")
     else:
         logger.info("ASR service not configured (no DASHSCOPE_API_KEY)")
+
+    # Initialize TTS service
+    if settings.dashscope_api_key:
+        try:
+            logger.info("Initializing TTS service...")
+            init_tts_service(settings.dashscope_api_key)
+            logger.info("✓ TTS service initialized")
+        except Exception as e:
+            logger.warning(f"⚠ TTS service initialization failed: {e}")
+    else:
+        logger.info("TTS service not configured (no DASHSCOPE_API_KEY)")
 
     logger.info("=" * 80)
     logger.info("✓ Weaver Research Agent Ready")
@@ -184,6 +226,7 @@ class ChatRequest(BaseModel):
     stream: bool = True
     model: Optional[str] = "gpt-4o"
     search_mode: Optional[SearchMode | Dict[str, Any] | str] = None  # {"useWebSearch": bool, "useAgent": bool, "useDeepSearch": bool}
+    user_id: Optional[str] = None
     images: Optional[List[ImagePayload]] = None  # Base64 images for multimodal input
 
 
@@ -411,6 +454,38 @@ def _normalize_images_payload(images: Optional[List[ImagePayload]]) -> List[Dict
     return normalized
 
 
+def _store_search(query: str, user_id: str, limit: int = 3) -> List[str]:
+    if not store:
+        return []
+    namespace = (user_id, "memories")
+    try:
+        results = store.search(namespace, query=query or "", limit=limit)
+        texts: List[str] = []
+        for item in results:
+            value = getattr(item, "value", {}) or {}
+            if isinstance(value, dict):
+                text = value.get("content") or value.get("text") or value.get("data")
+                if text:
+                    texts.append(str(text))
+            elif isinstance(value, str):
+                texts.append(value)
+        return texts[:limit]
+    except Exception as e:
+        logger.debug(f"Store search failed: {e}")
+        return []
+
+
+def _store_add(query: str, content: str, user_id: str):
+    if not store or not content:
+        return
+    namespace = (user_id, "memories")
+    try:
+        key = f"mem_{uuid.uuid4().hex}"
+        store.put(namespace, key, {"query": query, "content": content})
+    except Exception as e:
+        logger.debug(f"Store add failed: {e}")
+
+
 @app.post("/api/support/chat")
 async def support_chat(request: SupportChatRequest):
     """Simple customer support chat backed by Mem0 memory."""
@@ -420,6 +495,11 @@ async def support_chat(request: SupportChatRequest):
             "user_id": request.user_id or "default_user",
         }
         config = {"configurable": {"thread_id": request.user_id or "support_default"}}
+        # Inject stored memories if present
+        store_memories = _store_search(request.message, user_id=state["user_id"])
+        if store_memories:
+            state["messages"].insert(0, SystemMessage(content="Stored memories:\n" + "\n".join(f"- {m}" for m in store_memories)))
+
         result = support_graph.invoke(state, config=config)
         messages = result.get("messages", [])
         reply = ""
@@ -429,6 +509,7 @@ async def support_chat(request: SupportChatRequest):
                 break
         if not reply:
             reply = "No response generated."
+        _store_add(request.message, reply, user_id=state["user_id"])
         return SupportChatResponse(
             content=reply,
             timestamp=datetime.now().isoformat()
@@ -443,7 +524,8 @@ async def stream_agent_events(
     thread_id: str = "default",
     model: str = "gpt-4o",
     search_mode: Dict[str, Any] | None = None,
-    images: Optional[List[Dict[str, Any]]] = None
+    images: Optional[List[Dict[str, Any]]] = None,
+    user_id: Optional[str] = None
 ):
     """
     Stream agent execution events in real-time.
@@ -454,6 +536,7 @@ async def stream_agent_events(
     event_count = 0
     start_time = time.time()
     images = images or []
+    user_id = user_id or settings.memory_user_id
 
     # Optional per-thread log handler for easier debugging
     thread_handler = None
@@ -497,6 +580,7 @@ async def stream_agent_events(
             "needs_clarification": False,
             "tool_approved": False,
             "pending_tool_calls": [],
+            "user_id": user_id,
             "messages": [],
             "research_plan": [],
             "current_step": 0,
@@ -516,10 +600,15 @@ async def stream_agent_events(
             "is_cancelled": False
         }
 
-        # Load long-term memories (optional) and inject deep prompt if needed
+        # Load long-term memories (store) and Mem0 (optional) and inject deep prompt if needed
         messages: list[Any] = []
         if mode_info.get("use_deep_prompt"):
             messages.append(SystemMessage(content=get_deep_agent_prompt()))
+
+        store_memories = _store_search(input_text, user_id=user_id)
+        if store_memories:
+            store_text = "\n".join(f"- {m}" for m in store_memories)
+            messages.append(SystemMessage(content=f"Stored memories:\n{store_text}"))
 
         mem_entries = fetch_memories(query=input_text)
         if mem_entries:
@@ -534,6 +623,7 @@ async def stream_agent_events(
                 "thread_id": thread_id,
                 "model": model,
                 "search_mode": mode_info,
+                "user_id": user_id,
                 "allow_interrupts": bool(checkpointer),
                 "tool_approval": settings.tool_approval or False,
                 "human_review": settings.human_review or False,
@@ -638,6 +728,8 @@ async def stream_agent_events(
                             add_memory_entry(final_report)
                             # Store interaction (question + answer)
                             store_interaction(input_text, final_report)
+                            # Store to graph store
+                            _store_add(input_text, final_report, user_id=user_id)
 
             elif event_type == "on_tool_start":
                 tool_name = data_dict.get("name", "unknown")
@@ -753,6 +845,7 @@ async def chat(request: ChatRequest):
             raise HTTPException(status_code=400, detail="No user message found")
 
         last_message = user_messages[-1].content
+        user_id = request.user_id or settings.memory_user_id
         mode_info = _normalize_search_mode(request.search_mode)
 
         logger.info(f"📨 Chat request received")
@@ -773,7 +866,8 @@ async def chat(request: ChatRequest):
                     thread_id=thread_id,
                     model=request.model,
                     search_mode=mode_info,
-                    images=_normalize_images_payload(request.images)
+                    images=_normalize_images_payload(request.images),
+                    user_id=user_id
                 ),
                 media_type="text/event-stream",
                 headers={
@@ -791,6 +885,7 @@ async def chat(request: ChatRequest):
                 "needs_clarification": False,
                 "tool_approved": False,
                 "pending_tool_calls": [],
+                "user_id": user_id,
                 "messages": [],
                 "research_plan": [],
                 "current_step": 0,
@@ -811,6 +906,11 @@ async def chat(request: ChatRequest):
             if mode_info.get("use_deep_prompt"):
                 messages.append(SystemMessage(content=get_deep_agent_prompt()))
 
+            store_memories = _store_search(last_message, user_id=user_id)
+            if store_memories:
+                store_text = "\n".join(f"- {m}" for m in store_memories)
+                messages.append(SystemMessage(content=f"Stored memories:\n{store_text}"))
+
             mem_entries = fetch_memories(query=last_message)
             if mem_entries:
                 memory_text = "\n".join(f"- {m}" for m in mem_entries)
@@ -824,6 +924,7 @@ async def chat(request: ChatRequest):
                     "thread_id": "default",
                     "model": request.model,
                     "search_mode": mode_info,
+                    "user_id": user_id,
                     "allow_interrupts": bool(checkpointer),
                     "tool_approval": settings.tool_approval or False,
                     "human_review": settings.human_review or False,
@@ -835,6 +936,7 @@ async def chat(request: ChatRequest):
             final_report = result.get("final_report", "No response generated")
             add_memory_entry(final_report)
             store_interaction(last_message, final_report)
+            _store_add(last_message, final_report, user_id=user_id)
 
             return ChatResponse(
                 id=f"msg_{datetime.now().timestamp()}",
@@ -1056,6 +1158,78 @@ async def get_asr_status():
     asr_service = get_asr_service()
     return {
         "enabled": asr_service.enabled,
+        "api_key_configured": bool(settings.dashscope_api_key)
+    }
+
+
+# ==================== TTS 文字转语音 API ====================
+
+class TTSRequest(BaseModel):
+    """TTS 请求"""
+    text: str
+    voice: str = "longxiaochun"  # 默认女声
+
+
+@app.post("/api/tts/synthesize")
+async def synthesize_speech(request: TTSRequest):
+    """
+    文字转语音端点
+
+    Args:
+        request: TTS 请求，包含要转换的文字和声音选择
+
+    Returns:
+        Base64 编码的音频数据
+    """
+    try:
+        tts_service = get_tts_service()
+
+        if not tts_service.enabled:
+            raise HTTPException(
+                status_code=503,
+                detail="TTS service not available. Please configure DASHSCOPE_API_KEY."
+            )
+
+        result = tts_service.synthesize(
+            text=request.text,
+            voice=request.voice
+        )
+
+        if result["success"]:
+            return {
+                "success": True,
+                "audio": result["audio"],
+                "format": result["format"],
+                "voice": result["voice"]
+            }
+        else:
+            return {
+                "success": False,
+                "error": result.get("error", "Unknown error")
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"TTS error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"TTS processing error: {str(e)}")
+
+
+@app.get("/api/tts/voices")
+async def get_tts_voices():
+    """获取可用的声音列表"""
+    return {
+        "voices": AVAILABLE_VOICES,
+        "default": "longxiaochun"
+    }
+
+
+@app.get("/api/tts/status")
+async def get_tts_status():
+    """获取 TTS 服务状态"""
+    tts_service = get_tts_service()
+    return {
+        "enabled": tts_service.enabled,
         "api_key_configured": bool(settings.dashscope_api_key)
     }
 

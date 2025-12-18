@@ -86,9 +86,9 @@ def support_node(state: SupportState):
     }
 
 
-def create_support_graph(checkpointer=None):
+def create_support_graph(checkpointer=None, store=None):
     graph = StateGraph(SupportState)
     graph.add_node("support", support_node)
     graph.add_edge(START, "support")
     graph.add_edge("support", END)
-    return graph.compile(checkpointer=checkpointer)
+    return graph.compile(checkpointer=checkpointer, store=store)

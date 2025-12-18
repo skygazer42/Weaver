@@ -22,7 +22,7 @@ from .nodes import (
 logger = logging.getLogger(__name__)
 
 
-def create_research_graph(checkpointer=None, interrupt_before=None):
+def create_research_graph(checkpointer=None, interrupt_before=None, store=None):
     """
     Create the research agent graph.
 
@@ -131,6 +131,7 @@ def create_research_graph(checkpointer=None, interrupt_before=None):
     # Compile the graph
     graph = workflow.compile(
         checkpointer=checkpointer,
+        store=store,
         interrupt_before=interrupt_before or None,
     )
 
