@@ -6,7 +6,7 @@ python-multipart==0.0.9
 # LangChain & LangGraph (1.x)
 langgraph==1.0.1
 langgraph-checkpoint==3.0.0
-langgraph-checkpoint-postgres==2.0.8
+langgraph-checkpoint-postgres==3.0.2
 langchain==1.0.2
 langchain-openai==1.0.1
 langchain-anthropic==1.0.0
@@ -15,7 +15,7 @@ langchain-community==0.4.0
 mem0ai>=0.0.7
 
 # Database & Persistence
-psycopg[binary]==3.1.18
+psycopg[binary]==3.3.2
 pgvector==0.2.5
 sqlalchemy==2.0.25
 
