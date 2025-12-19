@@ -204,19 +204,7 @@ export function Sidebar({
               )}
           </div>
 
-          {/* Bottom Actions */}
-          <div className="border-t pt-2 mt-auto">
-             <SidebarItem icon={Settings} label={t('settings')} onClick={onOpenSettings} />
-             {history.length > 0 && (
-                <button 
-                    onClick={() => setShowClearConfirm(true)}
-                    className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors group"
-                >
-                    <Trash2 className="h-4 w-4" />
-                    <span>Clear History</span>
-                </button>
-             )}
-          </div>
+          {/* Bottom Actions - Removed Settings and Clear History as requested */}
         </div>
       </div>
     </>

@@ -107,24 +107,22 @@ else:
 def _init_store():
     backend = settings.memory_store_backend.lower().strip()
     url = settings.memory_store_url.strip()
-    if backend == "postgres" and url:
-        try:
-            from langgraph.store.postgres import PostgresStore
-            store_obj = PostgresStore.from_conn_string(url)
-            store_obj.setup()
-            logger.info("Initialized PostgresStore for long-term memory")
-            return store_obj
-        except Exception as e:
-            logger.warning(f"Failed to init PostgresStore, falling back to in-memory. Error: {e}")
-    if backend == "redis" and url:
-        try:
-            from langgraph.store.redis import RedisStore
-            store_obj = RedisStore.from_conn_string(url)
-            store_obj.setup()
-            logger.info("Initialized RedisStore for long-term memory")
-            return store_obj
-        except Exception as e:
-            logger.warning(f"Failed to init RedisStore, falling back to in-memory. Error: {e}")
+    if backend == "postgres":
+        if not url:
+            raise ValueError("memory_store_url is required when memory_store_backend=postgres")
+        from langgraph.store.postgres import PostgresStore
+        store_obj = PostgresStore.from_conn_string(url)
+        store_obj.setup()
+        logger.info("Initialized PostgresStore for long-term memory")
+        return store_obj
+    if backend == "redis":
+        if not url:
+            raise ValueError("memory_store_url is required when memory_store_backend=redis")
+        from langgraph.store.redis import RedisStore
+        store_obj = RedisStore.from_conn_string(url)
+        store_obj.setup()
+        logger.info("Initialized RedisStore for long-term memory")
+        return store_obj
 
     logger.info("Using InMemoryStore for long-term memory")
     return InMemoryStore()

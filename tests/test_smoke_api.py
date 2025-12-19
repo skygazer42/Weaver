@@ -1,5 +1,17 @@
+import os
+import sys
+from pathlib import Path
+
 import pytest
 from httpx import AsyncClient, ASGITransport
+
+# Ensure project root is on sys.path for direct test execution
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+# Force in-memory checkpointer during tests to avoid DB dependency
+os.environ["DATABASE_URL"] = ""
 
 from main import app
 from common.config import settings

@@ -2,6 +2,7 @@ from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.postgres import PostgresSaver
 import logging
 from pathlib import Path
+import psycopg
 
 from .state import AgentState, QueryState
 from .nodes import (
@@ -163,24 +164,20 @@ def create_checkpointer(database_url: str):
 
     This allows long-running agents to pause/resume and handle failures.
     """
+    if not database_url:
+        raise ValueError("database_url is required to initialize the Postgres checkpointer.")
+
+    # Create connection (psycopg3)
     try:
-        import psycopg
-
-        # Create connection (psycopg3)
         conn = psycopg.connect(database_url)
-
-        # Create checkpointer
-        checkpointer = PostgresSaver(conn)
-
-        # Setup tables
-        checkpointer.setup()
-
-        logger.info("PostgreSQL checkpointer initialized")
-        return checkpointer
-
-    except ImportError:
-        logger.warning("psycopg not installed, running without persistence")
-        return None
     except Exception as e:
-        logger.error(f"Failed to create checkpointer: {str(e)}")
-        return None
+        raise RuntimeError(f"Failed to connect to Postgres for checkpointer: {e}") from e
+
+    # Create checkpointer
+    checkpointer = PostgresSaver(conn)
+
+    # Setup tables
+    checkpointer.setup()
+
+    logger.info("PostgreSQL checkpointer initialized")
+    return checkpointer

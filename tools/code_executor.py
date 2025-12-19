@@ -3,6 +3,8 @@ from typing import Dict, Any
 from common.config import settings
 import logging
 
+from e2b_code_interpreter import Sandbox
+
 logger = logging.getLogger(__name__)
 
 
@@ -17,56 +19,32 @@ def execute_python_code(code: str) -> Dict[str, Any]:
     Returns:
         Execution results including stdout, stderr, and any generated images
     """
-    try:
-        from e2b_code_interpreter import Sandbox
-        if not settings.e2b_api_key:
-            return {
-                "success": False,
-                "error": "E2B API key not configured",
-                "stdout": "",
-                "image": None
-            }
+    if not settings.e2b_api_key:
+        raise RuntimeError("E2B_API_KEY is required to execute code with the E2B sandbox.")
 
-        with Sandbox(api_key=settings.e2b_api_key) as sandbox:
-            execution = sandbox.run_code(code)
+    with Sandbox(api_key=settings.e2b_api_key) as sandbox:
+        execution = sandbox.run_code(code)
 
-            result = {
-                "success": not execution.error,
-                "stdout": execution.logs.stdout if execution.logs else "",
-                "stderr": execution.logs.stderr if execution.logs else "",
-                "error": str(execution.error) if execution.error else None,
-                "image": None
-            }
-
-            # Check for matplotlib/image output
-            if execution.results:
-                for res in execution.results:
-                    if hasattr(res, 'png') and res.png:
-                        result["image"] = res.png  # Base64 encoded
-                        break
-                    elif hasattr(res, 'jpeg') and res.jpeg:
-                        result["image"] = res.jpeg
-                        break
-
-            logger.info(f"Code execution completed. Success: {result['success']}")
-            return result
-
-    except ImportError:
-        logger.warning("E2B not installed. Install with: pip install e2b-code-interpreter")
-        return {
-            "success": False,
-            "error": "E2B Code Interpreter not installed",
-            "stdout": "",
+        result = {
+            "success": not execution.error,
+            "stdout": execution.logs.stdout if execution.logs else "",
+            "stderr": execution.logs.stderr if execution.logs else "",
+            "error": str(execution.error) if execution.error else None,
             "image": None
         }
-    except Exception as e:
-        logger.error(f"Code execution error: {str(e)}")
-        return {
-            "success": False,
-            "error": str(e),
-            "stdout": "",
-            "image": None
-        }
+
+        # Check for matplotlib/image output
+        if execution.results:
+            for res in execution.results:
+                if hasattr(res, 'png') and res.png:
+                    result["image"] = res.png  # Base64 encoded
+                    break
+                elif hasattr(res, 'jpeg') and res.jpeg:
+                    result["image"] = res.jpeg
+                    break
+
+        logger.info(f"Code execution completed. Success: {result['success']}")
+        return result
 
 
 def create_visualization(data: Dict[str, Any], chart_type: str = "bar") -> Dict[str, Any]:
