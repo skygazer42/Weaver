@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Request, UploadFile, File
+﻿from fastapi import FastAPI, HTTPException, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 import base64
@@ -28,10 +28,8 @@ from tools.tts import get_tts_service, init_tts_service, AVAILABLE_VOICES
 from common.logger import setup_logging, get_logger, LogContext
 from common.metrics import metrics_registry
 from common.cancellation import cancellation_manager
-try:
-    from prometheus_client import Counter, Gauge, generate_latest, CONTENT_TYPE_LATEST
-except ImportError:  # optional
-    Counter = Gauge = generate_latest = CONTENT_TYPE_LATEST = None
+from prometheus_client import Counter, Gauge, generate_latest, CONTENT_TYPE_LATEST
+
 
 # Initialize logging
 setup_logging()
@@ -40,7 +38,7 @@ logger = get_logger(__name__)
 # Initialize FastAPI app
 app = FastAPI(
     title="Manus Research Agent API",
-    description="Deep research AI agent with code execution capabilities",
+    description="Deep  research AI agent with code execution capabilities",
     version="0.1.0"
 )
 
@@ -741,7 +739,7 @@ async def stream_agent_events(
                             yield await format_stream_event("completion", {
                                 "content": final_report
                             })
-                            
+
                             # Also emit as artifact
                             yield await format_stream_event("artifact", {
                                 "id": f"report_{datetime.now().timestamp()}",
@@ -777,7 +775,7 @@ async def stream_agent_events(
             elif event_type == "on_tool_end":
                 tool_name = data_dict.get("name", "unknown")
                 output = data_dict.get("output", {})
-                
+
                 yield await format_stream_event("tool", {
                     "name": tool_name,
                     "status": "completed"
@@ -786,7 +784,7 @@ async def stream_agent_events(
                 # Check for artifacts from code execution
                 if tool_name == "execute_python_code" and isinstance(output, dict):
                     image_data = output.get("image")
-                    
+
                     if image_data:
                         yield await format_stream_event("artifact", {
                             "id": f"art_{datetime.now().timestamp()}",
