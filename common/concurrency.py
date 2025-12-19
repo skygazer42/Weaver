@@ -2,7 +2,6 @@
 批量并发控制模块
 
 提供 API 调用的并发限制、速率控制和批量处理功能。
-参考 prompt-engineering 项目的并发控制模式。
 """
 
 import asyncio

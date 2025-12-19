@@ -18,9 +18,7 @@ def execute_python_code(code: str) -> Dict[str, Any]:
         Execution results including stdout, stderr, and any generated images
     """
     try:
-        # Import here to avoid issues if E2B is not configured
         from e2b_code_interpreter import Sandbox
-
         if not settings.e2b_api_key:
             return {
                 "success": False,

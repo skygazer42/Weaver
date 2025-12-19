@@ -6,8 +6,6 @@
 - 批量任务取消
 - 取消状态检查
 - 资源清理
-
-参考 prompt-engineering 项目的 cancel_event 模式。
 """
 
 import asyncio
