@@ -8,10 +8,11 @@ import { cn } from '@/lib/utils'
 
 interface EmptyStateProps {
   selectedMode: string
-  onModeSelect: (mode: string) => void // Kept for compatibility but might be unused if pills are primary
+  onModeSelect: (mode: string) => void
+  onStarterClick?: (text: string, mode: string) => void
 }
 
-export function EmptyState({ selectedMode, onModeSelect }: EmptyStateProps) {
+export function EmptyState({ selectedMode, onModeSelect, onStarterClick }: EmptyStateProps) {
   const { t } = useI18n()
 
   const starters = [
@@ -66,13 +67,8 @@ export function EmptyState({ selectedMode, onModeSelect }: EmptyStateProps) {
           <button
             key={i}
             onClick={() => {
-                // In a real app, this would populate input
-                const input = document.querySelector('input') as HTMLInputElement
-                if (input) {
-                    input.value = starter.text
-                    input.focus()
-                    // Dispatch change event manually for React state? 
-                    // Simplified: We assume user types or this component accepts onSelect prop to bubble up
+                if (onStarterClick) {
+                    onStarterClick(starter.text, starter.mode)
                 }
             }}
             className="group flex items-start gap-4 p-4 rounded-xl border bg-card/50 hover:bg-card hover:shadow-md hover:border-primary/20 transition-all duration-300 text-left"

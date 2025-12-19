@@ -158,15 +158,20 @@ export function Chat() {
           ...messages[index],
           content: newContent
       }
-      
+
       const newHistory = [...previousMessages, updatedMessage]
       setMessages(newHistory)
-      
+
       if (updatedMessage.role === 'user') {
           await processChat(newHistory, updatedMessage.attachments)
       }
   }
-  
+
+  const handleStarterClick = (text: string, mode: string) => {
+      setInput(text)
+      setSearchMode(mode)
+  }
+
   // Render Content based on View
   const renderContent = () => {
       if (currentView === 'discover') return <Discover />
@@ -177,9 +182,10 @@ export function Chat() {
         <div className="flex-1 flex flex-col min-h-0">
           {messages.length === 0 ? (
             <div className="h-full w-full p-4 overflow-y-auto">
-               <EmptyState 
+               <EmptyState
                   selectedMode={searchMode}
                   onModeSelect={setSearchMode}
+                  onStarterClick={handleStarterClick}
                />
             </div>
           ) : (

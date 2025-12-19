@@ -41,6 +41,16 @@ export function Header({ sidebarOpen, onToggleSidebar, selectedModel, onModelCha
   }, [])
 
   const models = [
+    // OpenAI 系列
+    { id: 'gpt-5', name: 'GPT-5', provider: 'OpenAI' },
+    { id: 'gpt-4.1', name: 'GPT-4.1', provider: 'OpenAI' },
+    { id: 'gpt-4o', name: 'GPT-4o', provider: 'OpenAI' },
+
+    // Anthropic 系列
+    { id: 'claude-sonnet-4-5-20250514', name: 'Claude Sonnet 4.5', provider: 'Anthropic' },
+    { id: 'claude-opus-4-20250514', name: 'Claude Opus 4', provider: 'Anthropic' },
+    { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', provider: 'Anthropic' },
+
     // DeepSeek 系列
     { id: 'deepseek-chat', name: 'deepseek-chat', provider: t('deepseek') },
     { id: 'deepseek-reasoner', name: 'deepseek-reasoner', provider: t('deepseek') },
@@ -95,7 +105,7 @@ export function Header({ sidebarOpen, onToggleSidebar, selectedModel, onModelCha
                      </button>
                      
                      {isModelOpen && (
-                       <div className="absolute right-0 top-full mt-2 w-48 rounded-xl border bg-popover p-1 shadow-lg animate-in fade-in zoom-in-95 z-50">
+                       <div className="absolute right-0 top-full mt-2 w-56 max-h-80 overflow-y-auto rounded-xl border bg-popover p-1 shadow-lg animate-in fade-in zoom-in-95 z-50">
                          {models.map((model) => (
                            <button
                              key={model.id}

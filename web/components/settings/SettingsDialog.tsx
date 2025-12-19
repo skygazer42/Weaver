@@ -33,6 +33,24 @@ interface ModelProvider {
 
 const getModelProviders = (t: (key: any) => string): ModelProvider[] => [
   {
+    id: 'openai',
+    name: 'OpenAI',
+    models: [
+      { id: 'gpt-5', name: 'GPT-5' },
+      { id: 'gpt-4.1', name: 'GPT-4.1' },
+      { id: 'gpt-4o', name: 'GPT-4o' },
+    ]
+  },
+  {
+    id: 'anthropic',
+    name: 'Anthropic',
+    models: [
+      { id: 'claude-sonnet-4-5-20250514', name: 'Claude Sonnet 4.5' },
+      { id: 'claude-opus-4-20250514', name: 'Claude Opus 4' },
+      { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4' },
+    ]
+  },
+  {
     id: 'deepseek',
     name: t('deepseek'),
     models: [
@@ -61,6 +79,8 @@ const getModelProviders = (t: (key: any) => string): ModelProvider[] => [
 const languages = [
   { id: 'en', name: 'English', nativeName: 'English' },
   { id: 'zh', name: 'Chinese', nativeName: '中文' },
+  { id: 'ja', name: 'Japanese', nativeName: '日本語' },
+  { id: 'ko', name: 'Korean', nativeName: '한국어' },
 ]
 
 interface ApiKeys {
@@ -306,7 +326,7 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
                       </div>
 
                       <p className="text-xs text-muted-foreground pt-1 border-t">
-                        <span className="font-medium">支持模型:</span> {provider.models.map(m => m.name).join(', ')}
+                        <span className="font-medium">{t('supportedModels')}:</span> {provider.models.map(m => m.name).join(', ')}
                       </p>
                     </div>
                   )}
@@ -319,17 +339,17 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
           <div className="space-y-3 border-t pt-4">
             <Label className="text-sm font-medium flex items-center gap-2">
               <Plug className="h-4 w-4" />
-              MCP Configuration
+              {t('mcpConfiguration')}
             </Label>
             <p className="text-xs text-muted-foreground">
-              Configure Model Context Protocol servers to extend capabilities.
+              {t('mcpDescription')}
             </p>
 
             <div className="flex items-center justify-between space-x-2 border p-3 rounded-lg bg-muted/20">
               <div className="space-y-0.5">
-                <Label className="text-sm font-medium">Enable MCP</Label>
+                <Label className="text-sm font-medium">{t('enableMcp')}</Label>
                 <div className="text-xs text-muted-foreground">
-                  {mcpEnabled ? 'MCP is currently active.' : 'MCP is disabled.'}
+                  {mcpEnabled ? t('mcpActive') : t('mcpDisabled')}
                 </div>
               </div>
               <Switch
@@ -339,7 +359,7 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
             </div>
 
             <div className="space-y-2">
-              <Label className="text-xs font-medium">Servers Configuration (JSON)</Label>
+              <Label className="text-xs font-medium">{t('serversConfiguration')}</Label>
               <Textarea
                 value={mcpConfig}
                 onChange={(e) => setMcpConfig(e.target.value)}
@@ -347,7 +367,7 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
                 placeholder='{ "server-name": { "command": "...", "args": [...] } }'
               />
               <p className="text-xs text-muted-foreground">
-                Define servers with transport, command, and args.
+                {t('serversConfigHint')}
               </p>
             </div>
 
@@ -357,7 +377,7 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
               ) : (
                 <CheckCircle2 className="h-3 w-3 text-green-500" />
               )}
-              <span>Loaded Tools: {mcpLoadedTools}</span>
+              <span>{t('loadedTools')}: {mcpLoadedTools}</span>
             </div>
           </div>
         </div>
