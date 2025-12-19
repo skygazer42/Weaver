@@ -60,6 +60,14 @@ class Settings(BaseSettings):
     search_batch_size: int = 3        # 搜索批次大小
     api_rate_limit: float = 0.5       # API 调用间隔（秒）
 
+    # Deepsearch Settings
+    deepsearch_max_epochs: int = 3
+    deepsearch_query_num: int = 5
+    deepsearch_results_per_query: int = 5
+    deepsearch_enable_crawler: bool = False  # enable simple fallback crawler
+    deepsearch_save_data: bool = False       # save deepsearch run data to disk
+    deepsearch_save_dir: str = "eval/deepsearch_data"
+
     # Prompt Optimization (Prompt 优化)
     prompt_optimizer_model: str = "gpt-4o"  # 用于优化 Prompt 的模型
     prompt_optimization_epochs: int = 3      # 优化迭代轮次

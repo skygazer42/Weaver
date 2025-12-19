@@ -16,7 +16,8 @@ from .nodes import (
     refine_plan_node,
     evaluator_node,
     revise_report_node,
-    human_review_node
+    human_review_node,
+    deepsearch_node,
 )
 
 logger = logging.getLogger(__name__)
@@ -48,12 +49,15 @@ def create_research_graph(checkpointer=None, interrupt_before=None, store=None):
     workflow.add_node("evaluator", evaluator_node)
     workflow.add_node("reviser", revise_report_node)
     workflow.add_node("human_review", human_review_node)
+    workflow.add_node("deepsearch", deepsearch_node)
 
     # Set entry point
     workflow.set_entry_point("router")
 
     def route_decision(state: AgentState) -> str:
         route = state.get("route", "direct")
+        if route == "deep":
+            return "deepsearch"
         if route == "web":
             return "web_plan"
         if route == "direct":
@@ -63,7 +67,7 @@ def create_research_graph(checkpointer=None, interrupt_before=None, store=None):
     workflow.add_conditional_edges(
         "router",
         route_decision,
-        ["direct_answer", "web_plan", "clarify"]
+        ["direct_answer", "web_plan", "clarify", "deepsearch"]
     )
 
     def after_clarify(state: AgentState) -> str:
@@ -126,6 +130,7 @@ def create_research_graph(checkpointer=None, interrupt_before=None, store=None):
     workflow.add_edge("direct_answer", "human_review")
 
     # Final edge
+    workflow.add_edge("deepsearch", "human_review")
     workflow.add_edge("human_review", END)
 
     # Compile the graph

@@ -49,7 +49,7 @@ class OptimizationConfig:
     min_error_samples: int = 3  # 最少需要的错误样本数才进行分析
 
     # 输出配置
-    output_dir: Path = field(default_factory=lambda: Path("prompt_optimizer/results"))
+    output_dir: Path = field(default_factory=lambda: Path("prompts/results"))
     save_intermediate: bool = True
     save_best_only: bool = False  # 只保存最佳结果
 

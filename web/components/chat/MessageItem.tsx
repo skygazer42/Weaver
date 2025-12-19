@@ -7,13 +7,15 @@ import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import dynamic from 'next/dynamic'
 import { cn } from '@/lib/utils'
-import { Search, Code, Loader2, ChevronDown, Check, Copy, Terminal, Bot, User, BrainCircuit, PenTool, Globe, Pencil, Volume2, VolumeX, Loader } from 'lucide-react'
+import { Bot, Check, Copy, Pencil, Volume2, VolumeX, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DataTableView } from './DataTableView'
 import { ErrorBoundary } from 'react-error-boundary'
 import { toast } from 'sonner'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { Message, ToolInvocation } from '@/types/chat'
+import { Message } from '@/types/chat'
+import { ThinkingProcess } from './message/ThinkingProcess'
+import { CodeBlock } from './message/CodeBlock'
+import { CitationBadge } from './message/CitationBadge'
 
 // Lazy load MermaidBlock as it's a heavy dependency
 const MermaidBlock = dynamic(() => import('./MermaidBlock').then(mod => mod.MermaidBlock), {
@@ -42,7 +44,6 @@ interface MessageItemProps {
 
 const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
   const isUser = message.role === 'user'
-  const [isThinkingOpen, setIsThinkingOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editContent, setEditContent] = useState(message.content)
@@ -58,7 +59,7 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
   }
 
   const handleSpeak = async () => {
-    // 如果正在播放，停止
+    // If playing, stop
     if (isPlaying && audioRef) {
       audioRef.pause()
       audioRef.currentTime = 0
@@ -66,17 +67,17 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
       return
     }
 
-    // 提取纯文本（去除 markdown 格式）
+    // Extract plain text (remove markdown)
     const plainText = message.content
-      .replace(/```[\s\S]*?```/g, '') // 移除代码块
-      .replace(/`[^`]+`/g, '') // 移除行内代码
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // 链接只保留文字
-      .replace(/[#*_~]/g, '') // 移除 markdown 标记
-      .replace(/\n+/g, ' ') // 换行改空格
+      .replace(/```[\s\S]*?```/g, '') // remove code blocks
+      .replace(/`[^`]+`/g, '') // remove inline code
+      .replace(/[\[^\]\]+\]\([^)]+\)/g, '$1') // links -> text
+      .replace(/[#*_~]/g, '') // remove markdown symbols
+      .replace(/\n+/g, ' ') // newlines -> spaces
       .trim()
 
     if (!plainText) {
-      toast.error('没有可朗读的内容')
+      toast.error('No readable content found')
       return
     }
 
@@ -87,7 +88,7 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          text: plainText.slice(0, 2000), // 限制长度
+          text: plainText.slice(0, 2000), // limit length
           voice: 'longxiaochun'
         })
       })
@@ -95,7 +96,7 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
       const result = await response.json()
 
       if (result.success && result.audio) {
-        // 创建音频并播放
+        // Create audio and play
         const audio = new Audio(`data:audio/mp3;base64,${result.audio}`)
         setAudioRef(audio)
 
@@ -104,21 +105,21 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
         }
 
         audio.onerror = () => {
-          toast.error('音频播放失败')
+          toast.error('Audio playback failed')
           setIsPlaying(false)
         }
 
         await audio.play()
         setIsPlaying(true)
       } else if (response.status === 503) {
-        // TTS 服务不可用，使用浏览器 TTS
+        // TTS service unavailable, fallback to browser
         fallbackToWebTTS(plainText)
       } else {
-        toast.error(result.error || '语音合成失败')
+        toast.error(result.error || 'TTS failed')
       }
     } catch (error) {
       console.error('TTS error:', error)
-      // 回退到浏览器 TTS
+      // Fallback
       fallbackToWebTTS(plainText)
     } finally {
       setIsTTSLoading(false)
@@ -128,16 +129,16 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
   const fallbackToWebTTS = (text: string) => {
     if ('speechSynthesis' in window) {
       const utterance = new SpeechSynthesisUtterance(text.slice(0, 500))
-      utterance.lang = 'zh-CN'
+      utterance.lang = 'en-US' // Default to EN or check locale
       utterance.onend = () => setIsPlaying(false)
       utterance.onerror = () => {
-        toast.error('浏览器语音合成失败')
+        toast.error('Browser TTS failed')
         setIsPlaying(false)
       }
       speechSynthesis.speak(utterance)
       setIsPlaying(true)
     } else {
-      toast.error('浏览器不支持语音合成')
+      toast.error('Browser TTS not supported')
     }
   }
   
@@ -148,7 +149,6 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
     setIsEditing(false)
   }
 
-  // Filter tools to group them as "Thinking Process"
   const tools = message.toolInvocations || []
   const hasTools = tools.length > 0
   const isThinking = tools.some(t => t.state === 'running')
@@ -170,43 +170,15 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
       )}
 
       <div className={cn(
-          'flex flex-col max-w-[85%] md:max-w-[75%]', 
+          'flex flex-col max-w-[85%] md:max-w-[75%]',
           isUser ? 'items-end' : 'items-start',
           // If editing, take full width available
           isEditing && "w-full max-w-full md:max-w-full"
       )}>
         
-        {/* Thinking Process Graph / Accordion */}
+        {/* Thinking Process */}
         {!isUser && hasTools && !isEditing && (
-          <div className="mb-2 ml-1 w-full max-w-md">
-             {/* Graph Visualization (Mini) */}
-             <div className="flex items-center gap-2 mb-2 px-2 py-1 overflow-hidden">
-                <ThinkingNode icon={BrainCircuit} label="Plan" active={tools.length > 0} completed={tools.length > 1} />
-                <ThinkingLine active={tools.length > 1} />
-                <ThinkingNode icon={Globe} label="Search" active={tools.some(t => t.toolName.includes('search'))} completed={tools.some(t => t.toolName.includes('search') && t.state === 'completed')} />
-                <ThinkingLine active={tools.some(t => t.toolName.includes('code'))} />
-                <ThinkingNode icon={Code} label="Code" active={tools.some(t => t.toolName.includes('code'))} completed={tools.some(t => t.toolName.includes('code') && t.state === 'completed')} />
-                <ThinkingLine active={!isThinking && tools.length > 0} />
-                <ThinkingNode icon={PenTool} label="Write" active={!isThinking && tools.length > 0} completed={!isThinking && message.content.length > 0} />
-             </div>
-
-             <button 
-                onClick={() => setIsThinkingOpen(!isThinkingOpen)}
-                className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors bg-muted/30 hover:bg-muted/50 px-2.5 py-1.5 rounded-full border border-border/50"
-             >
-                {isThinkingOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronDown className="h-3 w-3 -rotate-90" />}
-                <span>Process Logs</span>
-                {isThinking && <Loader2 className="h-3 w-3 animate-spin text-blue-500" />}
-             </button>
-
-             {isThinkingOpen && (
-                <div className="mt-2 pl-2 space-y-2 py-1 border-l-2 border-muted ml-2">
-                    {tools.map((tool) => (
-                        <ToolInvocationItem key={tool.toolCallId} tool={tool} />
-                    ))}
-                </div>
-             )}
-          </div>
+          <ThinkingProcess tools={tools} isThinking={isThinking} />
         )}
 
         {/* Message Bubble OR Edit Mode */}
@@ -245,9 +217,9 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
                              <p className="mb-2 last:mb-0 leading-7" {...props}>
                                 {React.Children.map(children, child => {
                                     if (typeof child === 'string') {
-                                        const parts = child.split(/(\[d+]) /g) // Corrected regex for citation
+                                        const parts = child.split(/(\[d+]) /g) 
                                         return parts.map((part, i) => {
-                                            const match = part.match(/^\\\[(\\d+)\\\]$/) // Corrected regex for citation
+                                            const match = part.match(/^\\\\[(\\d+)\\]$/)
                                             if (match) {
                                                 return <CitationBadge key={i} num={match[1]} />
                                             }
@@ -384,105 +356,3 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
 }
 
 export const MessageItem = memo(MessageItemBase)
-
-function CitationBadge({ num }: { num: string }) {
-    return (
-        <TooltipProvider>
-            <Tooltip delayDuration={300}>
-                <TooltipTrigger asChild>
-                    <sup className="ml-0.5 cursor-pointer text-xs font-bold text-primary hover:underline decoration-dotted select-none">
-                        [{num}]
-                    </sup>
-                </TooltipTrigger>
-                <TooltipContent className="max-w-[300px] break-words">
-                    <div className="space-y-1">
-                        <p className="font-semibold text-xs">Source [{num}]</p>
-                        <p className="text-xs text-muted-foreground">Reference details would appear here.</p>
-                    </div>
-                </TooltipContent>
-            </Tooltip>
-        </TooltipProvider>
-    )
-}
-
-function CodeBlock({ language, value }: { language: string, value: string }) {
-    const [copied, setCopied] = useState(false)
-  
-    const handleCopy = () => {
-      navigator.clipboard.writeText(value)
-      setCopied(true)
-      toast.success('Code copied')
-      setTimeout(() => setCopied(false), 2000)
-    }
-  
-    return (
-      <div className="relative w-full">
-        <div className="flex items-center justify-between px-4 py-1.5 bg-zinc-900 border-b border-white/5">
-          <span className="text-xs font-medium text-zinc-400">{language}</span>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 text-zinc-400 hover:text-white hover:bg-white/10"
-            onClick={handleCopy}
-          >
-            {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-          </Button>
-        </div>
-        <div className="overflow-x-auto p-4 bg-zinc-950">
-          <code className="text-sm font-mono text-zinc-300 whitespace-pre">
-            {value}
-          </code>
-        </div>
-      </div>
-    )
-}
-
-// Graph Components
-function ThinkingNode({ icon: Icon, label, active, completed }: { icon: any, label: string, active: boolean, completed: boolean }) {
-    return (
-        <div className={cn(
-            "flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium transition-all duration-300",
-            completed ? "bg-primary/10 text-primary ring-1 ring-primary/20" :
-            active ? "bg-blue-500/10 text-blue-500 ring-1 ring-blue-500/50 animate-pulse" :
-            "bg-muted text-muted-foreground opacity-50"
-        )}>
-            <Icon className="h-3 w-3" />
-            <span>{label}</span>
-        </div>
-    )
-}
-
-function ThinkingLine({ active }: { active: boolean }) {
-    return (
-        <div className={cn(
-            "h-[1px] w-4 transition-colors duration-300",
-            active ? "bg-primary/50" : "bg-muted"
-        )} />
-    )
-}
-
-function ToolInvocationItem({ tool }: { tool: ToolInvocation }) {
-  const getIcon = () => {
-    if (tool.toolName.includes('search')) return <Search className="h-3.5 w-3.5" />
-    if (tool.toolName.includes('code')) return <Code className="h-3.5 w-3.5" />
-    return <Terminal className="h-3.5 w-3.5" />
-  }
-
-  const isRunning = tool.state === 'running'
-
-  return (
-    <div className="flex items-center gap-2 text-xs text-muted-foreground animate-in fade-in slide-in-from-left-1">
-      <div className={cn(
-          "flex h-4 w-4 items-center justify-center rounded-sm",
-          isRunning ? "text-blue-500" : "text-muted-foreground"
-      )}>
-         {isRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : getIcon()}
-      </div>
-      <span className="truncate max-w-[200px]">
-        {tool.toolName === 'tavily_search' && `Searching: ${tool.args?.query || '...'}`}
-        {tool.toolName === 'execute_python_code' && 'Executing Logic...'}
-        {!tool.toolName.includes('search') && !tool.toolName.includes('code') && tool.toolName}
-      </span>
-    </div>
-  )
-}

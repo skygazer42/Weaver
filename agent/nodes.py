@@ -15,6 +15,7 @@ import mimetypes
 from .state import AgentState, ResearchPlan, QueryState
 from tools import tavily_search, execute_python_code
 from tools.registry import get_registered_tools
+from .deepsearch import run_deepsearch
 from common.config import settings
 from common.cancellation import cancellation_manager, check_cancellation as _check_cancellation
 
@@ -233,6 +234,26 @@ def perform_parallel_search(state: QueryState, config: RunnableConfig) -> Dict[s
         logger.error(f"Parallel search error for {query}: {str(e)}")
         # Return empty result to avoid failing the whole graph
         return {"scraped_content": []}
+
+
+def deepsearch_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
+    """Deep search pipeline that iterates query → search → summarize."""
+    logger.info("Executing deepsearch node")
+    try:
+        _check_cancellation(state)
+        return run_deepsearch(state, config)
+    except asyncio.CancelledError as e:
+        return handle_cancellation(state, e)
+    except Exception as e:
+        logger.error(f"Deepsearch error: {str(e)}", exc_info=settings.debug)
+        msg = f"Deep search failed: {e}"
+        return {
+            "errors": [msg],
+            "final_report": msg,
+            "draft_report": msg,
+            "is_complete": False,
+            "messages": [AIMessage(content=msg)],
+        }
 
 
 def route_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:

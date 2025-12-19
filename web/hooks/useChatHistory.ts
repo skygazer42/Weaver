@@ -27,10 +27,13 @@ export function useChatHistory() {
     setIsHistoryLoading(false)
   }, [])
 
-  // Save History to LocalStorage
+  // Save History to LocalStorage with debounce
   useEffect(() => {
     if (!isHistoryLoading) {
-      localStorage.setItem(STORAGE_KEYS.HISTORY, JSON.stringify(history))
+      const timeoutId = setTimeout(() => {
+        localStorage.setItem(STORAGE_KEYS.HISTORY, JSON.stringify(history))
+      }, 1000)
+      return () => clearTimeout(timeoutId)
     }
   }, [history, isHistoryLoading])
 
