@@ -30,13 +30,23 @@ export interface Message {
 export interface ChatSession {
   id: string
   title: string
-  date: string
+  date: string // Legacy field, kept for compatibility
+  updatedAt: number
+  createdAt: number
+  tags?: string[]
+  isPinned?: boolean
+  summary?: string
 }
 
 export interface Artifact {
   id: string
-  type: string
+  sessionId?: string
+  type: 'code' | 'image' | 'text' | 'file'
   title: string
   content: string
-  image?: string
+  mimeType?: string
+  fileSize?: number
+  createdAt: number
+  updatedAt: number
+  tags?: string[]
 }

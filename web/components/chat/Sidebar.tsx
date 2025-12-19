@@ -4,7 +4,7 @@ import React, { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useI18n } from '@/lib/i18n/i18n-context'
-import { Plus, Compass, LayoutGrid, FolderOpen, MessageSquare, PanelLeft, Trash2, Settings } from 'lucide-react'
+import { Plus, Compass, LayoutGrid, FolderOpen, MessageSquare, PanelLeft, Trash2, Settings, Pin, PinOff } from 'lucide-react'
 import { ChatSession } from '@/types/chat'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
@@ -14,6 +14,8 @@ interface SidebarProps {
   onNewChat: () => void
   onSelectChat: (id: string) => void
   onDeleteChat: (id: string) => void
+  onTogglePin: (id: string) => void
+  onRenameChat: (id: string, title: string) => void
   onClearHistory: () => void
   onOpenSettings: () => void
   activeView: string
@@ -28,6 +30,8 @@ export function Sidebar({
     onNewChat, 
     onSelectChat, 
     onDeleteChat,
+    onTogglePin,
+    onRenameChat,
     onClearHistory,
     onOpenSettings,
     activeView, 
@@ -39,18 +43,28 @@ export function Sidebar({
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [showClearConfirm, setShowClearConfirm] = useState(false)
   
-  // No internal state for view
+  const pinnedItems = useMemo(() => history.filter(s => s.isPinned), [history])
+  const unpinnedItems = useMemo(() => history.filter(s => !s.isPinned), [history])
 
   const groupedHistory = useMemo(() => {
     const groups: Record<string, typeof history> = {}
-    history.forEach(item => {
-        let key = item.date
-        if (key === 'Just now') key = 'Today'
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+    const yesterday = today - 86400000
+    const sevenDaysAgo = today - 86400000 * 7
+
+    unpinnedItems.forEach(item => {
+        const time = item.updatedAt || item.createdAt || Date.now()
+        let key = 'Older'
+        if (time >= today) key = 'Today'
+        else if (time >= yesterday) key = 'Yesterday'
+        else if (time >= sevenDaysAgo) key = 'Previous 7 Days'
+        
         if (!groups[key]) groups[key] = []
         groups[key].push(item)
     })
     return groups
-  }, [history])
+  }, [unpinnedItems])
 
   const groupOrder = ['Today', 'Yesterday', 'Previous 7 Days', 'Older']
 
@@ -146,6 +160,25 @@ export function Sidebar({
                   <div className="px-3 text-xs text-muted-foreground italic py-2">{t('noRecentChats')}</div>
               ) : (
                   <div className="space-y-4">
+                      {/* Pinned Section */}
+                      {pinnedItems.length > 0 && (
+                          <div className="space-y-1">
+                              <div className="px-3 text-[10px] font-semibold text-primary uppercase tracking-widest mb-1 flex items-center gap-1">
+                                  <Pin className="h-3 w-3 fill-primary" /> Pinned
+                              </div>
+                              {pinnedItems.map(item => (
+                                  <SidebarChatItem 
+                                    key={item.id} 
+                                    item={item} 
+                                    onSelect={onSelectChat} 
+                                    onDelete={setDeleteId} 
+                                    onTogglePin={onTogglePin}
+                                  />
+                              ))}
+                          </div>
+                      )}
+
+                      {/* Grouped Recent Section */}
                       {groupOrder.map(dateLabel => {
                           const items = groupedHistory[dateLabel]
                           if (!items || items.length === 0) return null
@@ -156,62 +189,24 @@ export function Sidebar({
                                       {dateLabel}
                                   </div>
                                   {items.map((item) => (
-                                    <div key={item.id} className="group relative">
-                                        <button 
-                                            onClick={() => onSelectChat(item.id)}
-                                            className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm transition-all duration-200 text-muted-foreground hover:bg-muted/60 hover:text-foreground text-left pr-8"
-                                        >
-                                            <MessageSquare className="h-4 w-4 shrink-0 transition-colors group-hover:text-primary" />
-                                            <span className="truncate">{item.title}</span>
-                                        </button>
-                                        <button 
-                                            onClick={(e) => {
-                                                e.stopPropagation()
-                                                setDeleteId(item.id)
-                                            }}
-                                            className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-destructive transition-all"
-                                        >
-                                            <Trash2 className="h-3.5 w-3.5" />
-                                        </button>
-                                    </div>
+                                      <SidebarChatItem 
+                                        key={item.id} 
+                                        item={item} 
+                                        onSelect={onSelectChat} 
+                                        onDelete={setDeleteId} 
+                                        onTogglePin={onTogglePin}
+                                      />
                                   ))}
                               </div>
                           )
                       })}
-                      {/* Handle items that didn't fall into the main groups if any */}
-                      {Object.keys(groupedHistory).filter(k => !groupOrder.includes(k)).map(dateLabel => (
-                           <div key={dateLabel} className="space-y-1">
-                                <div className="px-3 text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-widest mb-1">
-                                    {dateLabel}
-                                </div>
-                                {groupedHistory[dateLabel].map((item) => (
-                                  <div key={item.id} className="group relative">
-                                      <button 
-                                          onClick={() => onSelectChat(item.id)}
-                                          className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm transition-all duration-200 text-muted-foreground hover:bg-muted/60 hover:text-foreground text-left pr-8"
-                                      >
-                                          <MessageSquare className="h-4 w-4 shrink-0 transition-colors group-hover:text-primary" />
-                                          <span className="truncate">{item.title}</span>
-                                      </button>
-                                      <button 
-                                            onClick={(e) => {
-                                                e.stopPropagation()
-                                                setDeleteId(item.id)
-                                            }}
-                                            className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-destructive transition-all"
-                                        >
-                                            <Trash2 className="h-3.5 w-3.5" />
-                                        </button>
-                                  </div>
-                                ))}
-                            </div>
-                      ))}
                   </div>
               )}
           </div>
 
           {/* Bottom Actions */}
           <div className="border-t pt-2 mt-auto">
+             <SidebarItem icon={Settings} label={t('settings')} onClick={onOpenSettings} />
              {history.length > 0 && (
                 <button 
                     onClick={() => setShowClearConfirm(true)}
@@ -226,6 +221,53 @@ export function Sidebar({
       </div>
     </>
   )
+}
+
+function SidebarChatItem({ 
+    item, 
+    onSelect, 
+    onDelete, 
+    onTogglePin 
+}: { 
+    item: ChatSession, 
+    onSelect: (id: string) => void, 
+    onDelete: (id: string) => void,
+    onTogglePin: (id: string) => void
+}) {
+    return (
+        <div className="group relative">
+            <button 
+                onClick={() => onSelect(item.id)}
+                className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm transition-all duration-200 text-muted-foreground hover:bg-muted/60 hover:text-foreground text-left pr-12"
+            >
+                <MessageSquare className="h-4 w-4 shrink-0 transition-colors group-hover:text-primary" />
+                <span className="truncate">{item.title}</span>
+            </button>
+            <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 flex items-center transition-all bg-gradient-to-l from-muted/60 pl-2">
+                <button 
+                    onClick={(e) => {
+                        e.stopPropagation()
+                        onTogglePin(item.id)
+                    }}
+                    className={cn(
+                        "p-1 text-muted-foreground hover:text-primary transition-all",
+                        item.isPinned && "text-primary"
+                    )}
+                >
+                    {item.isPinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
+                </button>
+                <button 
+                    onClick={(e) => {
+                        e.stopPropagation()
+                        onDelete(item.id)
+                    }}
+                    className="p-1 text-muted-foreground hover:text-destructive transition-all"
+                >
+                    <Trash2 className="h-3.5 w-3.5" />
+                </button>
+            </div>
+        </div>
+    )
 }
 
 

@@ -35,3 +35,4 @@ pytest-asyncio==0.23.7
 
 # Async support
 aiofiles==23.2.1
+prometheus-client==0.21.0

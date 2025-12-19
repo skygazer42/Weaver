@@ -26,7 +26,16 @@ from tools.memory_client import fetch_memories, add_memory_entry, store_interact
 from tools.asr import get_asr_service, init_asr_service
 from tools.tts import get_tts_service, init_tts_service, AVAILABLE_VOICES
 from common.logger import setup_logging, get_logger, LogContext
+from common.metrics import metrics_registry
 from common.cancellation import cancellation_manager
+try:
+    from prometheus_client import Counter, Gauge, generate_latest, CONTENT_TYPE_LATEST
+except ImportError:  # optional
+    Counter = Gauge = generate_latest = CONTENT_TYPE_LATEST = None
+try:
+    from prometheus_client import Counter, Gauge, generate_latest, CONTENT_TYPE_LATEST
+except ImportError:
+    Counter = Gauge = generate_latest = CONTENT_TYPE_LATEST = None
 
 # Initialize logging
 setup_logging()
@@ -39,6 +48,10 @@ app = FastAPI(
     version="0.1.0"
 )
 
+# Prometheus metrics (optional)
+http_requests_total = Counter("weaver_http_requests_total", "Total HTTP requests", ["method", "path", "status"]) if Counter else None
+http_inprogress = Gauge("weaver_http_inprogress", "In-flight HTTP requests") if Gauge else None
+
 # Request logging middleware
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
@@ -46,8 +59,11 @@ async def log_requests(request: Request, call_next):
     request_id = str(uuid.uuid4())[:8]
     start_time = time.time()
 
+    if http_inprogress:
+        http_inprogress.inc()
+
     logger.info(
-        f"→ Request started | {request.method} {request.url.path} | "
+        f"? Request started | {request.method} {request.url.path} | "
         f"ID: {request_id} | Client: {request.client.host if request.client else 'unknown'}"
     )
 
@@ -56,21 +72,27 @@ async def log_requests(request: Request, call_next):
         duration = time.time() - start_time
 
         logger.info(
-            f"← Request completed | {request.method} {request.url.path} | "
+            f"? Request completed | {request.method} {request.url.path} | "
             f"ID: {request_id} | Status: {response.status_code} | "
             f"Duration: {duration:.3f}s"
         )
+        if http_requests_total:
+            http_requests_total.labels(request.method, request.url.path, response.status_code).inc()
 
         return response
     except Exception as e:
         duration = time.time() - start_time
         logger.error(
-            f"✗ Request failed | {request.method} {request.url.path} | "
+            f"? Request failed | {request.method} {request.url.path} | "
             f"ID: {request_id} | Duration: {duration:.3f}s | Error: {str(e)}",
             exc_info=True
         )
+        if http_requests_total:
+            http_requests_total.labels(request.method, request.url.path, 500).inc()
         raise
-
+    finally:
+        if http_inprogress:
+            http_inprogress.dec()
 
 # Configure CORS
 app.add_middleware(
@@ -131,7 +153,7 @@ mcp_loaded_tools = 0
 async def startup_event():
     """Initialize application on startup."""
     logger.info("=" * 80)
-    logger.info("🚀 Weaver Research Agent Starting...")
+    logger.info("馃殌 Weaver Research Agent Starting...")
     logger.info("=" * 80)
 
     # Log configuration
@@ -149,12 +171,12 @@ async def startup_event():
         if mcp_tools:
             set_registered_tools(mcp_tools)
             mcp_loaded_tools = len(mcp_tools)
-            logger.info(f"✓ Successfully registered {mcp_loaded_tools} MCP tools")
+            logger.info(f"鉁?Successfully registered {mcp_loaded_tools} MCP tools")
         else:
             logger.info("No MCP tools to register")
             mcp_loaded_tools = 0
     except Exception as e:
-        logger.warning(f"⚠ MCP tools initialization failed: {e}", exc_info=settings.debug)
+        logger.warning(f"鈿?MCP tools initialization failed: {e}", exc_info=settings.debug)
         mcp_loaded_tools = 0
 
     # Initialize ASR service
@@ -162,9 +184,9 @@ async def startup_event():
         try:
             logger.info("Initializing ASR service...")
             init_asr_service(settings.dashscope_api_key)
-            logger.info("✓ ASR service initialized")
+            logger.info("鉁?ASR service initialized")
         except Exception as e:
-            logger.warning(f"⚠ ASR service initialization failed: {e}")
+            logger.warning(f"鈿?ASR service initialization failed: {e}")
     else:
         logger.info("ASR service not configured (no DASHSCOPE_API_KEY)")
 
@@ -173,14 +195,14 @@ async def startup_event():
         try:
             logger.info("Initializing TTS service...")
             init_tts_service(settings.dashscope_api_key)
-            logger.info("✓ TTS service initialized")
+            logger.info("鉁?TTS service initialized")
         except Exception as e:
-            logger.warning(f"⚠ TTS service initialization failed: {e}")
+            logger.warning(f"鈿?TTS service initialization failed: {e}")
     else:
         logger.info("TTS service not configured (no DASHSCOPE_API_KEY)")
 
     logger.info("=" * 80)
-    logger.info("✓ Weaver Research Agent Ready")
+    logger.info("鉁?Weaver Research Agent Ready")
     logger.info("=" * 80)
 
 
@@ -188,18 +210,18 @@ async def startup_event():
 async def shutdown_event():
     """Cleanup on application shutdown."""
     logger.info("=" * 80)
-    logger.info("🛑 Weaver Research Agent Shutting Down...")
+    logger.info("馃洃 Weaver Research Agent Shutting Down...")
     logger.info("=" * 80)
 
     try:
         logger.info("Closing MCP tools...")
         await close_mcp_tools()
-        logger.info("✓ MCP tools closed successfully")
+        logger.info("鉁?MCP tools closed successfully")
     except Exception as e:
-        logger.error(f"✗ Error closing MCP tools: {e}", exc_info=True)
+        logger.error(f"鉁?Error closing MCP tools: {e}", exc_info=True)
 
     logger.info("=" * 80)
-    logger.info("✓ Shutdown Complete")
+    logger.info("鉁?Shutdown Complete")
     logger.info("=" * 80)
 
 
@@ -262,12 +284,11 @@ class SupportChatResponse(BaseModel):
 
 
 class CancelRequest(BaseModel):
-    """取消任务请求"""
+    """鍙栨秷浠诲姟璇锋眰"""
     reason: Optional[str] = "User requested cancellation"
 
 
-# 存储活跃的流式任务
-active_streams: Dict[str, asyncio.Task] = {}
+# 瀛樺偍娲昏穬鐨勬祦寮忎换鍔?active_streams: Dict[str, asyncio.Task] = {}
 
 
 def _serialize_interrupts(interrupts: Any) -> List[Any]:
@@ -304,16 +325,15 @@ async def health():
     }
 
 
-# ==================== 取消任务 API ====================
+# ==================== 鍙栨秷浠诲姟 API ====================
 
 @app.post("/api/chat/cancel/{thread_id}")
 async def cancel_chat(thread_id: str, request: CancelRequest = None):
     """
-    取消正在进行的聊天任务
-
+    鍙栨秷姝ｅ湪杩涜鐨勮亰澶╀换鍔?
     Args:
-        thread_id: 任务线程 ID
-        request: 可选的取消原因
+        thread_id: 浠诲姟绾跨▼ ID
+        request: 鍙€夌殑鍙栨秷鍘熷洜
     """
     reason = request.reason if request else "User requested cancellation"
     logger.info(f"Cancel request received for thread: {thread_id}, reason: {reason}")
@@ -345,7 +365,7 @@ async def cancel_chat(thread_id: str, request: CancelRequest = None):
 
 @app.post("/api/chat/cancel-all")
 async def cancel_all_chats():
-    """取消所有正在进行的任务"""
+    """鍙栨秷鎵€鏈夋鍦ㄨ繘琛岀殑浠诲姟"""
     logger.info("Cancel all tasks requested")
 
     # 取消所有令牌
@@ -366,9 +386,8 @@ async def cancel_all_chats():
 
 @app.get("/api/tasks/active")
 async def get_active_tasks():
-    """获取所有活跃任务列表"""
+    """Get all active tasks."""
     active_tasks = cancellation_manager.get_active_tasks()
-    stats = cancellation_manager.get_stats()
 
     return {
         "active_tasks": active_tasks,
@@ -378,7 +397,7 @@ async def get_active_tasks():
     }
 
 
-# ==================== 流式事件格式化 ====================
+# ==================== 娴佸紡浜嬩欢鏍煎紡鍖?====================
 
 
 async def format_stream_event(event_type: str, data: Any) -> str:
@@ -568,17 +587,18 @@ async def stream_agent_events(
         except Exception as e:
             logger.warning(f"Failed to attach thread log handler: {e}")
 
-    # 创建取消令牌
+    # 鍒涘缓鍙栨秷浠ょ墝
     cancel_token = await cancellation_manager.create_token(
         thread_id,
         metadata={"model": model, "input_preview": input_text[:100]}
     )
 
     try:
-        logger.info(f"🎯 Agent stream started | Thread: {thread_id} | Model: {model}")
+        logger.info(f"馃幆 Agent stream started | Thread: {thread_id} | Model: {model}")
         logger.debug(f"  Input: {input_text[:100]}...")
 
         mode_info = _normalize_search_mode(search_mode)
+        metrics = metrics_registry.start(thread_id, model=model, route=mode_info.get("mode", ""))
 
         # Initialize state with cancellation support
         initial_state: AgentState = {
@@ -603,7 +623,7 @@ async def stream_agent_events(
             "tool_call_count": 0,
             "is_complete": False,
             "errors": [],
-            # 取消控制字段
+            # 鍙栨秷鎺у埗瀛楁
             "cancel_token_id": thread_id,
             "is_cancelled": False
         }
@@ -652,7 +672,7 @@ async def stream_agent_events(
             initial_state,
             config=config
         ):
-            # 检查取消状态
+            # Check cancellation status
             if cancel_token.is_cancelled:
                 logger.info(f"Stream cancelled for thread {thread_id}")
                 yield await format_stream_event("cancelled", {
@@ -669,26 +689,27 @@ async def stream_agent_events(
             # Handle different event types
             if event_type in {"on_chain_start", "on_node_start", "on_graph_start"}:
                 event_count += 1
+                metrics.mark_event(event_type, node_name)
                 if "clarify" in node_name:
-                    logger.debug(f"  ❓ Clarify node started | Thread: {thread_id}")
+                    logger.debug(f"  鉂?Clarify node started | Thread: {thread_id}")
                     yield await format_stream_event("status", {
                         "text": "Checking if clarification is needed...",
                         "step": "clarifying"
                     })
                 elif "planner" in node_name:
-                    logger.debug(f"  📋 Planning node started | Thread: {thread_id}")
+                    logger.debug(f"  馃搵 Planning node started | Thread: {thread_id}")
                     yield await format_stream_event("status", {
                         "text": "Creating research plan...",
                         "step": "planning"
                     })
                 elif "perform_parallel_search" in node_name or "search" in node_name:
-                    logger.debug(f"  🔍 Search node started | Thread: {thread_id}")
+                    logger.debug(f"  馃攳 Search node started | Thread: {thread_id}")
                     yield await format_stream_event("status", {
                         "text": "Conducting research...",
                         "step": "researching"
                     })
                 elif "writer" in node_name:
-                    logger.debug(f"  ✍️  Writer node started | Thread: {thread_id}")
+                    logger.debug(f"  鉁嶏笍  Writer node started | Thread: {thread_id}")
                     yield await format_stream_event("status", {
                         "text": "Synthesizing findings...",
                         "step": "writing"
@@ -696,6 +717,7 @@ async def stream_agent_events(
 
             elif event_type in {"on_chain_end", "on_node_end", "on_graph_end"}:
                 output = data_dict.get("output", {}) if isinstance(data_dict, dict) else {}
+                metrics.mark_event(event_type, node_name)
 
                 # Extract messages from output
                 if isinstance(output, dict):
@@ -793,18 +815,21 @@ async def stream_agent_events(
         # Send final completion
         duration = time.time() - start_time
         cancel_token.mark_completed()
+        metrics_registry.finish(thread_id, cancelled=False)
         logger.info(
-            f"✓ Agent stream completed | Thread: {thread_id} | "
+            f"вњ?Agent stream completed | Thread: {thread_id} | "
             f"Events: {event_count} | Duration: {duration:.2f}s"
         )
         yield await format_stream_event("done", {
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
+            "metrics": metrics_registry.get(thread_id).to_dict() if metrics_registry.get(thread_id) else {}
         })
 
     except asyncio.CancelledError:
         duration = time.time() - start_time
+        metrics_registry.finish(thread_id, cancelled=True)
         logger.info(
-            f"⊘ Agent stream cancelled | Thread: {thread_id} | "
+            f"? Agent stream cancelled | Thread: {thread_id} | "
             f"Duration: {duration:.2f}s"
         )
         yield await format_stream_event("cancelled", {
@@ -816,8 +841,9 @@ async def stream_agent_events(
     except Exception as e:
         duration = time.time() - start_time
         cancel_token.mark_failed(str(e))
+        metrics_registry.finish(thread_id, cancelled=False)
         logger.error(
-            f"✗ Agent stream error | Thread: {thread_id} | "
+            f"? Agent stream error | Thread: {thread_id} | "
             f"Duration: {duration:.2f}s | Error: {str(e)}",
             exc_info=True
         )
@@ -826,7 +852,7 @@ async def stream_agent_events(
         })
 
     finally:
-        # 清理活跃流记录
+        # ???????
         if thread_id in active_streams:
             del active_streams[thread_id]
         if thread_handler:
@@ -835,7 +861,6 @@ async def stream_agent_events(
                 thread_handler.close()
             except Exception:
                 pass
-
 
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
@@ -856,7 +881,7 @@ async def chat(request: ChatRequest):
         user_id = request.user_id or settings.memory_user_id
         mode_info = _normalize_search_mode(request.search_mode)
 
-        logger.info(f"📨 Chat request received")
+        logger.info(f"馃摠 Chat request received")
         logger.info(f"  Model: {request.model}")
         logger.info(f"  Mode: {mode_info.get('mode')}")
         logger.info(f"  Stream: {request.stream}")
@@ -865,7 +890,7 @@ async def chat(request: ChatRequest):
 
         if request.stream:
             thread_id = f"thread_{uuid.uuid4().hex}"
-            logger.info(f"🌊 Starting streaming response | Thread: {thread_id}")
+            logger.info(f"馃寠 Starting streaming response | Thread: {thread_id}")
 
             # Return streaming response with thread_id in header for cancellation
             return StreamingResponse(
@@ -882,10 +907,11 @@ async def chat(request: ChatRequest):
                     "Cache-Control": "no-cache",
                     "Connection": "keep-alive",
                     "X-Accel-Buffering": "no",
-                    "X-Thread-ID": thread_id  # 供前端用于取消请求
+                    "X-Thread-ID": thread_id  # ?????????
                 }
             )
         else:
+
             # Non-streaming response (fallback)
             initial_state: AgentState = {
                 "input": last_message,
@@ -940,11 +966,14 @@ async def chat(request: ChatRequest):
                 },
                 "recursion_limit": 50,
             }
+            thread_id = thread_id or f"thread_{uuid.uuid4().hex}"
+            metrics = metrics_registry.start(thread_id, model=request.model, route=mode_info.get("mode", "direct"))
             result = await research_graph.ainvoke(initial_state, config=config)
             final_report = result.get("final_report", "No response generated")
             add_memory_entry(final_report)
             store_interaction(last_message, final_report)
             _store_add(last_message, final_report, user_id=user_id)
+            metrics_registry.finish(thread_id, cancelled=False)
 
             return ChatResponse(
                 id=f"msg_{datetime.now().timestamp()}",
@@ -954,7 +983,7 @@ async def chat(request: ChatRequest):
 
     except Exception as e:
         logger.error(
-            f"✗ Chat error | Thread: {thread_id or 'N/A'} | "
+            f"鉁?Chat error | Thread: {thread_id or 'N/A'} | "
             f"Model: {request.model if 'request' in locals() else 'N/A'} | "
             f"Error: {str(e)}",
             exc_info=True
@@ -1037,10 +1066,36 @@ async def update_mcp_config(payload: MCPConfigPayload):
     }
 
 
-# ==================== ASR 语音识别 API ====================
+
+
+@app.get("/api/runs")
+async def list_runs():
+    """List in-memory run metrics (per thread)."""
+    return {"runs": metrics_registry.all()}
+
+
+@app.get("/api/runs/{thread_id}")
+async def get_run_metrics(thread_id: str):
+    """Get metrics for a specific run/thread."""
+    metrics = metrics_registry.get(thread_id)
+    if not metrics:
+        raise HTTPException(status_code=404, detail="Run not found")
+    return metrics.to_dict()
+
+
+
+@app.get("/metrics")
+async def metrics():
+    """Prometheus metrics endpoint (enable with ENABLE_PROMETHEUS=true)."""
+    if not settings.enable_prometheus or not generate_latest:
+        raise HTTPException(status_code=404, detail="Prometheus not enabled")
+    data = generate_latest()
+    return StreamingResponse(iter([data]), media_type=CONTENT_TYPE_LATEST)
+
+# ==================== ASR 璇煶璇嗗埆 API ====================
 
 class ASRRequest(BaseModel):
-    """ASR 请求 - Base64 编码的音频数据"""
+    """ASR request with base64 audio data."""
     audio_data: str  # Base64 encoded audio
     format: str = "wav"
     sample_rate: int = 16000
@@ -1049,15 +1104,7 @@ class ASRRequest(BaseModel):
 
 @app.post("/api/asr/recognize")
 async def recognize_speech(request: ASRRequest):
-    """
-    语音识别端点 - 接收 Base64 编码的音频数据
-
-    Args:
-        request: ASR 请求，包含 Base64 编码的音频数据
-
-    Returns:
-        识别结果
-    """
+    """ASR endpoint receiving Base64 audio data."""
     try:
         asr_service = get_asr_service()
 
@@ -1067,13 +1114,13 @@ async def recognize_speech(request: ASRRequest):
                 detail="ASR service not available. Please configure DASHSCOPE_API_KEY."
             )
 
-        # 解码 Base64 音频数据
+        # 瑙ｇ爜 Base64 闊抽鏁版嵁
         try:
             audio_bytes = base64.b64decode(request.audio_data)
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Invalid base64 audio data: {str(e)}")
 
-        # 调用 ASR 服务
+        # 璋冪敤 ASR 鏈嶅姟
         result = asr_service.recognize_bytes(
             audio_data=audio_bytes,
             format=request.format,
@@ -1106,16 +1153,7 @@ async def recognize_speech_upload(
     file: UploadFile = File(...),
     sample_rate: int = 16000
 ):
-    """
-    语音识别端点 - 接收上传的音频文件
-
-    Args:
-        file: 上传的音频文件
-        sample_rate: 采样率
-
-    Returns:
-        识别结果
-    """
+    """ASR upload endpoint receiving audio file."""
     try:
         asr_service = get_asr_service()
 
@@ -1125,14 +1163,13 @@ async def recognize_speech_upload(
                 detail="ASR service not available. Please configure DASHSCOPE_API_KEY."
             )
 
-        # 读取文件内容
+        # 璇诲彇鏂囦欢鍐呭
         audio_bytes = await file.read()
 
-        # 根据文件扩展名确定格式
-        filename = file.filename or "audio.wav"
+        # 鏍规嵁鏂囦欢鎵╁睍鍚嶇‘瀹氭牸寮?        filename = file.filename or "audio.wav"
         format_ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "wav"
 
-        # 调用 ASR 服务
+        # 璋冪敤 ASR 鏈嶅姟
         result = asr_service.recognize_bytes(
             audio_data=audio_bytes,
             format=format_ext,
@@ -1162,7 +1199,7 @@ async def recognize_speech_upload(
 
 @app.get("/api/asr/status")
 async def get_asr_status():
-    """获取 ASR 服务状态"""
+    """Get ASR service status."""
     asr_service = get_asr_service()
     return {
         "enabled": asr_service.enabled,
@@ -1170,25 +1207,17 @@ async def get_asr_status():
     }
 
 
-# ==================== TTS 文字转语音 API ====================
+# ==================== TTS 鏂囧瓧杞闊?API ====================
 
 class TTSRequest(BaseModel):
-    """TTS 请求"""
+    """TTS request payload."""
     text: str
-    voice: str = "longxiaochun"  # 默认女声
+    voice: str = "longxiaochun"  # 榛樿濂冲０
 
 
 @app.post("/api/tts/synthesize")
 async def synthesize_speech(request: TTSRequest):
-    """
-    文字转语音端点
-
-    Args:
-        request: TTS 请求，包含要转换的文字和声音选择
-
-    Returns:
-        Base64 编码的音频数据
-    """
+    """Text-to-speech synthesis endpoint."""
     try:
         tts_service = get_tts_service()
 
@@ -1225,7 +1254,7 @@ async def synthesize_speech(request: TTSRequest):
 
 @app.get("/api/tts/voices")
 async def get_tts_voices():
-    """获取可用的声音列表"""
+    """Get available TTS voices."""
     return {
         "voices": AVAILABLE_VOICES,
         "default": "longxiaochun"
@@ -1234,7 +1263,7 @@ async def get_tts_voices():
 
 @app.get("/api/tts/status")
 async def get_tts_status():
-    """获取 TTS 服务状态"""
+    """Get TTS service status."""
     tts_service = get_tts_service()
     return {
         "enabled": tts_service.enabled,

@@ -1,108 +1,151 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { ChatSession, Message } from '@/types/chat'
-import { STORAGE_KEYS } from '@/lib/constants'
+import { StorageService } from '@/lib/storage-service'
 
 export function useChatHistory() {
   const [history, setHistory] = useState<ChatSession[]>([])
   const [isHistoryLoading, setIsHistoryLoading] = useState(true)
 
-  // Load History from LocalStorage
+  // Load History
   useEffect(() => {
-    const savedHistory = localStorage.getItem(STORAGE_KEYS.HISTORY)
-    if (savedHistory) {
+    const loadHistory = () => {
       try {
-        setHistory(JSON.parse(savedHistory))
+        const savedHistory = StorageService.getHistory<ChatSession>()
+        // Migrate legacy data if necessary
+        const migratedHistory = savedHistory.map(session => ({
+          ...session,
+          createdAt: session.createdAt || Date.now(),
+          updatedAt: session.updatedAt || Date.now(),
+          isPinned: session.isPinned || false,
+          tags: session.tags || []
+        }))
+        
+        // Sort: Pinned first, then by updatedAt desc
+        const sorted = migratedHistory.sort((a, b) => {
+          if (a.isPinned && !b.isPinned) return -1
+          if (!a.isPinned && b.isPinned) return 1
+          return b.updatedAt - a.updatedAt
+        })
+
+        setHistory(sorted)
       } catch (e) {
-        console.error('Failed to parse history', e)
-      }
-    } else {
-      // Default data for demo
-      const defaultHistory = [
-        { id: '1', title: 'Market Analysis 2024', date: 'Today' },
-        { id: '2', title: 'Python Viz Script', date: 'Yesterday' }
-      ]
-      setHistory(defaultHistory)
-      
-      // Populate dummy messages for demo if not present
-      if (!localStorage.getItem('session_1')) {
-          localStorage.setItem('session_1', JSON.stringify([
-              { id: 'm1', role: 'user', content: 'Analyze the market trends for AI agents in 2024.' },
-              { id: 'm2', role: 'assistant', content: 'Based on recent reports, the AI agent market is projected to grow significantly...' }
-          ]))
-      }
-      if (!localStorage.getItem('session_2')) {
-          localStorage.setItem('session_2', JSON.stringify([
-              { id: 'm3', role: 'user', content: 'Write a python script to visualize this CSV data.' },
-              { id: 'm4', role: 'assistant', content: 'Here is a matplotlib script to visualize your data:\n```python\nimport pandas as pd\nimport matplotlib.pyplot as plt\n...```' }
-          ]))
+        console.error('Failed to load history', e)
+      } finally {
+        setIsHistoryLoading(false)
       }
     }
-    setIsHistoryLoading(false)
+
+    loadHistory()
   }, [])
 
-  // Save History to LocalStorage with debounce
+  // Persist changes whenever history updates
   useEffect(() => {
     if (!isHistoryLoading) {
-      const timeoutId = setTimeout(() => {
-        localStorage.setItem(STORAGE_KEYS.HISTORY, JSON.stringify(history))
-      }, 1000)
-      return () => clearTimeout(timeoutId)
+      StorageService.saveHistory(history)
     }
   }, [history, isHistoryLoading])
 
-  const saveToHistory = (messages: Message[]) => {
-    if (messages.length > 0) {
-      const firstUserMsg = messages.find(m => m.role === 'user')
-      const title = firstUserMsg ? firstUserMsg.content.slice(0, 30) : 'New Conversation'
-      const id = Date.now().toString()
+  const refreshHistory = useCallback(() => {
+    const saved = StorageService.getHistory<ChatSession>()
+    setHistory(saved)
+  }, [])
+
+  const saveToHistory = (messages: Message[], currentSessionId?: string) => {
+    if (messages.length === 0) return null
+
+    const timestamp = Date.now()
+    let sessionId = currentSessionId
+
+    setHistory(prev => {
+      const existingIndex = sessionId ? prev.findIndex(s => s.id === sessionId) : -1
       
-      const newSession: ChatSession = {
-        id,
-        title: title,
-        date: 'Just now'
+      if (existingIndex !== -1) {
+        // Update existing session
+        const updatedHistory = [...prev]
+        updatedHistory[existingIndex] = {
+          ...updatedHistory[existingIndex],
+          updatedAt: timestamp,
+          // Update title if it's still the default "New Conversation" or generic
+          // (Logic can be refined, here we just update timestamp primarily)
+        }
+        // Re-sort
+        return updatedHistory.sort((a, b) => {
+           if (a.isPinned && !b.isPinned) return -1
+           if (!a.isPinned && b.isPinned) return 1
+           return b.updatedAt - a.updatedAt
+        })
+      } else {
+        // Create new session
+        sessionId = sessionId || timestamp.toString()
+        const firstUserMsg = messages.find(m => m.role === 'user')
+        const title = firstUserMsg ? firstUserMsg.content.slice(0, 40) : 'New Conversation'
+        
+        const newSession: ChatSession = {
+          id: sessionId,
+          title,
+          date: new Date(timestamp).toLocaleDateString(), // Keep legacy for display fallback
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          isPinned: false,
+          tags: []
+        }
+        return [newSession, ...prev]
       }
-      setHistory(prev => [newSession, ...prev])
-      
-      // Save messages for this session
-      localStorage.setItem(`session_${id}`, JSON.stringify(messages))
+    })
+
+    // Save messages content
+    if (sessionId) {
+      StorageService.saveSessionMessages(sessionId, messages)
     }
+    
+    return sessionId
   }
 
   const loadSession = (id: string): Message[] | null => {
-    const data = localStorage.getItem(`session_${id}`)
-    if (data) {
-      try {
-        return JSON.parse(data)
-      } catch (e) {
-        console.error('Failed to parse session messages', e)
-      }
-    }
-    return null
+    return StorageService.getSessionMessages(id)
   }
 
   const deleteSession = (id: string) => {
     setHistory(prev => prev.filter(s => s.id !== id))
-    localStorage.removeItem(`session_${id}`)
+    StorageService.removeSessionMessages(id)
   }
 
   const clearHistory = () => {
-    // Clear all session data
-    history.forEach(session => {
-        localStorage.removeItem(`session_${session.id}`)
-    })
+    StorageService.clearAll()
     setHistory([])
-    localStorage.removeItem(STORAGE_KEYS.HISTORY)
+  }
+
+  const togglePin = (id: string) => {
+    setHistory(prev => {
+      const mapped = prev.map(s => s.id === id ? { ...s, isPinned: !s.isPinned } : s)
+      return mapped.sort((a, b) => {
+          if (a.isPinned && !b.isPinned) return -1
+          if (!a.isPinned && b.isPinned) return 1
+          return b.updatedAt - a.updatedAt
+      })
+    })
+  }
+
+  const renameSession = (id: string, newTitle: string) => {
+    setHistory(prev => prev.map(s => s.id === id ? { ...s, title: newTitle } : s))
+  }
+
+  const updateTags = (id: string, tags: string[]) => {
+    setHistory(prev => prev.map(s => s.id === id ? { ...s, tags } : s))
   }
 
   return {
     history,
-    setHistory,
     isHistoryLoading,
     saveToHistory,
     loadSession,
     deleteSession,
-    clearHistory
+    clearHistory,
+    togglePin,
+    renameSession,
+    updateTags,
+    refreshHistory
   }
 }

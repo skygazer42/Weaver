@@ -93,6 +93,18 @@ export const translations = {
     // Common
     loading: 'Loading...',
     error: 'Error',
+    delete: 'Delete',
+    rename: 'Rename',
+    pin: 'Pin',
+    unpin: 'Unpin',
+    confirm: 'Confirm',
+    searchPlaceholder: 'Search...',
+    all: 'All',
+    chats: 'Chats',
+    files: 'Files',
+    pinned: 'Pinned',
+    saveToLibrary: 'Save to Library',
+    savedToLibrary: 'Saved to Library',
   },
   zh: {
     // Sidebar
@@ -188,6 +200,18 @@ export const translations = {
     // Common
     loading: '加载中...',
     error: '错误',
+    delete: '删除',
+    rename: '重命名',
+    pin: '置顶',
+    unpin: '取消置顶',
+    confirm: '确认',
+    searchPlaceholder: '搜索...',
+    all: '全部',
+    chats: '会话',
+    files: '文件',
+    pinned: '已置顶',
+    saveToLibrary: '存入资料库',
+    savedToLibrary: '已存入资料库',
   },
   ja: {
     // Sidebar

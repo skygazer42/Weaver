@@ -1,5 +1,6 @@
 export const STORAGE_KEYS = {
   HISTORY: 'weaver-history',
+  ARTIFACTS: 'weaver-artifacts',
   MODEL: 'weaver-model',
 }
 

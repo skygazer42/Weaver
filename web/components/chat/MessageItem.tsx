@@ -7,15 +7,16 @@ import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import dynamic from 'next/dynamic'
 import { cn } from '@/lib/utils'
-import { Bot, Check, Copy, Pencil, Volume2, VolumeX, Loader2 } from 'lucide-react'
+import { Bot, Check, Copy, Pencil, Volume2, VolumeX, Loader2, FolderPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DataTableView } from './DataTableView'
 import { ErrorBoundary } from 'react-error-boundary'
 import { toast } from 'sonner'
-import { Message } from '@/types/chat'
+import { Message, Artifact } from '@/types/chat'
 import { ThinkingProcess } from './message/ThinkingProcess'
 import { CodeBlock } from './message/CodeBlock'
 import { CitationBadge } from './message/CitationBadge'
+import { useArtifacts } from '@/hooks/useArtifacts'
 
 // Lazy load MermaidBlock as it's a heavy dependency
 const MermaidBlock = dynamic(() => import('./MermaidBlock').then(mod => mod.MermaidBlock), {
@@ -45,17 +46,32 @@ interface MessageItemProps {
 const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
   const isUser = message.role === 'user'
   const [copied, setCopied] = useState(false)
+  const [saved, setSaved] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editContent, setEditContent] = useState(message.content)
   const [isPlaying, setIsPlaying] = useState(false)
   const [isTTSLoading, setIsTTSLoading] = useState(false)
   const [audioRef, setAudioRef] = useState<HTMLAudioElement | null>(null)
 
+  const { saveArtifact } = useArtifacts()
+
   const handleCopy = () => {
     navigator.clipboard.writeText(message.content)
     setCopied(true)
     toast.success('Message copied')
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const handleSaveToLibrary = () => {
+    saveArtifact({
+        type: 'text',
+        title: message.content.slice(0, 30) + '...',
+        content: message.content,
+        tags: ['Saved Chat']
+    })
+    setSaved(true)
+    toast.success('Saved to Library')
+    setTimeout(() => setSaved(false), 2000)
   }
 
   const handleSpeak = async () => {
@@ -325,6 +341,14 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
                           ) : (
                             <Volume2 className="h-3.5 w-3.5" />
                           )}
+                      </Button>
+                      <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                          onClick={handleSaveToLibrary}
+                      >
+                          {saved ? <Check className="h-3.5 w-3.5 text-green-500" /> : <FolderPlus className="h-3.5 w-3.5" />}
                       </Button>
                     </>
                  )}

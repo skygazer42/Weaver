@@ -30,6 +30,7 @@ export function Chat() {
   const [showSettings, setShowSettings] = useState(false)
   
   const [currentView, setCurrentView] = useState('dashboard') // 'dashboard' | 'discover' | 'library'
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
 
   const [input, setInput] = useState('')
   const [attachments, setAttachments] = useState<File[]>([])
@@ -37,7 +38,16 @@ export function Chat() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const virtuosoRef = useRef<VirtuosoHandle>(null)
 
-  const { history, isHistoryLoading, saveToHistory, loadSession, deleteSession, clearHistory } = useChatHistory()
+  const { 
+    history, 
+    isHistoryLoading, 
+    saveToHistory, 
+    loadSession, 
+    deleteSession, 
+    clearHistory,
+    togglePin,
+    renameSession
+  } = useChatHistory()
   
   const {
     messages,
@@ -69,19 +79,23 @@ export function Chat() {
       localStorage.setItem(STORAGE_KEYS.MODEL, selectedModel)
   }, [selectedModel])
 
-  const scrollToBottom = (behavior: 'auto' | 'smooth' = 'smooth') => {
-      virtuosoRef.current?.scrollToIndex({ index: messages.length - 1, behavior })
-  }
+  // Auto-save messages when they update during streaming or after approval
+  useEffect(() => {
+    if (messages.length > 0 && currentSessionId && !isLoading) {
+      saveToHistory(messages, currentSessionId)
+    }
+  }, [messages, currentSessionId, isLoading, saveToHistory])
 
   // Auto-scroll logic handled by Virtuoso's followOutput, 
   // but we can add specific triggers if needed.
 
   const handleNewChat = () => {
       if (messages.length > 0) {
-        saveToHistory(messages)
+        saveToHistory(messages, currentSessionId || undefined)
       }
       
       setCurrentView('dashboard') // Switch back to chat view
+      setCurrentSessionId(null)
       
       // Reset state
       setMessages([])
@@ -96,13 +110,9 @@ export function Chat() {
 
   const handleDeleteChat = (id: string) => {
       deleteSession(id)
-      // If deleting current chat, reset view
-      // This logic could be more complex (e.g., matching IDs), but for now, 
-      // if we are in dashboard view, we can just clear if needed.
-      // However, we don't track the *current* session ID in state explicitly yet (just messages).
-      // So simple approach: Just delete. If it was the active one, it stays on screen until New Chat or another select.
-      // Better UX: If deleting the one on screen, clear screen.
-      // Since we don't store currentSessionId, we'll implement a simple check later if needed.
+      if (currentSessionId === id) {
+          handleNewChat()
+      }
   }
 
   const handleClearHistory = () => {
@@ -111,16 +121,19 @@ export function Chat() {
   }
 
   const handleChatSelect = (id: string) => {
-    // Save current chat if not empty and not already saved (simple check for now)
-    // For a real app, we'd check if the current session ID matches
+    // Save current chat if not empty
+    if (messages.length > 0) {
+        saveToHistory(messages, currentSessionId || undefined)
+    }
     
     // Load new session
     const loadedMessages = loadSession(id)
     if (loadedMessages) {
       setMessages(loadedMessages)
+      setCurrentSessionId(id)
       setCurrentView('dashboard') // Ensure we are on the chat view
       // Reset other state
-      setArtifacts([]) // Artifacts might need to be saved/loaded too if we want them back
+      setArtifacts([]) 
       setCurrentStatus('')
       setInput('')
       setThreadId(null)
@@ -147,6 +160,15 @@ export function Chat() {
     setInput('')
     setAttachments([])
     
+    // Auto-save logic: if it's the first message, it will trigger saveToHistory later
+    // or we can call it here to get an ID.
+    if (!currentSessionId && newHistory.length === 1) {
+        const id = saveToHistory(newHistory)
+        if (id) setCurrentSessionId(id)
+    } else if (currentSessionId) {
+        saveToHistory(newHistory, currentSessionId)
+    }
+
     await processChat(newHistory, imagePayloads)
   }
 
@@ -229,6 +251,8 @@ export function Chat() {
         onNewChat={handleNewChat}
         onSelectChat={handleChatSelect}
         onDeleteChat={handleDeleteChat}
+        onTogglePin={togglePin}
+        onRenameChat={renameSession}
         onClearHistory={handleClearHistory}
         onOpenSettings={() => setShowSettings(true)}
         activeView={currentView}

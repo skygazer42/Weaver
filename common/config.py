@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     tool_approval: bool = False  # require approval before executing tools
     max_revisions: int = 2
 
+    # Environment
+    app_env: str = "dev"  # dev | test | prod
+    enable_prometheus: bool = False  # expose /metrics in Prometheus format
+
     # Database
     database_url: str
 
