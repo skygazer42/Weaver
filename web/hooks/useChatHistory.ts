@@ -41,20 +41,37 @@ export function useChatHistory() {
     if (messages.length > 0) {
       const firstUserMsg = messages.find(m => m.role === 'user')
       const title = firstUserMsg ? firstUserMsg.content.slice(0, 30) : 'New Conversation'
+      const id = Date.now().toString()
       
       const newSession: ChatSession = {
-        id: Date.now().toString(),
+        id,
         title: title,
         date: 'Just now'
       }
       setHistory(prev => [newSession, ...prev])
+      
+      // Save messages for this session
+      localStorage.setItem(`session_${id}`, JSON.stringify(messages))
     }
+  }
+
+  const loadSession = (id: string): Message[] | null => {
+    const data = localStorage.getItem(`session_${id}`)
+    if (data) {
+      try {
+        return JSON.parse(data)
+      } catch (e) {
+        console.error('Failed to parse session messages', e)
+      }
+    }
+    return null
   }
 
   return {
     history,
     setHistory,
     isHistoryLoading,
-    saveToHistory
+    saveToHistory,
+    loadSession
   }
 }

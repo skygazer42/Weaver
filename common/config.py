@@ -55,6 +55,16 @@ class Settings(BaseSettings):
     memory_store_backend: str = "memory"  # memory | postgres | redis
     memory_store_url: str = ""  # connection string for store backend
 
+    # Message trimming (short-term memory)
+    trim_messages: bool = False
+    trim_messages_keep_first: int = 2
+    trim_messages_keep_last: int = 8
+    summary_messages: bool = False
+    summary_messages_trigger: int = 12   # when messages count exceeds this, summarize middle
+    summary_messages_keep_last: int = 4
+    summary_messages_model: str = "gpt-4o-mini"
+    summary_messages_word_limit: int = 200
+
     # Concurrency Control (并发控制)
     max_concurrency: int = 5          # 最大并发数
     search_batch_size: int = 3        # 搜索批次大小

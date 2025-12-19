@@ -2,10 +2,11 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
-import { Send, StopCircle, Globe, Bot, BrainCircuit, Paperclip, Sparkles, X, Mic, MicOff, Server, ChevronDown, Check, Trash2, File as FileIcon, Image as ImageIcon, Bug, BookOpen, PenTool, TestTube, Plug } from 'lucide-react'
+import { Send, Globe, Bot, BrainCircuit, Paperclip, X, Mic, MicOff, ChevronDown, Check, Trash2, File as FileIcon, Image as ImageIcon, Bug, BookOpen, PenTool, TestTube, Plug } from 'lucide-react'
 import { useI18n } from '@/lib/i18n/i18n-context'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { createFilePreview } from '@/lib/file-utils'
 
 interface ChatInputProps {
   input: string
@@ -17,6 +18,12 @@ interface ChatInputProps {
   onStop: () => void
   searchMode: string
   setSearchMode: (mode: string) => void
+}
+
+interface AttachmentPreview {
+    file: File
+    previewUrl: string
+    revoke: () => void
 }
 
 export function ChatInput({
@@ -38,6 +45,48 @@ export function ChatInput({
   const [isMcpOpen, setIsMcpOpen] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [selectedMcp, setSelectedMcp] = useState('filesystem') // Default MCP
+  const [previews, setPreviews] = useState<AttachmentPreview[]>([])
+
+  // Manage Previews
+  useEffect(() => {
+      // Sync previews with attachments
+      // This is a bit tricky if we want to avoid recreating URLs for existing files.
+      // A simple approach: Clear all old previews and create new ones is robust but inefficient.
+      // Better: Create previews only for new files.
+      
+      // Cleanup function for removed files is handled by the revoke() call
+      
+      const newPreviews: AttachmentPreview[] = []
+      
+      attachments.forEach(file => {
+          const existing = previews.find(p => p.file === file)
+          if (existing) {
+              newPreviews.push(existing)
+          } else {
+              const { url, revoke } = createFilePreview(file)
+              newPreviews.push({ file, previewUrl: url, revoke })
+          }
+      })
+
+      // Clean up removed previews
+      previews.forEach(p => {
+          if (!attachments.includes(p.file)) {
+              p.revoke()
+          }
+      })
+
+      setPreviews(newPreviews)
+      
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attachments])
+
+  // Cleanup on unmount
+  useEffect(() => {
+      return () => {
+          previews.forEach(p => p.revoke())
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -99,10 +148,8 @@ export function ChatInput({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
 
-  // 使用后端 DashScope ASR 进行语音识别
   const startListening = async () => {
     try {
-      // 请求麦克风权限
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           sampleRate: 16000,
@@ -112,7 +159,6 @@ export function ChatInput({
         }
       })
 
-      // 创建 MediaRecorder
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
       })
@@ -127,7 +173,6 @@ export function ChatInput({
       }
 
       mediaRecorder.onstop = async () => {
-        // 停止所有音轨
         stream.getTracks().forEach(track => track.stop())
 
         if (audioChunksRef.current.length === 0) {
@@ -139,15 +184,11 @@ export function ChatInput({
         setIsProcessingAudio(true)
 
         try {
-          // 合并音频数据
           const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
-
-          // 转换为 Base64
           const reader = new FileReader()
           reader.onloadend = async () => {
             const base64Audio = (reader.result as string).split(',')[1]
 
-            // 调用后端 ASR API
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/asr/recognize`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -163,42 +204,40 @@ export function ChatInput({
 
             if (result.success && result.text) {
               setInput(prev => prev + (prev ? ' ' : '') + result.text)
-              toast.success('语音识别成功')
+              toast.success('Speech recognized')
             } else if (result.error) {
-              // 如果后端 ASR 不可用，回退到 Web Speech API
               if (response.status === 503) {
-                toast.info('后端 ASR 不可用，使用浏览器语音识别')
+                toast.info('Using browser fallback')
                 fallbackToWebSpeech()
               } else {
-                toast.error(`语音识别失败: ${result.error}`)
+                toast.error(`ASR Error: ${result.error}`)
               }
             }
           }
           reader.readAsDataURL(audioBlob)
         } catch (error) {
           console.error('ASR error:', error)
-          toast.error('语音识别失败，请重试')
+          toast.error('Recognition failed')
         } finally {
           setIsProcessingAudio(false)
           setIsListening(false)
         }
       }
 
-      mediaRecorder.start(100) // 每 100ms 收集一次数据
+      mediaRecorder.start(100)
       setIsListening(true)
-      toast.info('正在录音...点击停止按钮结束录音')
+      toast.info('Listening... Click to stop')
 
     } catch (error) {
       console.error('Microphone error:', error)
-      toast.error('无法访问麦克风，请检查权限设置')
+      toast.error('Microphone access denied')
       setIsListening(false)
     }
   }
 
-  // 回退到 Web Speech API
   const fallbackToWebSpeech = () => {
     if (typeof window !== 'undefined' && !('webkitSpeechRecognition' in window)) {
-      toast.error('浏览器不支持语音识别')
+      toast.error('Web Speech API not supported')
       return
     }
 
@@ -207,7 +246,7 @@ export function ChatInput({
     const recognition = new SpeechRecognition()
     recognition.continuous = false
     recognition.interimResults = true
-    recognition.lang = 'zh-CN'
+    recognition.lang = 'en-US' // Consider dynamic lang
 
     recognition.onstart = () => setIsListening(true)
     recognition.onend = () => setIsListening(false)
@@ -427,17 +466,21 @@ export function ChatInput({
 
           <div className="flex flex-col w-full">
               {/* Attachments Preview */}
-              {attachments.length > 0 && (
+              {previews.length > 0 && (
                   <div className="flex gap-2 px-14 pt-4 overflow-x-auto py-2 scrollbar-none">
-                      {attachments.map((file, i) => (
+                      {previews.map((item, i) => (
                           <div key={i} className="relative group/attachment flex-shrink-0">
-                              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/50 border text-xs font-medium max-w-[200px]">
-                                  {file.type.startsWith('image/') ? (
-                                      <ImageIcon className="h-3.5 w-3.5 text-blue-500" />
+                              <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-muted/50 border text-xs font-medium max-w-[200px] overflow-hidden">
+                                  {item.file.type.startsWith('image/') ? (
+                                      <div className="h-8 w-8 rounded overflow-hidden flex-shrink-0 bg-background">
+                                         <img src={item.previewUrl} alt="preview" className="h-full w-full object-cover" />
+                                      </div>
                                   ) : (
-                                      <FileIcon className="h-3.5 w-3.5 text-orange-500" />
+                                      <div className="h-8 w-8 rounded bg-background flex items-center justify-center flex-shrink-0">
+                                          <FileIcon className="h-4 w-4 text-orange-500" />
+                                      </div>
                                   )}
-                                  <span className="truncate">{file.name}</span>
+                                  <span className="truncate flex-1">{item.file.name}</span>
                               </div>
                               <button 
                                   onClick={() => removeAttachment(i)}

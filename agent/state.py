@@ -1,7 +1,43 @@
 from typing import TypedDict, List, Annotated, Dict, Any, Optional
-from langchain_core.messages import BaseMessage
+from langchain_core.messages import BaseMessage, SystemMessage
 from langgraph.graph.message import add_messages
 import operator
+from common.config import settings
+from .message_utils import summarize_messages
+
+
+def capped_add_messages(
+    existing: List[BaseMessage] | None, new: List[BaseMessage] | None
+) -> List[BaseMessage]:
+    """
+    Aggregate messages and trim to keep context bounded.
+
+    Keeps the first N (usually system/setup) and last M recent messages.
+    Controlled via settings:
+    - trim_messages (bool): enable/disable
+    - trim_messages_keep_first (int)
+    - trim_messages_keep_last (int)
+    """
+    merged = add_messages(existing, new)
+    if not settings.trim_messages:
+        return merged
+
+    keep_first = max(int(getattr(settings, "trim_messages_keep_first", 1)), 0)
+    keep_last = max(int(getattr(settings, "trim_messages_keep_last", 8)), 0)
+    if keep_first + keep_last == 0 or len(merged) <= keep_first + keep_last:
+        return merged
+
+    head = merged[:keep_first] if keep_first else []
+    tail = merged[-keep_last:] if keep_last else []
+    trimmed = head + tail
+
+    # Optional summarization of middle history
+    if settings.summary_messages and len(merged) > settings.summary_messages_trigger:
+        middle = merged[keep_first : len(merged) - keep_last]
+        summary_msg = summarize_messages(middle)
+        trimmed = head + [summary_msg] + tail
+
+    return trimmed
 
 
 class AgentState(TypedDict):
@@ -22,8 +58,8 @@ class AgentState(TypedDict):
     # User identifier for memory/namespace
     user_id: str
 
-    # Message history for LLM context
-    messages: Annotated[List[BaseMessage], add_messages]
+    # Message history for LLM context (auto-trimmed via capped_add_messages)
+    messages: Annotated[List[BaseMessage], capped_add_messages]
 
     # Structured research plan (list of search queries/steps)
     research_plan: List[str]

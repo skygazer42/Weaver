@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useMemo } from 'react'
+import React, { useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useI18n } from '@/lib/i18n/i18n-context'
@@ -11,12 +11,17 @@ interface SidebarProps {
   isOpen: boolean
   onToggle: () => void
   onNewChat: () => void
+  onSelectChat: (id: string) => void
+  activeView: string
+  onViewChange: (view: string) => void
   history: ChatSession[]
   isLoading?: boolean
 }
 
-export function Sidebar({ isOpen, onToggle, onNewChat, history, isLoading = false }: SidebarProps) {
+export function Sidebar({ isOpen, onToggle, onNewChat, onSelectChat, activeView, onViewChange, history, isLoading = false }: SidebarProps) {
   const { t } = useI18n()
+  
+  // No internal state for view
 
   const groupedHistory = useMemo(() => {
     const groups: Record<string, typeof history> = {}
@@ -87,9 +92,9 @@ export function Sidebar({ isOpen, onToggle, onNewChat, history, isLoading = fals
                <div className="px-3 text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-widest mb-1">
                  {t('workspace')}
                </div>
-               <SidebarItem icon={LayoutGrid} label={t('dashboard')} active />
-               <SidebarItem icon={Compass} label={t('discover')} />
-               <SidebarItem icon={FolderOpen} label={t('library')} />
+               <SidebarItem icon={LayoutGrid} label={t('dashboard')} active={activeView === 'dashboard'} onClick={() => onViewChange('dashboard')} />
+               <SidebarItem icon={Compass} label={t('discover')} active={activeView === 'discover'} onClick={() => onViewChange('discover')} />
+               <SidebarItem icon={FolderOpen} label={t('library')} active={activeView === 'library'} onClick={() => onViewChange('library')} />
             </div>
 
             {/* History Section */}
@@ -115,6 +120,7 @@ export function Sidebar({ isOpen, onToggle, onNewChat, history, isLoading = fals
                                   {items.map((item) => (
                                     <button 
                                         key={item.id}
+                                        onClick={() => onSelectChat(item.id)}
                                         className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm transition-all duration-200 text-muted-foreground hover:bg-muted/60 hover:text-foreground group text-left"
                                     >
                                         <MessageSquare className="h-4 w-4 shrink-0 transition-colors group-hover:text-primary" />
@@ -133,6 +139,7 @@ export function Sidebar({ isOpen, onToggle, onNewChat, history, isLoading = fals
                                 {groupedHistory[dateLabel].map((item) => (
                                   <button 
                                       key={item.id}
+                                      onClick={() => onSelectChat(item.id)}
                                       className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm transition-all duration-200 text-muted-foreground hover:bg-muted/60 hover:text-foreground group text-left"
                                   >
                                       <MessageSquare className="h-4 w-4 shrink-0 transition-colors group-hover:text-primary" />
@@ -150,9 +157,11 @@ export function Sidebar({ isOpen, onToggle, onNewChat, history, isLoading = fals
   )
 }
 
-function SidebarItem({ icon: Icon, label, active }: { icon: any, label: string, active?: boolean }) {
+function SidebarItem({ icon: Icon, label, active, onClick }: { icon: any, label: string, active?: boolean, onClick?: () => void }) {
     return (
-        <button className={cn(
+        <button 
+            onClick={onClick}
+            className={cn(
             "flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm transition-all duration-200 group",
             active 
               ? "bg-primary/10 text-primary font-medium" 

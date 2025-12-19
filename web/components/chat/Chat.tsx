@@ -16,6 +16,8 @@ import { STORAGE_KEYS, DEFAULT_MODEL, SEARCH_MODES } from '@/lib/constants'
 import { useChatHistory } from '@/hooks/useChatHistory'
 import { useChatStream } from '@/hooks/useChatStream'
 import { filesToImageAttachments } from '@/lib/file-utils'
+import { Discover } from '@/components/views/Discover'
+import { Library } from '@/components/views/Library'
 
 export function Chat() {
   // UI State
@@ -25,13 +27,15 @@ export function Chat() {
   const [showScrollButton, setShowScrollButton] = useState(false)
   const [showMobileArtifacts, setShowMobileArtifacts] = useState(false)
   
+  const [currentView, setCurrentView] = useState('dashboard') // 'dashboard' | 'discover' | 'library'
+
   const [input, setInput] = useState('')
   const [attachments, setAttachments] = useState<File[]>([])
   
   const scrollRef = useRef<HTMLDivElement>(null)
   const virtuosoRef = useRef<VirtuosoHandle>(null)
 
-  const { history, isHistoryLoading, saveToHistory } = useChatHistory()
+  const { history, isHistoryLoading, saveToHistory, loadSession } = useChatHistory()
   
   const {
     messages,
@@ -71,7 +75,11 @@ export function Chat() {
   // but we can add specific triggers if needed.
 
   const handleNewChat = () => {
-      saveToHistory(messages)
+      if (messages.length > 0) {
+        saveToHistory(messages)
+      }
+      
+      setCurrentView('dashboard') // Switch back to chat view
       
       // Reset state
       setMessages([])
@@ -81,6 +89,25 @@ export function Chat() {
       setThreadId(null)
       setPendingInterrupt(null)
       handleStop() // Abort any ongoing request
+  }
+
+  const handleChatSelect = (id: string) => {
+    // Save current chat if not empty and not already saved (simple check for now)
+    // For a real app, we'd check if the current session ID matches
+    
+    // Load new session
+    const loadedMessages = loadSession(id)
+    if (loadedMessages) {
+      setMessages(loadedMessages)
+      setCurrentView('dashboard') // Ensure we are on the chat view
+      // Reset other state
+      setArtifacts([]) // Artifacts might need to be saved/loaded too if we want them back
+      setCurrentStatus('')
+      setInput('')
+      setThreadId(null)
+      setPendingInterrupt(null)
+      handleStop()
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -121,31 +148,14 @@ export function Chat() {
           await processChat(newHistory, updatedMessage.attachments)
       }
   }
-
-  return (
-    <div className="flex h-screen w-full overflow-hidden bg-background text-foreground font-sans selection:bg-primary/20">
-      {/* Sidebar */}
-      <Sidebar 
-        isOpen={sidebarOpen} 
-        onToggle={() => setSidebarOpen(!sidebarOpen)}
-        onNewChat={handleNewChat}
-        history={history}
-        isLoading={isHistoryLoading}
-      />
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0 relative">
-        {/* Header */}
-        <Header 
-          sidebarOpen={sidebarOpen}
-          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-          selectedModel={selectedModel}
-          onModelChange={setSelectedModel}
-          onToggleArtifacts={() => setShowMobileArtifacts(!showMobileArtifacts)}
-          hasArtifacts={artifacts.length > 0}
-        />
-
-        {/* Chat Area */}
+  
+  // Render Content based on View
+  const renderContent = () => {
+      if (currentView === 'discover') return <Discover />
+      if (currentView === 'library') return <Library />
+      
+      // Default: Dashboard/Chat
+      return (
         <div className="flex-1 flex flex-col min-h-0">
           {messages.length === 0 ? (
             <div className="h-full w-full p-4 overflow-y-auto">
@@ -182,43 +192,83 @@ export function Chat() {
             />
           )}
         </div>
+      )
+  }
 
-        {/* Scroll To Bottom Button */}
-        <div className={cn("absolute bottom-24 right-6 z-30 transition-all duration-500", showScrollButton ? "translate-y-0 opacity-100" : "translate-y-10 opacity-0 pointer-events-none")}>
-             <Button variant="outline" size="icon" className="rounded-full shadow-lg bg-background/80 backdrop-blur border-primary/20 hover:bg-background" onClick={() => scrollToBottom()}>
-                 <ArrowDown className="h-4 w-4" />
-             </Button>
-        </div>
+  return (
+    <div className="flex h-screen w-full overflow-hidden bg-background text-foreground font-sans selection:bg-primary/20">
+      {/* Sidebar */}
+      <Sidebar 
+        isOpen={sidebarOpen} 
+        onToggle={() => setSidebarOpen(!sidebarOpen)}
+        onNewChat={handleNewChat}
+        onSelectChat={handleChatSelect}
+        activeView={currentView}
+        onViewChange={setCurrentView}
+        history={history}
+        isLoading={isHistoryLoading}
+      />
 
-        {pendingInterrupt && (
-          <div className="mx-4 mb-3 p-3 border rounded-xl bg-amber-50 text-amber-900 shadow-sm flex flex-col gap-2">
-            <div className="text-sm font-semibold">Tool approval required</div>
-            <div className="text-xs text-amber-800">
-              {pendingInterrupt.message || pendingInterrupt?.prompts?.[0]?.message || 'Approve tool execution to continue.'}
-            </div>
-            <div className="flex gap-2">
-              <Button size="sm" onClick={handleApproveInterrupt} disabled={isLoading}>
-                Approve & Continue
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setPendingInterrupt(null)} disabled={isLoading}>
-                Dismiss
-              </Button>
-            </div>
-          </div>
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col min-w-0 relative">
+        {/* Header */}
+        <Header 
+          sidebarOpen={sidebarOpen}
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+          selectedModel={selectedModel}
+          onModelChange={setSelectedModel}
+          onToggleArtifacts={() => setShowMobileArtifacts(!showMobileArtifacts)}
+          hasArtifacts={artifacts.length > 0}
+        />
+
+        {/* Dynamic Content Area */}
+        {renderContent()}
+
+        {/* Chat-specific overlays (Scroll button, Interrupts) - only show in dashboard view */}
+        {currentView === 'dashboard' && (
+           <>
+                {/* Scroll To Bottom Button */}
+                <div className={cn("absolute bottom-24 right-6 z-30 transition-all duration-500", showScrollButton ? "translate-y-0 opacity-100" : "translate-y-10 opacity-0 pointer-events-none")}>
+                    <Button variant="outline" size="icon" className="rounded-full shadow-lg bg-background/80 backdrop-blur border-primary/20 hover:bg-background" onClick={() => scrollToBottom()}>
+                        <ArrowDown className="h-4 w-4" />
+                    </Button>
+                </div>
+
+                {pendingInterrupt && (
+                <div className="mx-4 mb-3 p-3 border rounded-xl bg-amber-50 text-amber-900 shadow-sm flex flex-col gap-2">
+                    <div className="text-sm font-semibold">Tool approval required</div>
+                    <div className="text-xs text-amber-800">
+                    {pendingInterrupt.message || pendingInterrupt?.prompts?.[0]?.message || 'Approve tool execution to continue.'}
+                    </div>
+                    <div className="flex gap-2">
+                    <Button size="sm" onClick={handleApproveInterrupt} disabled={isLoading}>
+                        Approve & Continue
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setPendingInterrupt(null)} disabled={isLoading}>
+                        Dismiss
+                    </Button>
+                    </div>
+                </div>
+                )}
+           </>
         )}
 
-        {/* Input Area */}
-        <ChatInput 
-          input={input}
-          setInput={setInput}
-          attachments={attachments}
-          setAttachments={setAttachments}
-          onSubmit={handleSubmit}
-          isLoading={isLoading}
-          onStop={handleStop}
-          searchMode={searchMode}
-          setSearchMode={setSearchMode}
-        />
+        {/* Input Area - Always visible or only in dashboard? Usually always visible in chat apps, but maybe hidden in Library? 
+            For now, let's keep it visible only in Dashboard/Chat view to avoid confusion.
+        */}
+        {currentView === 'dashboard' && (
+            <ChatInput 
+            input={input}
+            setInput={setInput}
+            attachments={attachments}
+            setAttachments={setAttachments}
+            onSubmit={handleSubmit}
+            isLoading={isLoading}
+            onStop={handleStop}
+            searchMode={searchMode}
+            setSearchMode={setSearchMode}
+            />
+        )}
       </div>
 
       {/* Desktop Artifacts Panel */}
