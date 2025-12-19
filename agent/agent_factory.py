@@ -5,7 +5,7 @@ Factory to create LangChain agents with official middleware (selector, retry, li
 import logging
 from typing import List
 
-from langchain.agents import create_tool_calling_agent
+from langchain.agents import create_agent
 from langchain.agents.middleware import (
     LLMToolSelectorMiddleware,
     ToolRetryMiddleware,
@@ -15,6 +15,7 @@ from langchain.agents.middleware import (
     ClearToolUsesEdit,
     TodoListMiddleware,
 )
+
 from langchain_core.tools import BaseTool
 from langchain_openai import ChatOpenAI
 
@@ -136,7 +137,7 @@ def build_writer_agent() -> tuple[object, List[BaseTool]]:
     tools: List[BaseTool] = [execute_python_code]
     tools.extend(get_registered_tools())
 
-    agent = create_tool_calling_agent(
+    agent = create_agent(
         _build_llm(settings.primary_model, temperature=0.7),
         tools,
         middleware=_build_middlewares(),

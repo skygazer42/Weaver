@@ -47,13 +47,7 @@ async def init_mcp_tools(
 
     _CONFIG = servers
     _CLIENT = MultiServerMCPClient(servers)
-    try:
-        _TOOLS = await _CLIENT.get_tools()
-    except Exception as e:
-        logger.error(f"Failed to load MCP tools: {e}")
-        _TOOLS = []
-        return []
-
+    _TOOLS = await _CLIENT.get_tools()
     logger.info(f"Loaded {len(_TOOLS)} MCP tools from {len(servers)} servers")
     try:
         names = [t.name for t in _TOOLS if hasattr(t, "name")]

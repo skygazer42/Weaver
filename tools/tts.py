@@ -11,7 +11,6 @@ import base64
 
 logger = logging.getLogger(__name__)
 
-# 尝试导入 dashscope
 try:
     from dashscope.audio.tts_v2 import SpeechSynthesizer
     DASHSCOPE_TTS_AVAILABLE = True

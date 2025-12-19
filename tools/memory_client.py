@@ -57,7 +57,7 @@ def add_memory_entry(content: str, user_id: Optional[str] = None) -> bool:
     client = _get_mem_client()
     if client:
         try:
-            client.add(content, user_id=user, namespace=settings.memory_namespace)
+            client.add(content, user_id=user)
             return True
         except Exception as e:
             logger.warning(f"mem0 add failed: {e}")
@@ -91,8 +91,7 @@ def fetch_memories(query: str = "*", user_id: Optional[str] = None, limit: Optio
             results = client.search(
                 query=query or "*",
                 user_id=user,
-                namespace=settings.memory_namespace,
-                top_k=k
+                limit=k
             )
             # mem0 returns list of dicts with "content" key
             if isinstance(results, list):

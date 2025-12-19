@@ -1,5 +1,5 @@
 from tavily import TavilyClient
-from langchain_core.tools import tool
+from langchain.tools import tool
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from typing import List, Dict, Any, Optional

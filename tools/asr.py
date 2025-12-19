@@ -9,17 +9,8 @@ import tempfile
 import logging
 from typing import Optional, Dict, Any
 from http import HTTPStatus
-
+from dashscope.audio.asr import Recognition
 logger = logging.getLogger(__name__)
-
-# 尝试导入 dashscope，如果没有安装则跳过
-try:
-    from dashscope.audio.asr import Recognition
-    DASHSCOPE_AVAILABLE = True
-except ImportError:
-    DASHSCOPE_AVAILABLE = False
-    logger.warning("dashscope package not installed. ASR features will be disabled.")
-
 
 class ASRService:
     """语音识别服务"""
@@ -33,16 +24,12 @@ class ASRService:
         """
         self.api_key = api_key or os.getenv("DASHSCOPE_API_KEY", "")
 
-        if self.api_key and DASHSCOPE_AVAILABLE:
+        if self.api_key :
             import dashscope
             dashscope.api_key = self.api_key
             self.enabled = True
         else:
             self.enabled = False
-            if not DASHSCOPE_AVAILABLE:
-                logger.warning("DashScope package not available")
-            elif not self.api_key:
-                logger.warning("DashScope API key not configured")
 
     def recognize_file(
         self,
@@ -70,12 +57,7 @@ class ASRService:
                 "text": ""
             }
 
-        if not DASHSCOPE_AVAILABLE:
-            return {
-                "success": False,
-                "error": "dashscope package not installed",
-                "text": ""
-            }
+
 
         try:
             language_hints = language_hints or ['zh', 'en']
@@ -84,8 +66,7 @@ class ASRService:
                 model='fun-asr-realtime-2025-11-07',
                 format=format,
                 sample_rate=sample_rate,
-                language_hints=language_hints,
-                callback=None
+                language_hints=language_hints
             )
 
             result = recognition.call(file_path)

@@ -1,5 +1,5 @@
 from typing import List
-from langchain_core.tools import BaseTool
+from langchain.tools import BaseTool
 
 _REGISTERED_TOOLS: List[BaseTool] = []
 
