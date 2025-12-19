@@ -32,10 +32,6 @@ try:
     from prometheus_client import Counter, Gauge, generate_latest, CONTENT_TYPE_LATEST
 except ImportError:  # optional
     Counter = Gauge = generate_latest = CONTENT_TYPE_LATEST = None
-try:
-    from prometheus_client import Counter, Gauge, generate_latest, CONTENT_TYPE_LATEST
-except ImportError:
-    Counter = Gauge = generate_latest = CONTENT_TYPE_LATEST = None
 
 # Initialize logging
 setup_logging()
@@ -62,17 +58,17 @@ async def log_requests(request: Request, call_next):
     if http_inprogress:
         http_inprogress.inc()
 
-    logger.info(
-        f"? Request started | {request.method} {request.url.path} | "
-        f"ID: {request_id} | Client: {request.client.host if request.client else 'unknown'}"
-    )
+        logger.info(
+            f"→ Request started | {request.method} {request.url.path} | "
+            f"ID: {request_id} | Client: {request.client.host if request.client else 'unknown'}"
+        )
 
     try:
         response = await call_next(request)
         duration = time.time() - start_time
 
         logger.info(
-            f"? Request completed | {request.method} {request.url.path} | "
+            f"← Request completed | {request.method} {request.url.path} | "
             f"ID: {request_id} | Status: {response.status_code} | "
             f"Duration: {duration:.3f}s"
         )
@@ -1091,6 +1087,20 @@ async def metrics():
         raise HTTPException(status_code=404, detail="Prometheus not enabled")
     data = generate_latest()
     return StreamingResponse(iter([data]), media_type=CONTENT_TYPE_LATEST)
+
+
+
+@app.get("/api/memory/status")
+async def memory_status():
+    """Return memory backend status and configuration."""
+    backend = settings.memory_store_backend
+    url = settings.memory_store_url
+    return {
+        "backend": backend,
+        "url_configured": bool(url),
+        "checkpointer": bool(checkpointer),
+        "mem0_enabled": settings.enable_memory,
+    }
 
 # ==================== ASR 璇煶璇嗗埆 API ====================
 
