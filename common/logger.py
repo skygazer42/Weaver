@@ -96,7 +96,7 @@ def setup_logging():
         root_logger.addHandler(file_handler)
 
     # Set levels for third-party loggers to reduce noise
-    logging.getLogger("uvicorn").setLevel(logging.WARNING)
+    logging.getLogger("uvicorn").setLevel(logging.INFO)
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)

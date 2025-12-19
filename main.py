@@ -28,7 +28,13 @@ from tools.tts import get_tts_service, init_tts_service, AVAILABLE_VOICES
 from common.logger import setup_logging, get_logger, LogContext
 from common.metrics import metrics_registry
 from common.cancellation import cancellation_manager
-from prometheus_client import Counter, Gauge, generate_latest, CONTENT_TYPE_LATEST
+from prometheus_client import (
+    Counter,
+    Gauge,
+    generate_latest,
+    CONTENT_TYPE_LATEST,
+    REGISTRY,
+)
 
 
 # Initialize logging
@@ -42,9 +48,31 @@ app = FastAPI(
     version="0.1.0"
 )
 
-# Prometheus metrics (optional)
-http_requests_total = Counter("weaver_http_requests_total", "Total HTTP requests", ["method", "path", "status"]) if Counter else None
-http_inprogress = Gauge("weaver_http_inprogress", "In-flight HTTP requests") if Gauge else None
+# Prometheus metrics (optional, made idempotent to survive double imports under reload)
+def _get_or_create_counter(name: str, *args, **kwargs):
+    existing = REGISTRY._names_to_collectors.get(name)  # type: ignore[attr-defined]
+    if existing:
+        return existing
+    return Counter(name, *args, **kwargs)
+
+
+def _get_or_create_gauge(name: str, *args, **kwargs):
+    existing = REGISTRY._names_to_collectors.get(name)  # type: ignore[attr-defined]
+    if existing:
+        return existing
+    return Gauge(name, *args, **kwargs)
+
+
+http_requests_total = (
+    _get_or_create_counter("weaver_http_requests_total", "Total HTTP requests", ["method", "path", "status"])
+    if settings.enable_prometheus
+    else None
+)
+http_inprogress = (
+    _get_or_create_gauge("weaver_http_inprogress", "In-flight HTTP requests")
+    if settings.enable_prometheus
+    else None
+)
 
 # Request logging middleware
 @app.middleware("http")
@@ -1296,5 +1324,6 @@ if __name__ == "__main__":
         "main:app",
         host="0.0.0.0",
         port=8000,
-        reload=settings.debug
+        reload=settings.debug,
+        log_level="info"
     )
