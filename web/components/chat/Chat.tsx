@@ -12,7 +12,7 @@ import { Loader2, ArrowDown, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { Message } from '@/types/chat'
-import { STORAGE_KEYS, DEFAULT_MODEL, SEARCH_MODES } from '@/lib/constants'
+import { STORAGE_KEYS, DEFAULT_MODEL } from '@/lib/constants'
 import { useChatHistory } from '@/hooks/useChatHistory'
 import { useChatStream } from '@/hooks/useChatStream'
 import { filesToImageAttachments } from '@/lib/file-utils'
@@ -24,7 +24,7 @@ export function Chat() {
   // UI State
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL)
-  const [searchMode, setSearchMode] = useState(SEARCH_MODES.THINK)
+  const [searchMode, setSearchMode] = useState('') // empty = direct LLM only
   const [showScrollButton, setShowScrollButton] = useState(false)
   const [showMobileArtifacts, setShowMobileArtifacts] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
@@ -90,6 +90,7 @@ export function Chat() {
       setInput('')
       setThreadId(null)
       setPendingInterrupt(null)
+      setSearchMode('') // default to direct LLM
       handleStop() // Abort any ongoing request
   }
 

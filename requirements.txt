@@ -1,7 +1,7 @@
 # Web Framework
 fastapi==0.109.0
-uvicorn[standard]==0.27.0
-python-multipart==0.0.6
+uvicorn[standard]==0.31.1
+python-multipart==0.0.9
 
 # LangChain & LangGraph (1.x)
 langgraph==1.0.1
@@ -29,7 +29,7 @@ dashscope>=1.20.0  # 阿里云 DashScope SDK (语音识别 ASR)
 python-dotenv==1.0.0
 pydantic>=2.7.4
 pydantic-settings>=2.2.0
-httpx==0.26.0
+httpx==0.27.2
 pytest==8.3.2
 pytest-asyncio==0.23.7
 

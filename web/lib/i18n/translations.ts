@@ -36,8 +36,8 @@ export const translations = {
     // Search modes
     agent: 'Agent',
     deepsearch: 'Deep Search',
-    think: 'Think',
-    ultra: 'Ultra Research',
+    direct: 'Direct',
+    ultra: 'Deep Research',
     mcp: 'MCP',
     web: 'Web',
 
@@ -131,8 +131,8 @@ export const translations = {
     // Search modes
     agent: '智能体',
     deepsearch: '深度搜索',
-    think: '思考',
-    ultra: '超深度研究',
+    direct: '直答',
+    ultra: '深度研究',
     mcp: 'MCP',
     web: '网络',
 
@@ -226,8 +226,8 @@ export const translations = {
     // Search modes
     agent: 'エージェント',
     deepsearch: 'ディープサーチ',
-    think: '思考',
-    ultra: 'ウルトラリサーチ',
+    direct: 'ダイレクト',
+    ultra: 'ディープリサーチ',
     mcp: 'MCP',
     web: 'ウェブ',
 
@@ -321,8 +321,8 @@ export const translations = {
     // Search modes
     agent: '에이전트',
     deepsearch: '딥 서치',
-    think: '생각',
-    ultra: '울트라 리서치',
+    direct: '직답',
+    ultra: '딥 리서치',
     mcp: 'MCP',
     web: '웹',
 

@@ -34,7 +34,7 @@ export function EmptyState({ selectedMode, onModeSelect, onStarterClick }: Empty
     {
       icon: Sparkles,
       text: t('starterPlan'),
-      mode: "think"
+      mode: "direct"
     }
   ]
 

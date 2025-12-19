@@ -2,7 +2,7 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
-import { Send, Globe, Bot, Paperclip, X, Mic, MicOff, ChevronDown, Check, Trash2, File as FileIcon, Image as ImageIcon, Bug, BookOpen, PenTool, TestTube, Plug, Lightbulb, Rocket } from 'lucide-react'
+import { Send, Globe, Bot, Paperclip, X, Mic, MicOff, ChevronDown, Check, Trash2, File as FileIcon, Image as ImageIcon, Bug, BookOpen, PenTool, TestTube, Plug, Rocket, MessageSquare } from 'lucide-react'
 import { useI18n } from '@/lib/i18n/i18n-context'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -277,7 +277,8 @@ export function ChatInput({
   }
 
   const handleCommandSelect = (cmd: string) => {
-      if (['think','agent','ultra','web','deep','deep_agent'].includes(cmd)) setSearchMode(cmd)
+      if (cmd === 'direct') setSearchMode('')
+      else if (['agent','ultra','web','deep','deep_agent'].includes(cmd)) setSearchMode(cmd)
       if (cmd === 'clear') window.location.reload()
 
       if (cmd === 'fix') setInput('Please fix the following code:\n\n')
@@ -309,16 +310,14 @@ export function ChatInput({
   ]
 
   const modes = [
-    { id: 'think', label: t('think'), icon: Lightbulb, color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20" },
     { id: 'web', label: t('web'), icon: Globe, color: "text-blue-500", bg: "bg-blue-500/10", border: "border-blue-500/20" },
     { id: 'agent', label: t('agent'), icon: Bot, color: "text-purple-500", bg: "bg-purple-500/10", border: "border-purple-500/20" },
     { id: 'ultra', label: t('ultra'), icon: Rocket, color: "text-indigo-500", bg: "bg-indigo-500/10", border: "border-indigo-500/20" },
   ]
 
   const commands = [
-      { id: 'think', label: 'Think Mode', icon: Lightbulb, desc: 'LLM only, no external tools' },
       { id: 'agent', label: 'Agent Mode', icon: Bot, desc: 'Plan & web search' },
-      { id: 'ultra', label: 'Ultra Mode', icon: Rocket, desc: 'Deep research (agent + deep search)' },
+      { id: 'ultra', label: 'Deep Research', icon: Rocket, desc: 'Deep research (agent + deep search)' },
       { id: 'web', label: 'Web Mode', icon: Globe, desc: 'Web search only' },
       { id: 'fix', label: 'Fix Code', icon: Bug, desc: 'Debug & Fix' },
       { id: 'explain', label: 'Explain', icon: BookOpen, desc: 'Explain concept' },
@@ -360,12 +359,17 @@ export function ChatInput({
                  key={mode.id}
                  type="button"
                  onClick={() => {
-                     setSearchMode(mode.id)
+                     // 再次点击已选中的模式则取消选中，回到默认直答
+                     if (isActive) {
+                         setSearchMode('')
+                     } else {
+                         setSearchMode(mode.id)
+                     }
                      setIsMcpOpen(false)
                  }}
                  className={cn(
                    "relative flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-300 border",
-                   isActive 
+                   isActive
                      ? cn("text-foreground shadow-sm", mode.bg, mode.border)
                      : "text-muted-foreground border-transparent hover:bg-muted/50"
                  )}
@@ -380,8 +384,14 @@ export function ChatInput({
            <div className="relative">
                <button
                  onClick={() => {
-                     setSearchMode('mcp')
-                     setIsMcpOpen(!isMcpOpen)
+                     // 再次点击已选中的 MCP 则取消选中，回到默认直答
+                     if (searchMode === 'mcp') {
+                         setSearchMode('')
+                         setIsMcpOpen(false)
+                     } else {
+                         setSearchMode('mcp')
+                         setIsMcpOpen(!isMcpOpen)
+                     }
                  }}
                  className={cn(
                    "relative flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-300 border",

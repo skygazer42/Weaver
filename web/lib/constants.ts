@@ -4,11 +4,10 @@ export const STORAGE_KEYS = {
 }
 
 export const SEARCH_MODES = {
-  THINK: 'think',
+  DIRECT: 'direct',
   WEB: 'web',
   AGENT: 'agent',
   DEEP: 'deep',
-  DEEP_AGENT: 'deep_agent',
   ULTRA: 'ultra',
 }
 

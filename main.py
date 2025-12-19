@@ -406,8 +406,8 @@ def _normalize_search_mode(search_mode: SearchMode | Dict[str, Any] | str | None
     elif isinstance(search_mode, str):
         lowered = search_mode.lower().strip()
 
-        # New UX labels
-        if lowered in {"think", "direct"}:
+        # UX labels
+        if lowered in {"direct", ""}:
             use_web = False
             use_agent = False
             use_deep = False

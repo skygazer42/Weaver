@@ -221,13 +221,6 @@ export function Sidebar({
                     <span>Clear History</span>
                 </button>
              )}
-             <button 
-                onClick={onOpenSettings}
-                className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors group"
-             >
-                <Settings className="h-4 w-4" />
-                <span>Settings</span>
-             </button>
           </div>
         </div>
       </div>
