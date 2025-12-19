@@ -1,8 +1,8 @@
 import json
 import logging
 from typing import List, Any, Dict, Optional
-
-from langchain_core.tools import BaseTool
+from langchain_mcp_adapters.client import MultiServerMCPClient
+from langchain.tools import BaseTool
 from common.config import settings
 
 logger = logging.getLogger(__name__)
@@ -41,11 +41,9 @@ async def init_mcp_tools(
         _TOOLS = []
         return []
 
-    try:
-        from langchain_mcp_adapters.client import MultiServerMCPClient
-    except Exception:
-        logger.warning("langchain-mcp-adapters not installed; MCP tools disabled")
-        return []
+
+
+
 
     _CONFIG = servers
     _CLIENT = MultiServerMCPClient(servers)

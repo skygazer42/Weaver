@@ -18,7 +18,7 @@ export function EmptyState({ selectedMode, onModeSelect }: EmptyStateProps) {
     {
       icon: TrendingUp,
       text: t('starterAnalyze'),
-      mode: "deep"
+      mode: "ultra"
     },
     {
       icon: Code2,
@@ -33,7 +33,7 @@ export function EmptyState({ selectedMode, onModeSelect }: EmptyStateProps) {
     {
       icon: Sparkles,
       text: t('starterPlan'),
-      mode: "agent"
+      mode: "think"
     }
   ]
 

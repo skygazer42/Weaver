@@ -78,6 +78,18 @@ class Settings(BaseSettings):
     deepsearch_save_data: bool = False       # save deepsearch run data to disk
     deepsearch_save_dir: str = "eval/deepsearch_data"
 
+    # Tool / middleware controls
+    tool_retry: bool = False
+    tool_retry_max_attempts: int = 3
+    tool_retry_backoff: float = 1.5  # seconds exponential factor
+    tool_call_limit: int = 0  # 0 = unlimited per request
+    strip_tool_messages: bool = False  # drop ToolMessage from history to save tokens
+    tool_selector: bool = False
+    tool_selector_model: str = "gpt-4o-mini"
+    tool_selector_max_tools: int = 3
+    tool_selector_always_include: str = ""  # comma-separated tool names
+    tool_selector_prompt: str = ""
+
     # Prompt Optimization (Prompt 优化)
     prompt_optimizer_model: str = "gpt-4o"  # 用于优化 Prompt 的模型
     prompt_optimization_epochs: int = 3      # 优化迭代轮次
@@ -98,6 +110,11 @@ class Settings(BaseSettings):
         return [
             node.strip() for node in self.interrupt_before_nodes.split(",") if node.strip()
         ]
+
+    @property
+    def tool_selector_always_include_list(self) -> List[str]:
+        """Comma separated tool names that must always be kept when selector is on."""
+        return [t.strip() for t in self.tool_selector_always_include.split(",") if t.strip()]
 
 
 settings = Settings()

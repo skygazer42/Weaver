@@ -4,6 +4,7 @@ from langgraph.graph.message import add_messages
 import operator
 from common.config import settings
 from .message_utils import summarize_messages
+from .middleware import maybe_strip_tool_messages
 
 
 def capped_add_messages(
@@ -19,6 +20,7 @@ def capped_add_messages(
     - trim_messages_keep_last (int)
     """
     merged = add_messages(existing, new)
+    merged = maybe_strip_tool_messages(merged)
     if not settings.trim_messages:
         return merged
 
@@ -101,6 +103,9 @@ class AgentState(TypedDict):
     # Cancellation support (取消控制)
     cancel_token_id: Optional[str]   # 取消令牌 ID，用于任务取消
     is_cancelled: bool               # 是否已取消
+
+    # Tool call accounting
+    tool_call_count: int
 
 
 class ResearchPlan(TypedDict):

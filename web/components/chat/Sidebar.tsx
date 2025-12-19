@@ -1,25 +1,43 @@
 'use client'
 
-import React, { useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useI18n } from '@/lib/i18n/i18n-context'
-import { Plus, Compass, LayoutGrid, FolderOpen, MessageSquare, PanelLeft } from 'lucide-react'
+import { Plus, Compass, LayoutGrid, FolderOpen, MessageSquare, PanelLeft, Trash2, Settings } from 'lucide-react'
 import { ChatSession } from '@/types/chat'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 interface SidebarProps {
   isOpen: boolean
   onToggle: () => void
   onNewChat: () => void
   onSelectChat: (id: string) => void
+  onDeleteChat: (id: string) => void
+  onClearHistory: () => void
+  onOpenSettings: () => void
   activeView: string
   onViewChange: (view: string) => void
   history: ChatSession[]
   isLoading?: boolean
 }
 
-export function Sidebar({ isOpen, onToggle, onNewChat, onSelectChat, activeView, onViewChange, history, isLoading = false }: SidebarProps) {
+export function Sidebar({ 
+    isOpen, 
+    onToggle, 
+    onNewChat, 
+    onSelectChat, 
+    onDeleteChat,
+    onClearHistory,
+    onOpenSettings,
+    activeView, 
+    onViewChange, 
+    history, 
+    isLoading = false 
+}: SidebarProps) {
   const { t } = useI18n()
+  const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [showClearConfirm, setShowClearConfirm] = useState(false)
   
   // No internal state for view
 
@@ -38,6 +56,26 @@ export function Sidebar({ isOpen, onToggle, onNewChat, onSelectChat, activeView,
 
   return (
     <>
+      <ConfirmDialog 
+        open={!!deleteId} 
+        onOpenChange={(open) => !open && setDeleteId(null)}
+        title="Delete Chat"
+        description="Are you sure you want to delete this conversation? This action cannot be undone."
+        onConfirm={() => deleteId && onDeleteChat(deleteId)}
+        confirmText="Delete"
+        variant="destructive"
+      />
+
+      <ConfirmDialog 
+        open={showClearConfirm} 
+        onOpenChange={setShowClearConfirm}
+        title="Clear History"
+        description="Are you sure you want to delete all chat history? This action cannot be undone."
+        onConfirm={onClearHistory}
+        confirmText="Clear All"
+        variant="destructive"
+      />
+
       {/* Mobile Overlay */}
       <div 
         className={cn(
@@ -118,14 +156,24 @@ export function Sidebar({ isOpen, onToggle, onNewChat, onSelectChat, activeView,
                                       {dateLabel}
                                   </div>
                                   {items.map((item) => (
-                                    <button 
-                                        key={item.id}
-                                        onClick={() => onSelectChat(item.id)}
-                                        className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm transition-all duration-200 text-muted-foreground hover:bg-muted/60 hover:text-foreground group text-left"
-                                    >
-                                        <MessageSquare className="h-4 w-4 shrink-0 transition-colors group-hover:text-primary" />
-                                        <span className="truncate">{item.title}</span>
-                                    </button>
+                                    <div key={item.id} className="group relative">
+                                        <button 
+                                            onClick={() => onSelectChat(item.id)}
+                                            className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm transition-all duration-200 text-muted-foreground hover:bg-muted/60 hover:text-foreground text-left pr-8"
+                                        >
+                                            <MessageSquare className="h-4 w-4 shrink-0 transition-colors group-hover:text-primary" />
+                                            <span className="truncate">{item.title}</span>
+                                        </button>
+                                        <button 
+                                            onClick={(e) => {
+                                                e.stopPropagation()
+                                                setDeleteId(item.id)
+                                            }}
+                                            className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-destructive transition-all"
+                                        >
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                        </button>
+                                    </div>
                                   ))}
                               </div>
                           )
@@ -137,25 +185,56 @@ export function Sidebar({ isOpen, onToggle, onNewChat, onSelectChat, activeView,
                                     {dateLabel}
                                 </div>
                                 {groupedHistory[dateLabel].map((item) => (
-                                  <button 
-                                      key={item.id}
-                                      onClick={() => onSelectChat(item.id)}
-                                      className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm transition-all duration-200 text-muted-foreground hover:bg-muted/60 hover:text-foreground group text-left"
-                                  >
-                                      <MessageSquare className="h-4 w-4 shrink-0 transition-colors group-hover:text-primary" />
-                                      <span className="truncate">{item.title}</span>
-                                  </button>
+                                  <div key={item.id} className="group relative">
+                                      <button 
+                                          onClick={() => onSelectChat(item.id)}
+                                          className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm transition-all duration-200 text-muted-foreground hover:bg-muted/60 hover:text-foreground text-left pr-8"
+                                      >
+                                          <MessageSquare className="h-4 w-4 shrink-0 transition-colors group-hover:text-primary" />
+                                          <span className="truncate">{item.title}</span>
+                                      </button>
+                                      <button 
+                                            onClick={(e) => {
+                                                e.stopPropagation()
+                                                setDeleteId(item.id)
+                                            }}
+                                            className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-destructive transition-all"
+                                        >
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                        </button>
+                                  </div>
                                 ))}
                             </div>
                       ))}
                   </div>
               )}
           </div>
+
+          {/* Bottom Actions */}
+          <div className="border-t pt-2 mt-auto">
+             {history.length > 0 && (
+                <button 
+                    onClick={() => setShowClearConfirm(true)}
+                    className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors group"
+                >
+                    <Trash2 className="h-4 w-4" />
+                    <span>Clear History</span>
+                </button>
+             )}
+             <button 
+                onClick={onOpenSettings}
+                className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors group"
+             >
+                <Settings className="h-4 w-4" />
+                <span>Settings</span>
+             </button>
+          </div>
         </div>
       </div>
     </>
   )
 }
+
 
 function SidebarItem({ icon: Icon, label, active, onClick }: { icon: any, label: string, active?: boolean, onClick?: () => void }) {
     return (

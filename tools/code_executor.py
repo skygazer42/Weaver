@@ -1,4 +1,4 @@
-from langchain_core.tools import tool
+from langchain.tools import tool
 from typing import Dict, Any
 from common.config import settings
 import logging

@@ -2,7 +2,7 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
-import { Send, Globe, Bot, BrainCircuit, Paperclip, X, Mic, MicOff, ChevronDown, Check, Trash2, File as FileIcon, Image as ImageIcon, Bug, BookOpen, PenTool, TestTube, Plug } from 'lucide-react'
+import { Send, Globe, Bot, Paperclip, X, Mic, MicOff, ChevronDown, Check, Trash2, File as FileIcon, Image as ImageIcon, Bug, BookOpen, PenTool, TestTube, Plug, Lightbulb, Rocket } from 'lucide-react'
 import { useI18n } from '@/lib/i18n/i18n-context'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -277,9 +277,9 @@ export function ChatInput({
   }
 
   const handleCommandSelect = (cmd: string) => {
-      if (['deep','agent','web'].includes(cmd)) setSearchMode(cmd)
+      if (['think','agent','ultra','web','deep','deep_agent'].includes(cmd)) setSearchMode(cmd)
       if (cmd === 'clear') window.location.reload()
-      
+
       if (cmd === 'fix') setInput('Please fix the following code:\n\n')
       if (cmd === 'explain') setInput('Please explain this concept:\n\n')
       if (cmd === 'refactor') setInput('Please refactor this code to be more efficient:\n\n')
@@ -309,17 +309,17 @@ export function ChatInput({
   ]
 
   const modes = [
+    { id: 'think', label: t('think'), icon: Lightbulb, color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20" },
     { id: 'web', label: t('web'), icon: Globe, color: "text-blue-500", bg: "bg-blue-500/10", border: "border-blue-500/20" },
     { id: 'agent', label: t('agent'), icon: Bot, color: "text-purple-500", bg: "bg-purple-500/10", border: "border-purple-500/20" },
-    { id: 'deep', label: t('deepsearch'), icon: BrainCircuit, color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20" },
-    { id: 'deep_agent', label: 'Deep Agent', icon: BrainCircuit, color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20" },
+    { id: 'ultra', label: t('ultra'), icon: Rocket, color: "text-indigo-500", bg: "bg-indigo-500/10", border: "border-indigo-500/20" },
   ]
 
   const commands = [
-      { id: 'deep', label: 'Deep Mode', icon: BrainCircuit, desc: 'Switch to Deep Search' },
-      { id: 'agent', label: 'Agent Mode', icon: Bot, desc: 'Switch to Agent' },
-      { id: 'web', label: 'Web Mode', icon: Globe, desc: 'Switch to Web Search' },
-      { id: 'deep_agent', label: 'Deep Agent', icon: BrainCircuit, desc: 'Deep agent with long-form prompt' },
+      { id: 'think', label: 'Think Mode', icon: Lightbulb, desc: 'LLM only, no external tools' },
+      { id: 'agent', label: 'Agent Mode', icon: Bot, desc: 'Plan & web search' },
+      { id: 'ultra', label: 'Ultra Mode', icon: Rocket, desc: 'Deep research (agent + deep search)' },
+      { id: 'web', label: 'Web Mode', icon: Globe, desc: 'Web search only' },
       { id: 'fix', label: 'Fix Code', icon: Bug, desc: 'Debug & Fix' },
       { id: 'explain', label: 'Explain', icon: BookOpen, desc: 'Explain concept' },
       { id: 'refactor', label: 'Refactor', icon: PenTool, desc: 'Optimize code' },
@@ -386,11 +386,11 @@ export function ChatInput({
                  className={cn(
                    "relative flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-300 border",
                    searchMode === 'mcp'
-                     ? "bg-green-500/10 text-foreground border-green-500/20 shadow-sm"
+                     ? "bg-pink-500/10 text-foreground border-pink-500/20 shadow-sm"
                      : "text-muted-foreground border-transparent hover:bg-muted/50"
                  )}
                >
-                 <Plug className={cn("h-3.5 w-3.5 transition-colors", searchMode === 'mcp' ? "text-green-500" : "text-muted-foreground")} />
+                 <Plug className={cn("h-3.5 w-3.5 transition-colors", searchMode === 'mcp' ? "text-pink-500" : "text-muted-foreground")} />
                  {searchMode === 'mcp' ? (mcpOptions.find(o => o.id === selectedMcp)?.label || 'MCP') : 'MCP'}
                  <ChevronDown className="h-3 w-3 opacity-50" />
                </button>
@@ -408,7 +408,7 @@ export function ChatInput({
                                    }}
                                    className={cn(
                                        "flex w-full items-center justify-between rounded-lg px-2 py-2 text-xs transition-colors hover:bg-muted",
-                                       selectedMcp === opt.id && searchMode === 'mcp' && "bg-muted font-medium text-green-500"
+                                       selectedMcp === opt.id && searchMode === 'mcp' && "bg-muted font-medium text-pink-500"
                                    )}
                                >
                                    {opt.label}

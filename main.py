@@ -404,10 +404,17 @@ def _normalize_search_mode(search_mode: SearchMode | Dict[str, Any] | str | None
         use_agent = bool(search_mode.get("useAgent"))
         use_deep = bool(search_mode.get("useDeepSearch"))
     elif isinstance(search_mode, str):
-        lowered = search_mode.lower()
-        use_web = lowered in {"web", "search", "tavily"}
-        use_agent = lowered in {"agent", "deep", "deep_agent", "deep-agent"}
-        use_deep = lowered in {"deep", "deep_agent", "deep-agent"}
+        lowered = search_mode.lower().strip()
+
+        # New UX labels
+        if lowered in {"think", "direct"}:
+            use_web = False
+            use_agent = False
+            use_deep = False
+        else:
+            use_web = lowered in {"web", "search", "tavily"}
+            use_agent = lowered in {"agent", "deep", "deep_agent", "deep-agent", "ultra"}
+            use_deep = lowered in {"deep", "deep_agent", "deep-agent", "ultra"}
     else:
         use_web = False
         use_agent = False
@@ -593,6 +600,7 @@ async def stream_agent_events(
             "route": "",
             "revision_count": 0,
             "max_revisions": settings.max_revisions,
+            "tool_call_count": 0,
             "is_complete": False,
             "errors": [],
             # 取消控制字段

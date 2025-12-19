@@ -3,11 +3,13 @@ export const STORAGE_KEYS = {
   MODEL: 'weaver-model',
 }
 
-export const DEFAULT_MODEL = 'deepseek-chat'
-
 export const SEARCH_MODES = {
-  AGENT: 'agent',
+  THINK: 'think',
   WEB: 'web',
+  AGENT: 'agent',
   DEEP: 'deep',
   DEEP_AGENT: 'deep_agent',
+  ULTRA: 'ultra',
 }
+
+export const DEFAULT_MODEL = 'deepseek-chat'

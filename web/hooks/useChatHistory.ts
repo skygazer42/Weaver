@@ -19,10 +19,25 @@ export function useChatHistory() {
       }
     } else {
       // Default data for demo
-      setHistory([
+      const defaultHistory = [
         { id: '1', title: 'Market Analysis 2024', date: 'Today' },
         { id: '2', title: 'Python Viz Script', date: 'Yesterday' }
-      ])
+      ]
+      setHistory(defaultHistory)
+      
+      // Populate dummy messages for demo if not present
+      if (!localStorage.getItem('session_1')) {
+          localStorage.setItem('session_1', JSON.stringify([
+              { id: 'm1', role: 'user', content: 'Analyze the market trends for AI agents in 2024.' },
+              { id: 'm2', role: 'assistant', content: 'Based on recent reports, the AI agent market is projected to grow significantly...' }
+          ]))
+      }
+      if (!localStorage.getItem('session_2')) {
+          localStorage.setItem('session_2', JSON.stringify([
+              { id: 'm3', role: 'user', content: 'Write a python script to visualize this CSV data.' },
+              { id: 'm4', role: 'assistant', content: 'Here is a matplotlib script to visualize your data:\n```python\nimport pandas as pd\nimport matplotlib.pyplot as plt\n...```' }
+          ]))
+      }
     }
     setIsHistoryLoading(false)
   }, [])
@@ -67,11 +82,27 @@ export function useChatHistory() {
     return null
   }
 
+  const deleteSession = (id: string) => {
+    setHistory(prev => prev.filter(s => s.id !== id))
+    localStorage.removeItem(`session_${id}`)
+  }
+
+  const clearHistory = () => {
+    // Clear all session data
+    history.forEach(session => {
+        localStorage.removeItem(`session_${session.id}`)
+    })
+    setHistory([])
+    localStorage.removeItem(STORAGE_KEYS.HISTORY)
+  }
+
   return {
     history,
     setHistory,
     isHistoryLoading,
     saveToHistory,
-    loadSession
+    loadSession,
+    deleteSession,
+    clearHistory
   }
 }

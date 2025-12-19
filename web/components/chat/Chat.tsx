@@ -18,14 +18,16 @@ import { useChatStream } from '@/hooks/useChatStream'
 import { filesToImageAttachments } from '@/lib/file-utils'
 import { Discover } from '@/components/views/Discover'
 import { Library } from '@/components/views/Library'
+import { SettingsDialog } from '@/components/settings/SettingsDialog'
 
 export function Chat() {
   // UI State
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL)
-  const [searchMode, setSearchMode] = useState(SEARCH_MODES.AGENT) 
+  const [searchMode, setSearchMode] = useState(SEARCH_MODES.THINK)
   const [showScrollButton, setShowScrollButton] = useState(false)
   const [showMobileArtifacts, setShowMobileArtifacts] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   
   const [currentView, setCurrentView] = useState('dashboard') // 'dashboard' | 'discover' | 'library'
 
@@ -35,7 +37,7 @@ export function Chat() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const virtuosoRef = useRef<VirtuosoHandle>(null)
 
-  const { history, isHistoryLoading, saveToHistory, loadSession } = useChatHistory()
+  const { history, isHistoryLoading, saveToHistory, loadSession, deleteSession, clearHistory } = useChatHistory()
   
   const {
     messages,
@@ -89,6 +91,22 @@ export function Chat() {
       setThreadId(null)
       setPendingInterrupt(null)
       handleStop() // Abort any ongoing request
+  }
+
+  const handleDeleteChat = (id: string) => {
+      deleteSession(id)
+      // If deleting current chat, reset view
+      // This logic could be more complex (e.g., matching IDs), but for now, 
+      // if we are in dashboard view, we can just clear if needed.
+      // However, we don't track the *current* session ID in state explicitly yet (just messages).
+      // So simple approach: Just delete. If it was the active one, it stays on screen until New Chat or another select.
+      // Better UX: If deleting the one on screen, clear screen.
+      // Since we don't store currentSessionId, we'll implement a simple check later if needed.
+  }
+
+  const handleClearHistory = () => {
+      clearHistory()
+      handleNewChat() // Reset current view as well
   }
 
   const handleChatSelect = (id: string) => {
@@ -203,6 +221,9 @@ export function Chat() {
         onToggle={() => setSidebarOpen(!sidebarOpen)}
         onNewChat={handleNewChat}
         onSelectChat={handleChatSelect}
+        onDeleteChat={handleDeleteChat}
+        onClearHistory={handleClearHistory}
+        onOpenSettings={() => setShowSettings(true)}
         activeView={currentView}
         onViewChange={setCurrentView}
         history={history}
@@ -223,6 +244,13 @@ export function Chat() {
 
         {/* Dynamic Content Area */}
         {renderContent()}
+
+        <SettingsDialog 
+            open={showSettings} 
+            onOpenChange={setShowSettings} 
+            selectedModel={selectedModel}
+            onModelChange={setSelectedModel}
+        />
 
         {/* Chat-specific overlays (Scroll button, Interrupts) - only show in dashboard view */}
         {currentView === 'dashboard' && (

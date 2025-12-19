@@ -36,6 +36,8 @@ export const translations = {
     // Search modes
     agent: 'Agent',
     deepsearch: 'Deep Search',
+    think: 'Think',
+    ultra: 'Ultra Research',
     mcp: 'MCP',
     web: 'Web',
 
@@ -118,6 +120,8 @@ export const translations = {
     // Search modes
     agent: '智能体',
     deepsearch: '深度搜索',
+    think: '思考',
+    ultra: '超深度研究',
     mcp: 'MCP',
     web: '网络',
 

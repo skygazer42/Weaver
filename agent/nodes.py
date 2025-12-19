@@ -13,9 +13,11 @@ import time
 import mimetypes
 
 from .state import AgentState, ResearchPlan, QueryState
+from .middleware import enforce_tool_call_limit, retry_call
 from tools import tavily_search, execute_python_code
 from tools.registry import get_registered_tools
 from .deepsearch import run_deepsearch
+from .agent_factory import build_writer_agent
 from common.config import settings
 from common.cancellation import cancellation_manager, check_cancellation as _check_cancellation
 
@@ -214,7 +216,18 @@ def perform_parallel_search(state: QueryState, config: RunnableConfig) -> Dict[s
         # 搜索前检查取消状态
         check_cancellation(state)
 
-        results = tavily_search.invoke({"query": query, "max_results": 5}, config=config)
+        enforce_tool_call_limit(state, settings.tool_call_limit)
+
+        call_kwargs = {"query": query, "max_results": 5}
+        if settings.tool_retry:
+            results = retry_call(
+                tavily_search.invoke,
+                attempts=settings.tool_retry_max_attempts,
+                backoff=settings.tool_retry_backoff,
+                **{"input": call_kwargs, "config": config},
+            )
+        else:
+            results = tavily_search.invoke(call_kwargs, config=config)
 
         # 搜索后检查取消状态
         check_cancellation(state)
@@ -524,213 +537,54 @@ def writer_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     Can invoke code execution for visualizations.
     Includes cancellation check for graceful termination.
     """
-    logger.info("Executing writer node")
+    logger.info("Executing writer node (LangChain middleware agent)")
 
     try:
-        # 写入前检查取消状态
         check_cancellation(state)
 
-        configurable = config.get("configurable", {}) if isinstance(config, dict) else {}
-        allow_interrupts = bool(configurable.get("allow_interrupts"))
-        require_tool_approval = bool(configurable.get("tool_approval"))
-
-        llm = _chat_model(settings.primary_model, temperature=0.7).bind_tools(_get_writer_tools())
+        agent, writer_tools = build_writer_agent()
         t0 = time.time()
-
         code_results: List[Dict[str, Any]] = []
 
-        # Prepare research context
-        scraped_content_raw = state.get("scraped_content", [])
+        scraped_content = state.get("scraped_content", [])
+        blocks: List[str] = []
+        sources: List[str] = []
+        for idx, item in enumerate(scraped_content):
+            query = item.get("query", "")
+            results = item.get("results") or []
+            blocks.append(f"Search #{idx+1}: {query}")
+            for ridx, res in enumerate(results[:3]):
+                title = res.get("title", "") or "Untitled"
+                url = res.get("url", "")
+                summary = res.get("summary") or res.get("snippet") or ""
+                tag = f"S{idx+1}-{ridx+1}"
+                blocks.append(f"- [{tag}] {title} ({url}) :: {summary[:500]}")
+                sources.append(f"[{tag}] {title} - {url}")
 
-        # Compact and clean scraped content to avoid bloat
-        def _compact_scraped(items: List[Dict[str, Any]], max_results: int = 3) -> List[Dict[str, Any]]:
-            compact: List[Dict[str, Any]] = []
-            for item in items:
-                results = item.get("results") or []
-                if not results:
-                    continue
-                compact.append({
-                    "query": item.get("query", ""),
-                    "results": results[:max_results]
-                })
-            return compact
+        research_context = "\n".join(blocks)
+        sources_table = "\n".join(sources)
 
-        scraped_content = _compact_scraped(scraped_content_raw)
-
-        def _build_research_context(items: List[Dict[str, Any]], budget: int = 8000) -> tuple[str, str]:
-            """
-            Keep context compact: show top results with summary/snippet only.
-            Returns (context_text, sources_table).
-            """
-            blocks: List[str] = []
-            sources: List[str] = []
-            remaining = budget
-
-            for idx, item in enumerate(items):
-                query = item.get("query", "")
-                header = f"Search #{idx+1}: {query}"
-                if remaining - len(header) <= 0:
-                    break
-                blocks.append(header)
-                remaining -= len(header)
-
-                results = item.get("results", []) or []
-                for ridx, res in enumerate(results):
-                    if remaining <= 0:
-                        break
-                    title = res.get("title", "") or "Untitled"
-                    url = res.get("url", "")
-                    summary = res.get("summary") or res.get("snippet") or res.get("content", "")
-                    summary = (summary or "")[:600]
-                    tag = f"S{idx+1}-{ridx+1}"
-                    entry = f"  [{tag}] {title} ({url}) -> {summary}"
-                    remaining -= len(entry)
-                    if remaining <= 0:
-                        break
-                    blocks.append(entry)
-                    sources.append(f"[{tag}] {title} - {url}")
-
-            return "\n".join(blocks), "\n".join(sources)
-
-        research_context, sources_table = _build_research_context(scraped_content)
-
-        # If no research context (e.g., search failed), fall back to direct answer style
-        if not research_context.strip():
-            logger.info("No research context available; falling back to direct answer mode inside writer.")
-            messages = [
-                SystemMessage(content="You are a helpful assistant. Answer succinctly and accurately."),
-                HumanMessage(content=_build_user_content(state["input"], state.get("images")))
-            ]
-            response = llm.invoke(messages, config=config)
-            _log_usage(response, "writer_fallback")
-            logger.info(f"[timing] writer_fallback {(time.time()-t0):.3f}s")
-            content = response.content if hasattr(response, "content") else str(response)
-            return {
-                "draft_report": content,
-                "final_report": content,
-                "is_complete": False,
-                "messages": [AIMessage(content=content)],
-                "code_results": code_results
-            }
-
-        system_content = f"""You are an expert research analyst. Synthesize the research findings into a concise, well-structured report.
-
-Guidelines:
-1. Lead with a brief executive summary.
-2. Use markdown and bullets; keep paragraphs tight.
-3. Cite sources inline like [S1-1] where S1 = search #, -1 = result index (see Sources list).
-4. Prefer the provided summaries/snippets; do not paste long raw text.
-5. Highlight key findings, contrasts, and open questions.
-6. If a visualization helps, WRITE PYTHON CODE using matplotlib with the 'execute_python_code' tool and interpret the chart.
-7. End with a "Sources" section listing each tag and URL: e.g., - [S1-1] Title — URL.
-
-Research Context (compact):
-{research_context[:15000]}
-
-Sources:
-{sources_table}"""
-
-        # First LLM call - might decide to use tools
-        messages = [
-            SystemMessage(content=system_content),
-            HumanMessage(content=_build_user_content(
-                f"Create a comprehensive report answering: {state['input']}",
-                state.get("images")
-            ))
+        messages: List[Any] = [
+            SystemMessage(content="You are an expert research analyst. Write a concise, well-structured report with markdown headings, inline source tags like [S1-1], and a Sources section at the end. Use tools if needed (e.g., execute_python_code for charts)."),
+            HumanMessage(content=_build_user_content(state["input"], state.get("images"))),
         ]
+        if research_context:
+            messages.append(HumanMessage(content=f"Research context:\n{research_context}\n\nSources:\n{sources_table}"))
 
-        response = llm.invoke(messages, config=config)
-        messages.append(response)
-        _log_usage(response, "writer_pass1")
-
-        # LLM 调用后检查取消状态
-        check_cancellation(state)
-
-        # Handle tool calls with approval + resume support
-        tool_calls = list(getattr(response, "tool_calls", []) or [])
-
-        if tool_calls:
-            logger.info(f"Writer decided to use tools: {len(tool_calls)}")
-
-            # Normalize calls for interrupt payload
-            normalized_calls: List[Dict[str, Any]] = []
-            for tool_call in tool_calls:
-                name, tool_args, tool_call_id = _extract_tool_call_fields(tool_call)
-                normalized_calls.append({
-                    "id": tool_call_id or name,
-                    "name": name,
-                    "args": tool_args,
-                })
-
-            if require_tool_approval and allow_interrupts:
-                logger.info("Tool approval required; emitting interrupt before execution.")
-                approval = interrupt({
-                    "type": "tool_approval",
-                    "message": "Approve tool execution requests.",
-                    "tool_calls": normalized_calls,
-                    "node": "writer"
-                })
-                # approval payload can edit tool calls or reject
-                if isinstance(approval, dict):
-                    if approval.get("reject"):
-                        logger.info("Tool execution rejected by reviewer.")
-                        tool_calls = []
-                    elif approval.get("tool_calls"):
-                        tool_calls = approval.get("tool_calls") or tool_calls
-                elif approval is False:
-                    logger.info("Tool execution rejected (boolean).")
-                    tool_calls = []
-
-            # Execute approved calls
-            for tool_call in tool_calls:
-                # 每个工具调用前检查取消
-                check_cancellation(state)
-
-                tool_name, tool_args, tool_call_id = _extract_tool_call_fields(tool_call)
-
-                if tool_name == "execute_python_code":
-                    logger.info("Preparing to execute Python code for visualization...")
-
-                    # Execute code with config to trigger events
-                    tool_result = execute_python_code.invoke(tool_args, config=config)
-
-                    # Create tool message
-                    tool_msg = ToolMessage(
-                        tool_call_id=tool_call_id or f"{tool_name}_call",
-                        content=json.dumps({
-                            "stdout": tool_result.get("stdout"),
-                            "stderr": tool_result.get("stderr"),
-                            "success": tool_result.get("success")
-                        }),
-                        name=tool_name
-                    )
-                    messages.append(tool_msg)
-
-                    # If we got an image, we might want to store it
-                    if tool_result.get("image"):
-                        code_results.append({
-                            "code": tool_args.get("code"),
-                            "image": tool_result["image"],
-                            "timestamp": datetime.now().isoformat()
-                        })
-
-            # Second LLM call to generate final report with tool outputs
-            response = llm.invoke(messages, config=config)
-            logger.info("Final report generated after tool execution")
-            _log_usage(response, "writer_pass2")
-            # Reset approval flags
-            state["pending_tool_calls"] = []
-            state["tool_approved"] = False
-
-        report = response.content
+        response = agent.invoke({"messages": messages}, config=config)
         logger.info(f"[timing] writer {(time.time()-t0):.3f}s")
 
-        logger.info("Report generated successfully")
+        report = ""
+        if isinstance(response, dict) and response.get("messages"):
+            last = response["messages"][-1]
+            report = getattr(last, "content", "") if hasattr(last, "content") else str(last)
+        else:
+            report = getattr(response, "content", None) or str(response)
 
         return {
             "draft_report": report,
             "final_report": report,
-            "is_complete": False,  # further steps may follow (evaluator/human review)
+            "is_complete": False,
             "messages": [AIMessage(content=report)],
             "code_results": code_results
         }
