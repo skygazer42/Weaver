@@ -160,19 +160,10 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
         isUser ? 'justify-end' : 'justify-start'
       )}
     >
-      {/* Bot Avatar */}
-      {!isUser && (
-        <div className="flex-shrink-0 mt-1">
-             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted/50 border shadow-sm">
-                <Bot className="h-4 w-4 text-primary" />
-             </div>
-        </div>
-      )}
-
-      <div className={cn(
-          'flex flex-col max-w-[85%] md:max-w-[75%]',
-          isUser ? 'items-end' : 'items-start',
-          // If editing, take full width available
+            {/* Bot Avatar - Removed */}
+            <div className={cn(
+                'flex flex-col max-w-[90%] md:max-w-[85%]', 
+                isUser ? 'items-end' : 'items-start',          // If editing, take full width available
           isEditing && "w-full max-w-full md:max-w-full"
       )}>
         
@@ -196,15 +187,15 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
             </div>
         ) : (
             <div className={cn(
-                "relative px-4 py-3 shadow-sm",
+                "relative px-5 py-3.5 shadow-sm",
                 isUser
                   ? "bg-primary text-primary-foreground rounded-2xl rounded-tr-sm"
                   : "bg-muted/30 border text-foreground rounded-2xl rounded-tl-sm backdrop-blur-sm"
               )}
             >
               <div className={cn(
-                  "prose prose-sm max-w-none break-words leading-relaxed",
-                  isUser ? "prose-invert" : "dark:prose-invert"
+                  "prose prose-neutral dark:prose-invert max-w-none break-words leading-7",
+                  "text-[15px] md:text-base" // Slightly larger font
               )}>
                 <ReactMarkdown 
                     remarkPlugins={[remarkGfm, remarkMath]}

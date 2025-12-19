@@ -438,7 +438,7 @@ export function ChatInput({
           onDrop={handleDrop}
           className={cn(
             "relative group rounded-3xl border bg-background shadow-lg shadow-black/5 transition-all duration-300 overflow-hidden",
-            isFocused ? "ring-2 ring-primary/20 border-primary" : "border-border/50",
+            isFocused ? "ring-2 ring-primary/20 border-primary shadow-xl shadow-primary/5 scale-[1.005]" : "border-border/50 hover:border-primary/30",
             isDragging ? "ring-2 ring-primary border-primary bg-primary/5" : "",
             isLoading && "opacity-80"
           )}
