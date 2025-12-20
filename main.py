@@ -12,6 +12,7 @@ from datetime import datetime
 from pathlib import Path
 import time
 import logging
+from contextlib import asynccontextmanager
 
 from common.config import settings
 from langgraph.types import Command
@@ -41,11 +42,24 @@ from prometheus_client import (
 setup_logging()
 logger = get_logger(__name__)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    await startup_event()
+    try:
+        yield
+    finally:
+        # Shutdown
+        await shutdown_event()
+
+
 # Initialize FastAPI app
 app = FastAPI(
     title="Manus Research Agent API",
     description="Deep  research AI agent with code execution capabilities",
-    version="0.1.0"
+    version="0.1.0",
+    lifespan=lifespan,
 )
 
 # Prometheus metrics (optional, made idempotent to survive double imports under reload)
@@ -169,7 +183,6 @@ mcp_servers_config = settings.mcp_servers
 mcp_loaded_tools = 0
 
 
-@app.on_event("startup")
 async def startup_event():
     """Initialize application on startup."""
     logger.info("=" * 80)
@@ -226,7 +239,6 @@ async def startup_event():
     logger.info("=" * 80)
 
 
-@app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup on application shutdown."""
     logger.info("=" * 80)
@@ -1024,6 +1036,12 @@ async def resume_interrupt(request: ResumeRequest):
 
     mode_info = _normalize_search_mode(request.search_mode)
     model = (request.model or settings.primary_model).strip()
+    # Fast path: avoid invoking the graph when no checkpoint exists for this thread.
+    if not request.thread_id or not str(request.thread_id).strip():
+        raise HTTPException(status_code=400, detail="thread_id is required")
+    existing = checkpointer.get_tuple({"configurable": {"thread_id": request.thread_id}})
+    if not existing:
+        raise HTTPException(status_code=404, detail="No checkpoint found for this thread_id")
     config = {
         "configurable": {
             "thread_id": request.thread_id,
@@ -1204,7 +1222,8 @@ async def recognize_speech_upload(
         # 璇诲彇鏂囦欢鍐呭
         audio_bytes = await file.read()
 
-        # 鏍规嵁鏂囦欢鎵╁睍鍚嶇‘瀹氭牸寮?        filename = file.filename or "audio.wav"
+        # Determine format from file extension
+        filename = file.filename or "audio.wav"
         format_ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "wav"
 
         # 璋冪敤 ASR 鏈嶅姟

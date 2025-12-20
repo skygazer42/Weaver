@@ -65,3 +65,11 @@ async def test_cancel_endpoints_smoke():
         data3 = resp3.json()
         assert "active_tasks" in data3
         assert "stats" in data3
+
+
+@pytest.mark.asyncio
+async def test_interrupt_resume_unknown_thread_returns_404():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        resp = await ac.post("/api/interrupt/resume", json={"thread_id": "nope", "payload": {}})
+        assert resp.status_code == 404
