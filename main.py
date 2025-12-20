@@ -266,7 +266,7 @@ class ImagePayload(BaseModel):
 class ChatRequest(BaseModel):
     messages: List[Message]
     stream: bool = True
-    model: Optional[str] = "gpt-4o"
+    model: Optional[str] = None
     search_mode: Optional[SearchMode | Dict[str, Any] | str] = None  # {"useWebSearch": bool, "useAgent": bool, "useDeepSearch": bool}
     user_id: Optional[str] = None
     images: Optional[List[ImagePayload]] = None  # Base64 images for multimodal input
@@ -282,7 +282,7 @@ class ChatResponse(BaseModel):
 class ResumeRequest(BaseModel):
     thread_id: str
     payload: Any
-    model: Optional[str] = "gpt-4o"
+    model: Optional[str] = None
     search_mode: Optional[SearchMode | Dict[str, Any] | str] = None
 
 
@@ -568,7 +568,7 @@ async def support_chat(request: SupportChatRequest):
 async def stream_agent_events(
     input_text: str,
     thread_id: str = "default",
-    model: str = "gpt-4o",
+    model: str | None = None,
     search_mode: Dict[str, Any] | None = None,
     images: Optional[List[Dict[str, Any]]] = None,
     user_id: Optional[str] = None
@@ -583,6 +583,7 @@ async def stream_agent_events(
     start_time = time.time()
     images = images or []
     user_id = user_id or settings.memory_user_id
+    model = (model or settings.primary_model).strip()
 
     # Optional per-thread log handler for easier debugging
     thread_handler = None
@@ -900,9 +901,10 @@ async def chat(request: ChatRequest):
         last_message = user_messages[-1].content
         user_id = request.user_id or settings.memory_user_id
         mode_info = _normalize_search_mode(request.search_mode)
+        model = (request.model or settings.primary_model).strip()
 
         logger.info(f"馃摠 Chat request received")
-        logger.info(f"  Model: {request.model}")
+        logger.info(f"  Model: {model}")
         logger.info(f"  Mode: {mode_info.get('mode')}")
         logger.info(f"  Stream: {request.stream}")
         logger.info(f"  Message length: {len(last_message)} chars")
@@ -917,7 +919,7 @@ async def chat(request: ChatRequest):
                 stream_agent_events(
                     last_message,
                     thread_id=thread_id,
-                    model=request.model,
+                    model=model,
                     search_mode=mode_info,
                     images=_normalize_images_payload(request.images),
                     user_id=user_id
@@ -976,7 +978,7 @@ async def chat(request: ChatRequest):
             config = {
                 "configurable": {
                     "thread_id": "default",
-                    "model": request.model,
+                    "model": model,
                     "search_mode": mode_info,
                     "user_id": user_id,
                     "allow_interrupts": bool(checkpointer),
@@ -987,7 +989,7 @@ async def chat(request: ChatRequest):
                 "recursion_limit": 50,
             }
             thread_id = thread_id or f"thread_{uuid.uuid4().hex}"
-            metrics = metrics_registry.start(thread_id, model=request.model, route=mode_info.get("mode", "direct"))
+            metrics = metrics_registry.start(thread_id, model=model, route=mode_info.get("mode", "direct"))
             result = await research_graph.ainvoke(initial_state, config=config)
             final_report = result.get("final_report", "No response generated")
             add_memory_entry(final_report)
@@ -1004,7 +1006,7 @@ async def chat(request: ChatRequest):
     except Exception as e:
         logger.error(
             f"鉁?Chat error | Thread: {thread_id or 'N/A'} | "
-            f"Model: {request.model if 'request' in locals() else 'N/A'} | "
+            f"Model: {model if 'model' in locals() else (request.model if 'request' in locals() else 'N/A')} | "
             f"Error: {str(e)}",
             exc_info=True
         )
@@ -1020,10 +1022,11 @@ async def resume_interrupt(request: ResumeRequest):
         raise HTTPException(status_code=400, detail="Interrupts require a checkpointer")
 
     mode_info = _normalize_search_mode(request.search_mode)
+    model = (request.model or settings.primary_model).strip()
     config = {
         "configurable": {
             "thread_id": request.thread_id,
-            "model": request.model,
+            "model": model,
             "search_mode": mode_info,
             "allow_interrupts": True,
             "tool_approval": settings.tool_approval or False,

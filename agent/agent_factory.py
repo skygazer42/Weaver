@@ -129,16 +129,17 @@ def _build_middlewares() -> List:
     return mws
 
 
-def build_writer_agent() -> tuple[object, List[BaseTool]]:
+def build_writer_agent(model: str | None = None) -> tuple[object, List[BaseTool]]:
     """
     Create a tool-calling agent for writer node with configured middleware.
     Returns (agent, tools) so caller can inspect selected toolset.
     """
+    model_name = (model or settings.primary_model).strip()
     tools: List[BaseTool] = [execute_python_code]
     tools.extend(get_registered_tools())
 
     agent = create_agent(
-        _build_llm(settings.primary_model, temperature=0.7),
+        _build_llm(model_name, temperature=0.7),
         tools,
         middleware=_build_middlewares(),
     )

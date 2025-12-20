@@ -107,6 +107,30 @@ def _log_usage(response: Any, node: str) -> None:
         logger.info(f"[usage] {node}: {usage}")
 
 
+def _configurable(config: RunnableConfig) -> Dict[str, Any]:
+    if isinstance(config, dict):
+        cfg = config.get("configurable") or {}
+        if isinstance(cfg, dict):
+            return cfg
+    return {}
+
+
+def _selected_model(config: RunnableConfig, fallback: str) -> str:
+    cfg = _configurable(config)
+    val = cfg.get("model")
+    if isinstance(val, str) and val.strip():
+        return val.strip()
+    return fallback
+
+
+def _selected_reasoning_model(config: RunnableConfig, fallback: str) -> str:
+    cfg = _configurable(config)
+    val = cfg.get("reasoning_model")
+    if isinstance(val, str) and val.strip():
+        return val.strip()
+    return fallback
+
+
 def _extract_tool_call_fields(tool_call: Any) -> Tuple[Optional[str], Dict[str, Any], Optional[str]]:
     """
     Normalize tool call objects across LangChain 0.x/1.x.
@@ -285,7 +309,7 @@ def clarify_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     Uses structured output with retry for robustness.
     """
     logger.info("Executing clarify node")
-    llm = _chat_model(settings.reasoning_model, temperature=0.3)
+    llm = _chat_model(_selected_reasoning_model(config, settings.reasoning_model), temperature=0.3)
 
     class ClarifyResponse(BaseModel):
         need_clarification: bool = Field(description="Whether the user request is ambiguous or incomplete.")
@@ -333,7 +357,7 @@ def direct_answer_node(state: AgentState, config: RunnableConfig) -> Dict[str, A
     """Direct answer without research."""
     logger.info("Executing direct answer node")
     t0 = time.time()
-    llm = _chat_model(settings.primary_model, temperature=0.7)
+    llm = _chat_model(_selected_model(config, settings.primary_model), temperature=0.7)
     messages = [
         SystemMessage(content="You are a helpful assistant. Answer succinctly and accurately."),
         HumanMessage(content=_build_user_content(state["input"], state.get("images")))
@@ -362,7 +386,7 @@ def initiate_research(state: AgentState) -> List[Send]:
     ]
 
 
-def planner_node(state: AgentState) -> Dict[str, Any]:
+def planner_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     """
     Planning node: Creates a structured research plan.
 
@@ -377,7 +401,7 @@ def planner_node(state: AgentState) -> Dict[str, Any]:
         check_cancellation(state)
 
         # Use reasoning model for planning
-        llm = _chat_model(settings.reasoning_model, temperature=1)
+        llm = _chat_model(_selected_reasoning_model(config, settings.reasoning_model), temperature=1)
         t0 = time.time()
 
         class PlanResponse(BaseModel):
@@ -440,7 +464,7 @@ def planner_node(state: AgentState) -> Dict[str, Any]:
         }
 
 
-def refine_plan_node(state: AgentState) -> Dict[str, Any]:
+def refine_plan_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     """
     Refinement node: creates follow-up queries based on evaluator feedback.
     """
@@ -450,7 +474,7 @@ def refine_plan_node(state: AgentState) -> Dict[str, Any]:
     original_question = state.get("input", "")
     existing_plan = state.get("research_plan", []) or []
 
-    llm = _chat_model(settings.reasoning_model, temperature=0.8)
+    llm = _chat_model(_selected_reasoning_model(config, settings.reasoning_model), temperature=0.8)
     t0 = time.time()
 
     prompt = ChatPromptTemplate.from_messages([
@@ -467,11 +491,14 @@ Return ONLY a JSON object:
     ])
 
     try:
-        response = llm.invoke(prompt.format_messages(
-            question=original_question,
-            feedback=feedback,
-            existing="\n".join(existing_plan)
-        ))
+        response = llm.invoke(
+            prompt.format_messages(
+                question=original_question,
+                feedback=feedback,
+                existing="\n".join(existing_plan),
+            ),
+            config=config,
+        )
         _log_usage(response, "refine_plan")
         logger.info(f"[timing] refine_plan {(time.time()-t0):.3f}s")
         content = response.content if hasattr(response, "content") else str(response)
@@ -519,7 +546,7 @@ Return ONLY a JSON object:
         }
 
 
-def web_search_plan_node(state: AgentState) -> Dict[str, Any]:
+def web_search_plan_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     """Simple plan for web search only mode."""
     logger.info("Executing web search plan node")
     return {
@@ -542,7 +569,7 @@ def writer_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     try:
         check_cancellation(state)
 
-        agent, writer_tools = build_writer_agent()
+        agent, writer_tools = build_writer_agent(_selected_model(config, settings.primary_model))
         t0 = time.time()
         code_results: List[Dict[str, Any]] = []
 
@@ -621,7 +648,7 @@ def should_continue_research(state: AgentState) -> str:
 def evaluator_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     """Evaluate the draft report and decide if revision is needed."""
     logger.info("Executing evaluator node")
-    llm = _chat_model(settings.reasoning_model, temperature=0)
+    llm = _chat_model(_selected_reasoning_model(config, settings.reasoning_model), temperature=0)
     t0 = time.time()
 
     class EvalResponse(BaseModel):
@@ -660,7 +687,7 @@ Return ONLY JSON in this format:
 def revise_report_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     """Revise the report based on evaluator feedback."""
     logger.info("Executing revise report node")
-    llm = _chat_model(settings.primary_model, temperature=0.5)
+    llm = _chat_model(_selected_model(config, settings.primary_model), temperature=0.5)
     prompt = ChatPromptTemplate.from_messages([
         ("system", """You are a helpful editor. Revise the report using the feedback.
 Keep the structure clear and improve factual accuracy and clarity."""),

@@ -68,6 +68,24 @@ def _check_cancel(state: Dict[str, Any]) -> None:
         _check_cancel_token(token_id)
 
 
+def _selected_model(config: Dict[str, Any], fallback: str) -> str:
+    cfg = config.get("configurable") or {}
+    if isinstance(cfg, dict):
+        val = cfg.get("model")
+        if isinstance(val, str) and val.strip():
+            return val.strip()
+    return fallback
+
+
+def _selected_reasoning_model(config: Dict[str, Any], fallback: str) -> str:
+    cfg = config.get("configurable") or {}
+    if isinstance(cfg, dict):
+        val = cfg.get("reasoning_model")
+        if isinstance(val, str) and val.strip():
+            return val.strip()
+    return fallback
+
+
 def _parse_list_output(text: str) -> List[str]:
     """Parse python-list-like output into a string list."""
     if not text:
@@ -304,9 +322,12 @@ def run_deepsearch(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, A
     per_query_results = int(getattr(settings, "deepsearch_results_per_query", 5))
     top_urls = max(3, min(5, per_query_results))
 
-    planner_llm = _chat_model(settings.reasoning_model, temperature=0.8)
-    critic_llm = _chat_model(settings.reasoning_model, temperature=0.2)
-    writer_llm = _chat_model(settings.primary_model, temperature=0.5)
+    reasoning_model = _selected_reasoning_model(config, settings.reasoning_model)
+    primary_model = _selected_model(config, settings.primary_model)
+
+    planner_llm = _chat_model(reasoning_model, temperature=0.8)
+    critic_llm = _chat_model(reasoning_model, temperature=0.2)
+    writer_llm = _chat_model(primary_model, temperature=0.5)
 
     have_query: List[str] = []
     summary_notes: List[str] = []
