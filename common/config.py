@@ -52,7 +52,7 @@ class Settings(BaseSettings):
     enable_json_logging: bool = False  # Enable structured JSON logging
 
     # Model Config
-    primary_model: str = "gpt-4o-mini"
+    primary_model: str = "deepseek-chat"
     reasoning_model: str = "o1-mini"  # For planning
 
     # LangGraph Store (long-term memory)
