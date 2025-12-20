@@ -8,7 +8,10 @@
 
 - 搜索：`tools/search.py`（Tavily）
 - 代码执行：`tools/code_executor.py`（E2B code interpreter）
+- 轻量浏览器：`tools/browser_tools.py` + `tools/browser_session.py`（HTTP 抓取 + 链接抽取；可选 Playwright 截图）
+- 沙箱浏览器（更像 Manus）：`tools/sandbox_browser_tools.py` + `tools/sandbox_browser_session.py`（E2B/PPIO 模板 + Chrome CDP + Playwright）
 - 轻量爬虫：`tools/crawler.py`（可选，用于补全文本）
+- 爬虫工具封装：`tools/crawl_tools.py`（`crawl_url` / `crawl_urls`）
 - 记忆：`tools/memory_client.py`（Mem0 或本地 JSON 回退）
 - MCP：`tools/mcp.py` + `tools/registry.py`（多工具桥）
 - 语音（可选）：`tools/asr.py`、`tools/tts.py`
@@ -40,4 +43,3 @@ Weaver 有两类使用方式：
 3) 如工具需要外部 Key，把配置项加入 `.env.example`，并在 `common/config.py` 里声明对应字段
 
 如果你希望“运行时动态接入工具”，优先考虑 MCP（见 `tools/mcp.py` 与 `/api/mcp/config`）。
-

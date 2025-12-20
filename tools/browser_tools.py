@@ -1,0 +1,218 @@
+from __future__ import annotations
+
+import base64
+from typing import Any, Dict, List, Optional
+
+from langchain_core.tools import BaseTool
+from pydantic import BaseModel, Field
+
+from .browser_session import browser_sessions
+
+
+def _trim(text: str, max_chars: int) -> str:
+    text = text or ""
+    if len(text) <= max_chars:
+        return text
+    return text[:max_chars] + "…"
+
+
+class _BrowserTool(BaseTool):
+    thread_id: str = "default"
+
+    def _session(self):
+        return browser_sessions.get((self.thread_id or "").strip() or "default")
+
+
+class BrowserSearchInput(BaseModel):
+    query: str = Field(min_length=1)
+    engine: str = Field(default="duckduckgo", description="duckduckgo|bing")
+    max_links: int = Field(default=10, ge=1, le=30)
+
+
+class BrowserSearchTool(_BrowserTool):
+    name: str = "browser_search"
+    description: str = (
+        "Search the web in a lightweight browser session (JS-free). "
+        "Returns the search page URL plus extracted links."
+    )
+    args_schema: type[BaseModel] = BrowserSearchInput
+
+    def _run(self, query: str, engine: str = "duckduckgo", max_links: int = 10) -> Dict[str, Any]:
+        page = self._session().search(query=query, engine=engine)
+        return {
+            "url": page.url,
+            "title": page.title,
+            "links": page.links[: int(max_links)],
+            "text_excerpt": _trim(page.text, 1200),
+        }
+
+
+class BrowserNavigateInput(BaseModel):
+    url: str = Field(min_length=1)
+    max_links: int = Field(default=10, ge=0, le=30)
+
+
+class BrowserNavigateTool(_BrowserTool):
+    name: str = "browser_navigate"
+    description: str = "Open a URL in the lightweight browser session and extract title/text/links."
+    args_schema: type[BaseModel] = BrowserNavigateInput
+
+    def _run(self, url: str, max_links: int = 10) -> Dict[str, Any]:
+        page = self._session().navigate(url=url)
+        return {
+            "url": page.url,
+            "title": page.title,
+            "links": page.links[: int(max_links)],
+            "text_excerpt": _trim(page.text, 1600),
+        }
+
+
+class BrowserClickInput(BaseModel):
+    index: int = Field(ge=1, description="1-based link index from the last page links list")
+    max_links: int = Field(default=10, ge=0, le=30)
+
+
+class BrowserClickTool(_BrowserTool):
+    name: str = "browser_click"
+    description: str = "Click a link from the current page by 1-based index and navigate to it."
+    args_schema: type[BaseModel] = BrowserClickInput
+
+    def _run(self, index: int, max_links: int = 10) -> Dict[str, Any]:
+        session = self._session()
+        if not session.current:
+            raise ValueError("No current page. Use browser_search or browser_navigate first.")
+        links = session.current.links or []
+        idx = int(index) - 1
+        if idx < 0 or idx >= len(links):
+            raise ValueError(f"index out of range (1-{len(links)})")
+        url = links[idx].get("url") or ""
+        page = session.navigate(url=url)
+        return {
+            "clicked": links[idx],
+            "url": page.url,
+            "title": page.title,
+            "links": page.links[: int(max_links)],
+            "text_excerpt": _trim(page.text, 1600),
+        }
+
+
+class BrowserBackTool(_BrowserTool):
+    name: str = "browser_back"
+    description: str = "Go back to the previous page in this browser session."
+
+    def _run(self) -> Dict[str, Any]:
+        page = self._session().back()
+        return {
+            "url": page.url,
+            "title": page.title,
+            "links": page.links[:10],
+            "text_excerpt": _trim(page.text, 1200),
+        }
+
+
+class BrowserExtractTextInput(BaseModel):
+    max_chars: int = Field(default=3000, ge=200, le=20000)
+
+
+class BrowserExtractTextTool(_BrowserTool):
+    name: str = "browser_extract_text"
+    description: str = "Return the extracted text of the current page."
+    args_schema: type[BaseModel] = BrowserExtractTextInput
+
+    def _run(self, max_chars: int = 3000) -> Dict[str, Any]:
+        session = self._session()
+        if not session.current:
+            raise ValueError("No current page. Use browser_search or browser_navigate first.")
+        return {
+            "url": session.current.url,
+            "title": session.current.title,
+            "text": _trim(session.current.text, int(max_chars)),
+        }
+
+
+class BrowserListLinksInput(BaseModel):
+    max_links: int = Field(default=10, ge=1, le=30)
+
+
+class BrowserListLinksTool(_BrowserTool):
+    name: str = "browser_list_links"
+    description: str = "List extracted links from the current page."
+    args_schema: type[BaseModel] = BrowserListLinksInput
+
+    def _run(self, max_links: int = 10) -> Dict[str, Any]:
+        session = self._session()
+        if not session.current:
+            raise ValueError("No current page. Use browser_search or browser_navigate first.")
+        return {"url": session.current.url, "title": session.current.title, "links": session.current.links[: int(max_links)]}
+
+
+class BrowserResetTool(_BrowserTool):
+    name: str = "browser_reset"
+    description: str = "Reset the browser session (clears current page and history)."
+
+    def _run(self) -> Dict[str, Any]:
+        browser_sessions.reset(self.thread_id)
+        return {"status": "reset", "thread_id": self.thread_id}
+
+
+class BrowserScreenshotInput(BaseModel):
+    url: Optional[str] = Field(default=None, description="If omitted, uses current page url")
+    full_page: bool = True
+    wait_ms: int = Field(default=1500, ge=0, le=15000)
+
+
+class BrowserScreenshotTool(_BrowserTool):
+    name: str = "browser_screenshot"
+    description: str = (
+        "Take a real browser screenshot (requires Playwright + installed browsers). "
+        "Returns base64 PNG in `image`."
+    )
+    args_schema: type[BaseModel] = BrowserScreenshotInput
+
+    def _run(self, url: Optional[str] = None, full_page: bool = True, wait_ms: int = 1500) -> Dict[str, Any]:
+        target = (url or "").strip()
+        if not target:
+            session = self._session()
+            if not session.current or not session.current.url:
+                raise ValueError("No url provided and no current page. Use browser_navigate first.")
+            target = session.current.url
+
+        try:
+            from playwright.sync_api import sync_playwright  # type: ignore
+        except Exception as e:
+            raise RuntimeError(
+                "Playwright is required for screenshots. Install: pip install playwright; "
+                "then run: python -m playwright install chromium"
+            ) from e
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            try:
+                page = browser.new_page(viewport={"width": 1280, "height": 720})
+                page.goto(target, wait_until="networkidle", timeout=30000)
+                if wait_ms:
+                    page.wait_for_timeout(int(wait_ms))
+                png_bytes = page.screenshot(full_page=bool(full_page))
+            finally:
+                browser.close()
+
+        return {
+            "url": target,
+            "image": base64.b64encode(png_bytes).decode("ascii"),
+        }
+
+
+def build_browser_tools(thread_id: str) -> List[BaseTool]:
+    """
+    Create per-request browser tools bound to a thread_id.
+    """
+    return [
+        BrowserSearchTool(thread_id=thread_id),
+        BrowserNavigateTool(thread_id=thread_id),
+        BrowserClickTool(thread_id=thread_id),
+        BrowserBackTool(thread_id=thread_id),
+        BrowserExtractTextTool(thread_id=thread_id),
+        BrowserListLinksTool(thread_id=thread_id),
+        BrowserScreenshotTool(thread_id=thread_id),
+        BrowserResetTool(thread_id=thread_id),
+    ]

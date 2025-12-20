@@ -31,6 +31,7 @@ http://localhost:8000
   ],
   "stream": true,
   "model": "deepseek-chat",
+  "agent_id": "default",
   "search_mode": {
     "useWebSearch": true,
     "useAgent": true,
@@ -85,13 +86,48 @@ http://localhost:8000
 
 更新 MCP servers 配置并热重载工具。
 
-## 6. 记忆（可选）
+## 6. Agents（可选）
+
+Agent profiles are stored in `data/agents.json` and can be selected per request via `agent_id`.
+
+Common `enabled_tools` keys:
+- `web_search` / `crawl` / `python` / `mcp`
+- `browser` (lightweight HTTP browser tools)
+- `sandbox_browser` (E2B/PPIO sandbox Chromium via CDP + Playwright)
+
+For `sandbox_browser`, configure:
+- `E2B_API_KEY` (required)
+- `E2B_DOMAIN` (optional; PPIO uses `sandbox.ppio.cn`)
+- `SANDBOX_TEMPLATE_BROWSER` (required; a template with Chromium/Chrome installed)
+- `SANDBOX_BROWSER_REMOTE_DEBUG_PORT` (optional; default `9223`)
+
+### `GET /api/agents`
+
+List available agent profiles.
+
+### `GET /api/agents/{agent_id}`
+
+Get a single agent profile.
+
+### `POST /api/agents`
+
+Create a new agent profile.
+
+### `PUT /api/agents/{agent_id}`
+
+Update an existing agent profile (default agent is protected).
+
+### `DELETE /api/agents/{agent_id}`
+
+Delete an agent profile (default agent is protected).
+
+## 7. 记忆（可选）
 
 ### `GET /api/memory/status`
 
 返回当前记忆后端信息（Mem0 / fallback / store）。
 
-## 7. ASR / TTS（可选）
+## 8. ASR / TTS（可选）
 
 依赖 `DASHSCOPE_API_KEY`。
 
@@ -102,9 +138,8 @@ http://localhost:8000
 - `GET /api/tts/voices`
 - `POST /api/tts/synthesize`
 
-## 8. 指标（可选）
+## 9. 指标（可选）
 
 ### `GET /metrics`
 
 需要 `ENABLE_PROMETHEUS=true` 才会启用；否则可能 404。
-

@@ -12,11 +12,12 @@
 - `research_graph = create_research_graph(...)`
 - `support_graph = create_support_graph(...)`
 
-## 2. 路由模式（direct / web / deep / clarify）
+## 2. 路由模式（direct / web / agent / deep / clarify）
 
 `router` 节点会根据请求携带的 `search_mode`（见 `main.py#_normalize_search_mode`）设置 `state["route"]`：
 
 - `direct`：直接回答（`direct_answer`）
+- `agent`：Agent 工具调用模式（`agent` -> `human_review`）
 - `web`：Web 检索链路（`web_plan` -> `perform_parallel_search` -> `writer`）
 - `deep`：深度研究链路（`deepsearch` 或 `planner` -> ... -> `evaluator` 迭代）
 - `clarify`：需要澄清（`clarify` -> `human_review` 或回到 `planner`）
@@ -48,6 +49,7 @@
 
 - `router`：决定 route
 - `direct_answer`：直接生成回答
+- `agent`：工具调用型 Agent（可用 Tavily/MCP/浏览器/爬虫等工具）
 - `web_plan` / `planner` / `refine_plan`：生成检索计划、必要时迭代修订
 - `perform_parallel_search`：并发执行每条 query（调用 `tools/search.py`，可选 crawler）
 - `writer`：汇总材料产出报告，可调用工具（例如 `execute_python_code` 产图）
@@ -66,4 +68,3 @@ Weaver 在 `stream_agent_events` 里通过 `config = {"configurable": {...}}` �
 - `tool_approval`：是否开启工具审批
 
 节点内部通过 `RunnableConfig` 读取并据此选择模型/工具或走不同分支。
-

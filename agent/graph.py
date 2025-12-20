@@ -10,6 +10,7 @@ from .nodes import (
     direct_answer_node,
     planner_node,
     web_search_plan_node,
+    agent_node,
     clarify_node,
     writer_node,
     perform_parallel_search,
@@ -41,6 +42,7 @@ def create_research_graph(checkpointer=None, interrupt_before=None, store=None):
     # Add nodes
     workflow.add_node("router", route_node)
     workflow.add_node("direct_answer", direct_answer_node)
+    workflow.add_node("agent", agent_node)
     workflow.add_node("clarify", clarify_node)
     workflow.add_node("planner", planner_node)
     workflow.add_node("web_plan", web_search_plan_node)
@@ -59,6 +61,8 @@ def create_research_graph(checkpointer=None, interrupt_before=None, store=None):
         route = state.get("route", "direct")
         if route == "deep":
             return "deepsearch"
+        if route == "agent":
+            return "agent"
         if route == "web":
             return "web_plan"
         if route == "direct":
@@ -68,7 +72,7 @@ def create_research_graph(checkpointer=None, interrupt_before=None, store=None):
     workflow.add_conditional_edges(
         "router",
         route_decision,
-        ["direct_answer", "web_plan", "clarify", "deepsearch"]
+        ["direct_answer", "agent", "web_plan", "clarify", "deepsearch"]
     )
 
     def after_clarify(state: AgentState) -> str:
@@ -129,6 +133,7 @@ def create_research_graph(checkpointer=None, interrupt_before=None, store=None):
 
     # Direct answer path
     workflow.add_edge("direct_answer", "human_review")
+    workflow.add_edge("agent", "human_review")
 
     # Final edge
     workflow.add_edge("deepsearch", "human_review")

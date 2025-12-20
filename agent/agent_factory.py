@@ -117,8 +117,25 @@ def _build_middlewares() -> List:
 
     # Human-in-the-loop for risky tools
     if settings.tool_approval:
-        # apply to python exec by default
-        interrupt_cfg = {"execute_python_code": True}
+        # Apply to high-impact tools by default.
+        interrupt_cfg = {
+            "execute_python_code": True,
+            # Lightweight browser tools (network + navigation)
+            "browser_search": True,
+            "browser_navigate": True,
+            "browser_click": True,
+            # Sandbox browser tools (network + navigation)
+            "sb_browser_navigate": True,
+            "sb_browser_click": True,
+            "sb_browser_type": True,
+            "sb_browser_press": True,
+            "sb_browser_scroll": True,
+            "sb_browser_extract_text": True,
+            "sb_browser_screenshot": True,
+            # Crawling helpers (network fetch)
+            "crawl_url": True,
+            "crawl_urls": True,
+        }
         mws.append(
             HumanInTheLoopMiddleware(
                 interrupt_on=interrupt_cfg,
@@ -144,4 +161,16 @@ def build_writer_agent(model: str | None = None) -> tuple[object, List[BaseTool]
         middleware=_build_middlewares(),
     )
     return agent, tools
+
+
+def build_tool_agent(*, model: str, tools: List[BaseTool], temperature: float = 0.7) -> object:
+    """
+    Create a generic tool-calling agent using the shared middleware stack.
+    """
+    model_name = (model or settings.primary_model).strip()
+    return create_agent(
+        _build_llm(model_name, temperature=temperature),
+        tools,
+        middleware=_build_middlewares(),
+    )
 

@@ -17,7 +17,8 @@ from .middleware import enforce_tool_call_limit, retry_call
 from tools import tavily_search, execute_python_code
 from tools.registry import get_registered_tools
 from .deepsearch import run_deepsearch
-from .agent_factory import build_writer_agent
+from .agent_factory import build_writer_agent, build_tool_agent
+from .agent_tools import build_agent_tools
 from common.config import settings
 from common.cancellation import cancellation_manager, check_cancellation as _check_cancellation
 
@@ -556,6 +557,60 @@ def web_search_plan_node(state: AgentState, config: RunnableConfig) -> Dict[str,
         "current_step": 0,
         "messages": [AIMessage(content=f"Web search plan: direct search for '{state['input']}'")]
     }
+
+
+def agent_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
+    """
+    Agent node: Tool-calling loop (GPTs/Manus-like).
+
+    Uses `create_agent` + middleware to let the model decide which tools to call.
+    Toolset is assembled from `configurable.agent_profile.enabled_tools`.
+    """
+    logger.info("Executing agent node (tool-calling)")
+    try:
+        check_cancellation(state)
+
+        model = _selected_model(config, settings.primary_model)
+        tools = build_agent_tools(config)
+        agent = build_tool_agent(model=model, tools=tools, temperature=0.7)
+        t0 = time.time()
+
+        # Reuse any pre-injected system context (agent profile prompt, memories, etc.)
+        messages: List[Any] = []
+        seeded = state.get("messages") or []
+        if isinstance(seeded, list):
+            messages.extend(seeded)
+
+        messages.append(HumanMessage(content=_build_user_content(state.get("input", ""), state.get("images"))))
+
+        response = agent.invoke({"messages": messages}, config=config)
+        logger.info(f"[timing] agent {(time.time()-t0):.3f}s")
+
+        text = ""
+        if isinstance(response, dict) and response.get("messages"):
+            last = response["messages"][-1]
+            text = getattr(last, "content", "") if hasattr(last, "content") else str(last)
+        else:
+            text = getattr(response, "content", None) or str(response)
+
+        return {
+            "draft_report": text,
+            "final_report": text,
+            "is_complete": False,
+            "messages": [AIMessage(content=text)],
+        }
+    except asyncio.CancelledError as e:
+        return handle_cancellation(state, e)
+    except Exception as e:
+        logger.error(f"Agent node error: {e}", exc_info=settings.debug)
+        msg = f"Agent mode failed: {e}"
+        return {
+            "errors": [msg],
+            "final_report": msg,
+            "draft_report": msg,
+            "is_complete": False,
+            "messages": [AIMessage(content=msg)],
+        }
 
 
 def writer_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:

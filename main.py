@@ -20,6 +20,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.store.memory import InMemoryStore
 from agent import create_research_graph, create_checkpointer, AgentState
 from agent.deep_agent import get_deep_agent_prompt
+from agent.agent_prompts import get_default_agent_prompt
 from support_agent import create_support_graph
 from tools.mcp import init_mcp_tools, close_mcp_tools, reload_mcp_tools
 from tools.registry import set_registered_tools
@@ -29,6 +30,16 @@ from tools.tts import get_tts_service, init_tts_service, AVAILABLE_VOICES
 from common.logger import setup_logging, get_logger, LogContext
 from common.metrics import metrics_registry
 from common.cancellation import cancellation_manager
+from tools.browser_session import browser_sessions
+from tools.sandbox_browser_session import sandbox_browser_sessions
+from common.agents_store import (
+    AgentProfile,
+    ensure_default_agent,
+    load_agents,
+    get_agent as get_agent_profile,
+    upsert_agent as upsert_agent_profile,
+    delete_agent as delete_agent_profile,
+)
 from prometheus_client import (
     Counter,
     Gauge,
@@ -234,6 +245,28 @@ async def startup_event():
     else:
         logger.info("TTS service not configured (no DASHSCOPE_API_KEY)")
 
+    # Ensure local agents store exists (GPTs-like profiles)
+    try:
+        ensure_default_agent(
+            default_profile=AgentProfile(
+                id="default",
+                name="Weaver Default Agent",
+                description="Default tool-using agent profile for agent mode.",
+                system_prompt=get_default_agent_prompt(),
+                enabled_tools={
+                    "web_search": True,
+                    "browser": True,
+                    "crawl": True,
+                    "python": True,
+                    "mcp": True,
+                },
+                metadata={"protected": True},
+            )
+        )
+        logger.info("Agents store initialized (data/agents.json)")
+    except Exception as e:
+        logger.warning(f"Agents store init failed: {e}", exc_info=settings.debug)
+
     logger.info("=" * 80)
     logger.info("Weaver Research Agent Ready")
     logger.info("=" * 80)
@@ -280,6 +313,7 @@ class ChatRequest(BaseModel):
     stream: bool = True
     model: Optional[str] = None
     search_mode: Optional[SearchMode | Dict[str, Any] | str] = None  # {"useWebSearch": bool, "useAgent": bool, "useDeepSearch": bool}
+    agent_id: Optional[str] = None  # optional GPTs-like agent profile id (data/agents.json)
     user_id: Optional[str] = None
     images: Optional[List[ImagePayload]] = None  # Base64 images for multimodal input
 
@@ -296,11 +330,23 @@ class ResumeRequest(BaseModel):
     payload: Any
     model: Optional[str] = None
     search_mode: Optional[SearchMode | Dict[str, Any] | str] = None
+    agent_id: Optional[str] = None
 
 
 class MCPConfigPayload(BaseModel):
     enable: Optional[bool] = None
     servers: Optional[Dict[str, Any]] = None
+
+
+class AgentUpsertPayload(BaseModel):
+    id: Optional[str] = None
+    name: str
+    description: str = ""
+    system_prompt: str = ""
+    model: str = ""
+    enabled_tools: Dict[str, bool] = {}
+    mcp_servers: Optional[Dict[str, Any]] = None
+    metadata: Dict[str, Any] = {}
 
 
 class SupportChatRequest(BaseModel):
@@ -583,6 +629,7 @@ async def stream_agent_events(
     thread_id: str = "default",
     model: str | None = None,
     search_mode: Dict[str, Any] | None = None,
+    agent_id: str | None = None,
     images: Optional[List[Dict[str, Any]]] = None,
     user_id: Optional[str] = None
 ):
@@ -594,9 +641,12 @@ async def stream_agent_events(
     """
     event_count = 0
     start_time = time.time()
+    was_interrupted = False
     images = images or []
     user_id = user_id or settings.memory_user_id
     model = (model or settings.primary_model).strip()
+    agent_id = (agent_id or "default").strip() or "default"
+    agent_profile = get_agent_profile(agent_id) or get_agent_profile("default")
 
     # Optional per-thread log handler for easier debugging
     thread_handler = None
@@ -664,6 +714,8 @@ async def stream_agent_events(
 
         # Load long-term memories (store) and Mem0 (optional) and inject deep prompt if needed
         messages: list[Any] = []
+        if mode_info.get("mode") == "agent" and agent_profile and agent_profile.system_prompt:
+            messages.append(SystemMessage(content=agent_profile.system_prompt))
         if mode_info.get("use_deep_prompt"):
             messages.append(SystemMessage(content=get_deep_agent_prompt()))
 
@@ -685,6 +737,7 @@ async def stream_agent_events(
                 "thread_id": thread_id,
                 "model": model,
                 "search_mode": mode_info,
+                "agent_profile": agent_profile.model_dump(mode="json") if agent_profile else None,
                 "user_id": user_id,
                 "allow_interrupts": bool(checkpointer),
                 "tool_approval": settings.tool_approval or False,
@@ -748,6 +801,12 @@ async def stream_agent_events(
                         "text": "Synthesizing findings...",
                         "step": "writing"
                     })
+                elif node_name == "agent":
+                    logger.debug(f"  Agent node started | Thread: {thread_id}")
+                    yield await format_stream_event("status", {
+                        "text": "Running agent (tool-calling)...",
+                        "step": "agent"
+                    })
 
             elif event_type in {"on_chain_end", "on_node_end", "on_graph_end"}:
                 output = data_dict.get("output", {}) if isinstance(data_dict, dict) else {}
@@ -758,6 +817,7 @@ async def stream_agent_events(
                     # Interrupt handling
                     interrupts = output.get("__interrupt__")
                     if interrupts:
+                        was_interrupted = True
                         yield await format_stream_event("interrupt", {
                             "thread_id": thread_id,
                             "prompts": _serialize_interrupts(interrupts)
@@ -833,6 +893,30 @@ async def stream_agent_events(
                             "content": "Chart generated from Python code",
                             "image": image_data
                         })
+                # Browser screenshots (optional Playwright)
+                if tool_name == "browser_screenshot" and isinstance(output, dict):
+                    image_data = output.get("image")
+                    url = output.get("url", "")
+                    if image_data:
+                        yield await format_stream_event("artifact", {
+                            "id": f"art_{datetime.now().timestamp()}",
+                            "type": "chart",
+                            "title": "Browser Screenshot",
+                            "content": url or "Screenshot",
+                            "image": image_data
+                        })
+                # Sandbox browser tools (E2B + Playwright CDP)
+                if tool_name.startswith("sb_browser_") and isinstance(output, dict):
+                    image_data = output.get("image")
+                    url = output.get("url", "")
+                    if isinstance(image_data, str) and image_data.strip():
+                        yield await format_stream_event("artifact", {
+                            "id": f"art_{datetime.now().timestamp()}",
+                            "type": "chart",
+                            "title": f"Sandbox Browser ({tool_name})",
+                            "content": url or tool_name,
+                            "image": image_data
+                        })
 
             elif event_type in {"on_chat_model_stream", "on_llm_stream"}:
                 # Stream LLM tokens
@@ -895,6 +979,17 @@ async def stream_agent_events(
                 thread_handler.close()
             except Exception:
                 pass
+        # Clean up browser sessions when the run is truly finished.
+        # If the graph interrupted (HITL), keep sessions so /api/interrupt/resume can continue.
+        if not was_interrupted:
+            try:
+                browser_sessions.reset(thread_id)
+            except Exception:
+                pass
+            try:
+                sandbox_browser_sessions.reset(thread_id)
+            except Exception:
+                pass
 
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
@@ -915,6 +1010,8 @@ async def chat(request: ChatRequest):
         user_id = request.user_id or settings.memory_user_id
         mode_info = _normalize_search_mode(request.search_mode)
         model = (request.model or settings.primary_model).strip()
+        agent_id = (request.agent_id or "default").strip() or "default"
+        agent_profile = get_agent_profile(agent_id) or get_agent_profile("default")
 
         logger.info("Chat request received")
         logger.info(f"  Model: {model}")
@@ -934,6 +1031,7 @@ async def chat(request: ChatRequest):
                     thread_id=thread_id,
                     model=model,
                     search_mode=mode_info,
+                    agent_id=request.agent_id,
                     images=_normalize_images_payload(request.images),
                     user_id=user_id
                 ),
@@ -972,6 +1070,8 @@ async def chat(request: ChatRequest):
             }
 
             messages: list[Any] = []
+            if mode_info.get("mode") == "agent" and agent_profile and agent_profile.system_prompt:
+                messages.append(SystemMessage(content=agent_profile.system_prompt))
             if mode_info.get("use_deep_prompt"):
                 messages.append(SystemMessage(content=get_deep_agent_prompt()))
 
@@ -993,6 +1093,7 @@ async def chat(request: ChatRequest):
                     "thread_id": "default",
                     "model": model,
                     "search_mode": mode_info,
+                    "agent_profile": agent_profile.model_dump(mode="json") if agent_profile else None,
                     "user_id": user_id,
                     "allow_interrupts": bool(checkpointer),
                     "tool_approval": settings.tool_approval or False,
@@ -1036,6 +1137,8 @@ async def resume_interrupt(request: ResumeRequest):
 
     mode_info = _normalize_search_mode(request.search_mode)
     model = (request.model or settings.primary_model).strip()
+    agent_id = (request.agent_id or "default").strip() or "default"
+    agent_profile = get_agent_profile(agent_id) or get_agent_profile("default")
     # Fast path: avoid invoking the graph when no checkpoint exists for this thread.
     if not request.thread_id or not str(request.thread_id).strip():
         raise HTTPException(status_code=400, detail="thread_id is required")
@@ -1047,6 +1150,7 @@ async def resume_interrupt(request: ResumeRequest):
             "thread_id": request.thread_id,
             "model": model,
             "search_mode": mode_info,
+            "agent_profile": agent_profile.model_dump(mode="json") if agent_profile else None,
             "allow_interrupts": True,
             "tool_approval": settings.tool_approval or False,
             "human_review": settings.human_review or False,
@@ -1076,6 +1180,72 @@ async def get_mcp_config():
         "servers": mcp_servers_config,
         "loaded_tools": mcp_loaded_tools,
     }
+
+
+# ==================== Agents (GPTs-like profiles) ====================
+
+@app.get("/api/agents")
+async def list_agents():
+    profiles = load_agents()
+    return {"agents": [p.model_dump(mode="json") for p in profiles]}
+
+
+@app.get("/api/agents/{agent_id}")
+async def get_agent(agent_id: str):
+    profile = get_agent_profile(agent_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    return profile.model_dump(mode="json")
+
+
+@app.post("/api/agents")
+async def create_agent(payload: AgentUpsertPayload):
+    agent_id = (payload.id or "").strip() or f"agent_{uuid.uuid4().hex[:10]}"
+    profile = AgentProfile(
+        id=agent_id,
+        name=payload.name.strip(),
+        description=payload.description or "",
+        system_prompt=payload.system_prompt or "",
+        model=(payload.model or "").strip(),
+        enabled_tools=payload.enabled_tools or {},
+        mcp_servers=payload.mcp_servers,
+        metadata=payload.metadata or {},
+    )
+    saved = upsert_agent_profile(profile)
+    return saved.model_dump(mode="json")
+
+
+@app.put("/api/agents/{agent_id}")
+async def update_agent(agent_id: str, payload: AgentUpsertPayload):
+    existing = get_agent_profile(agent_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    if agent_id == "default":
+        raise HTTPException(status_code=400, detail="Default agent is protected")
+
+    profile = existing.model_copy(
+        update={
+            "name": payload.name.strip(),
+            "description": payload.description or "",
+            "system_prompt": payload.system_prompt or "",
+            "model": (payload.model or "").strip(),
+            "enabled_tools": payload.enabled_tools or {},
+            "mcp_servers": payload.mcp_servers,
+            "metadata": payload.metadata or {},
+        }
+    )
+    saved = upsert_agent_profile(profile)
+    return saved.model_dump(mode="json")
+
+
+@app.delete("/api/agents/{agent_id}")
+async def remove_agent(agent_id: str):
+    if agent_id == "default":
+        raise HTTPException(status_code=400, detail="Default agent is protected")
+    ok = delete_agent_profile(agent_id, protected_ids={"default"})
+    if not ok:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    return {"status": "deleted", "id": agent_id}
 
 
 @app.post("/api/mcp/config")

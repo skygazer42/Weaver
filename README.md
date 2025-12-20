@@ -8,7 +8,7 @@ A full-stack application with Deep Search, Code Execution, and Generative UI cap
 - **Backend**: Python 3.11+ + FastAPI + LangGraph + LangChain
 - **Database**: PostgreSQL with pgvector
 - **Tools**: Tavily (Search) + E2B (Code Execution)
-- **New (LangGraph 1.x)**: routeable workflows (direct / web / agent / deep), evaluator-optimizer loop, optional human-in-the-loop interrupts, MCP tool bridge.
+- **New (LangGraph 1.x)**: routeable workflows (direct / web / agent / deep), evaluator-optimizer loop, optional human-in-the-loop interrupts, MCP tool bridge, and GPTs-like agent profiles (`data/agents.json`, `/api/agents`).
 
 ## Project Structure
 
@@ -109,6 +109,10 @@ pytest tests/test_smoke_api.py -q
 - Interrupt and resume capability
 - Plan confirmation workflow
 - Manual feedback integration
+
+### 🌐 Sandbox Browser (optional)
+- Real Chromium browser in E2B/PPIO sandbox via CDP (FuFanManus-style)
+- Streams screenshots as artifacts when using `enabled_tools.sandbox_browser=true`
 
 ## Development
 
