@@ -43,3 +43,25 @@ async def test_health():
         assert resp.status_code == 200
         data = resp.json()
         assert data.get("status") == "healthy"
+
+
+@pytest.mark.asyncio
+async def test_cancel_endpoints_smoke():
+    """Cancellation endpoints should never 500 for unknown threads."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        resp = await ac.post("/api/chat/cancel/test-thread-123")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data.get("status") in {"cancelled", "not_found"}
+
+        resp2 = await ac.post("/api/chat/cancel-all")
+        assert resp2.status_code == 200
+        data2 = resp2.json()
+        assert data2.get("status") == "all_cancelled"
+
+        resp3 = await ac.get("/api/tasks/active")
+        assert resp3.status_code == 200
+        data3 = resp3.json()
+        assert "active_tasks" in data3
+        assert "stats" in data3

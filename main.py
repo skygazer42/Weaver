@@ -85,7 +85,7 @@ async def log_requests(request: Request, call_next):
         http_inprogress.inc()
 
         logger.info(
-            f"→ Request started | {request.method} {request.url.path} | "
+            f"Request started | {request.method} {request.url.path} | "
             f"ID: {request_id} | Client: {request.client.host if request.client else 'unknown'}"
         )
 
@@ -94,7 +94,7 @@ async def log_requests(request: Request, call_next):
         duration = time.time() - start_time
 
         logger.info(
-            f"← Request completed | {request.method} {request.url.path} | "
+            f"Request completed | {request.method} {request.url.path} | "
             f"ID: {request_id} | Status: {response.status_code} | "
             f"Duration: {duration:.3f}s"
         )
@@ -173,7 +173,7 @@ mcp_loaded_tools = 0
 async def startup_event():
     """Initialize application on startup."""
     logger.info("=" * 80)
-    logger.info("馃殌 Weaver Research Agent Starting...")
+    logger.info("Weaver Research Agent Starting...")
     logger.info("=" * 80)
 
     # Log configuration
@@ -191,12 +191,12 @@ async def startup_event():
         if mcp_tools:
             set_registered_tools(mcp_tools)
             mcp_loaded_tools = len(mcp_tools)
-            logger.info(f"鉁?Successfully registered {mcp_loaded_tools} MCP tools")
+            logger.info(f"Successfully registered {mcp_loaded_tools} MCP tools")
         else:
             logger.info("No MCP tools to register")
             mcp_loaded_tools = 0
     except Exception as e:
-        logger.warning(f"鈿?MCP tools initialization failed: {e}", exc_info=settings.debug)
+        logger.warning(f"MCP tools initialization failed: {e}", exc_info=settings.debug)
         mcp_loaded_tools = 0
 
     # Initialize ASR service
@@ -204,9 +204,9 @@ async def startup_event():
         try:
             logger.info("Initializing ASR service...")
             init_asr_service(settings.dashscope_api_key)
-            logger.info("鉁?ASR service initialized")
+            logger.info("ASR service initialized")
         except Exception as e:
-            logger.warning(f"鈿?ASR service initialization failed: {e}")
+            logger.warning(f"ASR service initialization failed: {e}")
     else:
         logger.info("ASR service not configured (no DASHSCOPE_API_KEY)")
 
@@ -215,14 +215,14 @@ async def startup_event():
         try:
             logger.info("Initializing TTS service...")
             init_tts_service(settings.dashscope_api_key)
-            logger.info("鉁?TTS service initialized")
+            logger.info("TTS service initialized")
         except Exception as e:
-            logger.warning(f"鈿?TTS service initialization failed: {e}")
+            logger.warning(f"TTS service initialization failed: {e}")
     else:
         logger.info("TTS service not configured (no DASHSCOPE_API_KEY)")
 
     logger.info("=" * 80)
-    logger.info("鉁?Weaver Research Agent Ready")
+    logger.info("Weaver Research Agent Ready")
     logger.info("=" * 80)
 
 
@@ -230,18 +230,18 @@ async def startup_event():
 async def shutdown_event():
     """Cleanup on application shutdown."""
     logger.info("=" * 80)
-    logger.info("馃洃 Weaver Research Agent Shutting Down...")
+    logger.info("Weaver Research Agent Shutting Down...")
     logger.info("=" * 80)
 
     try:
         logger.info("Closing MCP tools...")
         await close_mcp_tools()
-        logger.info("鉁?MCP tools closed successfully")
+        logger.info("MCP tools closed successfully")
     except Exception as e:
-        logger.error(f"鉁?Error closing MCP tools: {e}", exc_info=True)
+        logger.error(f"Error closing MCP tools: {e}", exc_info=True)
 
     logger.info("=" * 80)
-    logger.info("鉁?Shutdown Complete")
+    logger.info("Shutdown Complete")
     logger.info("=" * 80)
 
 
@@ -308,7 +308,8 @@ class CancelRequest(BaseModel):
     reason: Optional[str] = "User requested cancellation"
 
 
-# 瀛樺偍娲昏穬鐨勬祦寮忎换鍔?active_streams: Dict[str, asyncio.Task] = {}
+# Store active streaming tasks (legacy; cancellation is primarily token-based)
+active_streams: Dict[str, asyncio.Task] = {}
 
 
 def _serialize_interrupts(interrupts: Any) -> List[Any]:
@@ -411,7 +412,7 @@ async def get_active_tasks():
 
     return {
         "active_tasks": active_tasks,
-        "stats": stats,
+        "stats": cancellation_manager.get_stats(),
         "stream_count": len(active_streams),
         "timestamp": datetime.now().isoformat()
     }
@@ -615,7 +616,7 @@ async def stream_agent_events(
     )
 
     try:
-        logger.info(f"馃幆 Agent stream started | Thread: {thread_id} | Model: {model}")
+        logger.info(f"Agent stream started | Thread: {thread_id} | Model: {model}")
         logger.debug(f"  Input: {input_text[:100]}...")
 
         mode_info = _normalize_search_mode(search_mode)
@@ -712,25 +713,25 @@ async def stream_agent_events(
                 event_count += 1
                 metrics.mark_event(event_type, node_name)
                 if "clarify" in node_name:
-                    logger.debug(f"  鉂?Clarify node started | Thread: {thread_id}")
+                    logger.debug(f"  Clarify node started | Thread: {thread_id}")
                     yield await format_stream_event("status", {
                         "text": "Checking if clarification is needed...",
                         "step": "clarifying"
                     })
                 elif "planner" in node_name:
-                    logger.debug(f"  馃搵 Planning node started | Thread: {thread_id}")
+                    logger.debug(f"  Planning node started | Thread: {thread_id}")
                     yield await format_stream_event("status", {
                         "text": "Creating research plan...",
                         "step": "planning"
                     })
                 elif "perform_parallel_search" in node_name or "search" in node_name:
-                    logger.debug(f"  馃攳 Search node started | Thread: {thread_id}")
+                    logger.debug(f"  Search node started | Thread: {thread_id}")
                     yield await format_stream_event("status", {
                         "text": "Conducting research...",
                         "step": "researching"
                     })
                 elif "writer" in node_name:
-                    logger.debug(f"  鉁嶏笍  Writer node started | Thread: {thread_id}")
+                    logger.debug(f"  Writer node started | Thread: {thread_id}")
                     yield await format_stream_event("status", {
                         "text": "Synthesizing findings...",
                         "step": "writing"
@@ -903,7 +904,7 @@ async def chat(request: ChatRequest):
         mode_info = _normalize_search_mode(request.search_mode)
         model = (request.model or settings.primary_model).strip()
 
-        logger.info(f"馃摠 Chat request received")
+        logger.info("Chat request received")
         logger.info(f"  Model: {model}")
         logger.info(f"  Mode: {mode_info.get('mode')}")
         logger.info(f"  Stream: {request.stream}")
@@ -912,7 +913,7 @@ async def chat(request: ChatRequest):
 
         if request.stream:
             thread_id = f"thread_{uuid.uuid4().hex}"
-            logger.info(f"馃寠 Starting streaming response | Thread: {thread_id}")
+            logger.info(f"Starting streaming response | Thread: {thread_id}")
 
             # Return streaming response with thread_id in header for cancellation
             return StreamingResponse(
