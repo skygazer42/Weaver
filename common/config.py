@@ -86,8 +86,12 @@ class Settings(BaseSettings):
     tool_retry: bool = False
     tool_retry_max_attempts: int = 3
     tool_retry_backoff: float = 1.5  # seconds exponential factor
+    tool_retry_initial_delay: float = 1.0
+    tool_retry_max_delay: float = 60.0
     tool_call_limit: int = 0  # 0 = unlimited per request
     strip_tool_messages: bool = False  # drop ToolMessage from history to save tokens
+    context_edit_trigger_tokens: int = 1000
+    context_edit_keep_tools: int = 3
     tool_selector: bool = False
     tool_selector_model: str = "gpt-4o-mini"
     tool_selector_max_tools: int = 3

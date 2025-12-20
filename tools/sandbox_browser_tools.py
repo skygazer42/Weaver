@@ -13,7 +13,7 @@ def _trim(text: str, max_chars: int) -> str:
     text = text or ""
     if len(text) <= max_chars:
         return text
-    return text[:max_chars] + "…"
+    return text[:max_chars] + "..."
 
 
 class _SbBrowserTool(BaseTool):
