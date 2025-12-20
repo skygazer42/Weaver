@@ -8,7 +8,26 @@ from common.config import settings
 logger = logging.getLogger(__name__)
 
 _mem_client = None
-_fallback_path = Path(".memory_store.json")
+_ROOT_DIR = Path(__file__).resolve().parents[1]
+_fallback_path = _ROOT_DIR / "data" / "memory_store.json"
+_legacy_fallback_path = _ROOT_DIR / ".memory_store.json"
+
+
+def _ensure_fallback_path():
+    """
+    Ensure fallback path exists under `data/` and migrate legacy root file if present.
+    """
+    if _fallback_path.exists():
+        return
+    if not _legacy_fallback_path.exists():
+        return
+    try:
+        _fallback_path.parent.mkdir(parents=True, exist_ok=True)
+        _legacy_fallback_path.replace(_fallback_path)
+        logger.info("Migrated legacy memory store to %s", _fallback_path)
+    except Exception as e:
+        # Best-effort: keep working by reading legacy path when needed
+        logger.warning("Failed to migrate legacy memory store: %s", e)
 
 
 def _get_mem_client():
@@ -33,17 +52,27 @@ def _get_mem_client():
 
 
 def _fallback_load() -> dict:
-    if not _fallback_path.exists():
+    _ensure_fallback_path()
+    # Prefer new location; fall back to legacy root file if migration failed.
+    path = _fallback_path if _fallback_path.exists() else _legacy_fallback_path
+    if not path.exists():
         return {}
     try:
-        return json.loads(_fallback_path.read_text(encoding="utf-8"))
+        return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return {}
 
 
 def _fallback_save(data: dict) -> None:
     try:
+        _fallback_path.parent.mkdir(parents=True, exist_ok=True)
         _fallback_path.write_text(json.dumps(data, ensure_ascii=True, indent=2), encoding="utf-8")
+        # Clean up legacy file if it still exists after successful write
+        if _legacy_fallback_path.exists():
+            try:
+                _legacy_fallback_path.unlink()
+            except Exception:
+                pass
     except Exception as e:
         logger.warning(f"Failed to write fallback memory store: {e}")
 
