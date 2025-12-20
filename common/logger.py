@@ -53,8 +53,8 @@ def setup_logging():
     - Log levels based on configuration
     """
 
-    # Determine log level
-    log_level_str = settings.log_level.upper() if not settings.debug else "DEBUG"
+    # Determine log level (do NOT force DEBUG when settings.debug is True; keep it explicit)
+    log_level_str = settings.log_level.upper()
     log_level = getattr(logging, log_level_str, logging.INFO)
 
     # Create root logger
@@ -102,6 +102,7 @@ def setup_logging():
     logging.getLogger("httpcore").setLevel(logging.WARNING)
     logging.getLogger("openai").setLevel(logging.WARNING)
     logging.getLogger("anthropic").setLevel(logging.WARNING)
+    logging.getLogger("watchfiles").setLevel(logging.INFO)
 
     # Log startup message
     logger = logging.getLogger(__name__)
