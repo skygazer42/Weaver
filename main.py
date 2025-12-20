@@ -42,6 +42,17 @@ from common.agents_store import (
     upsert_agent as upsert_agent_profile,
     delete_agent as delete_agent_profile,
 )
+from triggers import (
+    TriggerManager,
+    get_trigger_manager,
+    init_trigger_manager,
+    shutdown_trigger_manager,
+    ScheduledTrigger,
+    WebhookTrigger,
+    EventTrigger,
+    TriggerType,
+    TriggerStatus,
+)
 from prometheus_client import (
     Counter,
     Gauge,
@@ -273,6 +284,14 @@ async def startup_event():
     logger.info("Weaver Research Agent Ready")
     logger.info("=" * 80)
 
+    # Initialize trigger system
+    try:
+        logger.info("Initializing trigger system...")
+        await init_trigger_manager(storage_path="data/triggers.json")
+        logger.info("Trigger system initialized successfully")
+    except Exception as e:
+        logger.warning(f"Trigger system initialization failed: {e}", exc_info=settings.debug)
+
 
 async def shutdown_event():
     """Cleanup on application shutdown."""
@@ -286,6 +305,14 @@ async def shutdown_event():
         logger.info("MCP tools closed successfully")
     except Exception as e:
         logger.error(f"Error closing MCP tools: {e}", exc_info=True)
+
+    # Shutdown trigger system
+    try:
+        logger.info("Shutting down trigger system...")
+        await shutdown_trigger_manager()
+        logger.info("Trigger system shutdown successfully")
+    except Exception as e:
+        logger.error(f"Error shutting down trigger system: {e}", exc_info=True)
 
     logger.info("=" * 80)
     logger.info("Shutdown Complete")
@@ -1644,6 +1671,258 @@ async def stream_tool_events(thread_id: str):
             "X-Accel-Buffering": "no",
         }
     )
+
+
+# ==================== Trigger System Endpoints ====================
+
+class CreateScheduledTriggerRequest(BaseModel):
+    name: str
+    description: str = ""
+    schedule: str  # Cron expression
+    agent_id: str = "default"
+    task: str
+    task_params: Dict[str, Any] = {}
+    timezone: str = "Asia/Shanghai"
+    run_immediately: bool = False
+    user_id: Optional[str] = None
+    tags: List[str] = []
+
+
+class CreateWebhookTriggerRequest(BaseModel):
+    name: str
+    description: str = ""
+    agent_id: str = "default"
+    task: str
+    task_params: Dict[str, Any] = {}
+    http_methods: List[str] = ["POST"]
+    require_auth: bool = False
+    rate_limit: Optional[int] = None
+    user_id: Optional[str] = None
+    tags: List[str] = []
+
+
+class CreateEventTriggerRequest(BaseModel):
+    name: str
+    description: str = ""
+    event_type: str
+    event_source: Optional[str] = None
+    event_filters: Dict[str, Any] = {}
+    agent_id: str = "default"
+    task: str
+    task_params: Dict[str, Any] = {}
+    debounce_seconds: int = 0
+    user_id: Optional[str] = None
+    tags: List[str] = []
+
+
+@app.post("/api/triggers/scheduled")
+async def create_scheduled_trigger(request: CreateScheduledTriggerRequest):
+    """Create a new scheduled trigger with cron expression."""
+    trigger = ScheduledTrigger(
+        name=request.name,
+        description=request.description,
+        schedule=request.schedule,
+        agent_id=request.agent_id,
+        task=request.task,
+        task_params=request.task_params,
+        timezone=request.timezone,
+        run_immediately=request.run_immediately,
+        user_id=request.user_id,
+        tags=request.tags,
+    )
+
+    manager = get_trigger_manager()
+    trigger_id = await manager.add_trigger(trigger)
+
+    return {
+        "success": True,
+        "trigger_id": trigger_id,
+        "trigger": trigger.to_dict(),
+    }
+
+
+@app.post("/api/triggers/webhook")
+async def create_webhook_trigger(request: CreateWebhookTriggerRequest):
+    """Create a new webhook trigger."""
+    trigger = WebhookTrigger(
+        name=request.name,
+        description=request.description,
+        agent_id=request.agent_id,
+        task=request.task,
+        task_params=request.task_params,
+        http_methods=request.http_methods,
+        require_auth=request.require_auth,
+        rate_limit=request.rate_limit,
+        user_id=request.user_id,
+        tags=request.tags,
+    )
+
+    # Generate auth token if authentication is required
+    if trigger.require_auth:
+        from triggers.webhook import get_webhook_handler
+        trigger.auth_token = get_webhook_handler().generate_auth_token()
+
+    manager = get_trigger_manager()
+    trigger_id = await manager.add_trigger(trigger)
+
+    response = {
+        "success": True,
+        "trigger_id": trigger_id,
+        "trigger": trigger.to_dict(),
+        "endpoint": trigger.endpoint_path,
+    }
+
+    if trigger.require_auth:
+        response["auth_token"] = trigger.auth_token
+
+    return response
+
+
+@app.post("/api/triggers/event")
+async def create_event_trigger(request: CreateEventTriggerRequest):
+    """Create a new event trigger."""
+    trigger = EventTrigger(
+        name=request.name,
+        description=request.description,
+        event_type=request.event_type,
+        event_source=request.event_source,
+        event_filters=request.event_filters,
+        agent_id=request.agent_id,
+        task=request.task,
+        task_params=request.task_params,
+        debounce_seconds=request.debounce_seconds,
+        user_id=request.user_id,
+        tags=request.tags,
+    )
+
+    manager = get_trigger_manager()
+    trigger_id = await manager.add_trigger(trigger)
+
+    return {
+        "success": True,
+        "trigger_id": trigger_id,
+        "trigger": trigger.to_dict(),
+    }
+
+
+@app.get("/api/triggers")
+async def list_triggers(
+    trigger_type: Optional[str] = None,
+    status: Optional[str] = None,
+    user_id: Optional[str] = None,
+):
+    """List all triggers with optional filtering."""
+    manager = get_trigger_manager()
+
+    type_filter = TriggerType(trigger_type) if trigger_type else None
+    status_filter = TriggerStatus(status) if status else None
+
+    triggers = manager.list_triggers(
+        trigger_type=type_filter,
+        status=status_filter,
+        user_id=user_id,
+    )
+
+    return {
+        "triggers": [t.to_dict() for t in triggers],
+        "total": len(triggers),
+    }
+
+
+@app.get("/api/triggers/{trigger_id}")
+async def get_trigger(trigger_id: str):
+    """Get a specific trigger by ID."""
+    manager = get_trigger_manager()
+    trigger = manager.get_trigger(trigger_id)
+
+    if not trigger:
+        raise HTTPException(status_code=404, detail="Trigger not found")
+
+    return {"trigger": trigger.to_dict()}
+
+
+@app.delete("/api/triggers/{trigger_id}")
+async def delete_trigger(trigger_id: str):
+    """Delete a trigger."""
+    manager = get_trigger_manager()
+    success = await manager.remove_trigger(trigger_id)
+
+    if not success:
+        raise HTTPException(status_code=404, detail="Trigger not found")
+
+    return {"success": True, "message": "Trigger deleted"}
+
+
+@app.post("/api/triggers/{trigger_id}/pause")
+async def pause_trigger(trigger_id: str):
+    """Pause a trigger."""
+    manager = get_trigger_manager()
+    success = await manager.pause_trigger(trigger_id)
+
+    if not success:
+        raise HTTPException(status_code=404, detail="Trigger not found")
+
+    return {"success": True, "message": "Trigger paused"}
+
+
+@app.post("/api/triggers/{trigger_id}/resume")
+async def resume_trigger(trigger_id: str):
+    """Resume a paused trigger."""
+    manager = get_trigger_manager()
+    success = await manager.resume_trigger(trigger_id)
+
+    if not success:
+        raise HTTPException(status_code=404, detail="Trigger not found or not paused")
+
+    return {"success": True, "message": "Trigger resumed"}
+
+
+@app.get("/api/triggers/{trigger_id}/executions")
+async def get_trigger_executions(trigger_id: str, limit: int = 50):
+    """Get execution history for a trigger."""
+    manager = get_trigger_manager()
+    executions = manager.get_executions(trigger_id=trigger_id, limit=limit)
+
+    return {
+        "executions": [e.to_dict() for e in executions],
+        "total": len(executions),
+    }
+
+
+@app.post("/api/webhook/{trigger_id}")
+async def handle_webhook(
+    trigger_id: str,
+    request: Request,
+):
+    """Handle incoming webhook requests."""
+    manager = get_trigger_manager()
+
+    # Extract request data
+    body = None
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+
+    query_params = dict(request.query_params)
+    headers = dict(request.headers)
+    auth_header = request.headers.get("Authorization")
+
+    result = await manager.handle_webhook(
+        trigger_id=trigger_id,
+        method=request.method,
+        body=body,
+        query_params=query_params,
+        headers=headers,
+        auth_header=auth_header,
+    )
+
+    status_code = result.pop("status_code", 200)
+
+    if not result.get("success"):
+        raise HTTPException(status_code=status_code, detail=result.get("error"))
+
+    return result
 
 
 if __name__ == "__main__":
