@@ -106,6 +106,10 @@ coverage/
 *~
 .cache/
 
+# Runtime data
+.memory_store.json
+data/memory_store.json
+
 # Package manager locks (optional, remove if you want to commit them)
 # package-lock.json
 # yarn.lock
