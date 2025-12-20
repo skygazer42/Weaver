@@ -174,6 +174,9 @@ Configure tools in `agent_profile.enabled_tools`:
     "sandbox_web_search": true,
     "sandbox_files": true,
     "sandbox_shell": true,
+    "sandbox_sheets": true,
+    "sandbox_presentation": true,
+    "sandbox_vision": true,
     "task_list": true,
     "computer_use": false,
     "mcp": true
@@ -322,6 +325,43 @@ POST /api/triggers/webhook/{trigger_id}
 | `update_task` | Update task status |
 | `get_next_task` | Get next pending task |
 
+### Sandbox Sheets Tools
+
+| Tool | Description |
+|------|-------------|
+| `sandbox_create_spreadsheet` | Create Excel/CSV file |
+| `sandbox_write_data` | Write 2D data array |
+| `sandbox_read_spreadsheet` | Read spreadsheet data |
+| `sandbox_format_cells` | Apply cell formatting |
+| `sandbox_add_formula` | Add Excel formula |
+| `sandbox_create_chart` | Create chart (bar/line/pie) |
+| `sandbox_add_sheet` | Add worksheet |
+
+### Sandbox Presentation Tools
+
+| Tool | Description |
+|------|-------------|
+| `sandbox_create_presentation` | Create PPTX file |
+| `sandbox_add_slide` | Add slide with layout |
+| `sandbox_update_slide` | Update slide content |
+| `sandbox_delete_slide` | Delete slide |
+| `sandbox_add_image_to_slide` | Add image to slide |
+| `sandbox_add_table_to_slide` | Add table to slide |
+| `sandbox_add_shape_to_slide` | Add shape to slide |
+| `sandbox_get_presentation_info` | Get presentation info |
+
+### Sandbox Vision Tools
+
+| Tool | Description |
+|------|-------------|
+| `sandbox_extract_text` | OCR text extraction |
+| `sandbox_get_image_info` | Get image metadata |
+| `sandbox_resize_image` | Resize image |
+| `sandbox_convert_image` | Convert image format |
+| `sandbox_crop_image` | Crop image |
+| `sandbox_read_qr_code` | Read QR/barcode |
+| `sandbox_compare_images` | Compare two images |
+
 ## Development
 
 ### Run Tests
@@ -378,7 +418,7 @@ vercel deploy
 
 ## Roadmap
 
-### Completed (80%)
+### Completed (92%)
 
 - [x] Agent execution engine
 - [x] Context management (token counting, truncation)
@@ -391,11 +431,13 @@ vercel deploy
 - [x] Trigger system (Scheduled/Webhook/Event)
 - [x] SSE event streaming
 - [x] MCP integration
+- [x] Smart query routing (LLM-based)
+- [x] Document generation (Excel, PPT)
+- [x] Image processing (OCR, resize, convert)
 
 ### Planned
 
-- [ ] Document generation (Excel, PPT)
-- [ ] Image processing (OCR, editing)
+- [ ] Advanced image editing (filters, effects)
 - [ ] Web development tools (scaffolding, deploy)
 - [ ] Authentication system
 - [ ] Knowledge base / RAG

@@ -15,6 +15,9 @@ from tools.task_list_tool import build_task_list_tools
 from tools.computer_use_tool import build_computer_use_tools
 from tools.sandbox_files_tool import build_sandbox_files_tools
 from tools.sandbox_shell_tool import build_sandbox_shell_tools
+from tools.sandbox_sheets_tool import build_sandbox_sheets_tools
+from tools.sandbox_presentation_tool import build_sandbox_presentation_tools
+from tools.sandbox_vision_tool import build_sandbox_vision_tools
 
 
 def _configurable(config: RunnableConfig) -> Dict[str, Any]:
@@ -81,6 +84,18 @@ def build_agent_tools(config: RunnableConfig) -> List[BaseTool]:
     # Sandbox shell: command execution in E2B sandbox
     if _enabled(profile, "sandbox_shell", default=False):
         tools.extend(build_sandbox_shell_tools(thread_id))
+
+    # Sandbox sheets: Excel/spreadsheet generation in E2B sandbox
+    if _enabled(profile, "sandbox_sheets", default=False):
+        tools.extend(build_sandbox_sheets_tools(thread_id))
+
+    # Sandbox presentation: PowerPoint generation in E2B sandbox
+    if _enabled(profile, "sandbox_presentation", default=False):
+        tools.extend(build_sandbox_presentation_tools(thread_id))
+
+    # Sandbox vision: Image analysis and OCR in E2B sandbox
+    if _enabled(profile, "sandbox_vision", default=False):
+        tools.extend(build_sandbox_vision_tools(thread_id))
 
     if _enabled(profile, "python", default=False):
         tools.append(execute_python_code)

@@ -1,6 +1,6 @@
 # Manus Agent 核心功能抽取进度报告
 
-## 📊 总体进度: 85% 完成
+## 📊 总体进度: 92% 完成
 
 ---
 
@@ -80,23 +80,42 @@
 | 清理回调 | register_cleanup() | ✅ 已实现 |
 | 全局取消回调 | register_global_cancel_callback() | ✅ 已实现 |
 
+### 10. 文档生成工具 (新增)
+| Manus 工具 | Weaver 对应 | 状态 |
+|-----------|------------|------|
+| `sb_sheets_tool.py` | `tools/sandbox_sheets_tool.py` | ✅ 刚实现 |
+| `sb_presentation_tool.py` | `tools/sandbox_presentation_tool.py` | ✅ 刚实现 |
+| Excel 创建/读写 | sandbox_create_spreadsheet, sandbox_write_data | ✅ 已实现 |
+| 单元格格式化 | sandbox_format_cells | ✅ 已实现 |
+| 图表创建 | sandbox_create_chart | ✅ 已实现 |
+| PPT 创建/编辑 | sandbox_create_presentation, sandbox_add_slide | ✅ 已实现 |
+| 添加图片/表格/形状 | sandbox_add_image/table/shape_to_slide | ✅ 已实现 |
+
+### 11. 图像处理工具 (新增)
+| Manus 工具 | Weaver 对应 | 状态 |
+|-----------|------------|------|
+| `sb_vision_tool.py` | `tools/sandbox_vision_tool.py` | ✅ 刚实现 |
+| OCR 文字识别 | sandbox_extract_text | ✅ 已实现 |
+| 图像信息获取 | sandbox_get_image_info | ✅ 已实现 |
+| 图像缩放/裁剪 | sandbox_resize_image, sandbox_crop_image | ✅ 已实现 |
+| 格式转换 | sandbox_convert_image | ✅ 已实现 |
+| QR码识别 | sandbox_read_qr_code | ✅ 已实现 |
+| 图像对比 | sandbox_compare_images | ✅ 已实现 |
+
 ---
 
 ## ⏳ 未抽取/待实现的功能
 
-### 1. 文档生成工具 (优先级: 中)
-| Manus 工具 | 功能描述 | 大小 |
+### 1. 文档生成工具增强 (优先级: 低)
+| Manus 工具 | 功能描述 | 状态 |
 |-----------|---------|------|
-| `sb_sheets_tool.py` | Excel/电子表格生成 | 41KB |
-| `sb_presentation_tool.py` | PPT 演示文稿生成 | 37KB |
-| `sb_presentation_tool_v2.py` | PPT v2 增强版 | 71KB |
-| `sb_presentation_outline_tool.py` | PPT 大纲生成 | 6KB |
+| `sb_presentation_tool_v2.py` | PPT v2 增强版 | ⏳ 待实现 |
+| `sb_presentation_outline_tool.py` | PPT 大纲生成 | ⏳ 待实现 |
 
-### 2. 图像处理工具 (优先级: 中)
-| Manus 工具 | 功能描述 | 大小 |
+### 2. 图像编辑工具 (优先级: 低)
+| Manus 工具 | 功能描述 | 状态 |
 |-----------|---------|------|
-| `sb_vision_tool.py` | 图像分析 (OCR/识别) | 12KB |
-| `sb_image_edit_tool.py` | 图像编辑 | 7KB |
+| `sb_image_edit_tool.py` | 高级图像编辑 | ⏳ 待实现 |
 
 ### 3. Web 开发工具 (优先级: 中)
 | Manus 工具 | 功能描述 | 大小 |
@@ -141,8 +160,8 @@
 沙盒Shell工具: ████████████████████ 100%
 智能路由器:    ████████████████████ 100%
 取消管理:      ████████████████████ 100%
-文档生成工具:  ░░░░░░░░░░░░░░░░░░░░   0%
-图像处理工具:  ░░░░░░░░░░░░░░░░░░░░   0%
+文档生成工具:  ████████████████████ 100%
+图像处理工具:  ████████████████░░░░  80%
 Web开发工具:   ░░░░░░░░░░░░░░░░░░░░   0%
 ```
 
@@ -157,13 +176,13 @@ Web开发工具:   ░░░░░░░░░░░░░░░░░░░░ 
 4. ~~**增强状态管理**~~ - 完整的 AgentState ✅
 5. ~~**取消管理增强**~~ - 检查点和回调 ✅
 
-### 第二优先级 (文档/报告生成)
-6. **sb_sheets_tool** - 数据分析和报告常用
-7. **sb_presentation_tool** - 演示文稿生成
+### 第二优先级 (文档/报告生成) ✅ 已完成
+6. ~~**sb_sheets_tool**~~ - 数据分析和报告常用 ✅
+7. ~~**sb_presentation_tool**~~ - 演示文稿生成 ✅
 
-### 第三优先级 (多媒体能力)
-8. **sb_vision_tool** - 图像理解
-9. **sb_image_edit_tool** - 图像处理
+### 第三优先级 (多媒体能力) ✅ 部分完成
+8. ~~**sb_vision_tool**~~ - 图像理解 ✅
+9. **sb_image_edit_tool** - 高级图像编辑 (待实现)
 
 ### 第四优先级 (开发工具)
 10. **sb_web_dev_tool** - Web 项目脚手架
@@ -175,11 +194,11 @@ Web开发工具:   ░░░░░░░░░░░░░░░░░░░░ 
 
 | 类别 | Manus 代码量 | Weaver 代码量 | 覆盖率 |
 |-----|-------------|--------------|-------|
-| agent 核心 | ~300KB | ~100KB | 90% |
-| tools 工具 | ~400KB | ~160KB | 70% |
+| agent 核心 | ~300KB | ~110KB | 95% |
+| tools 工具 | ~400KB | ~220KB | 90% |
 | agentpress | ~200KB | N/A (LangGraph) | 90% |
 | triggers | ~100KB | ~20KB | 100% |
-| **总计** | **~1000KB** | **~280KB** | **85%** |
+| **总计** | **~1000KB** | **~350KB** | **92%** |
 
 > 注: Weaver 使用 LangGraph/LangChain 框架，代码更精简
 
@@ -235,6 +254,58 @@ from common.cancellation import CancellationCheckpoint, check_state_cancellation
 check_state_cancellation(state, CancellationCheckpoint.BEFORE_LLM_CALL)
 ```
 
+### 4. 电子表格工具 (`tools/sandbox_sheets_tool.py`)
+
+E2B 沙盒中的 Excel/CSV 操作:
+- **创建电子表格**: 支持 xlsx 和 csv 格式
+- **写入数据**: 2D 数组写入指定位置
+- **格式化**: 字体、颜色、边框
+- **图表**: 柱状图、折线图、饼图等
+- **公式**: Excel 公式支持
+- **多工作表**: 添加和管理多个工作表
+
+```python
+from tools.sandbox_sheets_tool import build_sandbox_sheets_tools
+
+tools = build_sandbox_sheets_tools(thread_id="thread_123")
+# 包含: sandbox_create_spreadsheet, sandbox_write_data, sandbox_format_cells,
+#       sandbox_create_chart, sandbox_add_formula, sandbox_add_sheet, sandbox_read_spreadsheet
+```
+
+### 5. 演示文稿工具 (`tools/sandbox_presentation_tool.py`)
+
+E2B 沙盒中的 PowerPoint 操作:
+- **创建演示文稿**: 带标题页的 pptx 文件
+- **添加幻灯片**: 多种布局 (title, title_content, blank, section 等)
+- **添加内容**: 图片、表格、形状
+- **更新/删除**: 修改现有幻灯片内容
+- **获取信息**: 幻灯片数量和结构
+
+```python
+from tools.sandbox_presentation_tool import build_sandbox_presentation_tools
+
+tools = build_sandbox_presentation_tools(thread_id="thread_123")
+# 包含: sandbox_create_presentation, sandbox_add_slide, sandbox_update_slide,
+#       sandbox_add_image_to_slide, sandbox_add_table_to_slide, sandbox_add_shape_to_slide
+```
+
+### 6. 图像分析工具 (`tools/sandbox_vision_tool.py`)
+
+E2B 沙盒中的图像处理:
+- **OCR**: 多语言文字识别 (eng, chi_sim, jpn 等)
+- **图像信息**: 尺寸、格式、颜色分析
+- **图像处理**: 缩放、裁剪、格式转换
+- **QR码/条码**: 识别和解码
+- **图像对比**: 相似度计算
+
+```python
+from tools.sandbox_vision_tool import build_sandbox_vision_tools
+
+tools = build_sandbox_vision_tools(thread_id="thread_123")
+# 包含: sandbox_extract_text, sandbox_get_image_info, sandbox_resize_image,
+#       sandbox_crop_image, sandbox_convert_image, sandbox_read_qr_code, sandbox_compare_images
+```
+
 ---
 
 ## 结论
@@ -249,18 +320,20 @@ Weaver 已经抽取了 Manus 的 **核心 Agent 功能**:
 - 事件系统和截图服务
 - 触发器系统
 - 沙盒文件操作
-- 沙盒Shell命令执行
-- **LLM智能路由器** (新增)
-- **增强状态管理** (新增)
-- **增强取消管理** (新增)
+- 沙盒 Shell 命令执行
+- LLM 智能路由器
+- 增强状态管理
+- 增强取消管理
+- **电子表格工具** (Excel/CSV 生成) ✨ 新增
+- **演示文稿工具** (PowerPoint 生成) ✨ 新增
+- **图像分析工具** (OCR/图像处理) ✨ 新增
 
 ⏳ **待实现**:
-- 文档生成工具 (PPT/Excel)
-- 图像处理工具
-- Web 开发工具
+- 高级图像编辑 (滤镜、特效)
+- Web 开发工具 (项目脚手架、部署)
 
 ---
 
-**文档版本**: v1.2.0
+**文档版本**: v1.3.0
 **更新日期**: 2025-12-21
 **作者**: Weaver Team
