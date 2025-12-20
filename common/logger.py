@@ -53,12 +53,15 @@ def setup_logging():
     - Log levels based on configuration
     """
 
+    # Avoid double-initializing when uvicorn --reload spawns extra processes
+    root_logger = logging.getLogger()
+    if getattr(root_logger, "_weaver_configured", False):
+        return root_logger
+
     # Determine log level (do NOT force DEBUG when settings.debug is True; keep it explicit)
     log_level_str = settings.log_level.upper()
     log_level = getattr(logging, log_level_str, logging.INFO)
 
-    # Create root logger
-    root_logger = logging.getLogger()
     root_logger.setLevel(log_level)
 
     # Remove existing handlers
@@ -102,7 +105,7 @@ def setup_logging():
     logging.getLogger("httpcore").setLevel(logging.WARNING)
     logging.getLogger("openai").setLevel(logging.WARNING)
     logging.getLogger("anthropic").setLevel(logging.WARNING)
-    logging.getLogger("watchfiles").setLevel(logging.INFO)
+    logging.getLogger("watchfiles").setLevel(logging.WARNING)
 
     # Log startup message
     logger = logging.getLogger(__name__)
@@ -114,6 +117,8 @@ def setup_logging():
         logger.info(f"Log file: {settings.log_file}")
     logger.info(f"JSON logging: {'Enabled' if settings.enable_json_logging else 'Disabled'}")
     logger.info("=" * 80)
+
+    root_logger._weaver_configured = True
 
 
 def get_logger(name: str) -> logging.Logger:
