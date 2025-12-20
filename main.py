@@ -32,6 +32,8 @@ from common.metrics import metrics_registry
 from common.cancellation import cancellation_manager
 from tools.browser_session import browser_sessions
 from tools.sandbox_browser_session import sandbox_browser_sessions
+from tools.screenshot_service import get_screenshot_service, init_screenshot_service
+from agent.events import get_emitter, remove_emitter, ToolEvent
 from common.agents_store import (
     AgentProfile,
     ensure_default_agent,
@@ -677,6 +679,16 @@ async def stream_agent_events(
         metadata={"model": model, "input_preview": input_text[:100]}
     )
 
+    # Set up event emitter for tool visualization
+    emitter = await get_emitter(thread_id)
+    event_queue: asyncio.Queue = asyncio.Queue()
+
+    async def tool_event_listener(event):
+        """Forward tool events to the queue for SSE streaming."""
+        await event_queue.put(event)
+
+    emitter.on_event(tool_event_listener)
+
     try:
         logger.info(f"Agent stream started | Thread: {thread_id} | Model: {model}")
         logger.debug(f"  Input: {input_text[:100]}...")
@@ -759,6 +771,24 @@ async def stream_agent_events(
             initial_state,
             config=config
         ):
+            # First, drain any pending tool events from the queue
+            while not event_queue.empty():
+                try:
+                    tool_event = event_queue.get_nowait()
+                    # Forward tool events to SSE stream
+                    if tool_event.type == ToolEvent.TOOL_START:
+                        yield await format_stream_event("tool_start", tool_event.data)
+                    elif tool_event.type == ToolEvent.TOOL_SCREENSHOT:
+                        yield await format_stream_event("screenshot", tool_event.data)
+                    elif tool_event.type == ToolEvent.TOOL_RESULT:
+                        yield await format_stream_event("tool_result", tool_event.data)
+                    elif tool_event.type == ToolEvent.TOOL_ERROR:
+                        yield await format_stream_event("tool_error", tool_event.data)
+                    elif tool_event.type == ToolEvent.TASK_UPDATE:
+                        yield await format_stream_event("task_update", tool_event.data)
+                except asyncio.QueueEmpty:
+                    break
+
             # Check cancellation status
             if cancel_token.is_cancelled:
                 logger.info(f"Stream cancelled for thread {thread_id}")
@@ -970,6 +1000,12 @@ async def stream_agent_events(
         })
 
     finally:
+        # Cleanup event emitter listener
+        try:
+            emitter.off_event(tool_event_listener)
+            await remove_emitter(thread_id)
+        except Exception:
+            pass
         # ???????
         if thread_id in active_streams:
             del active_streams[thread_id]
@@ -1508,6 +1544,105 @@ async def research(query: str):
     return StreamingResponse(
         stream_agent_events(query),
         media_type="text/event-stream"
+    )
+
+
+# ==================== Screenshot API ====================
+
+from fastapi.responses import FileResponse
+
+@app.get("/api/screenshots/{filename}")
+async def get_screenshot(filename: str):
+    """
+    Serve a screenshot file.
+
+    Args:
+        filename: Screenshot filename
+    """
+    service = get_screenshot_service()
+    filepath = service.get_screenshot_path(filename)
+
+    if not filepath:
+        raise HTTPException(status_code=404, detail="Screenshot not found")
+
+    # Determine media type
+    media_type = "image/png"
+    if filename.lower().endswith(".jpg") or filename.lower().endswith(".jpeg"):
+        media_type = "image/jpeg"
+
+    return FileResponse(
+        filepath,
+        media_type=media_type,
+        headers={"Cache-Control": "public, max-age=3600"}
+    )
+
+
+@app.get("/api/screenshots")
+async def list_screenshots(thread_id: Optional[str] = None, limit: int = 50):
+    """
+    List available screenshots.
+
+    Args:
+        thread_id: Optional filter by thread ID
+        limit: Maximum number of results
+    """
+    service = get_screenshot_service()
+    screenshots = service.list_screenshots(thread_id=thread_id, limit=limit)
+
+    return {
+        "screenshots": screenshots,
+        "count": len(screenshots),
+        "thread_id": thread_id
+    }
+
+
+@app.post("/api/screenshots/cleanup")
+async def cleanup_screenshots():
+    """Cleanup old screenshots."""
+    service = get_screenshot_service()
+    deleted_count = await service.cleanup_old_screenshots()
+
+    return {
+        "status": "completed",
+        "deleted_count": deleted_count,
+        "timestamp": datetime.now().isoformat()
+    }
+
+
+# ==================== Tool Events SSE Endpoint ====================
+
+@app.get("/api/events/{thread_id}")
+async def stream_tool_events(thread_id: str):
+    """
+    Subscribe to tool execution events for a specific thread.
+
+    This endpoint streams real-time events including:
+    - tool_start: When a tool begins execution
+    - tool_screenshot: When a screenshot is captured
+    - tool_result: When a tool completes execution
+    - task_update: Task progress updates
+
+    Usage:
+        const eventSource = new EventSource('/api/events/thread_123');
+        eventSource.onmessage = (e) => {
+            const data = JSON.parse(e.data);
+            console.log(data.type, data.data);
+        };
+    """
+    from agent.events import event_stream_generator
+
+    async def event_generator():
+        async for event_sse in event_stream_generator(thread_id, timeout=300.0):
+            yield event_sse
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        }
     )
 
 
