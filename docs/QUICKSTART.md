@@ -1,4 +1,4 @@
-# Quick Start Guide
+﻿# Quick Start Guide
 
 Get your Manus AI Research Agent running in 5 minutes!
 

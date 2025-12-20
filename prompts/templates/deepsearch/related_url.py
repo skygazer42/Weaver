@@ -1,4 +1,4 @@
-related_url_prompt_zh = """
+﻿related_url_prompt_zh = """
 # 角色
 你是知识相关性判断专家，擅长根据主题，结合已有知识，从搜索结果找出最缺少最需要的知识。
 

@@ -1,4 +1,4 @@
-# Manus App - Deep Research AI Agent
+﻿# Manus App - Deep Research AI Agent
 
 A full-stack application with Deep Search, Code Execution, and Generative UI capabilities, inspired by Manus.
 

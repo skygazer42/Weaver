@@ -6,6 +6,8 @@ Hard-requires the DashScope SDK and a valid `DASHSCOPE_API_KEY`.
 import base64
 import logging
 import os
+import time
+from importlib import metadata
 from typing import Optional, Dict, Any
 
 import dashscope
@@ -41,12 +43,15 @@ class TTSService:
 
         dashscope.api_key = self.api_key
         self.enabled = True
+        self._warn_if_old_sdk()
 
     def synthesize(
         self,
         text: str,
         voice: str = DEFAULT_VOICE,
-        model: str = DEFAULT_MODEL
+        model: str = DEFAULT_MODEL,
+        max_retries: int = 3,
+        retry_delay: float = 1.0
     ) -> Dict[str, Any]:
         """Run TTS and return a base64-encoded MP3 payload."""
         if not text or not text.strip():
@@ -57,11 +62,26 @@ class TTSService:
             text = text[:max_length] + "..."
             logger.warning("Text truncated to %s characters", max_length)
 
-        synthesizer = SpeechSynthesizer(model=model, voice=voice)
-        audio_data = synthesizer.call(text)
+        if voice not in AVAILABLE_VOICES:
+            logger.warning("Requested voice '%s' not in AVAILABLE_VOICES; proceeding anyway.", voice)
+
+        audio_data = None
+        last_error: Optional[Exception] = None
+        for attempt in range(1, max_retries + 1):
+            try:
+                synthesizer = SpeechSynthesizer(model=model, voice=voice)
+                audio_data = synthesizer.call(text)
+                if audio_data:
+                    break
+                last_error = RuntimeError("No audio data returned from DashScope.")
+            except Exception as exc:  # noqa: PERF203
+                last_error = exc
+                logger.warning("TTS attempt %s/%s failed: %s", attempt, max_retries, exc)
+            if attempt < max_retries:
+                time.sleep(retry_delay)
 
         if not audio_data:
-            raise RuntimeError("No audio data returned from DashScope.")
+            raise RuntimeError(f"TTS failed after {max_retries} attempts: {last_error}")
 
         audio_base64 = base64.b64encode(audio_data).decode("utf-8")
         logger.info("TTS success: %s chars -> %s bytes", len(text), len(audio_data))
@@ -77,6 +97,17 @@ class TTSService:
 
     def get_available_voices(self) -> Dict[str, str]:
         return AVAILABLE_VOICES.copy()
+
+    @staticmethod
+    def _warn_if_old_sdk(min_version: str = "1.24.6") -> None:
+        """Log a warning if the installed dashscope SDK is older than recommended."""
+        try:
+            current = metadata.version("dashscope")
+            if tuple(int(x) for x in current.split(".")[:3]) < tuple(int(x) for x in min_version.split(".")):
+                logger.warning("dashscope %s detected; TTS works best with >= %s", current, min_version)
+        except Exception:
+            # Version introspection is best-effort only
+            pass
 
 
 # Global TTS service instance (lazy-init)

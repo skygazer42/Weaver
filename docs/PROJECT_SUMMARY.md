@@ -1,4 +1,4 @@
-# Project Summary - Manus AI Research Agent
+﻿# Project Summary - Manus AI Research Agent
 
 ## 🎯 Project Overview
 

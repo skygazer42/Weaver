@@ -1,4 +1,4 @@
-from langchain_openai import ChatOpenAI
+﻿from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableConfig
@@ -277,7 +277,9 @@ def deepsearch_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]
     """Deep search pipeline that iterates query → search → summarize."""
     logger.info("Executing deepsearch node")
     try:
-        _check_cancellation(state)
+        token_id = state.get("cancel_token_id")
+        if token_id:
+            _check_cancellation(token_id)
         return run_deepsearch(state, config)
     except asyncio.CancelledError as e:
         return handle_cancellation(state, e)

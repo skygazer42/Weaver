@@ -1,4 +1,4 @@
-"""
+﻿"""
 Lightweight crawler used as a fallback when Tavily doesn't return page bodies.
 
 Uses standard library urllib to avoid extra dependencies. It is best-effort and

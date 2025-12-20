@@ -1,4 +1,4 @@
-from pydantic_settings import BaseSettings
+﻿from pydantic_settings import BaseSettings
 from typing import List
 
 
@@ -93,6 +93,9 @@ class Settings(BaseSettings):
     tool_selector_max_tools: int = 3
     tool_selector_always_include: str = ""  # comma-separated tool names
     tool_selector_prompt: str = ""
+    enable_todo_middleware: bool = False  # enable todo list middleware
+    todo_system_prompt: str = ""  # custom system prompt for todo middleware
+    todo_tool_description: str = ""  # custom tool description for todo middleware
 
     # Prompt Optimization (Prompt 优化)
     prompt_optimizer_model: str = "gpt-4o"  # 用于优化 Prompt 的模型
