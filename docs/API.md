@@ -1,44 +1,36 @@
-﻿# API Documentation
+# API 说明（后端）
 
-## Base URL
+Base URL（本地开发）：
 
 ```
 http://localhost:8000
 ```
 
-## Endpoints
+## 1. 健康检查
 
-### 1. Health Check
+### `GET /`
 
-**GET** `/health`
+简单健康检查。
 
-Check the health status of the API and database connection.
+### `GET /health`
 
-**Response**:
-```json
-{
-  "status": "healthy",
-  "database": "connected",
-  "timestamp": "2024-01-15T10:30:00"
-}
-```
+返回更详细的健康信息（包含时间戳等）。
 
-### 2. Chat (Streaming)
+## 2. 对话（流式）
 
-**POST** `/api/chat`
+### `POST /api/chat`
 
-Main chat endpoint with streaming support. Compatible with Vercel AI SDK.
+主入口（兼容 Vercel AI SDK `useChat` 的 `messages` 结构）。
 
-**Request**:
+请求示例：
+
 ```json
 {
   "messages": [
-    {
-      "role": "user",
-      "content": "What are the latest trends in AI?"
-    }
+    { "role": "user", "content": "帮我总结一下 LangGraph 的核心概念" }
   ],
   "stream": true,
+  "model": "deepseek-chat",
   "search_mode": {
     "useWebSearch": true,
     "useAgent": true,
@@ -47,337 +39,72 @@ Main chat endpoint with streaming support. Compatible with Vercel AI SDK.
 }
 ```
 
-**Response** (Server-Sent Events):
+响应：
 
-The response is a stream of events in the format: `0:{json}\n`
+- `Content-Type: text/event-stream`
+- 每行是 Vercel AI SDK Data Stream Protocol：`0:{json}\n`
 
-Event types:
+示例行：
 
-1. **Status Event**:
-```json
-{
-  "type": "status",
-  "data": {
-    "text": "Creating research plan...",
-    "step": "planning"
-  }
-}
+```text
+0:{"type":"text","data":{"content":"..."}}
 ```
 
-2. **Text Event** (streaming tokens):
-```json
-{
-  "type": "text",
-  "data": {
-    "content": "The latest"
-  }
-}
-```
+### `POST /api/chat/cancel/{thread_id}`
 
-3. **Message Event** (complete message):
-```json
-{
-  "type": "message",
-  "data": {
-    "content": "Research Plan:\n1. Search for...\n2. Analyze..."
-  }
-}
-```
+取消某个流式任务（`thread_id` 通常来自 `/api/chat` 响应头 `X-Thread-ID`）。
 
-4. **Interrupt Event** (requires resume):
-```json
-{
-  "type": "interrupt",
-  "data": {
-    "thread_id": "thread_123",
-    "prompts": [
-      {
-        "instruction": "Review and edit the report if needed. Return the updated content or approve as-is.",
-        "content": "Draft report text..."
-      }
-    ]
-  }
-}
-```
+### `POST /api/chat/cancel-all`
 
-4. **Tool Event**:
-```json
-{
-  "type": "tool",
-  "data": {
-    "name": "search",
-    "status": "running",
-    "query": "AI trends 2024"
-  }
-}
-```
+取消所有正在运行的任务。
 
-5. **Completion Event**:
-```json
-{
-  "type": "completion",
-  "data": {
-    "content": "# Research Report\n\nBased on extensive research..."
-  }
-}
-```
+### `GET /api/tasks/active`
 
-6. **Done Event**:
-```json
-{
-  "type": "done",
-  "data": {
-    "timestamp": "2024-01-15T10:35:00"
-  }
-}
-```
+查看当前活跃任务（取消管理器统计 + stream 数）。
 
-7. **Error Event**:
-```json
-{
-  "type": "error",
-  "data": {
-    "message": "Search API rate limit exceeded"
-  }
-}
-```
+## 3. 研究入口（流式）
 
-### 3. Interrupt Resume
+### `POST /api/research?query=...`
 
-**POST** `/api/interrupt/resume`
+与 `/api/chat` 的流式逻辑相同，但用 query 参数触发。
 
-Resume a workflow after an interrupt (human review or tool approval).
+## 4. 中断与恢复（可选）
 
-**Request**:
-```json
-{
-  "thread_id": "review-42",
-  "payload": {
-    "content": "Edited report content..."
-  }
-}
-```
+### `POST /api/interrupt/resume`
 
-**Response**:
-```json
-{
-  "id": "msg_1705315800.123",
-  "content": "Final report content...",
-  "role": "assistant",
-  "timestamp": "2024-01-15T10:30:00"
-}
-```
+用于 human-in-the-loop：对 interrupt 的 LangGraph 线程恢复执行。  
+如果没有启用 checkpoint（例如未配置 `DATABASE_URL`），可能返回 404。
 
-### 4. Chat (Non-Streaming)
+## 5. MCP（可选）
 
-**POST** `/api/chat`
+### `GET /api/mcp/config`
 
-Same endpoint as above, but with `stream: false`.
+读取当前 MCP 配置。
 
-**Request**:
-```json
-{
-  "messages": [
-    {
-      "role": "user",
-      "content": "Explain quantum computing"
-    }
-  ],
-  "stream": false
-}
-```
+### `POST /api/mcp/config`
 
-**Response**:
-```json
-{
-  "id": "msg_1705315800.123",
-  "content": "# Quantum Computing\n\nQuantum computing is...",
-  "role": "assistant",
-  "timestamp": "2024-01-15T10:30:00"
-}
-```
+更新 MCP servers 配置并热重载工具。
 
-### 5. Research (Dedicated)
+## 6. 记忆（可选）
 
-**POST** `/api/research?query={query}`
+### `GET /api/memory/status`
 
-Dedicated research endpoint for long-running queries.
+返回当前记忆后端信息（Mem0 / fallback / store）。
 
-**Request**:
-```
-POST /api/research?query=Analyze%20the%20GPU%20market
-```
+## 7. ASR / TTS（可选）
 
-**Response**: Same streaming format as `/api/chat`
+依赖 `DASHSCOPE_API_KEY`。
 
-## Event Flow Example
+- `GET /api/asr/status`
+- `POST /api/asr/recognize`
+- `POST /api/asr/upload`
+- `GET /api/tts/status`
+- `GET /api/tts/voices`
+- `POST /api/tts/synthesize`
 
-```
-User sends: "Research the top 5 AI frameworks"
+## 8. 指标（可选）
 
-1. status → "Initializing research agent..."
-2. status → "Creating research plan..."
-3. message → "Research Plan: 1. TensorFlow 2. PyTorch..."
-4. status → "Conducting research..."
-5. tool → {name: "search", status: "running", query: "TensorFlow features"}
-6. tool → {name: "search", status: "completed"}
-7. tool → {name: "search", status: "running", query: "PyTorch comparison"}
-8. tool → {name: "search", status: "completed"}
-9. status → "Synthesizing findings..."
-10. text → "# Top 5" (streaming)
-11. text → " AI" (streaming)
-12. text → " Frameworks" (streaming)
-13. completion → "# Top 5 AI Frameworks\n\n## 1. TensorFlow..."
-14. done → {timestamp: "..."}
-```
+### `GET /metrics`
 
-## Integration Examples
+需要 `ENABLE_PROMETHEUS=true` 才会启用；否则可能 404。
 
-### JavaScript (Fetch API)
-
-```javascript
-const response = await fetch('http://localhost:8000/api/chat', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({
-    messages: [{ role: 'user', content: 'Hello' }],
-    stream: true,
-  }),
-})
-
-const reader = response.body.getReader()
-const decoder = new TextDecoder()
-
-while (true) {
-  const { done, value } = await reader.read()
-  if (done) break
-
-  const chunk = decoder.decode(value)
-  const lines = chunk.split('\n').filter(line => line.trim())
-
-  for (const line of lines) {
-    if (line.startsWith('0:')) {
-      const data = JSON.parse(line.slice(2))
-      console.log('Event:', data)
-    }
-  }
-}
-```
-
-### Python (httpx)
-
-```python
-import httpx
-import json
-
-async with httpx.AsyncClient() as client:
-    async with client.stream(
-        'POST',
-        'http://localhost:8000/api/chat',
-        json={
-            'messages': [{'role': 'user', 'content': 'Hello'}],
-            'stream': True
-        }
-    ) as response:
-        async for line in response.aiter_lines():
-            if line.startswith('0:'):
-                data = json.loads(line[2:])
-                print('Event:', data)
-```
-
-### cURL
-
-```bash
-curl -X POST http://localhost:8000/api/chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "messages": [
-      {"role": "user", "content": "What is LangGraph?"}
-    ],
-    "stream": true
-  }' \
-  --no-buffer
-```
-
-## Error Responses
-
-### 400 Bad Request
-
-```json
-{
-  "detail": "No user message found"
-}
-```
-
-### 500 Internal Server Error
-
-```json
-{
-  "detail": "Search API error: Rate limit exceeded"
-}
-```
-
-## Rate Limits
-
-- No built-in rate limiting (depends on OpenAI/Tavily limits)
-- OpenAI: Varies by tier
-- Tavily: Check your plan
-
-## Best Practices
-
-1. **Use streaming for better UX**: Show real-time progress
-2. **Handle timeouts**: Research can take 5-10 minutes
-3. **Parse events carefully**: Check event type before processing
-4. **Implement retry logic**: Network issues can interrupt streams
-5. **Show tool invocations**: Display search progress to users
-
-## WebSocket Alternative (Future)
-
-For production, consider implementing WebSocket support:
-
-```python
-# Backend: Use FastAPI WebSocket
-@app.websocket("/ws/chat")
-async def websocket_chat(websocket: WebSocket):
-    await websocket.accept()
-    # Stream events via WebSocket
-```
-
-This provides:
-- Bi-directional communication
-- Better error handling
-- Automatic reconnection
-- Lower overhead
-
-## Deployment Considerations
-
-### CORS
-
-Configure CORS for production:
-
-```python
-# config.py
-cors_origins = "https://your-frontend.com"
-```
-
-### HTTPS
-
-Always use HTTPS in production:
-```
-https://api.your-domain.com/api/chat
-```
-
-### Long-Running Requests
-
-- Use long-running containers (not serverless)
-- Railway, AWS Fargate, or similar
-- Configure appropriate timeouts (10+ minutes)
-
-### Load Balancing
-
-For high traffic:
-- Use Redis for state persistence
-- Scale backend horizontally
-- Implement request queuing (BullMQ)

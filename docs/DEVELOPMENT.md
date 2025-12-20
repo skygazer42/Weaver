@@ -1,332 +1,71 @@
-﻿# Development Guide
+# 开发指南（后端为主）
 
-## Quick Start
+本文档面向需要二次开发 Weaver 的同学，重点覆盖后端运行方式、代码结构、调试与常见改动点。
 
-### 1. Initial Setup
+## 常用命令
 
-```bash
-# Make scripts executable
-chmod +x scripts/*.sh
+后端（PowerShell）：
 
-# Run setup script
-./scripts/setup.sh
-
-# Edit .env file with your API keys
-vim .env
+```powershell
+.\venv\Scripts\Activate.ps1
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-### 2. Start Development
+前端：
 
-```bash
-# Option 1: Use the dev script
-./scripts/dev.sh
-
-# Option 2: Use npm script (recommended)
+```powershell
+cd web
 npm run dev
-
-# Option 3: Start individually
-npm run dev:backend  # Backend only
-npm run dev:frontend # Web only
 ```
 
-### 3. Access the Application
+测试：
 
-- **Web**: http://localhost:3000
-- **Backend API**: http://localhost:8000
-- **API Documentation**: http://localhost:8000/docs
-
-## Project Structure
-
-```
-manus-app/
-├── web/              # Next.js 14 application
-│   ├── app/              # App router
-│   │   ├── page.tsx      # Main page
-│   │   ├── layout.tsx    # Root layout
-│   │   └── globals.css   # Global styles
-│   ├── components/       # React components
-│   │   ├── ui/          # Shadcn UI components
-│   │   └── chat/        # Chat-specific components
-│   └── lib/             # Utilities
-│
-├── backend/              # Python FastAPI application
-│   ├── agent/           # LangGraph agent
-│   │   ├── state.py     # Agent state schema
-│   │   ├── nodes.py     # Agent nodes (planner, researcher, writer)
-│   │   └── graph.py     # Graph construction
-│   ├── tools/           # Agent tools
-│   │   ├── search.py    # Tavily search integration
-│   │   └── code_executor.py  # E2B code execution
-│   ├── main.py          # FastAPI app & streaming endpoint
-│   └── config.py        # Configuration
-│
-└── scripts/             # Utility scripts
+```powershell
+pytest -q
 ```
 
-## Architecture
-
-### Backend Flow
+## 目录结构（实际代码）
 
 ```
-User Query
-    ↓
-FastAPI /api/chat (main.py)
-    ↓
-LangGraph Agent (agent/graph.py)
-    ↓
-┌─────────────────┐
-│  Planner Node   │ → Creates research plan
-└────────┬────────┘
-         ↓
-┌─────────────────┐
-│ Researcher Node │ → Executes searches (Tavily)
-└────────┬────────┘
-         ↓ (loop until done)
-┌─────────────────┐
-│  Writer Node    │ → Synthesizes report
-└────────┬────────┘
-         ↓
-Stream Events to Web
+Weaver/
+  main.py              # FastAPI 入口（SSE、取消、中断、MCP、ASR/TTS）
+  agent/               # LangGraph 工作流（state / nodes / graph）
+  tools/               # 工具封装（Tavily、E2B、MCP、ASR/TTS、crawler）
+  common/              # 配置、日志、指标、取消等通用模块
+  tests/               # 后端测试
+  web/                 # Next.js 前端
+  docs/                # 文档
 ```
 
-### Web Flow
+## 关键代码入口
+
+- 后端应用：`main.py`
+  - `/api/chat`：主对话入口（支持流式）
+  - `/api/research`：研究模式入口（流式）
+  - `/api/chat/cancel/{thread_id}`：取消单任务
+  - `/api/interrupt/resume`：中断后恢复（LangGraph checkpoint）
+  - `/api/mcp/config`：运行时配置 MCP servers
+  - `/api/asr/*`、`/api/tts/*`：语音服务（可选）
+- LangGraph：`agent/graph.py`
+  - `create_research_graph(...)`：组装 router/planner/search/writer/evaluator 等节点
+- 节点实现：`agent/nodes.py`
+  - 搜索并发、writer 汇总、evaluator-optimizer 迭代、deepsearch 等逻辑都在这里
+- 配置：`common/config.py`
+  - Pydantic Settings 从 `.env` 读取（默认 `case_sensitive=False`）
+
+## 本地调试建议
+
+- 日志：默认写入 `logs/`，并可按 `thread_id` 追加写入 `logs/threads/{thread_id}.log`（见 `main.py` 的流式逻辑）。
+- 复现问题：优先用 `tests/test_smoke_api.py` 或直接 `curl` 触发对应接口。
+- 模型切换：`/api/chat` 支持在请求里传 `model`，并在 LangGraph `configurable.model` 中下发到节点/工具调用。
+
+## 常见改动点
+
+- 增加/修改工作流节点：改 `agent/nodes.py` 并在 `agent/graph.py` 接入边/条件路由。
+- 增加工具：
+  1) 在 `tools/` 新建工具（推荐用 `langchain.tools.tool` 装饰器）
+  2) 在节点里把工具加入可用列表（例如 writer 的 `_get_writer_tools()`）
+  3) 如需 MCP：配置 `ENABLE_MCP=true` + `MCP_SERVERS`，或走 `/api/mcp/config`
+
+更多“后端工作流与接口时序”请看：`docs/BACKEND_WORKFLOW.md`。
 
-```
-User Input
-    ↓
-Chat.tsx
-    ↓
-POST /api/chat (streaming)
-    ↓
-Parse SSE stream
-    ↓
-Update UI:
-├── Messages (MessageItem.tsx)
-├── Tool Status (ToolInvocationCard)
-└── Artifacts (ArtifactsPanel.tsx)
-```
-
-## Key Features Implementation
-
-### 1. Deep Search
-
-**Backend** (agent/nodes.py:44-82):
-- Planner creates 3-7 targeted queries
-- Researcher executes each query using Tavily
-- Advanced search depth returns full content
-
-**Configuration**:
-- Model: `o1-mini` for planning (reasoning)
-- Search: Tavily with `search_depth="advanced"`
-
-### 2. Streaming
-
-**Backend** (main.py:116-209):
-- Uses `research_graph.astream_events()` for real-time updates
-- Converts LangGraph events to Vercel AI SDK format
-- Event types: status, text, tool, completion
-
-**Web** (web/components/chat/Chat.tsx:48-122):
-- Fetches streaming response
-- Parses data stream protocol (`0:{json}\n`)
-- Updates UI in real-time
-
-### 3. Code Execution
-
-**Backend** (tools/code_executor.py):
-- E2B Sandbox for safe Python execution
-- Supports matplotlib for visualizations
-- Returns base64 encoded images
-
-**Enable**:
-```bash
-# Add to .env
-E2B_API_KEY=your_key_here
-```
-
-### 4. Persistence
-
-**Database** (PostgreSQL with pgvector):
-- Stores agent state checkpoints
-- Allows pause/resume for long tasks
-- Enables retry on failure
-
-**Setup**:
-```bash
-docker-compose up -d postgres
-```
-
-## Development Tips
-
-### Backend Development
-
-```bash
-# Activate virtual environment
-# Backend now in root
-source venv/bin/activate
-
-# Run with auto-reload
-uvicorn main:app --reload
-
-# Run with debug logging
-DEBUG=True uvicorn main:app --reload
-
-# Test API directly
-curl http://localhost:8000/health
-```
-
-### Web Development
-
-```bash
-cd frontend
-
-# Development server
-npm run dev
-
-# Type checking
-npm run lint
-
-# Build for production
-npm run build
-```
-
-### Database Management
-
-```bash
-# Start database
-docker-compose up -d postgres
-
-# Stop database
-docker-compose down
-
-# View logs
-docker-compose logs -f postgres
-
-# Connect to database
-docker exec -it manus_postgres psql -U manus -d manus_db
-```
-
-## Troubleshooting
-
-### Port Already in Use
-
-```bash
-# Kill process on port 8000
-lsof -ti:8000 | xargs kill -9
-
-# Kill process on port 3000
-lsof -ti:3000 | xargs kill -9
-```
-
-### Database Connection Failed
-
-```bash
-# Restart database
-docker-compose restart postgres
-
-# Check database status
-docker-compose ps
-```
-
-### Import Errors (Python)
-
-```bash
-# Backend now in root
-source venv/bin/activate
-pip install -r requirements.txt
-```
-
-### TypeScript Errors
-
-```bash
-cd frontend
-rm -rf node_modules package-lock.json
-npm install
-```
-
-## Testing
-
-### Manual Testing
-
-1. **Basic Chat**:
-   - Query: "What is LangGraph?"
-   - Expected: Planner → Researcher → Writer flow
-
-2. **Deep Research**:
-   - Query: "Analyze the top 5 AI companies in 2024"
-   - Expected: Multiple search queries, comprehensive report
-
-3. **Code Execution** (if E2B configured):
-   - Query: "Create a chart showing Python vs JavaScript popularity"
-   - Expected: Code execution + visualization
-
-### API Testing
-
-```bash
-# Health check
-curl http://localhost:8000/health
-
-# Non-streaming chat
-curl -X POST http://localhost:8000/api/chat \
-  -H "Content-Type: application/json" \
-  -d '{"messages":[{"role":"user","content":"Hello"}],"stream":false}'
-```
-
-## Environment Variables
-
-### Backend (.env)
-
-```bash
-# Required
-OPENAI_API_KEY=sk-...          # OpenAI API key
-TAVILY_API_KEY=tvly-...        # Tavily search API
-DATABASE_URL=postgresql://...   # PostgreSQL connection
-
-# Optional
-E2B_API_KEY=e2b_...            # Code execution
-ANTHROPIC_API_KEY=sk-ant-...   # Claude models
-DEBUG=True                      # Enable debug logs
-```
-
-### Web (.env.local)
-
-```bash
-NEXT_PUBLIC_API_URL=http://localhost:8000
-```
-
-## Performance Optimization
-
-### Backend
-
-1. **Use reasoning model only for planning**:
-   - Planner: `o1-mini` (slow but accurate)
-   - Researcher/Writer: `gpt-4o-mini` (fast)
-
-2. **Limit context size**:
-   - Truncate scraped content in writer node
-   - Use summarization for very long documents
-
-3. **Parallel searches**:
-   - Use LangGraph's `Send` API for concurrent queries
-   - Set `max_concurrency` to avoid rate limits
-
-### Web
-
-1. **Optimize re-renders**:
-   - Use React.memo for MessageItem
-   - Virtualize long message lists
-
-2. **Debounce input**:
-   - Add input debouncing for better UX
-
-## Deployment
-
-See main README.md for deployment instructions.
-
-## Resources
-
-- [LangGraph Documentation](https://langchain-ai.github.io/langgraph/)
-- [Vercel AI SDK](https://sdk.vercel.ai/docs)
-- [Tavily API](https://docs.tavily.com/)
-- [E2B Documentation](https://e2b.dev/docs)
-- [Shadcn UI](https://ui.shadcn.com/)
