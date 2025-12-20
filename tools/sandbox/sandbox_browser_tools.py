@@ -7,7 +7,7 @@ This module provides browser automation tools that:
 - Support both sync and async event emission
 
 Usage:
-    from tools.sandbox_browser_tools import build_sandbox_browser_tools
+    from tools.sandbox.sandbox_browser_tools import build_sandbox_browser_tools
 
     tools = build_sandbox_browser_tools(thread_id="thread_123")
 """

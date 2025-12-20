@@ -12,7 +12,7 @@ This module provides spreadsheet generation capabilities in an E2B sandbox:
 Similar to Manus's sb_sheets_tool.py but adapted for Weaver's E2B integration.
 
 Usage:
-    from tools.sandbox_sheets_tool import build_sandbox_sheets_tools
+    from tools.sandbox.sandbox_sheets_tool import build_sandbox_sheets_tools
 
     tools = build_sandbox_sheets_tools(thread_id="thread_123")
 """
@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 def _get_sandbox_session(thread_id: str):
     """Get sandbox session for a thread."""
     try:
-        from tools.sandbox_browser_session import sandbox_browser_sessions
+        from tools.sandbox.sandbox_browser_session import sandbox_browser_sessions
         return sandbox_browser_sessions.get(thread_id)
     except ImportError:
         return None

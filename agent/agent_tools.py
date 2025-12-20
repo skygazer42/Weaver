@@ -8,16 +8,23 @@ from langchain_core.tools import BaseTool
 from tools import tavily_search, execute_python_code
 from tools.registry import get_registered_tools
 from tools.browser_tools import build_browser_tools
-from tools.sandbox_browser_tools import build_sandbox_browser_tools
-from tools.sandbox_web_search_tool import build_sandbox_web_search_tools
 from tools.crawl_tools import build_crawl_tools
 from tools.task_list_tool import build_task_list_tools
 from tools.computer_use_tool import build_computer_use_tools
-from tools.sandbox_files_tool import build_sandbox_files_tools
-from tools.sandbox_shell_tool import build_sandbox_shell_tools
-from tools.sandbox_sheets_tool import build_sandbox_sheets_tools
-from tools.sandbox_presentation_tool import build_sandbox_presentation_tools
-from tools.sandbox_vision_tool import build_sandbox_vision_tools
+
+# Sandbox tools (E2B)
+from tools.sandbox import (
+    build_sandbox_browser_tools,
+    build_sandbox_web_search_tools,
+    build_sandbox_files_tools,
+    build_sandbox_shell_tools,
+    build_sandbox_sheets_tools,
+    build_sandbox_presentation_tools,
+    build_presentation_outline_tools,
+    build_presentation_v2_tools,
+    build_sandbox_vision_tools,
+    build_image_edit_tools,
+)
 
 
 def _configurable(config: RunnableConfig) -> Dict[str, Any]:
@@ -96,6 +103,18 @@ def build_agent_tools(config: RunnableConfig) -> List[BaseTool]:
     # Sandbox vision: Image analysis and OCR in E2B sandbox
     if _enabled(profile, "sandbox_vision", default=False):
         tools.extend(build_sandbox_vision_tools(thread_id))
+
+    # Sandbox image edit: Advanced image editing in E2B sandbox
+    if _enabled(profile, "sandbox_image_edit", default=False):
+        tools.extend(build_image_edit_tools(thread_id))
+
+    # Presentation outline: LLM-based PPT outline generation
+    if _enabled(profile, "presentation_outline", default=False):
+        tools.extend(build_presentation_outline_tools(thread_id))
+
+    # Presentation v2: Enhanced PPT features (themes, transitions)
+    if _enabled(profile, "presentation_v2", default=False):
+        tools.extend(build_presentation_v2_tools(thread_id))
 
     if _enabled(profile, "python", default=False):
         tools.append(execute_python_code)

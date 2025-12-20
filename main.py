@@ -31,7 +31,7 @@ from common.logger import setup_logging, get_logger, LogContext
 from common.metrics import metrics_registry
 from common.cancellation import cancellation_manager
 from tools.browser_session import browser_sessions
-from tools.sandbox_browser_session import sandbox_browser_sessions
+from tools.sandbox import sandbox_browser_sessions
 from tools.screenshot_service import get_screenshot_service, init_screenshot_service
 from agent.events import get_emitter, remove_emitter, ToolEvent
 from common.agents_store import (

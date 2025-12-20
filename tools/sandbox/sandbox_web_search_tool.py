@@ -10,7 +10,7 @@ This module provides web search functionality using sandbox browser:
 Similar to Manus's sandbox_web_search_tool.py but adapted for Weaver.
 
 Usage:
-    from tools.sandbox_web_search_tool import build_sandbox_web_search_tools
+    from tools.sandbox.sandbox_web_search_tool import build_sandbox_web_search_tools
 
     tools = build_sandbox_web_search_tools(thread_id="thread_123")
 """

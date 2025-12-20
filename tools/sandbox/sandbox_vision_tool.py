@@ -11,7 +11,7 @@ This module provides image analysis capabilities in an E2B sandbox:
 Similar to Manus's sb_vision_tool.py but adapted for Weaver's E2B integration.
 
 Usage:
-    from tools.sandbox_vision_tool import build_sandbox_vision_tools
+    from tools.sandbox.sandbox_vision_tool import build_sandbox_vision_tools
 
     tools = build_sandbox_vision_tools(thread_id="thread_123")
 """
@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 def _get_sandbox_session(thread_id: str):
     """Get sandbox session for a thread."""
     try:
-        from tools.sandbox_browser_session import sandbox_browser_sessions
+        from tools.sandbox.sandbox_browser_session import sandbox_browser_sessions
         return sandbox_browser_sessions.get(thread_id)
     except ImportError:
         return None
