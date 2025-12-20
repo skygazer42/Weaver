@@ -13,6 +13,8 @@ from tools.sandbox_web_search_tool import build_sandbox_web_search_tools
 from tools.crawl_tools import build_crawl_tools
 from tools.task_list_tool import build_task_list_tools
 from tools.computer_use_tool import build_computer_use_tools
+from tools.sandbox_files_tool import build_sandbox_files_tools
+from tools.sandbox_shell_tool import build_sandbox_shell_tools
 
 
 def _configurable(config: RunnableConfig) -> Dict[str, Any]:
@@ -39,6 +41,8 @@ def build_agent_tools(config: RunnableConfig) -> List[BaseTool]:
     - browser: lightweight browser_* tools
     - sandbox_browser: Playwright-based browser tools
     - sandbox_web_search: visual web search using sandbox browser
+    - sandbox_files: file operations in E2B sandbox (create, read, update, delete)
+    - sandbox_shell: shell command execution in E2B sandbox
     - crawl: crawl_url(s) helpers
     - python: execute_python_code
     - task_list: task management tools (create, update, view tasks)
@@ -69,6 +73,14 @@ def build_agent_tools(config: RunnableConfig) -> List[BaseTool]:
     # Sandbox web search: visual search using sandbox browser
     if _enabled(profile, "sandbox_web_search", default=False):
         tools.extend(build_sandbox_web_search_tools(thread_id))
+
+    # Sandbox files: file operations in E2B sandbox
+    if _enabled(profile, "sandbox_files", default=False):
+        tools.extend(build_sandbox_files_tools(thread_id))
+
+    # Sandbox shell: command execution in E2B sandbox
+    if _enabled(profile, "sandbox_shell", default=False):
+        tools.extend(build_sandbox_shell_tools(thread_id))
 
     if _enabled(profile, "python", default=False):
         tools.append(execute_python_code)
