@@ -260,6 +260,7 @@ async def startup_event():
 
     # Ensure local agents store exists (GPTs-like profiles)
     try:
+        # Default agent: basic tools
         ensure_default_agent(
             default_profile=AgentProfile(
                 id="default",
@@ -272,6 +273,41 @@ async def startup_event():
                     "crawl": True,
                     "python": True,
                     "mcp": True,
+                },
+                metadata={"protected": True},
+            )
+        )
+
+        # Manus-like agent: all sandbox tools enabled
+        ensure_default_agent(
+            default_profile=AgentProfile(
+                id="manus",
+                name="Manus Agent",
+                description="Full-featured agent with all sandbox tools (like Manus). Supports file operations, shell commands, Excel, PPT, image editing, and more.",
+                system_prompt=get_default_agent_prompt(),
+                enabled_tools={
+                    # Core tools
+                    "web_search": True,
+                    "crawl": True,
+                    "python": True,
+                    "mcp": True,
+                    "task_list": True,
+                    # Sandbox browser
+                    "sandbox_browser": True,
+                    "sandbox_web_search": True,
+                    # Sandbox file operations
+                    "sandbox_files": True,
+                    "sandbox_shell": True,
+                    # Document generation
+                    "sandbox_sheets": True,
+                    "sandbox_presentation": True,
+                    "presentation_outline": True,
+                    "presentation_v2": True,
+                    # Image processing
+                    "sandbox_vision": True,
+                    "sandbox_image_edit": True,
+                    # Desktop automation
+                    "computer_use": True,
                 },
                 metadata={"protected": True},
             )
