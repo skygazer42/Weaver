@@ -313,7 +313,7 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
               </div>
 
               {/* Actions: Copy, Speak & Edit */}
-              <div className="absolute -bottom-6 left-0 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+              <div className="absolute -bottom-6 right-0 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
                  {/* Copy Button - Available for both roles */}
                  {message.content && (
                     <Button
