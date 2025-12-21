@@ -44,18 +44,7 @@ interface MessageItemProps {
 }
 
 const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
-  const isUser = message.role === 'user'
-
-  // Debug logging
-  if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-    console.log('[MessageItem]', {
-      id: message.id,
-      role: message.role,
-      isUser,
-      contentPreview: message.content.slice(0, 50)
-    })
-  }
-
+  const isUser = (message.role || '').toLowerCase() === 'user'
   const [copied, setCopied] = useState(false)
   const [saved, setSaved] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
@@ -190,8 +179,8 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
             {/* Bot Avatar - Removed */}
             <div className={cn(
                 'flex flex-col',
-                isEditing ? "w-full max-w-full" : isUser ? "max-w-[90%] md:max-w-[85%]" : "max-w-[90%] md:max-w-[75%]", 
-                isUser ? 'items-end ml-auto' : 'items-start mr-auto',
+                isEditing ? "w-full max-w-full" : "max-w-[90%] md:max-w-[85%]", 
+                isUser ? 'items-end ml-auto' : 'items-start mr-auto ml-4 md:ml-12',
       )}>
         
         {/* Thinking Process */}

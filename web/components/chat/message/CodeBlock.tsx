@@ -34,7 +34,7 @@ export function CodeBlock({ language, value }: CodeBlockProps) {
         </Button>
       </div>
       <div className="overflow-x-auto p-4 bg-muted/30">
-        <code className="text-sm font-mono text-foreground whitespace-pre">
+        <code className="text-sm font-mono text-foreground whitespace-pre-wrap break-all">
           {value}
         </code>
       </div>
