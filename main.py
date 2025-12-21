@@ -236,6 +236,15 @@ async def startup_event():
         logger.warning(f"MCP tools initialization failed: {e}", exc_info=settings.debug)
         mcp_loaded_tools = 0
 
+    # Initialize enhanced tool system (Phase 1-4)
+    try:
+        from agent.nodes import initialize_enhanced_tools
+        logger.info("Initializing enhanced tool system (Phase 1-4)...")
+        initialize_enhanced_tools()
+        logger.info("Enhanced tool system initialized")
+    except Exception as e:
+        logger.warning(f"Enhanced tool system initialization failed: {e}", exc_info=settings.debug)
+
     # Initialize ASR service
     if settings.dashscope_api_key:
         try:

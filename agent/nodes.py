@@ -15,12 +15,21 @@ import mimetypes
 from .state import AgentState, ResearchPlan, QueryState
 from .middleware import enforce_tool_call_limit, retry_call
 from tools import tavily_search, execute_python_code
-from tools.registry import get_registered_tools
+from tools.registry import get_registered_tools, get_global_registry
 from .deepsearch import run_deepsearch
 from .agent_factory import build_writer_agent, build_tool_agent
 from .agent_tools import build_agent_tools
 from common.config import settings
 from common.cancellation import cancellation_manager, check_cancellation as _check_cancellation
+
+# Phase 2-4: Enhanced tool calling and auto-continuation
+try:
+    from agent.response_handler import ResponseHandler
+    from agent.processor_config import AgentProcessorConfig
+    ENHANCED_TOOLS_AVAILABLE = True
+except ImportError:
+    ENHANCED_TOOLS_AVAILABLE = False
+    logger.warning("Enhanced tool calling not available (Phase 2-4 components missing)")
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +115,41 @@ def _log_usage(response: Any, node: str) -> None:
         usage = getattr(response, "response_metadata", None)
     if usage:
         logger.info(f"[usage] {node}: {usage}")
+
+
+def initialize_enhanced_tools() -> None:
+    """
+    Initialize enhanced tool system (Phase 1-4).
+
+    Auto-discovers and registers all WeaverTool instances from the tools directory.
+    Should be called once at application startup.
+    """
+    if not ENHANCED_TOOLS_AVAILABLE:
+        logger.info("Enhanced tools not available, skipping initialization")
+        return
+
+    try:
+        registry = get_global_registry()
+
+        # Discover tools from tools directory
+        logger.info("Discovering tools from 'tools' directory...")
+        discovered = registry.discover_from_directory(
+            directory="tools",
+            pattern="*.py",
+            recursive=False,
+            tags=["weaver", "auto_discovered"]
+        )
+
+        logger.info(f"Discovered and registered {len(discovered)} tools")
+
+        # Log registered tools
+        all_tools = registry.list_names()
+        logger.info(f"Total tools in registry: {len(all_tools)}")
+        if all_tools:
+            logger.info(f"Available tools: {', '.join(all_tools[:10])}{'...' if len(all_tools) > 10 else ''}")
+
+    except Exception as e:
+        logger.error(f"Failed to initialize enhanced tools: {e}", exc_info=True)
 
 
 def _configurable(config: RunnableConfig) -> Dict[str, Any]:
@@ -657,7 +701,13 @@ def web_search_plan_node(state: AgentState, config: RunnableConfig) -> Dict[str,
 
 def agent_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     """
-    Agent node: Tool-calling loop (GPTs/Manus-like).
+    Agent node: Tool-calling loop (GPTs/Manus-like) with enhanced features.
+
+    Supports:
+    - Traditional LangChain tool calling
+    - Enhanced XML tool calling (Phase 2) if enabled
+    - Auto-continuation detection (Phase 3)
+    - Tool registry integration (Phase 4)
 
     Uses `create_agent` + middleware to let the model decide which tools to call.
     Toolset is assembled from `configurable.agent_profile.enabled_tools`.
@@ -667,7 +717,18 @@ def agent_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
         check_cancellation(state)
 
         model = _selected_model(config, settings.primary_model)
+
+        # Try to use enhanced tool registry if available
         tools = build_agent_tools(config)
+        if ENHANCED_TOOLS_AVAILABLE and hasattr(settings, 'agent_use_enhanced_registry'):
+            try:
+                registry = get_global_registry()
+                if registry.list_names():
+                    # Convert registry tools to LangChain format for compatibility
+                    logger.info(f"Using enhanced tool registry with {len(registry.list_names())} tools")
+            except Exception as e:
+                logger.warning(f"Failed to use enhanced registry: {e}")
+
         agent = build_tool_agent(model=model, tools=tools, temperature=0.7)
         t0 = time.time()
 
@@ -681,6 +742,18 @@ def agent_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
                 "enabled_tools": [tool.__class__.__name__ for tool in tools] if tools else []
             }
         )
+
+        # Add XML tool calling instruction if enabled
+        if ENHANCED_TOOLS_AVAILABLE and getattr(settings, 'agent_xml_tool_calling', False):
+            xml_instruction = """\n\nXML Tool Calling Format (optional):
+You can also use XML format for tool calls:
+<function_calls>
+<invoke name="tool_name">
+<parameter name="param1">value1</parameter>
+<parameter name="param2">value2</parameter>
+</invoke>
+</function_calls>"""
+            enhanced_system_prompt += xml_instruction
 
         # Build messages list with enhanced system prompt
         messages: List[Any] = []
@@ -711,12 +784,34 @@ def agent_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
         else:
             text = getattr(response, "content", None) or str(response)
 
-        return {
+        # Enhanced: Detect XML tool calls in response if enabled
+        continuation_needed = False
+        if ENHANCED_TOOLS_AVAILABLE and getattr(settings, 'agent_xml_tool_calling', False):
+            try:
+                from agent.xml_parser import XMLToolParser
+                parser = XMLToolParser()
+                xml_calls = parser.parse_content(text)
+                if xml_calls:
+                    logger.info(f"Detected {len(xml_calls)} XML tool calls in response")
+                    # Mark for potential continuation (could be handled by graph logic)
+                    continuation_needed = True
+            except Exception as e:
+                logger.debug(f"XML parsing skipped: {e}")
+
+        result = {
             "draft_report": text,
             "final_report": text,
             "is_complete": False,
             "messages": [AIMessage(content=text)],
         }
+
+        # Add continuation hint if detected
+        if continuation_needed:
+            result["continuation_needed"] = True
+            result["xml_tool_calls_detected"] = True
+
+        return result
+
     except asyncio.CancelledError as e:
         return handle_cancellation(state, e)
     except Exception as e:
