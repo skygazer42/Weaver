@@ -116,19 +116,52 @@ def create_research_graph(checkpointer=None, interrupt_before=None, store=None):
     )
 
     def after_evaluator(state: AgentState) -> str:
+        """
+        Decide next step based on evaluator verdict and dimensions.
+
+        Routes:
+        - "pass" → human_review (report is good)
+        - "revise" with low coverage/missing topics → refine_plan (need more info)
+        - "revise" with acceptable coverage → reviser (rewrite report)
+        - "incomplete" → refine_plan (major gaps)
+        - max_revisions exceeded → human_review (stop iterating)
+        """
         verdict = state.get("verdict", "pass")
         revision_count = int(state.get("revision_count", 0))
         max_revisions = int(state.get("max_revisions", 0))
-        if verdict == "revise" and revision_count < max_revisions:
+
+        # Check if we've exceeded max revisions
+        if revision_count >= max_revisions:
+            logger.info(f"Max revisions ({max_revisions}) reached, proceeding to human review")
+            return "human_review"
+
+        if verdict == "pass":
+            return "human_review"
+
+        if verdict == "incomplete":
             return "refine_plan"
-        return "human_review"
+
+        # For "revise" verdict, check if we need more research or just a rewrite
+        eval_dims = state.get("eval_dimensions", {})
+        coverage = eval_dims.get("coverage", 0.7)
+        missing_topics = state.get("missing_topics", [])
+
+        # Low coverage or missing topics → need more research
+        if coverage < 0.6 or missing_topics:
+            logger.info(f"Low coverage ({coverage:.2f}) or missing topics, routing to refine_plan")
+            return "refine_plan"
+
+        # Acceptable coverage but poor writing → rewrite
+        logger.info("Coverage acceptable, routing to reviser for rewrite")
+        return "reviser"
 
     workflow.add_conditional_edges(
         "evaluator",
         after_evaluator,
-        ["refine_plan", "human_review"]
+        ["refine_plan", "reviser", "human_review"]
     )
-    workflow.add_edge("refine_plan", "perform_parallel_search")
+
+    # Reviser rewrites the report and goes back to evaluator
     workflow.add_edge("reviser", "evaluator")
 
     # Direct answer path

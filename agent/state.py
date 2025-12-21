@@ -119,8 +119,12 @@ class AgentState(TypedDict):
     # ============ Quality Control ============
     # Evaluation feedback for optimizer
     evaluation: str
-    # Evaluator verdict ("pass" / "revise")
+    # Evaluator verdict ("pass" / "revise" / "incomplete")
     verdict: str
+    # Structured evaluation dimensions (coverage, accuracy, freshness, coherence)
+    eval_dimensions: Dict[str, float]
+    # Missing topics identified by evaluator
+    missing_topics: List[str]
     # Revision control
     revision_count: int
     max_revisions: int

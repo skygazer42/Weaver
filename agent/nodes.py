@@ -232,14 +232,34 @@ def _build_user_content(text: str, images: Optional[List[Dict[str, Any]]]) -> Un
 def perform_parallel_search(state: QueryState, config: RunnableConfig) -> Dict[str, Any]:
     """
     Executes a single search query in parallel.
-    Includes cancellation check for graceful termination.
+
+    Features:
+    - LRU cache for duplicate/similar queries
+    - Cancellation check for graceful termination
+    - Retry support for transient failures
     """
+    from .search_cache import get_search_cache
+
     query = state["query"]
     logger.info(f"Executing parallel search for: {query}")
 
     try:
-        # 搜索前检查取消状态
+        # Check cancellation before search
         check_cancellation(state)
+
+        # Check cache first
+        cache = get_search_cache()
+        cached_results = cache.get(query)
+        if cached_results is not None:
+            logger.info(f"[search] Cache hit for: {query[:50]}")
+            return {
+                "scraped_content": [{
+                    "query": query,
+                    "results": cached_results,
+                    "timestamp": datetime.now().isoformat(),
+                    "cached": True,
+                }]
+            }
 
         enforce_tool_call_limit(state, settings.tool_call_limit)
 
@@ -254,8 +274,12 @@ def perform_parallel_search(state: QueryState, config: RunnableConfig) -> Dict[s
         else:
             results = tavily_search.invoke(call_kwargs, config=config)
 
-        # 搜索后检查取消状态
+        # Check cancellation after search
         check_cancellation(state)
+
+        # Cache the results
+        if results:
+            cache.set(query, results)
 
         search_data = {
             "query": query,
@@ -297,13 +321,48 @@ def deepsearch_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]
 
 
 def route_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
-    """Route execution based on search mode configuration."""
-    configurable = config.get("configurable", {}) if isinstance(config, dict) else {}
+    """
+    Route execution using SmartRouter (LLM-based intelligent routing).
+
+    Priority:
+    1. Config override (search_mode.mode) - for explicit user control
+    2. SmartRouter LLM decision - intelligent query classification
+    3. Low confidence fallback - route to clarify if confidence < threshold
+
+    Returns state updates with routing decision and metadata.
+    """
+    from .smart_router import smart_route
+
+    configurable = _configurable(config)
     mode_info = configurable.get("search_mode", {}) or {}
-    route = mode_info.get("mode", "direct")
+    override_mode = mode_info.get("mode")
     max_revisions = configurable.get("max_revisions", state.get("max_revisions", 0))
-    logger.info(f"Routing mode: {route}")
-    return {"route": route, "max_revisions": max_revisions}
+    confidence_threshold = float(configurable.get("routing_confidence_threshold", 0.6))
+
+    # Use SmartRouter (handles override internally)
+    result = smart_route(
+        query=state.get("input", ""),
+        images=state.get("images"),
+        config=config,
+        override_mode=override_mode if override_mode else None,
+    )
+
+    route = result.get("route", "direct")
+    confidence = result.get("routing_confidence", 1.0)
+
+    # Low confidence fallback: route to clarify
+    if not override_mode and confidence < confidence_threshold:
+        logger.info(f"Low confidence ({confidence:.2f} < {confidence_threshold}), routing to clarify")
+        route = "clarify"
+        result["route"] = "clarify"
+        result["needs_clarification"] = True
+
+    logger.info(f"Routing decision: {route} (confidence: {confidence:.2f})")
+
+    # Merge max_revisions into result
+    result["max_revisions"] = max_revisions
+
+    return result
 
 
 def clarify_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
@@ -380,12 +439,24 @@ def direct_answer_node(state: AgentState, config: RunnableConfig) -> Dict[str, A
 def initiate_research(state: AgentState) -> List[Send]:
     """
     Map step: Generates search tasks for each query in the plan.
+
+    Deduplicates queries before dispatching to avoid redundant searches.
     """
+    from .search_cache import QueryDeduplicator
+
     plan = state.get("research_plan", [])
-    logger.info(f"Initiating parallel research for {len(plan)} queries")
-    
+
+    # Deduplicate queries
+    deduplicator = QueryDeduplicator(similarity_threshold=0.85)
+    unique_queries, duplicates = deduplicator.deduplicate(plan)
+
+    if duplicates:
+        logger.info(f"Removed {len(duplicates)} duplicate queries from plan")
+
+    logger.info(f"Initiating parallel research for {len(unique_queries)} queries (original: {len(plan)})")
+
     return [
-        Send("perform_parallel_search", {"query": q}) for q in plan
+        Send("perform_parallel_search", {"query": q}) for q in unique_queries
     ]
 
 
@@ -470,18 +541,51 @@ def planner_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
 def refine_plan_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     """
     Refinement node: creates follow-up queries based on evaluator feedback.
+
+    Optimization: Uses evaluator's suggested_queries and missing_topics directly
+    when available, falling back to LLM generation only when needed.
     """
     logger.info("Executing refine plan node (feedback-driven queries)")
 
     feedback = state.get("evaluation", "") or state.get("verdict", "")
     original_question = state.get("input", "")
     existing_plan = state.get("research_plan", []) or []
+    seen = {q.lower().strip() for q in existing_plan if isinstance(q, str)}
 
-    llm = _chat_model(_selected_reasoning_model(config, settings.reasoning_model), temperature=0.8)
-    t0 = time.time()
+    # Priority 1: Use evaluator's suggested_queries if available
+    suggested_queries = state.get("suggested_queries", []) or []
+    missing_topics = state.get("missing_topics", []) or []
 
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are a research strategist. Generate up to 3 follow-up search queries to close the gaps called out in feedback.
+    new_queries: List[str] = []
+
+    # Add suggested queries (already validated by evaluator)
+    for q in suggested_queries:
+        if not isinstance(q, str):
+            continue
+        q_norm = q.strip()
+        if q_norm and q_norm.lower() not in seen:
+            seen.add(q_norm.lower())
+            new_queries.append(q_norm)
+
+    # Generate queries from missing_topics if not enough
+    if len(new_queries) < 3 and missing_topics:
+        for topic in missing_topics:
+            if len(new_queries) >= 3:
+                break
+            # Create targeted query for missing topic
+            topic_query = f"{original_question} {topic}".strip()
+            if topic_query.lower() not in seen:
+                seen.add(topic_query.lower())
+                new_queries.append(topic_query)
+
+    # Priority 2: Fall back to LLM generation if no queries from evaluator
+    if not new_queries:
+        logger.info("No evaluator suggestions, generating via LLM")
+        llm = _chat_model(_selected_reasoning_model(config, settings.reasoning_model), temperature=0.8)
+        t0 = time.time()
+
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", """You are a research strategist. Generate up to 3 follow-up search queries to close the gaps called out in feedback.
 
 Rules:
 - Target missing evidence, data, or counterpoints.
@@ -490,63 +594,55 @@ Rules:
 
 Return ONLY a JSON object:
 {"queries": ["q1", "q2", ...]}"""),
-        ("human", "Question: {question}\nFeedback: {feedback}\nExisting queries: {existing}")
-    ])
+            ("human", "Question: {question}\nFeedback: {feedback}\nExisting queries: {existing}")
+        ])
 
-    try:
-        response = llm.invoke(
-            prompt.format_messages(
-                question=original_question,
-                feedback=feedback,
-                existing="\n".join(existing_plan),
-            ),
-            config=config,
-        )
-        _log_usage(response, "refine_plan")
-        logger.info(f"[timing] refine_plan {(time.time()-t0):.3f}s")
-        content = response.content if hasattr(response, "content") else str(response)
-        start = content.find("{")
-        end = content.rfind("}") + 1
-        new_queries: List[str] = []
-        if start >= 0 and end > start:
-            try:
-                data = json.loads(content[start:end])
-                raw_queries = data.get("queries", [])
-                seen = {q.lower().strip() for q in existing_plan if isinstance(q, str)}
-                for q in raw_queries:
-                    if not isinstance(q, str):
-                        continue
-                    q_norm = q.strip()
-                    if not q_norm or q_norm.lower() in seen:
-                        continue
-                    seen.add(q_norm.lower())
-                    new_queries.append(q_norm)
-                    if len(new_queries) >= 3:
-                        break
-            except json.JSONDecodeError:
-                pass
+        try:
+            response = llm.invoke(
+                prompt.format_messages(
+                    question=original_question,
+                    feedback=feedback,
+                    existing="\n".join(existing_plan),
+                ),
+                config=config,
+            )
+            _log_usage(response, "refine_plan")
+            logger.info(f"[timing] refine_plan LLM {(time.time()-t0):.3f}s")
+            content = response.content if hasattr(response, "content") else str(response)
+            start = content.find("{")
+            end = content.rfind("}") + 1
+            if start >= 0 and end > start:
+                try:
+                    data = json.loads(content[start:end])
+                    raw_queries = data.get("queries", [])
+                    for q in raw_queries:
+                        if not isinstance(q, str):
+                            continue
+                        q_norm = q.strip()
+                        if not q_norm or q_norm.lower() in seen:
+                            continue
+                        seen.add(q_norm.lower())
+                        new_queries.append(q_norm)
+                        if len(new_queries) >= 3:
+                            break
+                except json.JSONDecodeError:
+                    pass
+        except Exception as e:
+            logger.error(f"Refine plan LLM error: {str(e)}")
 
-        if not new_queries:
-            # Fallback: reuse original question with feedback hint
-            new_queries = [f"{original_question} {feedback}".strip()]
+    # Final fallback
+    if not new_queries:
+        new_queries = [f"{original_question} {feedback[:50]}".strip()]
 
-        merged_plan = existing_plan + new_queries
-        revision_count = int(state.get("revision_count", 0)) + 1
+    merged_plan = existing_plan + new_queries
+    revision_count = int(state.get("revision_count", 0)) + 1
 
-        logger.info(f"Refine plan added {len(new_queries)} queries; total plan size {len(merged_plan)}")
-        return {
-            "research_plan": merged_plan,
-            "revision_count": revision_count,
-            "messages": [AIMessage(content="Added follow-up queries:\n" + "\n".join(f"- {q}" for q in new_queries))]
-        }
-    except Exception as e:
-        logger.error(f"Refine plan error: {str(e)}")
-        return {
-            "research_plan": existing_plan,
-            "revision_count": int(state.get("revision_count", 0)) + 1,
-            "errors": [f"Refine plan error: {str(e)}"],
-            "messages": [AIMessage(content="Continuing with existing plan; failed to create new queries.")]
-        }
+    logger.info(f"Refine plan added {len(new_queries)} queries; total plan size {len(merged_plan)}")
+    return {
+        "research_plan": merged_plan,
+        "revision_count": revision_count,
+        "messages": [AIMessage(content="Added follow-up queries:\n" + "\n".join(f"- {q}" for q in new_queries))]
+    }
 
 
 def web_search_plan_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
@@ -617,11 +713,16 @@ def writer_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     """
     Writer node: Synthesizes research into a comprehensive report.
 
-    Uses collected data to generate a well-structured answer.
-    Can invoke code execution for visualizations.
+    Uses ResultAggregator for intelligent information fusion:
+    - Deduplicates results by URL and content similarity
+    - Ranks by relevance to original query
+    - Outputs in tiers (primary, supporting, additional)
+
     Includes cancellation check for graceful termination.
     """
-    logger.info("Executing writer node (LangChain middleware agent)")
+    from .result_aggregator import ResultAggregator
+
+    logger.info("Executing writer node (with ResultAggregator)")
 
     try:
         check_cancellation(state)
@@ -630,23 +731,30 @@ def writer_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
         t0 = time.time()
         code_results: List[Dict[str, Any]] = []
 
+        # Use ResultAggregator for intelligent fusion
         scraped_content = state.get("scraped_content", [])
-        blocks: List[str] = []
-        sources: List[str] = []
-        for idx, item in enumerate(scraped_content):
-            query = item.get("query", "")
-            results = item.get("results") or []
-            blocks.append(f"Search #{idx+1}: {query}")
-            for ridx, res in enumerate(results[:3]):
-                title = res.get("title", "") or "Untitled"
-                url = res.get("url", "")
-                summary = res.get("summary") or res.get("snippet") or ""
-                tag = f"S{idx+1}-{ridx+1}"
-                blocks.append(f"- [{tag}] {title} ({url}) :: {summary[:500]}")
-                sources.append(f"[{tag}] {title} - {url}")
+        original_query = state.get("input", "")
 
-        research_context = "\n".join(blocks)
-        sources_table = "\n".join(sources)
+        aggregator = ResultAggregator(
+            similarity_threshold=0.7,
+            max_results_per_query=3,
+            tier_1_threshold=0.6,
+            tier_2_threshold=0.3,
+        )
+        aggregated = aggregator.aggregate(scraped_content, original_query)
+
+        # Format context for the writer
+        research_context, sources_table = aggregated.to_context(
+            max_tier_1=5,
+            max_tier_2=3,
+            max_tier_3=2,
+            max_content_length=500,
+        )
+
+        logger.info(
+            f"[writer] Aggregated {aggregated.total_before} -> {aggregated.total_after} results, "
+            f"tiers: {len(aggregated.tier_1)}/{len(aggregated.tier_2)}/{len(aggregated.tier_3)}"
+        )
 
         messages: List[Any] = [
             SystemMessage(content="You are an expert research analyst. Write a concise, well-structured report with markdown headings, inline source tags like [S1-1], and a Sources section at the end. Use tools if needed (e.g., execute_python_code for charts)."),
@@ -703,42 +811,158 @@ def should_continue_research(state: AgentState) -> str:
 
 
 def evaluator_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
-    """Evaluate the draft report and decide if revision is needed."""
-    logger.info("Executing evaluator node")
+    """
+    Evaluate the draft report with structured, multi-dimensional feedback.
+
+    Provides granular assessment across dimensions:
+    - coverage: How well does the report address the question?
+    - accuracy: Are claims properly supported by sources?
+    - freshness: Is the information current and relevant?
+    - coherence: Is the report well-structured and logical?
+
+    Returns actionable feedback including missing topics and suggested queries.
+    """
+    logger.info("Executing evaluator node (structured)")
     llm = _chat_model(_selected_reasoning_model(config, settings.reasoning_model), temperature=0)
     t0 = time.time()
 
+    class EvalDimensions(BaseModel):
+        coverage: float = Field(
+            ge=0.0, le=1.0,
+            description="How well the report addresses all aspects of the question (0-1)"
+        )
+        accuracy: float = Field(
+            ge=0.0, le=1.0,
+            description="How well claims are supported by cited sources (0-1)"
+        )
+        freshness: float = Field(
+            ge=0.0, le=1.0,
+            description="How current and up-to-date the information is (0-1)"
+        )
+        coherence: float = Field(
+            ge=0.0, le=1.0,
+            description="How well-structured and logical the report is (0-1)"
+        )
+
     class EvalResponse(BaseModel):
-        verdict: str = Field(description='Either "pass" or "revise"')
-        feedback: str = Field(description="Actionable feedback if revision is needed.")
+        verdict: str = Field(
+            description='Evaluation verdict: "pass", "revise", or "incomplete"'
+        )
+        dimensions: EvalDimensions = Field(
+            description="Scores for each evaluation dimension"
+        )
+        feedback: str = Field(
+            description="Concise, actionable feedback for improvement"
+        )
+        missing_topics: List[str] = Field(
+            default_factory=list,
+            description="Topics or aspects that should be covered but are missing"
+        )
+        suggested_queries: List[str] = Field(
+            default_factory=list,
+            description="Search queries that would help fill gaps"
+        )
 
     prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are a strict report evaluator. Review the report and decide if it should be revised.
+        ("system", """You are a strict report evaluator. Assess the report across multiple dimensions.
 
-Return ONLY JSON in this format:
-{
-  "verdict": "pass" | "revise",
-  "feedback": "Actionable feedback if revision is needed."
-}"""),
-        ("human", "Report:\n{report}\n\nQuestion:\n{question}")
+## Evaluation Criteria:
+
+1. **Coverage** (0-1): Does the report fully address the question?
+   - 1.0: All aspects covered comprehensively
+   - 0.7+: Most aspects covered, minor gaps
+   - 0.5: Partial coverage, notable gaps
+   - <0.5: Major aspects missing
+
+2. **Accuracy** (0-1): Are claims properly sourced?
+   - 1.0: All claims cited with source tags
+   - 0.7+: Most claims sourced
+   - 0.5: Mixed sourcing
+   - <0.5: Unsupported claims
+
+3. **Freshness** (0-1): Is the information current?
+   - 1.0: Up-to-date, recent sources
+   - 0.7+: Mostly current
+   - 0.5: Some outdated info
+   - <0.5: Significantly outdated
+
+4. **Coherence** (0-1): Is it well-organized?
+   - 1.0: Clear structure, logical flow
+   - 0.7+: Good organization
+   - 0.5: Some structural issues
+   - <0.5: Disorganized
+
+## Verdict Rules:
+- "pass": All dimensions >= 0.7 and no critical gaps
+- "revise": Any dimension 0.5-0.7 or minor gaps
+- "incomplete": Any dimension < 0.5 or major missing topics
+
+Provide specific, actionable feedback and search queries to address gaps."""),
+        ("human", "Question:\n{question}\n\nReport:\n{report}")
     ])
 
     report = state.get("draft_report") or state.get("final_report", "")
-    response = llm.with_structured_output(EvalResponse).invoke(
-        prompt.format_messages(report=report, question=state["input"]),
-        config=config
-    )
-    _log_usage(response, "evaluator")
-    logger.info(f"[timing] evaluator {(time.time()-t0):.3f}s")
-    verdict = response.verdict.lower() if getattr(response, "verdict", None) else "pass"
-    feedback = response.feedback if getattr(response, "feedback", None) else ""
-    if "revise" in verdict:
-        verdict = "revise"
-    elif verdict != "pass":
-        verdict = "pass"
 
-    logger.info(f"Evaluator verdict: {verdict}")
-    return {"evaluation": feedback, "verdict": verdict}
+    try:
+        response = llm.with_structured_output(EvalResponse).invoke(
+            prompt.format_messages(report=report, question=state["input"]),
+            config=config
+        )
+        _log_usage(response, "evaluator")
+        logger.info(f"[timing] evaluator {(time.time()-t0):.3f}s")
+
+        # Extract structured data
+        verdict = (response.verdict or "pass").lower().strip()
+        if verdict not in ("pass", "revise", "incomplete"):
+            verdict = "revise" if "revise" in verdict else "pass"
+
+        dimensions = {}
+        if hasattr(response, "dimensions") and response.dimensions:
+            dims = response.dimensions
+            dimensions = {
+                "coverage": getattr(dims, "coverage", 0.7),
+                "accuracy": getattr(dims, "accuracy", 0.7),
+                "freshness": getattr(dims, "freshness", 0.7),
+                "coherence": getattr(dims, "coherence", 0.7),
+            }
+        else:
+            dimensions = {"coverage": 0.7, "accuracy": 0.7, "freshness": 0.7, "coherence": 0.7}
+
+        feedback = getattr(response, "feedback", "") or ""
+        missing_topics = list(getattr(response, "missing_topics", []) or [])
+        suggested_queries = list(getattr(response, "suggested_queries", []) or [])
+
+        # Smart verdict adjustment based on dimensions
+        min_score = min(dimensions.values())
+        avg_score = sum(dimensions.values()) / len(dimensions)
+
+        if verdict == "pass" and min_score < 0.6:
+            verdict = "revise"
+            logger.info(f"Adjusted verdict to 'revise' due to low dimension score: {min_score:.2f}")
+        elif verdict == "pass" and missing_topics:
+            verdict = "revise"
+            logger.info(f"Adjusted verdict to 'revise' due to missing topics: {missing_topics}")
+
+        # Build evaluation summary
+        eval_summary = f"Dimensions: {dimensions}\n"
+        if missing_topics:
+            eval_summary += f"Missing topics: {', '.join(missing_topics)}\n"
+        if feedback:
+            eval_summary += f"Feedback: {feedback}"
+
+        logger.info(f"Evaluator verdict: {verdict} (avg={avg_score:.2f}, min={min_score:.2f})")
+
+        return {
+            "evaluation": eval_summary,
+            "verdict": verdict,
+            "eval_dimensions": dimensions,
+            "missing_topics": missing_topics,
+            "suggested_queries": suggested_queries if verdict != "pass" else [],
+        }
+
+    except Exception as e:
+        logger.error(f"Evaluator error: {e}")
+        return {"evaluation": f"Evaluation failed: {e}", "verdict": "pass"}
 
 
 def revise_report_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
