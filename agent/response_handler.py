@@ -26,6 +26,18 @@ import json
 import logging
 from datetime import datetime
 
+# Import continuation support (with fallback if not available)
+try:
+    from agent.continuation import (
+        ContinuationHandler,
+        ContinuationDecider,
+        ToolResultInjector,
+        ContinuationState
+    )
+    CONTINUATION_AVAILABLE = True
+except ImportError:
+    CONTINUATION_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -52,6 +64,23 @@ class ResponseHandler:
         self.tool_registry = tool_registry or {}
         self.config = config or AgentProcessorConfig()
         self.xml_parser = XMLToolParser()
+
+        # Initialize continuation handler if available and enabled
+        self.continuation_handler = None
+        if CONTINUATION_AVAILABLE and config and config.enable_auto_continue:
+            decider = ContinuationDecider(
+                max_iterations=config.max_auto_continues,
+                continue_on_tool_calls=True,
+                stop_on_tool_failure=not config.continue_on_tool_failure
+            )
+            injector = ToolResultInjector(
+                strategy=config.result_injection_strategy
+            )
+            self.continuation_handler = ContinuationHandler(
+                decider=decider,
+                injector=injector
+            )
+            logger.info("Auto-continuation enabled")
 
         logger.info(f"ResponseHandler initialized with config: {self.config.summary()}")
 
@@ -478,6 +507,278 @@ class ResponseHandler:
 
         if hasattr(chunk, "tool_calls"):
             tool_calls.extend(chunk.tool_calls)
+
+        return tool_calls
+
+    async def process_with_auto_continue(
+        self,
+        messages: List[Dict[str, Any]],
+        llm_callable: Callable,
+        session_id: str = "default"
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        Process LLM responses with automatic continuation support.
+
+        This method handles the full auto-continue loop:
+        1. Call LLM
+        2. Detect tool calls
+        3. Execute tools
+        4. Inject results
+        5. Repeat until stop condition
+
+        Args:
+            messages: Conversation messages
+            llm_callable: Async function to call LLM (takes messages list)
+            session_id: Session identifier
+
+        Yields:
+            Event dictionaries with auto-continue events
+        """
+
+        if not self.continuation_handler:
+            logger.warning(
+                f"[{session_id}] Auto-continuation not enabled, "
+                f"falling back to single response"
+            )
+            # Just call LLM once without continuation
+            response = await llm_callable(messages)
+            yield {
+                "type": "response_complete",
+                "response": response,
+                "session_id": session_id,
+                "timestamp": datetime.now().isoformat()
+            }
+            return
+
+        # Initialize continuation state
+        state = ContinuationState() if CONTINUATION_AVAILABLE else None
+
+        yield {
+            "type": "continuation_started",
+            "session_id": session_id,
+            "timestamp": datetime.now().isoformat()
+        }
+
+        logger.info(f"[{session_id}] Starting auto-continuation loop")
+
+        iteration = 0
+        accumulated_responses = []
+
+        while iteration < self.config.max_auto_continues:
+            iteration += 1
+
+            yield {
+                "type": "continuation_iteration",
+                "iteration": iteration,
+                "session_id": session_id,
+                "timestamp": datetime.now().isoformat()
+            }
+
+            logger.info(f"[{session_id}] Iteration {iteration}: Calling LLM")
+
+            # Call LLM
+            try:
+                response = await llm_callable(messages)
+                accumulated_responses.append(response)
+
+                # Extract content for parsing
+                response_content = self._extract_response_content(response)
+
+                yield {
+                    "type": "llm_response",
+                    "iteration": iteration,
+                    "content": response_content,
+                    "session_id": session_id,
+                    "timestamp": datetime.now().isoformat()
+                }
+
+            except Exception as e:
+                logger.error(f"[{session_id}] LLM call failed: {e}", exc_info=True)
+                yield {
+                    "type": "error",
+                    "error": str(e),
+                    "iteration": iteration,
+                    "session_id": session_id,
+                    "timestamp": datetime.now().isoformat()
+                }
+                break
+
+            # Extract finish_reason
+            finish_reason = self._extract_finish_reason_from_response(response)
+
+            if state:
+                state.add_finish_reason(finish_reason)
+
+            logger.info(
+                f"[{session_id}] Iteration {iteration}: finish_reason={finish_reason}"
+            )
+
+            # Parse XML tool calls if enabled
+            xml_calls = []
+            if self.config.xml_tool_calling and response_content:
+                xml_calls = self.xml_parser.parse_content(response_content)
+
+            # Extract native tool calls if enabled
+            native_calls = []
+            if self.config.native_tool_calling:
+                native_calls = self._extract_native_tool_calls_from_response(response)
+
+            all_tool_calls = xml_calls + native_calls
+
+            logger.info(
+                f"[{session_id}] Iteration {iteration}: "
+                f"detected {len(all_tool_calls)} tool calls"
+            )
+
+            # Check if we should continue
+            if state and self.continuation_handler:
+                should_continue, stop_reason = self.continuation_handler.decider.should_continue(
+                    state=state,
+                    finish_reason=finish_reason,
+                    has_tool_calls=len(all_tool_calls) > 0,
+                    tool_results=None
+                )
+
+                if not should_continue:
+                    logger.info(f"[{session_id}] Stopping: {stop_reason}")
+                    yield {
+                        "type": "continuation_stopped",
+                        "reason": stop_reason,
+                        "iteration": iteration,
+                        "session_id": session_id,
+                        "timestamp": datetime.now().isoformat()
+                    }
+                    break
+
+            # Execute tools if any
+            if all_tool_calls and self.config.execute_tools:
+                logger.info(f"[{session_id}] Executing {len(all_tool_calls)} tools")
+
+                # Execute based on strategy
+                if self.config.tool_execution_strategy == "parallel":
+                    tool_results = await self._execute_tools_parallel(
+                        all_tool_calls, session_id
+                    )
+                else:
+                    tool_results = await self._execute_tools_sequential(
+                        all_tool_calls, session_id
+                    )
+
+                # Record in state
+                if state:
+                    state.add_tool_calls(all_tool_calls, tool_results)
+
+                # Yield tool results
+                for call, result in zip(all_tool_calls, tool_results):
+                    function_name = getattr(call, 'function_name', 'unknown')
+                    yield {
+                        "type": "tool_result",
+                        "iteration": iteration,
+                        "function_name": function_name,
+                        "success": result.success,
+                        "output": result.output,
+                        "error": result.error,
+                        "session_id": session_id,
+                        "timestamp": datetime.now().isoformat()
+                    }
+
+                # Inject results back into conversation
+                if self.continuation_handler:
+                    messages = self.continuation_handler.injector.inject_results(
+                        messages=messages,
+                        tool_calls=all_tool_calls,
+                        tool_results=tool_results
+                    )
+
+                yield {
+                    "type": "results_injected",
+                    "iteration": iteration,
+                    "count": len(tool_results),
+                    "session_id": session_id,
+                    "timestamp": datetime.now().isoformat()
+                }
+
+            else:
+                # No tool calls, stop iteration
+                logger.info(f"[{session_id}] No tool calls, stopping")
+                break
+
+            # Increment state
+            if state:
+                state.increment_iteration()
+
+        # Yield completion
+        yield {
+            "type": "continuation_complete",
+            "total_iterations": iteration,
+            "total_tool_calls": state.total_tool_calls if state else 0,
+            "stop_reason": state.stop_reason if state else "max_iterations",
+            "session_id": session_id,
+            "timestamp": datetime.now().isoformat(),
+            "state": state.to_dict() if state else {}
+        }
+
+        logger.info(
+            f"[{session_id}] Auto-continuation complete: "
+            f"{iteration} iterations, "
+            f"{state.total_tool_calls if state else 0} tool calls"
+        )
+
+    def _extract_response_content(self, response: Any) -> str:
+        """Extract text content from LLM response."""
+        # OpenAI format
+        if hasattr(response, 'choices') and response.choices:
+            message = response.choices[0].message
+            if hasattr(message, 'content'):
+                return message.content or ""
+
+        # Dict format
+        if isinstance(response, dict):
+            if 'choices' in response and response['choices']:
+                message = response['choices'][0].get('message', {})
+                return message.get('content', '')
+            if 'content' in response:
+                return response['content']
+
+        # Direct content
+        if hasattr(response, 'content'):
+            return response.content
+
+        return ""
+
+    def _extract_finish_reason_from_response(self, response: Any) -> Optional[str]:
+        """Extract finish_reason from response."""
+        # OpenAI format
+        if hasattr(response, 'choices') and response.choices:
+            return response.choices[0].finish_reason
+
+        # Dict format
+        if isinstance(response, dict):
+            if 'choices' in response and response['choices']:
+                return response['choices'][0].get('finish_reason')
+
+        # Anthropic format
+        if hasattr(response, 'stop_reason'):
+            return response.stop_reason
+
+        return None
+
+    def _extract_native_tool_calls_from_response(self, response: Any) -> List[Any]:
+        """Extract native tool calls from full response (not just delta)."""
+        tool_calls = []
+
+        # OpenAI format
+        if hasattr(response, 'choices') and response.choices:
+            message = response.choices[0].message
+            if hasattr(message, 'tool_calls') and message.tool_calls:
+                tool_calls.extend(message.tool_calls)
+
+        # Dict format
+        if isinstance(response, dict):
+            if 'choices' in response and response['choices']:
+                message = response['choices'][0].get('message', {})
+                if 'tool_calls' in message:
+                    tool_calls.extend(message['tool_calls'])
 
         return tool_calls
 
