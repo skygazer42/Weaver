@@ -400,6 +400,15 @@ def crawl_urls(urls: List[str], timeout: int = 10) -> List[Dict[str, str]]:
 
 def _run_async_crawl(urls: List[str]) -> List[Dict[str, str]]:
     """Helper to run async crawl in sync context."""
+    # Windows 上若使用默认 Proactor 有时会触发 subprocess NotImplementedError，
+    # 强制切到 SelectorEventLoop 以支持 playwright 启动子进程。
+    try:
+        import platform
+        if platform.system().lower().startswith("win"):
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    except Exception:
+        pass
+
     try:
         loop = asyncio.get_event_loop()
         if loop.is_running():
