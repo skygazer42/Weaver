@@ -189,9 +189,9 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
     >
             {/* Bot Avatar - Removed */}
             <div className={cn(
-                'flex flex-col max-w-[90%] md:max-w-[85%]', 
-                isUser ? 'items-end ml-auto' : 'items-start mr-auto',          // If editing, take full width available
-          isEditing && "w-full max-w-full md:max-w-full"
+                'flex flex-col',
+                isEditing ? "w-full max-w-full" : isUser ? "max-w-[90%] md:max-w-[85%]" : "max-w-[90%] md:max-w-[75%]", 
+                isUser ? 'items-end ml-auto' : 'items-start mr-auto',
       )}>
         
         {/* Thinking Process */}
