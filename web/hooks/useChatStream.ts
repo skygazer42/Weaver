@@ -16,14 +16,27 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
   
   const abortControllerRef = useRef<AbortController | null>(null)
 
-  const handleStop = useCallback(() => {
+  const handleStop = useCallback(async () => {
+    // 优先通知后端取消当前线程
+    if (threadId) {
+      try {
+        await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/chat/cancel/${threadId}`,
+          { method: 'POST' }
+        )
+        setCurrentStatus('已发送取消请求...')
+      } catch (err) {
+        console.error('取消请求失败', err)
+      }
+    }
+    // 同时中断前端的 SSE
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
       abortControllerRef.current = null
-      setIsLoading(false)
-      setCurrentStatus('Stopped by user')
     }
-  }, [])
+    setIsLoading(false)
+    setCurrentStatus('已取消')
+  }, [threadId])
 
   const processChat = useCallback(async (messageHistory: Message[], images?: ImageAttachment[]) => {
     setIsLoading(true)
