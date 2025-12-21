@@ -60,6 +60,14 @@ class Settings(BaseSettings):
     custom_agent_prompt_path: str = ""  # 自定义 agent 提示词文件路径
     custom_writer_prompt_path: str = ""  # 自定义 writer 提示词文件路径
 
+    # XML Tool Calling Config (Phase 2 - Manus 风格工具调用)
+    agent_xml_tool_calling: bool = False  # 启用 XML 工具调用 (Claude 友好)
+    agent_native_tool_calling: bool = True  # 启用原生工具调用 (OpenAI 格式)
+    agent_execute_tools: bool = True  # 自动执行工具
+    agent_auto_continue: bool = False  # 自动续写机制 (finish_reason=tool_calls 时继续)
+    agent_max_auto_continues: int = 25  # 最大自动续写次数
+    agent_tool_execution_strategy: str = "sequential"  # sequential | parallel
+
     # LangGraph Store (long-term memory)
     memory_store_backend: str = "memory"  # memory | postgres | redis
     memory_store_url: str = ""  # connection string for store backend
