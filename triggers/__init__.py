@@ -23,7 +23,12 @@ Usage:
     manager.add_trigger(trigger)
 """
 
-from .manager import TriggerManager, get_trigger_manager
+from .manager import (
+    TriggerManager,
+    get_trigger_manager,
+    init_trigger_manager,
+    shutdown_trigger_manager,
+)
 from .models import (
     TriggerType,
     TriggerStatus,
@@ -40,6 +45,8 @@ from .webhook import WebhookHandler
 __all__ = [
     "TriggerManager",
     "get_trigger_manager",
+    "init_trigger_manager",
+    "shutdown_trigger_manager",
     "TriggerType",
     "TriggerStatus",
     "BaseTrigger",

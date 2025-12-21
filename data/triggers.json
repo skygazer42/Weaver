@@ -1,0 +1,61 @@
+{
+  "triggers": [
+    {
+      "id": "2e9c97d0-1e80-4138-9779-81585556d682",
+      "name": "Test Webhook Trigger",
+      "description": "Test webhook",
+      "trigger_type": "webhook",
+      "status": "active",
+      "agent_id": "default",
+      "task": "test_task",
+      "task_params": {},
+      "timeout_seconds": 300,
+      "retry_on_failure": true,
+      "max_retries": 3,
+      "created_at": "2025-12-21T19:08:17.970948",
+      "updated_at": "2025-12-21T19:08:17.970948",
+      "last_executed_at": null,
+      "execution_count": 0,
+      "failure_count": 0,
+      "user_id": null,
+      "tags": [],
+      "endpoint_path": "/webhook/2e9c97d0-1e80-4138-9779-81585556d682",
+      "http_methods": [
+        "POST"
+      ],
+      "require_auth": false,
+      "extract_body": true,
+      "extract_query": true,
+      "extract_headers": [],
+      "rate_limit": null,
+      "rate_limit_window": 60
+    },
+    {
+      "id": "a9064ac3-7047-43ce-aa35-91e94bd2ab2f",
+      "name": "Test Event Trigger",
+      "description": "Test event",
+      "trigger_type": "event",
+      "status": "active",
+      "agent_id": "default",
+      "task": "test_task",
+      "task_params": {},
+      "timeout_seconds": 300,
+      "retry_on_failure": true,
+      "max_retries": 3,
+      "created_at": "2025-12-21T19:08:20.032457",
+      "updated_at": "2025-12-21T19:08:20.032457",
+      "last_executed_at": null,
+      "execution_count": 0,
+      "failure_count": 0,
+      "user_id": null,
+      "tags": [],
+      "event_type": "test_event",
+      "event_source": null,
+      "event_filters": {},
+      "debounce_seconds": 0,
+      "batch_events": false,
+      "batch_window_seconds": 10
+    }
+  ],
+  "saved_at": "2025-12-21T19:08:30.260289"
+}

@@ -1,0 +1,363 @@
+{
+  "summary": {
+    "total": 39,
+    "passed": 38,
+    "failed": 1,
+    "skipped": 0,
+    "pass_rate": 97.43589743589743,
+    "timestamp": "2025-12-21T19:08:32.331477"
+  },
+  "results": [
+    {
+      "endpoint": "/",
+      "method": "GET",
+      "status": "PASS",
+      "response_code": 200,
+      "message": "Root health check",
+      "response_time": 2.048341989517212,
+      "timestamp": "2025-12-21T19:06:58.623152"
+    },
+    {
+      "endpoint": "/health",
+      "method": "GET",
+      "status": "PASS",
+      "response_code": 200,
+      "message": "Detailed health check",
+      "response_time": 2.0647060871124268,
+      "timestamp": "2025-12-21T19:07:00.687858"
+    },
+    {
+      "endpoint": "/api/chat",
+      "method": "POST",
+      "status": "PASS",
+      "response_code": 500,
+      "message": "Non-streaming chat",
+      "response_time": 3.8421990871429443,
+      "timestamp": "2025-12-21T19:07:04.531164"
+    },
+    {
+      "endpoint": "/api/support/chat",
+      "method": "POST",
+      "status": "PASS",
+      "response_code": 200,
+      "message": "Support chat",
+      "response_time": 6.4288880825042725,
+      "timestamp": "2025-12-21T19:07:10.960052"
+    },
+    {
+      "endpoint": "/api/tasks/active",
+      "method": "GET",
+      "status": "PASS",
+      "response_code": 200,
+      "message": "Get active tasks",
+      "response_time": 2.046656847000122,
+      "timestamp": "2025-12-21T19:07:13.007821"
+    },
+    {
+      "endpoint": "/api/chat/cancel/test_thread_123",
+      "method": "POST",
+      "status": "PASS",
+      "response_code": 200,
+      "message": "Cancel specific task",
+      "response_time": 2.0489771366119385,
+      "timestamp": "2025-12-21T19:07:15.056799"
+    },
+    {
+      "endpoint": "/api/chat/cancel-all",
+      "method": "POST",
+      "status": "PASS",
+      "response_code": 200,
+      "message": "Cancel all tasks",
+      "response_time": 2.0466392040252686,
+      "timestamp": "2025-12-21T19:07:17.103438"
+    },
+    {
+      "endpoint": "/api/agents",
+      "method": "GET",
+      "status": "PASS",
+      "response_code": 200,
+      "message": "List all agents",
+      "response_time": 2.0484399795532227,
+      "timestamp": "2025-12-21T19:07:19.151878"
+    },
+    {
+      "endpoint": "/api/agents/default",
+      "method": "GET",
+      "status": "PASS",
+      "response_code": 200,
+      "message": "Get default agent",
+      "response_time": 2.0502943992614746,
+      "timestamp": "2025-12-21T19:07:21.202172"
+    },
+    {
+      "endpoint": "/api/agents/nonexistent",
+      "method": "GET",
+      "status": "PASS",
+      "response_code": 404,
+      "message": "Get non-existent agent",
+      "response_time": 2.0435287952423096,
+      "timestamp": "2025-12-21T19:07:23.245701"
+    },
+    {
+      "endpoint": "/api/agents",
+      "method": "POST",
+      "status": "PASS",
+      "response_code": 200,
+      "message": "Create test agent",
+      "response_time": 2.0407140254974365,
+      "timestamp": "2025-12-21T19:07:25.286415"
+    },
+    {
+      "endpoint": "/api/agents/test_agent_123",
+      "method": "PUT",
+      "status": "PASS",
+      "response_code": 200,
+      "message": "Update test agent",
+      "response_time": 2.0805087089538574,
+      "timestamp": "2025-12-21T19:07:27.366924"
+    },
+    {
+      "endpoint": "/api/agents/test_agent_123",
+      "method": "DELETE",
+      "status": "PASS",
+      "response_code": 200,
+      "message": "Delete test agent",
+      "response_time": 2.0641539096832275,
+      "timestamp": "2025-12-21T19:07:29.431078"
+    },
+    {
+      "endpoint": "/api/agents/default",
+      "method": "DELETE",
+      "status": "PASS",
+      "response_code": 400,
+      "message": "Delete protected agent (should fail)",
+      "response_time": 2.0471367835998535,
+      "timestamp": "2025-12-21T19:07:31.478214"
+    },
+    {
+      "endpoint": "/api/mcp/config",
+      "method": "GET",
+      "status": "PASS",
+      "response_code": 200,
+      "message": "Get MCP config",
+      "response_time": 2.0770010948181152,
+      "timestamp": "2025-12-21T19:07:33.555215"
+    },
+    {
+      "endpoint": "/api/mcp/config",
+      "method": "POST",
+      "status": "PASS",
+      "response_code": 200,
+      "message": "Update MCP config",
+      "response_time": 2.0520882606506348,
+      "timestamp": "2025-12-21T19:07:35.607304"
+    },
+    {
+      "endpoint": "/api/memory/status",
+      "method": "GET",
+      "status": "PASS",
+      "response_code": 200,
+      "message": "Get memory status",
+      "response_time": 2.0535686016082764,
+      "timestamp": "2025-12-21T19:07:37.660872"
+    },
+    {
+      "endpoint": "/api/runs",
+      "method": "GET",
+      "status": "PASS",
+      "response_code": 200,
+      "message": "List all runs",
+      "response_time": 2.0661795139312744,
+      "timestamp": "2025-12-21T19:07:39.727052"
+    },
+    {
+      "endpoint": "/api/runs/test_thread_123",
+      "method": "GET",
+      "status": "PASS",
+      "response_code": 404,
+      "message": "Get specific run metrics",
+      "response_time": 2.0448081493377686,
+      "timestamp": "2025-12-21T19:07:41.771860"
+    },
+    {
+      "endpoint": "/metrics",
+      "method": "GET",
+      "status": "PASS",
+      "response_code": 404,
+      "message": "Prometheus metrics",
+      "response_time": 2.0616860389709473,
+      "timestamp": "2025-12-21T19:07:43.833546"
+    },
+    {
+      "endpoint": "/api/asr/status",
+      "method": "GET",
+      "status": "PASS",
+      "response_code": 200,
+      "message": "ASR status",
+      "response_time": 2.0641300678253174,
+      "timestamp": "2025-12-21T19:07:45.897676"
+    },
+    {
+      "endpoint": "/api/asr/recognize",
+      "method": "POST",
+      "status": "PASS",
+      "response_code": 200,
+      "message": "ASR recognize (base64)",
+      "response_time": 2.3233022689819336,
+      "timestamp": "2025-12-21T19:07:48.221978"
+    },
+    {
+      "endpoint": "/api/tts/status",
+      "method": "GET",
+      "status": "PASS",
+      "response_code": 200,
+      "message": "TTS status",
+      "response_time": 2.0526890754699707,
+      "timestamp": "2025-12-21T19:07:50.274668"
+    },
+    {
+      "endpoint": "/api/tts/voices",
+      "method": "GET",
+      "status": "PASS",
+      "response_code": 200,
+      "message": "Get TTS voices",
+      "response_time": 2.050564765930176,
+      "timestamp": "2025-12-21T19:07:52.326235"
+    },
+    {
+      "endpoint": "/api/tts/synthesize",
+      "method": "POST",
+      "status": "FAIL",
+      "response_code": 500,
+      "message": "Expected [200, 503], got 500",
+      "response_time": 11.234493494033813,
+      "timestamp": "2025-12-21T19:08:03.560729"
+    },
+    {
+      "endpoint": "/api/screenshots",
+      "method": "GET",
+      "status": "PASS",
+      "response_code": 200,
+      "message": "List screenshots",
+      "response_time": 2.049259662628174,
+      "timestamp": "2025-12-21T19:08:05.609988"
+    },
+    {
+      "endpoint": "/api/screenshots?thread_id=test&limit=10",
+      "method": "GET",
+      "status": "PASS",
+      "response_code": 200,
+      "message": "List screenshots (filtered)",
+      "response_time": 2.049210786819458,
+      "timestamp": "2025-12-21T19:08:07.659199"
+    },
+    {
+      "endpoint": "/api/screenshots/nonexistent.png",
+      "method": "GET",
+      "status": "PASS",
+      "response_code": 404,
+      "message": "Get specific screenshot",
+      "response_time": 2.0685386657714844,
+      "timestamp": "2025-12-21T19:08:09.727738"
+    },
+    {
+      "endpoint": "/api/screenshots/cleanup",
+      "method": "POST",
+      "status": "PASS",
+      "response_code": 200,
+      "message": "Cleanup old screenshots",
+      "response_time": 2.059749126434326,
+      "timestamp": "2025-12-21T19:08:11.787487"
+    },
+    {
+      "endpoint": "/api/triggers",
+      "method": "GET",
+      "status": "PASS",
+      "response_code": 200,
+      "message": "List all triggers",
+      "response_time": 2.0542831420898438,
+      "timestamp": "2025-12-21T19:08:13.841770"
+    },
+    {
+      "endpoint": "/api/triggers/scheduled",
+      "method": "POST",
+      "status": "PASS",
+      "response_code": 200,
+      "message": "Create scheduled trigger",
+      "response_time": 2.0840377807617188,
+      "timestamp": "2025-12-21T19:08:15.925808"
+    },
+    {
+      "endpoint": "/api/triggers/webhook",
+      "method": "POST",
+      "status": "PASS",
+      "response_code": 200,
+      "message": "Create webhook trigger",
+      "response_time": 2.047473907470703,
+      "timestamp": "2025-12-21T19:08:17.973282"
+    },
+    {
+      "endpoint": "/api/triggers/event",
+      "method": "POST",
+      "status": "PASS",
+      "response_code": 200,
+      "message": "Create event trigger",
+      "response_time": 2.0621743202209473,
+      "timestamp": "2025-12-21T19:08:20.035456"
+    },
+    {
+      "endpoint": "/api/triggers/902b4e23-e067-4ac0-b6fb-cf2d75eaba1b",
+      "method": "GET",
+      "status": "PASS",
+      "response_code": 200,
+      "message": "Get trigger 902b4e23-e067-4ac0-b6fb-cf2d75eaba1b",
+      "response_time": 2.04650616645813,
+      "timestamp": "2025-12-21T19:08:22.081962"
+    },
+    {
+      "endpoint": "/api/triggers/902b4e23-e067-4ac0-b6fb-cf2d75eaba1b/executions",
+      "method": "GET",
+      "status": "PASS",
+      "response_code": 200,
+      "message": "Get trigger executions",
+      "response_time": 2.050414800643921,
+      "timestamp": "2025-12-21T19:08:24.132377"
+    },
+    {
+      "endpoint": "/api/triggers/902b4e23-e067-4ac0-b6fb-cf2d75eaba1b/pause",
+      "method": "POST",
+      "status": "PASS",
+      "response_code": 200,
+      "message": "Pause trigger",
+      "response_time": 2.0403754711151123,
+      "timestamp": "2025-12-21T19:08:26.172752"
+    },
+    {
+      "endpoint": "/api/triggers/902b4e23-e067-4ac0-b6fb-cf2d75eaba1b/resume",
+      "method": "POST",
+      "status": "PASS",
+      "response_code": 200,
+      "message": "Resume trigger",
+      "response_time": 2.037416934967041,
+      "timestamp": "2025-12-21T19:08:28.210169"
+    },
+    {
+      "endpoint": "/api/triggers/902b4e23-e067-4ac0-b6fb-cf2d75eaba1b",
+      "method": "DELETE",
+      "status": "PASS",
+      "response_code": 200,
+      "message": "Delete trigger",
+      "response_time": 2.051487922668457,
+      "timestamp": "2025-12-21T19:08:30.261657"
+    },
+    {
+      "endpoint": "/api/interrupt/resume",
+      "method": "POST",
+      "status": "PASS",
+      "response_code": 404,
+      "message": "Resume interrupted task",
+      "response_time": 2.069819688796997,
+      "timestamp": "2025-12-21T19:08:32.331477"
+    }
+  ]
+}
