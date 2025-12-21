@@ -5,19 +5,37 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { FileText, Code, BarChart, Download, Maximize2, Minimize2, X } from 'lucide-react'
+import { FileText, Code, BarChart, Download, Maximize2, Minimize2, ChevronRight, ChevronLeft, PanelRightClose, PanelRightOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { Artifact } from '@/types/chat'
 
 interface ArtifactsPanelProps {
   artifacts: Artifact[]
+  isOpen?: boolean
+  onToggle?: () => void
 }
 
-export function ArtifactsPanel({ artifacts }: ArtifactsPanelProps) {
+export function ArtifactsPanel({ artifacts, isOpen = true, onToggle }: ArtifactsPanelProps) {
   const [isFullscreen, setIsFullscreen] = useState(false)
 
   if (artifacts.length === 0) return null
+
+  // If collapsed (and not fullscreen), render slim bar
+  if (!isOpen && !isFullscreen) {
+      return (
+          <div className="h-full w-[50px] border-l bg-muted/30 flex flex-col items-center py-4 gap-4 backdrop-blur-sm transition-all duration-300">
+             <Button variant="ghost" size="icon" onClick={onToggle} title="Expand Artifacts">
+                 <PanelRightOpen className="h-5 w-5 text-muted-foreground" />
+             </Button>
+             <div className="flex-1 w-full flex flex-col items-center gap-2 overflow-hidden py-2">
+                 <div className="writing-mode-vertical text-xs font-semibold text-muted-foreground tracking-widest uppercase rotate-180 select-none">
+                     Artifacts ({artifacts.length})
+                 </div>
+             </div>
+          </div>
+      )
+  }
 
   // If fullscreen, render as a fixed overlay
   if (isFullscreen) {
@@ -47,11 +65,18 @@ export function ArtifactsPanel({ artifacts }: ArtifactsPanelProps) {
   }
 
   return (
-    <div className="flex flex-col h-full bg-muted/30 border-l backdrop-blur-sm transition-all duration-300">
+    <div className="flex flex-col h-full bg-muted/30 border-l backdrop-blur-sm transition-all duration-300 w-full">
       <div className="flex items-center justify-between p-4 border-b bg-background/50">
-        <div>
-            <h2 className="text-sm font-bold tracking-tight">Artifacts</h2>
-            <p className="text-xs text-muted-foreground">Generated assets</p>
+        <div className="flex items-center gap-2">
+            {onToggle && (
+                <Button variant="ghost" size="icon" className="h-7 w-7 -ml-2" onClick={onToggle} title="Collapse">
+                    <PanelRightClose className="h-4 w-4" />
+                </Button>
+            )}
+            <div>
+                <h2 className="text-sm font-bold tracking-tight">Artifacts</h2>
+                <p className="text-xs text-muted-foreground">Generated assets</p>
+            </div>
         </div>
         <div className="flex gap-1">
              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setIsFullscreen(true)}>

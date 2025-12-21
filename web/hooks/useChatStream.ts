@@ -75,6 +75,12 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
         toolInvocations: [],
       }
 
+      console.log('[useChatStream] Creating assistant message:', {
+        id: assistantMessage.id,
+        role: assistantMessage.role,
+        currentMessagesCount: messages.length
+      })
+
       setMessages((prev) => [...prev, assistantMessage])
 
       let interrupted = false
@@ -94,6 +100,11 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
                 setCurrentStatus(data.data.text)
               } else if (data.type === 'text') {
                 assistantMessage.content += data.data.content
+                console.log('[useChatStream] Updating message (text):', {
+                  id: assistantMessage.id,
+                  role: assistantMessage.role,
+                  contentLength: assistantMessage.content.length
+                })
                 setMessages((prev) =>
                   prev.map((msg) =>
                     msg.id === assistantMessage.id ? { ...assistantMessage } : msg

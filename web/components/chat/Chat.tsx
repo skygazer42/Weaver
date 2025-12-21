@@ -27,6 +27,7 @@ export function Chat() {
   const [searchMode, setSearchMode] = useState('') // empty = direct LLM only
   const [showScrollButton, setShowScrollButton] = useState(false)
   const [showMobileArtifacts, setShowMobileArtifacts] = useState(false)
+  const [isArtifactsOpen, setIsArtifactsOpen] = useState(true)
   const [showSettings, setShowSettings] = useState(false)
   
   const [currentView, setCurrentView] = useState('dashboard') // 'dashboard' | 'discover' | 'library'
@@ -351,8 +352,15 @@ export function Chat() {
 
       {/* Desktop Artifacts Panel */}
       {artifacts.length > 0 && (
-        <div className="w-[400px] border-l hidden xl:flex flex-col bg-card animate-in slide-in-from-right duration-500 shadow-2xl z-20">
-          <ArtifactsPanel artifacts={artifacts} />
+        <div className={cn(
+            "border-l hidden xl:flex flex-col bg-card animate-in slide-in-from-right duration-500 shadow-2xl z-20 transition-all",
+            isArtifactsOpen ? "w-[400px]" : "w-[50px]"
+        )}>
+          <ArtifactsPanel 
+              artifacts={artifacts} 
+              isOpen={isArtifactsOpen}
+              onToggle={() => setIsArtifactsOpen(!isArtifactsOpen)}
+          />
         </div>
       )}
 
