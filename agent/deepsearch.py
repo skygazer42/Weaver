@@ -135,8 +135,9 @@ def _generate_queries(
     query_num: int,
     config: Dict[str, Any],
 ) -> List[str]:
+    # Use user role to avoid providers that reject the newer "developer" role
     prompt = ChatPromptTemplate.from_messages(
-        [("system", formulate_query_prompt)]
+        [("user", formulate_query_prompt)]
     )
     msg = prompt.format_messages(
         topic=topic,
@@ -173,7 +174,7 @@ def _pick_relevant_urls(
 ) -> List[str]:
     if not results:
         return []
-    prompt = ChatPromptTemplate.from_messages([("system", related_url_prompt)])
+    prompt = ChatPromptTemplate.from_messages([("user", related_url_prompt)])
     msg = prompt.format_messages(
         topic=topic,
         summary_search="\n\n".join(summary_notes) or "暂无",
@@ -211,7 +212,7 @@ def _summarize_new_knowledge(
     if not chosen_results:
         return False, ""
 
-    prompt = ChatPromptTemplate.from_messages([("system", summary_crawl_prompt)])
+    prompt = ChatPromptTemplate.from_messages([("user", summary_crawl_prompt)])
     msg = prompt.format_messages(
         summary_search="\n\n".join(summary_notes) or "暂无",
         crawl_res=_format_results(chosen_results),
@@ -234,7 +235,7 @@ def _summarize_new_knowledge(
 def _final_report(
     llm: ChatOpenAI, topic: str, summary_notes: List[str], config: Dict[str, Any]
 ) -> str:
-    prompt = ChatPromptTemplate.from_messages([("system", final_summary_prompt)])
+    prompt = ChatPromptTemplate.from_messages([("user", final_summary_prompt)])
     msg = prompt.format_messages(
         topic=topic,
         summary_search="\n\n".join(summary_notes) or "暂无",

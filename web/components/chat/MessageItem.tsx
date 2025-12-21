@@ -314,16 +314,20 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
 
               {/* Actions: Copy, Speak & Edit */}
               <div className="absolute -bottom-6 left-0 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                 {/* Copy Button - Available for both roles */}
+                 {message.content && (
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                        onClick={handleCopy}
+                    >
+                        {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                    </Button>
+                 )}
+
                  {!isUser && message.content && (
                     <>
-                      <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                          onClick={handleCopy}
-                      >
-                          {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                      </Button>
                       <Button
                           variant="ghost"
                           size="icon"

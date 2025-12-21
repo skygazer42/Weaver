@@ -573,10 +573,23 @@ def _normalize_search_mode(search_mode: SearchMode | Dict[str, Any] | str | None
         use_web = search_mode.useWebSearch
         use_agent = search_mode.useAgent
         use_deep = search_mode.useDeepSearch
+        use_deep_prompt = use_deep
     elif isinstance(search_mode, dict):
-        use_web = bool(search_mode.get("useWebSearch"))
-        use_agent = bool(search_mode.get("useAgent"))
-        use_deep = bool(search_mode.get("useDeepSearch"))
+        # Support both camelCase (frontend payload) and snake_case (already-normalized)
+        use_web = bool(search_mode.get("useWebSearch", search_mode.get("use_web", False)))
+        use_agent = bool(search_mode.get("useAgent", search_mode.get("use_agent", False)))
+        use_deep = bool(search_mode.get("useDeepSearch", search_mode.get("use_deep", False)))
+        use_deep_prompt = bool(search_mode.get("useDeepPrompt", search_mode.get("use_deep_prompt", use_deep)))
+
+        # If booleans were not provided but a mode string exists, derive flags from it
+        if not (use_web or use_agent or use_deep) and isinstance(search_mode.get("mode"), str):
+            mode_lower = search_mode["mode"].strip().lower()
+            if mode_lower == "web":
+                use_web = True
+            elif mode_lower in {"agent", "deep"}:
+                use_agent = True
+                use_deep = mode_lower == "deep"
+                use_deep_prompt = use_deep
     elif isinstance(search_mode, str):
         lowered = search_mode.lower().strip()
 
@@ -585,17 +598,21 @@ def _normalize_search_mode(search_mode: SearchMode | Dict[str, Any] | str | None
             use_web = False
             use_agent = False
             use_deep = False
+            use_deep_prompt = False
         else:
             use_web = lowered in {"web", "search", "tavily"}
             use_agent = lowered in {"agent", "deep", "deep_agent", "deep-agent", "ultra"}
             use_deep = lowered in {"deep", "deep_agent", "deep-agent", "ultra"}
+            use_deep_prompt = use_deep
     else:
         use_web = False
         use_agent = False
         use_deep = False
+        use_deep_prompt = False
 
     if use_deep and not use_agent:
         use_deep = False
+        use_deep_prompt = False
 
     if use_agent:
         mode = "deep" if use_deep else "agent"
@@ -609,7 +626,7 @@ def _normalize_search_mode(search_mode: SearchMode | Dict[str, Any] | str | None
         "use_agent": use_agent,
         "use_deep": use_deep,
         "mode": mode,
-        "use_deep_prompt": use_deep,
+        "use_deep_prompt": use_deep_prompt,
     }
 
 
