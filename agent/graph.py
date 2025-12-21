@@ -59,14 +59,22 @@ def create_research_graph(checkpointer=None, interrupt_before=None, store=None):
 
     def route_decision(state: AgentState) -> str:
         route = state.get("route", "direct")
+        logger.info(f"[route_decision] state['route'] = '{route}'")
+
         if route == "deep":
+            logger.info("[route_decision] → Routing to 'deepsearch' node")
             return "deepsearch"
         if route == "agent":
+            logger.info("[route_decision] → Routing to 'agent' node")
             return "agent"
         if route == "web":
+            logger.info("[route_decision] → Routing to 'web_plan' node")
             return "web_plan"
         if route == "direct":
+            logger.info("[route_decision] → Routing to 'direct_answer' node")
             return "direct_answer"
+
+        logger.info("[route_decision] → Routing to 'clarify' node (default)")
         return "clarify"
 
     workflow.add_conditional_edges(

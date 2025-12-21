@@ -401,7 +401,10 @@ def route_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
         result["route"] = "clarify"
         result["needs_clarification"] = True
 
-    logger.info(f"Routing decision: {route} (confidence: {confidence:.2f})")
+    logger.info(f"[route_node] Routing decision: {route} (confidence: {confidence:.2f})")
+    logger.info(f"[route_node] search_mode from config: {mode_info}")
+    logger.info(f"[route_node] override_mode: {override_mode}")
+    logger.info(f"[route_node] Returning result with route='{route}'")
 
     # Merge max_revisions into result
     result["max_revisions"] = max_revisions

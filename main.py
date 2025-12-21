@@ -1125,7 +1125,9 @@ async def chat(request: ChatRequest):
 
         logger.info("Chat request received")
         logger.info(f"  Model: {model}")
-        logger.info(f"  Mode: {mode_info.get('mode')}")
+        logger.info(f"  Raw search_mode: {request.search_mode}")
+        logger.info(f"  Normalized mode_info: {mode_info}")
+        logger.info(f"  Final mode: {mode_info.get('mode')}")
         logger.info(f"  Stream: {request.stream}")
         logger.info(f"  Message length: {len(last_message)} chars")
         logger.debug(f"  Message preview: {last_message[:200]}...")
