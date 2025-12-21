@@ -55,6 +55,11 @@ class Settings(BaseSettings):
     primary_model: str = "deepseek-chat"
     reasoning_model: str = "o1-mini"  # For planning
 
+    # Prompt Config (选择提示词风格)
+    prompt_style: str = "enhanced"  # simple | enhanced | custom
+    custom_agent_prompt_path: str = ""  # 自定义 agent 提示词文件路径
+    custom_writer_prompt_path: str = ""  # 自定义 writer 提示词文件路径
+
     # LangGraph Store (long-term memory)
     memory_store_backend: str = "memory"  # memory | postgres | redis
     memory_store_url: str = ""  # connection string for store backend

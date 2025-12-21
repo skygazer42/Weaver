@@ -671,11 +671,33 @@ def agent_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
         agent = build_tool_agent(model=model, tools=tools, temperature=0.7)
         t0 = time.time()
 
-        # Reuse any pre-injected system context (agent profile prompt, memories, etc.)
+        # Build enhanced system prompt with context
+        from agent.prompts_enhanced import get_agent_prompt
+
+        enhanced_system_prompt = get_agent_prompt(
+            mode="agent",
+            context={
+                "current_time": datetime.now(),
+                "enabled_tools": [tool.__class__.__name__ for tool in tools] if tools else []
+            }
+        )
+
+        # Build messages list with enhanced system prompt
         messages: List[Any] = []
+
+        # Check if there's already a system message in seeded messages
         seeded = state.get("messages") or []
+        has_system_msg = False
         if isinstance(seeded, list):
+            for msg in seeded:
+                if isinstance(msg, SystemMessage):
+                    has_system_msg = True
+                    break
             messages.extend(seeded)
+
+        # Add enhanced system prompt if no system message exists
+        if not has_system_msg:
+            messages.insert(0, SystemMessage(content=enhanced_system_prompt))
 
         messages.append(HumanMessage(content=_build_user_content(state.get("input", ""), state.get("images"))))
 
@@ -756,8 +778,12 @@ def writer_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
             f"tiers: {len(aggregated.tier_1)}/{len(aggregated.tier_2)}/{len(aggregated.tier_3)}"
         )
 
+        # Use enhanced writer prompt
+        from agent.prompts_enhanced import get_writer_prompt
+        writer_system_prompt = get_writer_prompt()
+
         messages: List[Any] = [
-            SystemMessage(content="You are an expert research analyst. Write a concise, well-structured report with markdown headings, inline source tags like [S1-1], and a Sources section at the end. Use tools if needed (e.g., execute_python_code for charts)."),
+            SystemMessage(content=writer_system_prompt),
             HumanMessage(content=_build_user_content(state["input"], state.get("images"))),
         ]
         if research_context:
