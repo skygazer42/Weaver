@@ -25,6 +25,7 @@ from tools.sandbox.sandbox_presentation_tool_v2 import build_presentation_v2_too
 from tools.sandbox.sandbox_vision_tool import build_sandbox_vision_tools
 from tools.sandbox.sandbox_image_edit_tool import build_image_edit_tools
 from tools.sandbox.sandbox_web_search_tool import build_sandbox_web_search_tools
+from tools.sandbox.sandbox_web_dev_tool import build_sandbox_web_dev_tools
 
 __all__ = [
     # Session management
@@ -41,4 +42,5 @@ __all__ = [
     "build_sandbox_vision_tools",
     "build_image_edit_tools",
     "build_sandbox_web_search_tools",
+    "build_sandbox_web_dev_tools",
 ]

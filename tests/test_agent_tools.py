@@ -26,3 +26,18 @@ def test_agent_tools_sandbox_browser_selected_when_enabled():
     assert "sb_browser_navigate" in names
     assert "browser_navigate" not in names
 
+
+def test_agent_tools_web_dev_tools_when_enabled():
+    cfg = {
+        "configurable": {
+            "thread_id": "t3",
+            "agent_profile": {
+                "enabled_tools": {
+                    "sandbox_web_dev": True,
+                }
+            },
+        }
+    }
+    names = _names(build_agent_tools(cfg))
+    assert "sandbox_scaffold_web_project" in names
+    assert "sandbox_deploy_web_project" in names

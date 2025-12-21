@@ -307,6 +307,8 @@ async def startup_event():
                     # Sandbox file operations
                     "sandbox_files": True,
                     "sandbox_shell": True,
+                    # Web dev & deploy
+                    "sandbox_web_dev": True,
                     # Document generation
                     "sandbox_sheets": True,
                     "sandbox_presentation": True,

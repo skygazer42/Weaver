@@ -24,6 +24,7 @@ from tools.sandbox import (
     build_presentation_v2_tools,
     build_sandbox_vision_tools,
     build_image_edit_tools,
+    build_sandbox_web_dev_tools,
 )
 
 
@@ -107,6 +108,10 @@ def build_agent_tools(config: RunnableConfig) -> List[BaseTool]:
     # Sandbox image edit: Advanced image editing in E2B sandbox
     if _enabled(profile, "sandbox_image_edit", default=False):
         tools.extend(build_image_edit_tools(thread_id))
+
+    # Sandbox web development: scaffold & deploy web apps
+    if _enabled(profile, "sandbox_web_dev", default=False):
+        tools.extend(build_sandbox_web_dev_tools(thread_id))
 
     # Presentation outline: LLM-based PPT outline generation
     if _enabled(profile, "presentation_outline", default=False):
