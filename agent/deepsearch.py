@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Tuple
 from langchain_core.messages import AIMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
+from openai import BadRequestError
 
 from common.config import settings
 from common.cancellation import check_cancellation as _check_cancel_token
@@ -129,6 +130,7 @@ def _format_results(results: List[Dict[str, Any]]) -> str:
 
 def _generate_queries(
     llm: ChatOpenAI,
+    fallback_llm: ChatOpenAI,
     topic: str,
     have_query: List[str],
     summary_notes: List[str],
@@ -145,7 +147,14 @@ def _generate_queries(
         summary_search="\n\n".join(summary_notes) or "暂无",
         query_num=query_num,
     )
-    response = llm.invoke(msg, config=config)
+    try:
+        response = llm.invoke(msg, config=config)
+    except BadRequestError as e:
+        if "Model Not Exist" in str(e) and fallback_llm:
+            logger.warning(f"[deepsearch] planner model not found, falling back to primary: {e}")
+            response = fallback_llm.invoke(msg, config=config)
+        else:
+            raise
     content = getattr(response, "content", "") or ""
     queries = _parse_list_output(content)
     # Deduplicate and trim
@@ -166,6 +175,7 @@ def _generate_queries(
 
 def _pick_relevant_urls(
     llm: ChatOpenAI,
+    fallback_llm: ChatOpenAI,
     topic: str,
     summary_notes: List[str],
     results: List[Dict[str, Any]],
@@ -180,7 +190,14 @@ def _pick_relevant_urls(
         summary_search="\n\n".join(summary_notes) or "暂无",
         text=_format_results(results),
     )
-    response = llm.invoke(msg, config=config)
+    try:
+        response = llm.invoke(msg, config=config)
+    except BadRequestError as e:
+        if "Model Not Exist" in str(e) and fallback_llm:
+            logger.warning(f"[deepsearch] critic model not found, falling back to primary: {e}")
+            response = fallback_llm.invoke(msg, config=config)
+        else:
+            raise
     urls = _parse_list_output(getattr(response, "content", "") or "")
     # Fallback: top scores
     if not urls:
@@ -204,6 +221,7 @@ def _pick_relevant_urls(
 
 def _summarize_new_knowledge(
     llm: ChatOpenAI,
+    fallback_llm: ChatOpenAI,
     topic: str,
     summary_notes: List[str],
     chosen_results: List[Dict[str, Any]],
@@ -218,7 +236,14 @@ def _summarize_new_knowledge(
         crawl_res=_format_results(chosen_results),
         topic=topic,
     )
-    response = llm.invoke(msg, config=config)
+    try:
+        response = llm.invoke(msg, config=config)
+    except BadRequestError as e:
+        if "Model Not Exist" in str(e) and fallback_llm:
+            logger.warning(f"[deepsearch] critic model not found (summarize), fallback to primary: {e}")
+            response = fallback_llm.invoke(msg, config=config)
+        else:
+            raise
     content = getattr(response, "content", "") or ""
     lowered = content.lower()
     enough = "回答" in lowered and "yes" in lowered.split("回答", 1)[-1]
@@ -326,9 +351,15 @@ def run_deepsearch(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, A
     reasoning_model = _selected_reasoning_model(config, settings.reasoning_model)
     primary_model = _selected_model(config, settings.primary_model)
 
+    # DeepSeek/base-url specific fallback: if reasoning model is not available on the provider, reuse primary
+    if settings.openai_base_url and "deepseek.com" in settings.openai_base_url.lower():
+        if reasoning_model == "o1-mini":
+            reasoning_model = primary_model
+
     planner_llm = _chat_model(reasoning_model, temperature=0.8)
     critic_llm = _chat_model(reasoning_model, temperature=0.2)
     writer_llm = _chat_model(primary_model, temperature=0.5)
+    fallback_llm = writer_llm
 
     have_query: List[str] = []
     summary_notes: List[str] = []
@@ -342,7 +373,7 @@ def run_deepsearch(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, A
         logger.info(f"[deepsearch] epoch {epoch + 1}/{max_epochs}")
 
         queries = _generate_queries(
-            planner_llm, topic, have_query, summary_notes, query_num, config
+            planner_llm, fallback_llm, topic, have_query, summary_notes, query_num, config
         )
         if epoch == 0 and topic not in queries:
             queries.append(topic)
@@ -373,7 +404,7 @@ def run_deepsearch(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, A
 
         # Pick most relevant URLs and summarize
         chosen_urls = _pick_relevant_urls(
-            critic_llm, topic, summary_notes, combined_results, top_urls, config
+            critic_llm, fallback_llm, topic, summary_notes, combined_results, top_urls, config
         )
         chosen_results = [
             r for r in combined_results if r.get("url") in set(chosen_urls)
@@ -387,7 +418,7 @@ def run_deepsearch(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, A
         _hydrate_with_crawler(chosen_results)
 
         enough, summary_text = _summarize_new_knowledge(
-            critic_llm, topic, summary_notes, chosen_results, config
+            critic_llm, fallback_llm, topic, summary_notes, chosen_results, config
         )
         if summary_text:
             summary_notes.append(summary_text)
