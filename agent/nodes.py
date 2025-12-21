@@ -354,7 +354,17 @@ def deepsearch_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]
         return handle_cancellation(state, e)
     except Exception as e:
         logger.error(f"Deepsearch error: {str(e)}", exc_info=settings.debug)
-        msg = f"Deep search failed: {e}"
+        err_text = str(e)
+        # Provide a clearer hint when the provider rejects the model name
+        if "Model Not Exist" in err_text or "model_not_found" in err_text:
+            msg = (
+                "Deep search failed because the model is not available at your configured provider. "
+                "Check OPENAI_BASE_URL/PRIMARY_MODEL and ensure OPENAI_API_KEY matches that provider "
+                f"(current PRIMARY_MODEL={settings.primary_model}, BASE_URL={settings.openai_base_url or 'https://api.openai.com/v1'}). "
+                "For DeepSeek, set PRIMARY_MODEL=deepseek-chat and use a valid DeepSeek API key."
+            )
+        else:
+            msg = f"Deep search failed: {err_text}"
         return {
             "errors": [msg],
             "final_report": msg,
