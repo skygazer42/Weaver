@@ -37,6 +37,7 @@ export function Chat() {
   
   const scrollRef = useRef<HTMLDivElement>(null)
   const virtuosoRef = useRef<VirtuosoHandle>(null)
+  const lastAtBottom = useRef<boolean | null>(null)
 
   const { 
     history, 
@@ -195,6 +196,24 @@ export function Chat() {
       setSearchMode(mode)
   }
 
+  const handleAtBottomChange = (atBottom: boolean) => {
+      // Prevent state churn loops from repeated identical callbacks
+      if (lastAtBottom.current === atBottom) return
+      lastAtBottom.current = atBottom
+      setShowScrollButton(!atBottom)
+  }
+
+  const scrollToBottom = () => {
+      const idx = messages.length - 1
+      if (idx >= 0) {
+          virtuosoRef.current?.scrollToIndex({
+              index: idx,
+              align: 'end',
+              behavior: 'smooth'
+          })
+      }
+  }
+
   // Render Content based on View
   const renderContent = () => {
       if (currentView === 'discover') return <Discover />
@@ -216,7 +235,7 @@ export function Chat() {
                 ref={virtuosoRef}
                 data={messages}
                 followOutput="auto"
-                atBottomStateChange={(atBottom) => setShowScrollButton(!atBottom)}
+                atBottomStateChange={handleAtBottomChange}
                 className="scrollbar-thin scrollbar-thumb-muted/20"
                 itemContent={(index, message) => (
                     <div className="max-w-3xl mx-auto px-4 sm:px-0">
