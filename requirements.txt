@@ -17,12 +17,12 @@ mem0ai>=0.0.7
 # Database & Persistence
 psycopg[binary]==3.3.2
 pgvector==0.2.5
-sqlalchemy==2.0.25
+sqlalchemy>=2.0.25
 
 # Tools
 tavily-python==0.5.0
 e2b-code-interpreter==1.0.2
-playwright==1.55.0
+playwright>=1.47.0
 langchain-mcp-adapters==0.1.11
 mcp==1.19.0
 dashscope>=1.24.6  # DashScope SDK (ASR/TTS)
@@ -36,7 +36,7 @@ pytest==8.3.2
 pytest-asyncio==0.23.7
 
 # Async support
-aiofiles==23.2.1
+aiofiles>=24.1.0
 prometheus-client==0.21.0
 pyautogui
 tiktoken>=0.6.0
@@ -46,5 +46,6 @@ python-pptx>=0.6.23
 requests>=2.31.0
 markdownify>=0.12.0
 matplotlib>=3.9.0
-crawl4ai>=0.3.0
+crawl4ai>=0.4.0
 browser-use>=0.1.0
+greenlet>=3.1.1

@@ -1,5 +1,0 @@
-﻿# Dependency gap notes (vs langchain-langgraph-V1.0)
-- Missing in current requirements: langchain-deepseek==1.0.0, langchain-google-genai==3.0.0, langchain-groq==1.0.0, langchain-tavily==0.2.12, langgraph-api==0.4.46, langgraph-runtime-inmem==0.14.1, langgraph-sdk==0.2.9, langgraph-prebuilt==1.0.1, langgraph-bigtool==0.0.3, sentence-transformers==5.1.2, huggingface-hub==0.34.4, pypdf==6.0.0, jq==1.10.0, bs==0.0.2, agentevals==0.0.9, langchain-classic==1.0.0, langchain-text-splitters==1.0.0, langchain-ollama==1.0.0, langchain-unstructured==0.1.6, langchain-docling==1.1.0, langchain-chroma==1.0.0.
-- Versions differ: tavily-python 0.5.0 (ref uses langchain-tavily 0.2.12); our langgraph==1.0.1 matches; langgraph-cli missing.
-- Consider upgrading pydantic to >=2.7 already satisfied; FastAPI 0.109 ok.
-- Action: keep current lean set; selectively add langgraph-api for cloud/graph export, langgraph-sdk for client, sentence-transformers for local embeddings, pypdf for PDF parsing. Defer heavy vendors unless needed.
