@@ -733,6 +733,11 @@ def agent_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
 
         # Try to use enhanced tool registry if available
         tools = build_agent_tools(config)
+
+        # Log enabled tools for debugging
+        tool_names = [getattr(t, 'name', t.__class__.__name__) for t in tools]
+        logger.info(f"Agent loaded {len(tools)} tools: {tool_names}")
+
         if ENHANCED_TOOLS_AVAILABLE and hasattr(settings, 'agent_use_enhanced_registry'):
             try:
                 registry = get_global_registry()

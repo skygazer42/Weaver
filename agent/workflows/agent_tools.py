@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List
+import os
+import logging
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
@@ -36,6 +38,17 @@ from tools.sandbox import (
     build_image_edit_tools,
     build_sandbox_web_dev_tools,
 )
+
+logger = logging.getLogger(__name__)
+
+
+def _sandbox_template_available() -> bool:
+    """
+    Detect whether sandbox browser template is configured.
+    Required by sandbox browser / sandbox web search tools.
+    """
+    env_template = os.getenv("SANDBOX_TEMPLATE_BROWSER", "").strip()
+    return bool(env_template)
 
 
 def _configurable(config: RunnableConfig) -> Dict[str, Any]:
@@ -94,7 +107,9 @@ def build_agent_tools(config: RunnableConfig) -> List[BaseTool]:
 
     # Browser: prefer sandbox browser if explicitly enabled.
     if _enabled(profile, "sandbox_browser", default=False):
-        if settings.sandbox_mode == "local":
+        if not _sandbox_template_available():
+            logger.info("Skip sandbox_browser tools: SANDBOX_TEMPLATE_BROWSER not set")
+        elif settings.sandbox_mode == "local":
             tools.extend(build_sandbox_browser_tools(thread_id))
         elif settings.sandbox_mode == "daytona":
             # For daytona mode, rely on daytona tools; skip local sandbox browser
@@ -108,7 +123,9 @@ def build_agent_tools(config: RunnableConfig) -> List[BaseTool]:
 
     # Sandbox web search: visual search using sandbox browser
     if _enabled(profile, "sandbox_web_search", default=False):
-        if settings.sandbox_mode == "local":
+        if not _sandbox_template_available():
+            logger.info("Skip sandbox_web_search tools: SANDBOX_TEMPLATE_BROWSER not set")
+        elif settings.sandbox_mode == "local":
             tools.extend(build_sandbox_web_search_tools(thread_id))
 
     # Sandbox files: file operations in E2B sandbox

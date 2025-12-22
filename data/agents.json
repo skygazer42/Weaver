@@ -40,6 +40,8 @@
     "enabled_tools": {
       "web_search": true,
       "browser": true,
+      "sandbox_browser": true,
+      "sandbox_web_search": true,
       "crawl": true,
       "python": true,
       "mcp": true

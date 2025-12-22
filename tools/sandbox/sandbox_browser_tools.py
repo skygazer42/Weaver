@@ -182,12 +182,17 @@ class _SbBrowserTool(BaseTool):
         })
 
     def _emit_screenshot(self, screenshot_data: Dict[str, Any], action: str) -> None:
-        """Emit screenshot event if URL is available."""
-        if screenshot_data.get("screenshot_url"):
+        """Emit screenshot event - supports both URL and base64 image."""
+        url = screenshot_data.get("screenshot_url")
+        image = screenshot_data.get("image")
+
+        # Emit if we have either URL or base64 image
+        if url or image:
             self._emit_event("tool_screenshot", {
                 "tool": self.name,
                 "action": action,
-                "url": screenshot_data["screenshot_url"],
+                "url": url,
+                "image": image,  # base64 image data for live display
                 "filename": screenshot_data.get("screenshot_filename"),
                 "page_url": self._page_info().get("url"),
             })
