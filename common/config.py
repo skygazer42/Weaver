@@ -198,6 +198,9 @@ class Settings(BaseSettings):
     deepsearch_save_data: bool = False       # save deepsearch run data to disk
     deepsearch_save_dir: str = "eval/deepsearch_data"
 
+    # Crawler
+    crawler_headless: bool = True  # True=无头(默认不弹窗)，False=可视化调试
+
     # Daytona sandbox
     daytona_api_key: str = ""
     daytona_server_url: str = "https://app.daytona.io/api"
