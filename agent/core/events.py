@@ -321,6 +321,12 @@ async def remove_emitter(thread_id: str) -> None:
     async with _emitters_lock:
         if thread_id in _emitters:
             del _emitters[thread_id]
+    # Best-effort cleanup for thread-scoped resources (e.g., Daytona sandboxes)
+    try:
+        from tools.sandbox.daytona_client import daytona_stop_all
+        daytona_stop_all(thread_id=thread_id)
+    except Exception:
+        pass
 
 
 def get_emitter_sync(thread_id: str) -> EventEmitter:

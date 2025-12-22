@@ -32,7 +32,14 @@ class EventedTool(BaseTool):
         )
         # Preserve args schema when available (helps tool selection)
         args_schema = getattr(original, "args_schema", None)
-        super().__init__(name=name, description=description, args_schema=args_schema, **kwargs)
+        super().__init__(
+            name=name,
+            description=description,
+            args_schema=args_schema,
+            original=original,
+            thread_id=thread_id,
+            **kwargs,
+        )
         self.original = original
         self.thread_id = thread_id
 

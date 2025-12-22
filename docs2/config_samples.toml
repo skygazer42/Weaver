@@ -7,6 +7,9 @@ enable_mcp = true
 daytona_api_key = "<your-key>"
 daytona_server_url = "https://app.daytona.io/api"
 daytona_target = "us"
+# Optional: point to TOML config (OpenManus style) instead of env-only
+app_config_path = "config/config.toml"
+mcp_config_path = "config/mcp.json"
 
 # Search engines (fallback order)
 search_engines = "tavily"
@@ -18,3 +21,5 @@ emit_tool_events = true
 
 # Sandbox mode
 sandbox_mode = "local"
+enable_browser_use = false
+enable_browser_context_helper = true

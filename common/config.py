@@ -1,5 +1,103 @@
-﻿from pydantic_settings import BaseSettings
-from typing import List
+from __future__ import annotations
+
+import json
+import logging
+import tomllib
+from functools import lru_cache
+from pathlib import Path
+from typing import Dict, List, Optional
+
+from pydantic import BaseModel, Field
+from pydantic_settings import BaseSettings
+
+
+# -----------------------------
+# OpenManus-style AppConfig models
+# -----------------------------
+
+
+class LLMSettingsModel(BaseModel):
+    model: str
+    base_url: str
+    api_key: str
+    max_tokens: int = 4096
+    max_input_tokens: Optional[int] = None
+    temperature: float = 1.0
+    api_type: str = ""
+    api_version: str = ""
+
+
+class ProxySettings(BaseModel):
+    server: Optional[str] = None
+    username: Optional[str] = None
+    password: Optional[str] = None
+
+
+class SearchSettings(BaseModel):
+    engine: str = "tavily"
+    fallback_engines: List[str] = Field(default_factory=list)
+    retry_delay: int = 60
+    max_retries: int = 3
+    lang: str = "en"
+    country: str = "us"
+
+
+class BrowserSettings(BaseModel):
+    headless: bool = False
+    disable_security: bool = True
+    extra_chromium_args: List[str] = Field(default_factory=list)
+    chrome_instance_path: Optional[str] = None
+    wss_url: Optional[str] = None
+    cdp_url: Optional[str] = None
+    proxy: Optional[ProxySettings] = None
+    max_content_length: int = 2000
+
+
+class SandboxSettings(BaseModel):
+    use_sandbox: bool = False
+    image: str = "python:3.12-slim"
+    work_dir: str = "/workspace"
+    memory_limit: str = "512m"
+    cpu_limit: float = 1.0
+    timeout: int = 300
+    network_enabled: bool = False
+
+
+class DaytonaSettings(BaseModel):
+    daytona_api_key: str = ""
+    daytona_server_url: str = "https://app.daytona.io/api"
+    daytona_target: str = "us"
+    sandbox_image_name: str = "whitezxj/sandbox:0.1.0"
+    sandbox_entrypoint: str = "/usr/bin/supervisord -n -c /etc/supervisor/conf.d/supervisord.conf"
+    VNC_password: str = "123456"
+
+
+class MCPServerConfig(BaseModel):
+    type: str
+    url: Optional[str] = None
+    command: Optional[str] = None
+    args: List[str] = Field(default_factory=list)
+
+
+class MCPSettings(BaseModel):
+    servers: Dict[str, MCPServerConfig] = Field(default_factory=dict)
+
+
+class RunflowSettings(BaseModel):
+    use_data_analysis_agent: bool = False
+
+
+class AppConfig(BaseModel):
+    llm: Dict[str, LLMSettingsModel]
+    sandbox: Optional[SandboxSettings] = None
+    browser_config: Optional[BrowserSettings] = None
+    search_config: Optional[SearchSettings] = None
+    mcp_config: Optional[MCPSettings] = None
+    run_flow_config: Optional[RunflowSettings] = None
+    daytona_config: Optional[DaytonaSettings] = None
+
+    class Config:
+        arbitrary_types_allowed = True
 
 
 class Settings(BaseSettings):
@@ -41,6 +139,9 @@ class Settings(BaseSettings):
     debug: bool = False
     cors_origins: str = "http://localhost:3000"
     interrupt_before_nodes: str = ""  # comma-separated node names for LangGraph interrupts
+    app_config_path: str = "config/config.toml"  # Optional TOML config (OpenManus style)
+    mcp_config_path: str = "config/mcp.json"     # MCP servers definition (JSON)
+    app_config_object: Optional[AppConfig] = None  # populated at runtime if TOML is present
 
     # Logging Config
     log_level: str = "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
@@ -124,6 +225,8 @@ class Settings(BaseSettings):
     enable_todo_middleware: bool = False  # enable todo list middleware
     todo_system_prompt: str = ""  # custom system prompt for todo middleware
     todo_tool_description: str = ""  # custom tool description for todo middleware
+    enable_browser_use: bool = False  # enable browser_use tool (Playwright-based)
+    enable_browser_context_helper: bool = False  # inject browser context prompt if available
 
     # Tool visibility / events
     emit_tool_events: bool = True  # wrap tools with event emitters for front-end
@@ -172,7 +275,175 @@ class Settings(BaseSettings):
     @property
     def search_engines_list(self) -> List[str]:
         """Comma separated ordered search engines."""
-        return [e.strip() for e in self.search_engines.split(",") if e.strip()]
+        engines = [e.strip() for e in self.search_engines.split(",") if e.strip()]
+        if not engines and getattr(self, "app_config_object", None):
+            cfg = getattr(self.app_config_object, "search_config", None)
+            if cfg:
+                engines = [cfg.engine] + list(cfg.fallback_engines or [])
+        return engines or ["tavily"]
+
+
+def _project_root() -> Path:
+    return Path(__file__).resolve().parent.parent
+
+
+def _load_mcp_servers(mcp_path: str) -> Dict[str, MCPServerConfig]:
+    """
+    Load MCP server configs from JSON (mcp.json or mcp.json.example).
+    """
+    candidates = [
+        _project_root() / mcp_path,
+        _project_root() / "config" / "mcp.json.example",
+        _project_root() / "docs2" / "config_mcp.json.example",
+    ]
+    for path in candidates:
+        if path.exists():
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+                servers = {}
+                for sid, scfg in data.get("mcpServers", data.get("servers", {})).items():
+                    servers[sid] = MCPServerConfig(
+                        type=scfg.get("type", ""),
+                        url=scfg.get("url"),
+                        command=scfg.get("command"),
+                        args=scfg.get("args", []),
+                    )
+                return servers
+            except Exception as e:
+                logger.warning(f"Failed to load MCP config from {path}: {e}")
+    return {}
+
+
+@lru_cache()
+def load_app_config(config_path: str, mcp_path: str) -> Optional[AppConfig]:
+    """
+    Load AppConfig from TOML + MCP JSON (compatible with OpenManus config layout).
+    """
+    root = _project_root()
+    primary_path = Path(config_path)
+    primary = primary_path if primary_path.is_absolute() else root / config_path
+    example = primary.with_suffix(".example.toml") if primary.suffix != ".toml" else root / "config" / "config.example.toml"
+    candidates = [primary, example]
+    cfg_file = next((p for p in candidates if p.exists()), None)
+    if not cfg_file:
+        return None
+
+    data = tomllib.loads(cfg_file.read_text(encoding="utf-8"))
+    base_llm = data.get("llm", {}) or {}
+    overrides = {k: v for k, v in base_llm.items() if isinstance(v, dict)}
+
+    default_settings = {
+        "model": base_llm.get("model", ""),
+        "base_url": base_llm.get("base_url", ""),
+        "api_key": base_llm.get("api_key", ""),
+        "max_tokens": base_llm.get("max_tokens", 4096),
+        "max_input_tokens": base_llm.get("max_input_tokens"),
+        "temperature": base_llm.get("temperature", 1.0),
+        "api_type": base_llm.get("api_type", ""),
+        "api_version": base_llm.get("api_version", ""),
+    }
+
+    llm_dict: Dict[str, LLMSettingsModel] = {}
+    if default_settings.get("model"):
+        llm_dict["default"] = LLMSettingsModel(**default_settings)
+    for name, override in overrides.items():
+        merged = {**default_settings, **override}
+        if merged.get("model"):
+            llm_dict[name] = LLMSettingsModel(**merged)
+
+    browser_cfg = data.get("browser", {}) or {}
+    proxy_cfg = browser_cfg.get("proxy") or {}
+    proxy = None
+    if proxy_cfg.get("server"):
+        proxy = ProxySettings(
+            server=proxy_cfg.get("server"),
+            username=proxy_cfg.get("username"),
+            password=proxy_cfg.get("password"),
+        )
+    browser_settings = None
+    if browser_cfg:
+        bs_kwargs = {k: v for k, v in browser_cfg.items() if k in BrowserSettings.__annotations__ and v is not None}
+        if proxy:
+            bs_kwargs["proxy"] = proxy
+        if bs_kwargs:
+            browser_settings = BrowserSettings(**bs_kwargs)
+
+    search_cfg = data.get("search") or {}
+    search_settings = SearchSettings(**search_cfg) if search_cfg else None
+
+    sandbox_cfg = data.get("sandbox") or {}
+    sandbox_settings = SandboxSettings(**sandbox_cfg) if sandbox_cfg else None
+
+    daytona_cfg = data.get("daytona") or {}
+    daytona_settings = DaytonaSettings(**daytona_cfg) if daytona_cfg else None
+
+    mcp_servers = _load_mcp_servers(mcp_path)
+    mcp_cfg = data.get("mcp") or {}
+    mcp_settings = MCPSettings(servers=mcp_servers or mcp_cfg.get("servers", {})) if (mcp_servers or mcp_cfg) else None
+
+    runflow_cfg = data.get("runflow") or {}
+    runflow_settings = RunflowSettings(**runflow_cfg) if runflow_cfg else None
+
+    if not llm_dict:
+        return None
+
+    return AppConfig(
+        llm=llm_dict,
+        sandbox=sandbox_settings,
+        browser_config=browser_settings,
+        search_config=search_settings,
+        mcp_config=mcp_settings,
+        run_flow_config=runflow_settings,
+        daytona_config=daytona_settings,
+    )
+
+
+def apply_app_config_overrides(settings: Settings) -> None:
+    """
+    Merge TOML/JSON app config into BaseSettings values without overriding explicit env values.
+    """
+    app_cfg = load_app_config(settings.app_config_path, settings.mcp_config_path)
+    settings.app_config_object = app_cfg
+    if not app_cfg:
+        return
+
+    default_llm = app_cfg.llm.get("default")
+    if default_llm:
+        if not getattr(settings, "openai_api_key", ""):
+            settings.openai_api_key = default_llm.api_key
+        if not settings.primary_model:
+            settings.primary_model = default_llm.model
+        if not settings.openai_base_url:
+            settings.openai_base_url = default_llm.base_url
+
+    # Search engines
+    if not settings.search_engines.strip() and app_cfg.search_config:
+        engines = [app_cfg.search_config.engine] + list(app_cfg.search_config.fallback_engines or [])
+        settings.search_engines = ",".join([e for e in engines if e])
+
+    # Daytona
+    if app_cfg.daytona_config:
+        cfg = app_cfg.daytona_config
+        if not settings.daytona_api_key and cfg.daytona_api_key:
+            settings.daytona_api_key = cfg.daytona_api_key
+        settings.daytona_server_url = settings.daytona_server_url or cfg.daytona_server_url
+        settings.daytona_target = settings.daytona_target or cfg.daytona_target
+        settings.daytona_image_name = settings.daytona_image_name or cfg.sandbox_image_name
+        settings.daytona_entrypoint = settings.daytona_entrypoint or cfg.sandbox_entrypoint
+        settings.daytona_vnc_password = settings.daytona_vnc_password or cfg.VNC_password
+
+    # MCP servers
+    if not settings.mcp_servers and app_cfg.mcp_config and app_cfg.mcp_config.servers:
+        try:
+            settings.mcp_servers = json.dumps({k: v.model_dump() for k, v in app_cfg.mcp_config.servers.items()})
+        except Exception as e:
+            logger.warning(f"Failed to inject MCP servers from app config: {e}")
+
+    # Sandbox switch from TOML
+    if app_cfg.sandbox and app_cfg.sandbox.use_sandbox is False and settings.sandbox_mode == "local":
+        # allow disabling sandbox via config
+        settings.sandbox_mode = "none"
 
 
 settings = Settings()
+apply_app_config_overrides(settings)

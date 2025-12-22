@@ -20,6 +20,7 @@ from .deepsearch import run_deepsearch
 from .agent_factory import build_writer_agent, build_tool_agent
 from .agent_tools import build_agent_tools
 from agent.workflows.stuck_middleware import detect_stuck, inject_stuck_hint
+from agent.workflows.browser_context_helper import build_browser_context_hint
 from common.config import settings
 from common.cancellation import cancellation_manager, check_cancellation as _check_cancellation
 
@@ -730,6 +731,10 @@ def agent_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     try:
         check_cancellation(state)
 
+        cfg = _configurable(config)
+        profile = cfg.get("agent_profile") or {}
+        thread_id = str(cfg.get("thread_id") or "default")
+
         model = _selected_model(config, settings.primary_model)
 
         # Try to use enhanced tool registry if available
@@ -756,6 +761,9 @@ def agent_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
                 "enabled_tools": [tool.__class__.__name__ for tool in tools] if tools else []
             }
         )
+        browser_hint = None
+        if profile.get("browser_context_helper", settings.enable_browser_context_helper):
+            browser_hint = build_browser_context_hint(thread_id)
 
         # Add XML tool calling instruction if enabled
         if ENHANCED_TOOLS_AVAILABLE and getattr(settings, 'agent_xml_tool_calling', False):
@@ -785,6 +793,9 @@ You can also use XML format for tool calls:
         # Add enhanced system prompt if no system message exists
         if not has_system_msg:
             messages.insert(0, SystemMessage(content=enhanced_system_prompt))
+
+        if browser_hint:
+            messages.append(SystemMessage(content=browser_hint))
 
         messages.append(HumanMessage(content=_build_user_content(state.get("input", ""), state.get("images"))))
 

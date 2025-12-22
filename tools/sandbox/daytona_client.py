@@ -8,6 +8,7 @@ calls; currently implements a safe no-op when config is missing.
 
 from __future__ import annotations
 
+import asyncio
 import os
 import uuid
 from typing import Dict
@@ -22,7 +23,12 @@ from agent.core.events import get_emitter_sync, ToolEventType
 def _emit(thread_id: str, event_type: ToolEventType, data: Dict):
     try:
         emitter = get_emitter_sync(thread_id)
-        emitter.emit(event_type, data)
+        coro = emitter.emit(event_type, data)
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(coro)
+        except RuntimeError:
+            asyncio.run(coro)
     except Exception:
         pass
 
@@ -37,8 +43,9 @@ def _daytona_cfg():
     vnc_pwd = getattr(settings, "daytona_vnc_password", "123456")
     return key, url, target, image, entrypoint, vnc_pwd
 
-# Track active sandbox ids (best-effort)
+# Track active sandbox ids (best-effort), grouped by thread_id for lifecycle cleanup
 _ACTIVE_SANDBOX_IDS = set()
+_ACTIVE_BY_THREAD = {}
 
 
 @tool
@@ -80,6 +87,7 @@ def daytona_create(thread_id: str = "default") -> Dict[str, str]:
             "password": vnc_pwd,
         }
         _ACTIVE_SANDBOX_IDS.add(sandbox_id)
+        _ACTIVE_BY_THREAD.setdefault(thread_id, set()).add(sandbox_id)
         _emit(thread_id, ToolEventType.TOOL_RESULT, {"tool": "daytona_create", "result": payload, "success": True})
         return payload
     except Exception as e:
@@ -107,6 +115,8 @@ def daytona_stop(sandbox_id: str, thread_id: str = "default") -> Dict[str, str]:
         if resp.status_code in (200, 202, 204):
             payload = {"status": "stopped", "sandbox_id": sandbox_id}
             _ACTIVE_SANDBOX_IDS.discard(sandbox_id)
+            for tids in _ACTIVE_BY_THREAD.values():
+                tids.discard(sandbox_id)
             _emit(thread_id, ToolEventType.TOOL_RESULT, {"tool": "daytona_stop", "result": payload, "success": True})
             return payload
         msg = f"Stop failed: {resp.status_code} {resp.text}"
@@ -123,11 +133,24 @@ def daytona_stop_all(thread_id: str = "default") -> Dict[str, str]:
     if not key:
         return {"status": "not_configured", "message": "Daytona API key not configured"}
     stopped = []
-    for sid in list(_ACTIVE_SANDBOX_IDS):
+    targets = (
+        list(_ACTIVE_BY_THREAD.get(thread_id, []))
+        if thread_id and thread_id in _ACTIVE_BY_THREAD
+        else list(_ACTIVE_SANDBOX_IDS)
+    )
+    if hasattr(daytona_stop, "invoke"):
+        stop_callable = lambda sid: daytona_stop.invoke({"sandbox_id": sid, "thread_id": thread_id})
+    elif hasattr(daytona_stop, "run"):
+        stop_callable = lambda sid: daytona_stop.run({"sandbox_id": sid, "thread_id": thread_id})
+    else:
+        stop_callable = lambda sid: daytona_stop(sid, thread_id=thread_id)
+    for sid in targets:
         try:
-            daytona_stop(sid, thread_id=thread_id)
+            stop_callable(sid)
+        finally:
             stopped.append(sid)
-        except Exception:
-            pass
-    _ACTIVE_SANDBOX_IDS.clear()
+    for sid in stopped:
+        _ACTIVE_SANDBOX_IDS.discard(sid)
+    if thread_id in _ACTIVE_BY_THREAD:
+        _ACTIVE_BY_THREAD.pop(thread_id, None)
     return {"status": "stopped_all", "count": len(stopped), "sandbox_ids": stopped}

@@ -12,6 +12,7 @@ from tools.core.registry import get_registered_tools
 from tools.core.wrappers import wrap_tools_with_events
 from tools.core.collection import ToolCollection
 from tools.browser.browser_tools import build_browser_tools
+from tools.browser.browser_use_tool import build_browser_use_tools
 from tools.crawl.crawl_tools import build_crawl_tools
 from tools.crawl.crawl4ai_tool import crawl4ai
 from tools.automation.task_list_tool import build_task_list_tools
@@ -101,8 +102,9 @@ def build_agent_tools(config: RunnableConfig) -> List[BaseTool]:
     elif _enabled(profile, "browser", default=False):
         tools.extend(build_browser_tools(thread_id))
 
-    # BrowserUse / visual browser via daytona (placeholder hook)
-    # Future: add browser_use tools with event helper when available.
+    # BrowserUse: full Playwright automation with DOM indexing
+    if _enabled(profile, "browser_use", default=settings.enable_browser_use):
+        tools.extend(build_browser_use_tools(thread_id))
 
     # Sandbox web search: visual search using sandbox browser
     if _enabled(profile, "sandbox_web_search", default=False):
