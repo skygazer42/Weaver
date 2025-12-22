@@ -53,14 +53,14 @@ class EventedTool(BaseTool):
             # No running loop; run a temporary loop
             asyncio.run(emitter.emit(event_type, data))
 
-    def _run(self, *args, **kwargs) -> Any:
+    def _run(self, tool_input: Any = None, **kwargs) -> Any:
         start = time.time()
         self._emit_sync(
             ToolEventType.TOOL_START,
-            {"tool": self.name, "args": kwargs or args},
+            {"tool": self.name, "args": {"tool_input": tool_input, **kwargs}},
         )
         try:
-            result = self._invoke_original(*args, **kwargs)
+            result = self._invoke_original(tool_input, **kwargs)
             duration = (time.time() - start) * 1000
             self._emit_sync(
                 ToolEventType.TOOL_RESULT,
@@ -79,15 +79,15 @@ class EventedTool(BaseTool):
             )
             raise
 
-    async def _arun(self, *args, **kwargs) -> Any:
+    async def _arun(self, tool_input: Any = None, **kwargs) -> Any:
         start = time.time()
         emitter = get_emitter_sync(self.thread_id)
         await emitter.emit(
             ToolEventType.TOOL_START,
-            {"tool": self.name, "args": kwargs or args},
+            {"tool": self.name, "args": {"tool_input": tool_input, **kwargs}},
         )
         try:
-            result = await self._invoke_original_async(*args, **kwargs)
+            result = await self._invoke_original_async(tool_input, **kwargs)
             duration = (time.time() - start) * 1000
             await emitter.emit(
                 ToolEventType.TOOL_RESULT,
@@ -102,20 +102,32 @@ class EventedTool(BaseTool):
             )
             raise
 
-    def _invoke_original(self, *args, **kwargs):
+    def _invoke_original(self, tool_input: Any = None, **kwargs):
         # BaseTool instance
         if isinstance(self.original, BaseTool):
-            return self.original.run(*args, **kwargs)
+            return self.original.run(tool_input, **kwargs)
         # callable
-        return self.original(*args, **kwargs)
+        try:
+            return self.original(tool_input, **kwargs)
+        except TypeError:
+            # Fallback for callables that don't take tool_input
+            if kwargs:
+                return self.original(**kwargs)
+            return self.original()
 
-    async def _invoke_original_async(self, *args, **kwargs):
+    async def _invoke_original_async(self, tool_input: Any = None, **kwargs):
         if isinstance(self.original, BaseTool):
             # If original supports arun, prefer it
             if hasattr(self.original, "arun"):
-                return await self.original.arun(*args, **kwargs)
-            return self.original.run(*args, **kwargs)
-        result = self.original(*args, **kwargs)
+                return await self.original.arun(tool_input, **kwargs)
+            return self.original.run(tool_input, **kwargs)
+        try:
+            result = self.original(tool_input, **kwargs)
+        except TypeError:
+            if kwargs:
+                result = self.original(**kwargs)
+            else:
+                result = self.original()
         if asyncio.iscoroutine(result):
             return await result
         return result
