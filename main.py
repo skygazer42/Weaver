@@ -16,8 +16,7 @@ from contextlib import asynccontextmanager
 
 from common.config import settings
 from langgraph.types import Command
-from langgraph.checkpoint.memory import InMemorySaver
-from langgraph.store.memory import InMemoryStore
+from langgraph.checkpoint.memory import MemorySaver
 from agent import (
     AgentState,
     ToolEvent,
@@ -176,7 +175,7 @@ if settings.database_url:
     checkpointer = create_checkpointer(settings.database_url)
 else:
     # Fallback to in-memory checkpointer for short-term memory
-    checkpointer = InMemorySaver()
+    checkpointer = MemorySaver()
 
 def _init_store():
     backend = settings.memory_store_backend.lower().strip()
@@ -198,8 +197,8 @@ def _init_store():
         logger.info("Initialized RedisStore for long-term memory")
         return store_obj
 
-    logger.info("Using InMemoryStore for long-term memory")
-    return InMemoryStore()
+    logger.info("Using in-memory store (disabled persistent store)")
+    return None
 
 # Long-term memory store (configurable via .env)
 store = _init_store()

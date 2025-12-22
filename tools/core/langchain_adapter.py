@@ -12,8 +12,7 @@ Key features:
 """
 
 from tools.core.base import WeaverTool, ToolResult, validate_tool_result
-from langchain.tools import BaseTool, StructuredTool
-from langchain_core.tools import ToolException
+from langchain_core.tools import BaseTool, StructuredTool, ToolException
 from typing import List, Dict, Any, Optional, Callable, Type
 from pydantic import BaseModel, Field, create_model
 import logging

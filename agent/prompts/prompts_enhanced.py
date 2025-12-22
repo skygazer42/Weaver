@@ -425,3 +425,9 @@ def get_deep_research_prompt() -> str:
 def get_writer_prompt() -> str:
     """Get the writer/synthesis prompt."""
     return WRITER_PROMPT
+
+
+
+# Backward compatibility stub
+def get_custom_prompt(name: str):
+    raise NotImplementedError('get_custom_prompt is deprecated; use PromptManager/custom prompt files instead')

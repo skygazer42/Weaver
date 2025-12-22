@@ -28,6 +28,7 @@ from agent.workflows import (
     run_deepsearch,
     run_deepsearch_optimized,
 )
+from agent.core.message_utils import summarize_messages
 from agent.prompts import (
     PromptManager,
     get_agent_prompt,
@@ -71,4 +72,5 @@ __all__ = [
     "build_tool_agent",
     "build_agent_tools",
     "initialize_enhanced_tools",
+    "summarize_messages",
 ]

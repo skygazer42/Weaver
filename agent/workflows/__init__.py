@@ -11,7 +11,6 @@ from .agent_tools import build_agent_tools
 from .response_handler import ResponseHandler
 from .continuation import ContinuationState, ToolResultInjector, ContinuationHandler
 from .result_aggregator import ResultAggregator
-from .message_utils import summarize_messages
 
 __all__ = [
     "initialize_enhanced_tools",
@@ -28,5 +27,4 @@ __all__ = [
     "ToolResultInjector",
     "ContinuationHandler",
     "ResultAggregator",
-    "summarize_messages",
 ]

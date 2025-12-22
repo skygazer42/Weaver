@@ -3,7 +3,7 @@ from langchain_core.messages import BaseMessage, SystemMessage
 from langgraph.graph.message import add_messages
 import operator
 from common.config import settings
-from .message_utils import summarize_messages
+from agent.core.message_utils import summarize_messages
 from .middleware import maybe_strip_tool_messages
 
 
