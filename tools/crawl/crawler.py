@@ -333,14 +333,12 @@ def _crawl_urls_legacy(urls: List[str], timeout: int = 10) -> List[Dict[str, str
 def _should_use_optimized() -> bool:
     """
     Check if we should use the optimized Playwright crawler.
-    默认在 Windows 环境关闭（容易触发 subprocess NotImplementedError），
-    通过 USE_OPTIMIZED_CRAWLER=true 可手动开启。
+    Windows 环境一律关闭（子进程支持不稳定，易触发 NotImplementedError）。
+    如需强制，可改代码放开，但需自行承担稳定性风险。
     """
     import platform
     if platform.system().lower().startswith("win"):
-        default = False
-    else:
-        default = True
+        return False
 
     env_val = ""
     try:
@@ -352,7 +350,7 @@ def _should_use_optimized() -> bool:
     if env_val:
         return env_val.strip().lower() in ("1", "true", "yes", "on")
 
-    return getattr(settings, "use_optimized_crawler", default)
+    return getattr(settings, "use_optimized_crawler", True)
 
 
 def crawl_urls(urls: List[str], timeout: int = 10) -> List[Dict[str, str]]:
@@ -397,29 +395,28 @@ def crawl_urls(urls: List[str], timeout: int = 10) -> List[Dict[str, str]]:
 
 
 def _run_async_crawl(urls: List[str]) -> List[Dict[str, str]]:
-    """Helper to run async crawl in sync context."""
-    # Windows 上若使用默认 Proactor 有时会触发 subprocess NotImplementedError，
-    # 强制切到 SelectorEventLoop 以支持 playwright 启动子进程。
-    try:
-        import platform
-        if platform.system().lower().startswith("win"):
-            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    except Exception:
-        pass
+    """Helper to run async crawl in a safe event loop (handles running loop + Windows)."""
+    def _run_new_loop(target_urls: List[str]) -> List[Dict[str, str]]:
+        try:
+            import platform
+            if platform.system().lower().startswith("win"):
+                asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        except Exception:
+            pass
+        return asyncio.run(_async_crawl_urls(target_urls))
 
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # Already in async context, run in thread
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(asyncio.run, _async_crawl_urls(urls))
-                return future.result()
-        else:
-            return loop.run_until_complete(_async_crawl_urls(urls))
+        loop = asyncio.get_running_loop()
     except RuntimeError:
-        # No event loop, create one
-        return asyncio.run(_async_crawl_urls(urls))
+        loop = None
+
+    if loop and loop.is_running():
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(_run_new_loop, urls)
+            return future.result()
+
+    return _run_new_loop(urls)
 
 
 async def _async_crawl_urls(urls: List[str]) -> List[Dict[str, Any]]:

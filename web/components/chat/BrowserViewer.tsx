@@ -13,6 +13,7 @@ interface BrowserViewerProps {
   onClose?: () => void
   defaultExpanded?: boolean
   mode?: 'events' | 'stream'  // 'events' = SSE screenshots, 'stream' = WebSocket live
+  alwaysShow?: boolean  // Always show the viewer, even without screenshots
 }
 
 /**
@@ -24,7 +25,8 @@ export function BrowserViewer({
   className,
   onClose,
   defaultExpanded = true,
-  mode = 'events'
+  mode = 'events',
+  alwaysShow = false
 }: BrowserViewerProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded)
   const [selectedScreenshot, setSelectedScreenshot] = useState<BrowserScreenshot | null>(null)
@@ -78,12 +80,14 @@ export function BrowserViewer({
   const displayScreenshot = selectedScreenshot || latestScreenshot
   const liveImageUrl = currentFrame ? `data:image/jpeg;base64,${currentFrame.data}` : null
 
-  // Don't render if no screenshots/frames and not active
-  if (!isLiveMode && screenshots.length === 0 && !isEventsActive) {
-    return null
-  }
-  if (isLiveMode && !isConnected && !currentFrame) {
-    return null
+  // Don't render if no screenshots/frames and not active (unless alwaysShow is true)
+  if (!alwaysShow) {
+    if (!isLiveMode && screenshots.length === 0 && !isEventsActive) {
+      return null
+    }
+    if (isLiveMode && !isConnected && !currentFrame) {
+      return null
+    }
   }
 
   return (

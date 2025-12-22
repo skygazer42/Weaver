@@ -8,7 +8,7 @@ import { Sidebar } from './Sidebar'
 import { Header } from './Header'
 import { EmptyState } from './EmptyState'
 import { ChatInput } from './ChatInput'
-import { Loader2, ArrowDown, X } from 'lucide-react'
+import { Loader2, ArrowDown, X, Monitor } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { Message } from '@/types/chat'
@@ -30,7 +30,8 @@ export function Chat() {
   const [showMobileArtifacts, setShowMobileArtifacts] = useState(false)
   const [isArtifactsOpen, setIsArtifactsOpen] = useState(true)
   const [showSettings, setShowSettings] = useState(false)
-  
+  const [showBrowserViewer, setShowBrowserViewer] = useState(true) // Browser viewer visibility
+
   const [currentView, setCurrentView] = useState('dashboard') // 'dashboard' | 'discover' | 'library'
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
 
@@ -366,15 +367,33 @@ export function Chat() {
         </div>
       )}
 
-      {/* Browser Viewer - Shows during agent/deep mode browser operations */}
-      {currentView === 'dashboard' && (searchMode === 'agent' || searchMode === 'ultra') && threadId && (
-        <div className="fixed bottom-24 right-6 z-40 hidden lg:block">
-          <BrowserViewer
-            threadId={threadId}
-            className="w-[480px] shadow-2xl"
-            defaultExpanded={true}
-          />
-        </div>
+      {/* Browser Viewer - Shows when there's an active thread */}
+      {currentView === 'dashboard' && threadId && (
+        <>
+          {/* Browser Viewer Toggle Button */}
+          <Button
+            variant="outline"
+            size="icon"
+            className="fixed bottom-28 right-6 z-50 rounded-full shadow-lg bg-background"
+            onClick={() => setShowBrowserViewer(!showBrowserViewer)}
+            title={showBrowserViewer ? "Hide Browser" : "Show Browser"}
+          >
+            <Monitor className={cn("h-4 w-4", showBrowserViewer && "text-primary")} />
+          </Button>
+
+          {/* Browser Viewer Panel */}
+          {showBrowserViewer && (
+            <div className="fixed bottom-40 right-6 z-40">
+              <BrowserViewer
+                threadId={threadId}
+                className="w-[480px] shadow-2xl"
+                defaultExpanded={true}
+                alwaysShow={true}
+                onClose={() => setShowBrowserViewer(false)}
+              />
+            </div>
+          )}
+        </>
       )}
 
       {/* Mobile Artifacts Overlay */}
