@@ -39,7 +39,9 @@ class TTSService:
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.getenv("DASHSCOPE_API_KEY", "")
         if not self.api_key:
-            raise ValueError("DASHSCOPE_API_KEY is required for TTS.")
+            self.enabled = False
+            logger.warning("DASHSCOPE_API_KEY not set. TTS service disabled.")
+            return
 
         dashscope.api_key = self.api_key
         self.enabled = True

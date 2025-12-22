@@ -385,7 +385,7 @@ def route_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
 
     Returns state updates with routing decision and metadata.
     """
-    from .smart_router import smart_route
+    from agent.core.smart_router import smart_route
 
     configurable = _configurable(config)
     mode_info = configurable.get("search_mode", {}) or {}

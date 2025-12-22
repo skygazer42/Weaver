@@ -1,0 +1,14 @@
+{
+  "test_user": [
+    "User: Hello support\nAssistant: Hello! How can I assist you today? \ud83d\ude0a",
+    "User: Hello support\nAssistant: Hello again! How can I assist you today? \ud83d\ude0a"
+  ],
+  "default_user": [
+    "Deep search failed: 1 validation error for ChatOpenAI\n  Value error, Unknown scheme for proxy URL URL('socks://127.0.0.1:35983/') [type=value_error, input_value={'model': 'deepseek-chat'... {}, 'model_kwargs': {}}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/value_error",
+    "User: Analyze the current state of AI Agent frameworks in 2024\nAssistant: Deep search failed: 1 validation error for ChatOpenAI\n  Value error, Unknown scheme for proxy URL URL('socks://127.0.0.1:35983/') [type=value_error, input_value={'model': 'deepseek-chat'... {}, 'model_kwargs': {}}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/value_error",
+    "Deep search failed: 1 validation error for ChatOpenAI\n  Value error, Unknown scheme for proxy URL URL('socks://127.0.0.1:35983/') [type=value_error, input_value={'model': 'deepseek-chat'... {}, 'model_kwargs': {}}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/value_error",
+    "User: Analyze the current state of AI Agent frameworks in 2024\nAssistant: Deep search failed: 1 validation error for ChatOpenAI\n  Value error, Unknown scheme for proxy URL URL('socks://127.0.0.1:35983/') [type=value_error, input_value={'model': 'deepseek-chat'... {}, 'model_kwargs': {}}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/value_error",
+    "Hi",
+    "User: Hello, respond with just 'Hi'\nAssistant: Hi"
+  ]
+}
