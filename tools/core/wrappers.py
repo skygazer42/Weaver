@@ -105,7 +105,9 @@ class EventedTool(BaseTool):
     def _invoke_original(self, tool_input: Any = None, **kwargs):
         # BaseTool instance
         if isinstance(self.original, BaseTool):
-            return self.original.run(tool_input, **kwargs)
+            # If tool_input missing but kwargs provided, treat kwargs as the input payload
+            payload = tool_input if tool_input is not None else (kwargs if kwargs else tool_input)
+            return self.original.run(payload, **kwargs) if payload is not None else self.original.run({})
         # callable
         try:
             return self.original(tool_input, **kwargs)
@@ -119,8 +121,10 @@ class EventedTool(BaseTool):
         if isinstance(self.original, BaseTool):
             # If original supports arun, prefer it
             if hasattr(self.original, "arun"):
-                return await self.original.arun(tool_input, **kwargs)
-            return self.original.run(tool_input, **kwargs)
+                payload = tool_input if tool_input is not None else (kwargs if kwargs else tool_input)
+                return await self.original.arun(payload, **kwargs) if payload is not None else await self.original.arun({})
+            payload = tool_input if tool_input is not None else (kwargs if kwargs else tool_input)
+            return self.original.run(payload, **kwargs) if payload is not None else self.original.run({})
         try:
             result = self.original(tool_input, **kwargs)
         except TypeError:
