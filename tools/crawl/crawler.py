@@ -331,8 +331,28 @@ def _crawl_urls_legacy(urls: List[str], timeout: int = 10) -> List[Dict[str, str
 # ============================================================================
 
 def _should_use_optimized() -> bool:
-    """Check if we should use the optimized Playwright crawler."""
-    return getattr(settings, "use_optimized_crawler", True)
+    """
+    Check if we should use the optimized Playwright crawler.
+    默认在 Windows 环境关闭（容易触发 subprocess NotImplementedError），
+    通过 USE_OPTIMIZED_CRAWLER=true 可手动开启。
+    """
+    import platform
+    if platform.system().lower().startswith("win"):
+        default = False
+    else:
+        default = True
+
+    env_val = ""
+    try:
+        import os
+        env_val = os.getenv("USE_OPTIMIZED_CRAWLER", "")
+    except Exception:
+        env_val = ""
+
+    if env_val:
+        return env_val.strip().lower() in ("1", "true", "yes", "on")
+
+    return getattr(settings, "use_optimized_crawler", default)
 
 
 def crawl_urls(urls: List[str], timeout: int = 10) -> List[Dict[str, str]]:

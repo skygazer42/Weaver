@@ -200,6 +200,7 @@ class Settings(BaseSettings):
 
     # Crawler
     crawler_headless: bool = True  # True=无头(默认不弹窗)，False=可视化调试
+    use_optimized_crawler: bool = False  # 是否启用Playwright优化爬虫，Windows建议默认False
 
     # Daytona sandbox
     daytona_api_key: str = ""
