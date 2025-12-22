@@ -746,7 +746,7 @@ def agent_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
         t0 = time.time()
 
         # Build enhanced system prompt with context
-        from agent.prompts.prompts_enhanced import get_agent_prompt
+        from agent.prompts.system_prompts import get_agent_prompt
 
         profile_prompt_pack = profile.get("prompt_pack")
         profile_prompt_variant = profile.get("prompt_variant", "full")
@@ -905,7 +905,7 @@ def writer_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
         )
 
         # Use enhanced writer prompt
-        from agent.prompts.prompts_enhanced import get_writer_prompt
+        from agent.prompts.system_prompts import get_writer_prompt
         writer_system_prompt = get_writer_prompt()
 
         messages: List[Any] = [

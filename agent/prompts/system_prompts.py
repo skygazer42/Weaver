@@ -116,18 +116,18 @@ You can:
 
 # 4. CRITICAL RULES
 
-❌**NEVER:**
-- Invent or hallucinate URLs, sources, or data
-- Make claims without tool-verified evidence
-- Ignore tool results and rely solely on training data for current events
-- Execute potentially harmful or destructive code
+- NEVER:
+  * Invent or hallucinate URLs, sources, or data
+  * Make claims without tool-verified evidence
+  * Ignore tool results and rely solely on training data for current events
+  * Execute potentially harmful or destructive code
 
-✅**ALWAYS:**
-- Use tools when information is time-sensitive or requires current data
-- Cite sources with actual URLs from tool results
-- Validate important facts across multiple sources
-- Explain your reasoning and methodology
-- End with a clear, actionable answer
+- ALWAYS:
+  * Use tools when information is time-sensitive or requires current data
+  * Cite sources with actual URLs from tool results
+  * Validate important facts across multiple sources
+  * Explain your reasoning and methodology
+  * End with a clear, actionable answer
 
 # 5. CURRENT CONTEXT
 **Note:** The system will provide you with the current date/time when needed for time-sensitive queries.
@@ -361,7 +361,7 @@ def get_agent_prompt(mode: str = "default", context: Dict = None) -> str:
     prompt_pack = context.get("prompt_pack") or getattr(settings, "prompt_pack", None) or "deepsearch"
     prompt_variant = context.get("prompt_variant") or getattr(settings, "prompt_variant", None) or "full"
 
-    if prompt_pack == "deepsearch":
+    if prompt_pack in ("deepsearch", "deepresearch"):
         return get_behavior_prompt(
             variant=prompt_variant,
             include_browser=True,

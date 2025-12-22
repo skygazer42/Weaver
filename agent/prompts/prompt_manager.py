@@ -11,9 +11,33 @@ Provides centralized prompt management with support for:
 from typing import Optional, Dict, Any
 import logging
 from pathlib import Path
-from datetime import datetime
+
+from common.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+ENHANCED_PLANNER_PROMPT = """You are creating a research plan. Follow these principles:
+
+1. **Break Down the Question**
+   - Identify key concepts and sub-questions
+   - Determine information types needed (facts, statistics, opinions, examples)
+
+2. **Design Search Strategy**
+   - Formulate 3-7 specific search queries
+   - Each query should target a different aspect
+   - Use specific, targeted queries rather than broad ones
+   - Examples:
+     * Broad: "climate change"
+     * Specific: "latest IPCC report 2024 key findings"
+     * Specific: "renewable energy adoption statistics 2024"
+
+3. **Consider Multiple Perspectives**
+   - Authoritative sources
+   - Recent developments
+   - Diverse viewpoints
+
+Return JSON with queries and reasoning."""
 
 
 class PromptManager:
@@ -85,11 +109,11 @@ class PromptManager:
             return get_default_agent_prompt()
 
         elif self.prompt_style == "enhanced":
-            from agent.prompts.prompts_enhanced import get_agent_prompt
+            from agent.prompts.system_prompts import get_agent_prompt
             return get_agent_prompt(mode="agent", context=context)
 
         # Default to enhanced
-        from agent.prompts.prompts_enhanced import get_agent_prompt
+        from agent.prompts.system_prompts import get_agent_prompt
         return get_agent_prompt(mode="agent", context=context)
 
     def get_writer_prompt(self) -> str:
@@ -108,11 +132,11 @@ class PromptManager:
             return """You are an expert research analyst. Write a concise, well-structured report with markdown headings, inline source tags like [S1-1], and a Sources section at the end."""
 
         elif self.prompt_style == "enhanced":
-            from agent.prompts.prompts_enhanced import get_writer_prompt
+            from agent.prompts.system_prompts import get_writer_prompt
             return get_writer_prompt()
 
         # Default to enhanced
-        from agent.prompts.prompts_enhanced import get_writer_prompt
+        from agent.prompts.system_prompts import get_writer_prompt
         return get_writer_prompt()
 
     def get_planner_prompt(self) -> str:
@@ -131,30 +155,10 @@ class PromptManager:
             return "You are a research planner. Generate 3-7 targeted search queries and reasoning."
 
         elif self.prompt_style == "enhanced":
-            return """You are creating a research plan. Follow these principles:
+            return ENHANCED_PLANNER_PROMPT
 
-1. **Break Down the Question**
-   - Identify key concepts and sub-questions
-   - Determine information types needed (facts, statistics, opinions, examples)
-
-2. **Design Search Strategy**
-   - Formulate 3-7 specific search queries
-   - Each query should target a different aspect
-   - Use specific, targeted queries rather than broad ones
-   - Examples:
-     * Broad: "climate change"
-     * Specific: "latest IPCC report 2024 key findings"
-     * Specific: "renewable energy adoption statistics 2024"
-
-3. **Consider Multiple Perspectives**
-   - Authoritative sources
-   - Recent developments
-   - Diverse viewpoints
-
-Return JSON with queries and reasoning."""
-
-        # Default to enhanced
-        return self.get_planner_prompt()
+        # Default to enhanced prompt
+        return ENHANCED_PLANNER_PROMPT
 
     def get_deep_research_prompt(self) -> str:
         """
@@ -169,7 +173,7 @@ Return JSON with queries and reasoning."""
 
         # Only available in enhanced mode
         if self.prompt_style == "enhanced":
-            from agent.prompts.prompts_enhanced import get_deep_research_prompt
+            from agent.prompts.system_prompts import get_deep_research_prompt
             return get_deep_research_prompt()
 
         # Fallback to agent prompt
@@ -208,13 +212,7 @@ def get_prompt_manager() -> PromptManager:
     global _default_prompt_manager
 
     if _default_prompt_manager is None:
-        # Try to get style from settings
-        try:
-            from common.config import settings
-            style = getattr(settings, 'prompt_style', 'enhanced')
-        except:
-            style = 'enhanced'
-
+        style = getattr(settings, 'prompt_style', 'enhanced')
         _default_prompt_manager = PromptManager(prompt_style=style)
         logger.info(f"Initialized PromptManager with style: {style}")
 
