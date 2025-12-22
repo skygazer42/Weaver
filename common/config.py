@@ -160,6 +160,8 @@ class Settings(BaseSettings):
     prompt_style: str = "enhanced"  # simple | enhanced | custom
     custom_agent_prompt_path: str = ""  # 自定义 agent 提示词文件路径
     custom_writer_prompt_path: str = ""  # 自定义 writer 提示词文件路径
+    prompt_pack: str = "deepsearch"  # default prompt pack
+    prompt_variant: str = "full"     # full | lite
 
     # XML Tool Calling Config (Phase 2 - Manus 风格工具调用)
     agent_xml_tool_calling: bool = False  # 启用 XML 工具调用 (Claude 友好)

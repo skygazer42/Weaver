@@ -1,0 +1,7 @@
+Desktop automation rules (when computer/desktop tools are enabled):
+1) Always screenshot first → observe → plan → act → verify.
+2) Use English for commands/input to avoid encoding issues; confirm input via screenshot.
+3) Never blind-click; only click visually confirmed targets.
+4) To launch apps: look for browser icons or press Super/Win and search; prefer search over guessing.
+5) After each major action, screenshot and describe what changed.
+6) Recovery: if typing/app launch fails, simplify terms, try launcher search, capture state, propose alternatives.

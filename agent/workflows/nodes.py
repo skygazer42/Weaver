@@ -748,12 +748,17 @@ def agent_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
         # Build enhanced system prompt with context
         from agent.prompts.prompts_enhanced import get_agent_prompt
 
+        profile_prompt_pack = profile.get("prompt_pack")
+        profile_prompt_variant = profile.get("prompt_variant", "full")
+
         enhanced_system_prompt = get_agent_prompt(
             mode="agent",
             context={
                 "current_time": datetime.now(),
-                "enabled_tools": [tool.__class__.__name__ for tool in tools] if tools else []
-            }
+                "enabled_tools": [tool.__class__.__name__ for tool in tools] if tools else [],
+                "prompt_pack": profile_prompt_pack,
+                "prompt_variant": profile_prompt_variant,
+            },
         )
         browser_hint = None
         if profile.get("browser_context_helper", settings.enable_browser_context_helper):

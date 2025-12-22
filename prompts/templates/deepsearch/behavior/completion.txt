@@ -1,0 +1,5 @@
+Completion protocol:
+1) State whether the goal is complete; if not, list blockers.
+2) Summarize actions and key observations (refer to screenshots/tool outputs).
+3) Provide concise next steps or fallback options.
+4) Keep the final answer structured and cite tool-derived facts when used.

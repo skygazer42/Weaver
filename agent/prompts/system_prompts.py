@@ -1,11 +1,16 @@
 """
-Enhanced system prompts for Weaver agents.
+System prompt assembler for Weaver agents.
 
-Selectively integrated from Manus best practices while maintaining Weaver's architecture.
+Default pack: deepsearch (behavior templates + research prompts)
 """
 
+from typing import Dict
+
+from prompts.templates.deepsearch import get_behavior_prompt
+from common.config import settings
+
 # ============================================================================
-# CORE AGENT PROMPT (Enhanced with Manus best practices)
+# CORE AGENT PROMPTS (legacy defaults retained)
 # ============================================================================
 
 ENHANCED_AGENT_PROMPT = """You are Weaver, an autonomous AI research and execution agent.
@@ -111,13 +116,13 @@ You can:
 
 # 4. CRITICAL RULES
 
-❌ **NEVER:**
+❌**NEVER:**
 - Invent or hallucinate URLs, sources, or data
 - Make claims without tool-verified evidence
 - Ignore tool results and rely solely on training data for current events
 - Execute potentially harmful or destructive code
 
-✅ **ALWAYS:**
+✅**ALWAYS:**
 - Use tools when information is time-sensitive or requires current data
 - Cite sources with actual URLs from tool results
 - Validate important facts across multiple sources
@@ -131,11 +136,6 @@ You can:
 
 You are operating in a research-focused environment. Your goal is to provide accurate, well-researched, and properly cited information using the available tools.
 """
-
-
-# ============================================================================
-# DEEP RESEARCH PROMPT (For deep search mode)
-# ============================================================================
 
 DEEP_RESEARCH_PROMPT = """You are Weaver in Deep Research mode - an expert at conducting comprehensive, multi-source investigations.
 
@@ -240,11 +240,6 @@ If initial research is insufficient:
 
 Remember: Deep research prioritizes **comprehensiveness** and **accuracy** over speed. Take the time needed to produce a thorough, well-sourced report.
 """
-
-
-# ============================================================================
-# WRITER PROMPT (For report synthesis)
-# ============================================================================
 
 WRITER_PROMPT = """You are Weaver in Writer mode - an expert at synthesizing research into clear, comprehensive reports.
 
@@ -357,77 +352,38 @@ Your goal: Create a report that is **accurate, comprehensive, and highly readabl
 """
 
 
-# ============================================================================
-# CONTEXT-AWARE PROMPT BUILDER
-# ============================================================================
-
-def get_agent_prompt(mode: str = "default", context: dict = None) -> str:
+def get_agent_prompt(mode: str = "default", context: Dict = None) -> str:
     """
-    Get the appropriate prompt based on mode and context.
-
-    Args:
-        mode: "default", "agent", "deep_research", or "writer"
-        context: Optional context dictionary with additional information
-
-    Returns:
-        Complete system prompt string
+    Assemble the appropriate prompt based on mode and context.
+    Defaults to deepsearch behavior pack if not specified.
     """
+    context = context or {}
+    prompt_pack = context.get("prompt_pack") or getattr(settings, "prompt_pack", None) or "deepsearch"
+    prompt_variant = context.get("prompt_variant") or getattr(settings, "prompt_variant", None) or "full"
+
+    if prompt_pack == "deepsearch":
+        return get_behavior_prompt(
+            variant=prompt_variant,
+            include_browser=True,
+            include_desktop=True,
+        )
+
     prompts = {
         "default": ENHANCED_AGENT_PROMPT,
         "agent": ENHANCED_AGENT_PROMPT,
         "deep_research": DEEP_RESEARCH_PROMPT,
         "writer": WRITER_PROMPT,
     }
+    return prompts.get(mode, ENHANCED_AGENT_PROMPT)
 
-    base_prompt = prompts.get(mode, ENHANCED_AGENT_PROMPT)
-
-    # Add current datetime if provided
-    if context and context.get("current_time"):
-        import datetime
-        now = context["current_time"]
-        datetime_info = f"""
-
-=== CURRENT DATE/TIME INFORMATION ===
-Today's date: {now.strftime('%A, %B %d, %Y')}
-Current time: {now.strftime('%H:%M:%S UTC')}
-Current year: {now.year}
-
-Use this information for time-sensitive queries and when referencing "recent" or "latest" information.
-"""
-        base_prompt += datetime_info
-
-    # Add enabled tools information if provided
-    if context and context.get("enabled_tools"):
-        tools = context["enabled_tools"]
-        tools_info = "\n\n=== AVAILABLE TOOLS ===\n"
-        tools_info += "You have access to the following tools:\n"
-        for tool_name in tools:
-            tools_info += f"- {tool_name}\n"
-        base_prompt += tools_info
-
-    return base_prompt
-
-
-# ============================================================================
-# EXPORT FUNCTIONS
-# ============================================================================
 
 def get_enhanced_agent_prompt() -> str:
-    """Get the enhanced agent prompt (default mode)."""
     return ENHANCED_AGENT_PROMPT
 
 
 def get_deep_research_prompt() -> str:
-    """Get the deep research prompt."""
     return DEEP_RESEARCH_PROMPT
 
 
 def get_writer_prompt() -> str:
-    """Get the writer/synthesis prompt."""
     return WRITER_PROMPT
-
-
-
-# Backward compatibility stub
-def get_custom_prompt(name: str):
-    raise NotImplementedError('get_custom_prompt is deprecated; use PromptManager/custom prompt files instead')

@@ -7,6 +7,7 @@ from .prompt_lang import (
     final_summary_prompt,
     summary_text_prompt,
 )
+from .behavior import get_behavior_prompt
 
 __all__ = [
     "formulate_query_prompt",
@@ -14,4 +15,5 @@ __all__ = [
     "summary_crawl_prompt",
     "final_summary_prompt",
     "summary_text_prompt",
+    "get_behavior_prompt",
 ]

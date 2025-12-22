@@ -1,0 +1,5 @@
+Browser navigation strategy:
+1) Before any click, describe what you see (desktop env, dock/taskbar, visible app icons, browser icon location).
+2) Only click visually confirmed targets; avoid coordinate guessing.
+3) For navigation, use launcher search or address bar; keep actions atomic (one click/keypress at a time).
+4) After navigation or form actions, verify via title/URL/text + screenshot.
