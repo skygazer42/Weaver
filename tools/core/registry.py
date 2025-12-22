@@ -324,46 +324,42 @@ class ToolRegistry:
 
         registered = []
 
-        try:
-            # Import module
-            module = importlib.import_module(module_name)
+        # Import module
+        module = importlib.import_module(module_name)
 
-            # Scan for WeaverTool subclasses
-            if WeaverTool is not None:
-                for name, obj in inspect.getmembers(module, inspect.isclass):
-                    if issubclass(obj, WeaverTool) and obj is not WeaverTool:
-                        try:
-                            instance = obj()
-                            registered.extend(
-                                self.register_weaver_tool(instance, tags=tags)
-                            )
-                        except Exception as e:
-                            logger.error(f"Failed to instantiate {name}: {e}")
-
-            # Scan for functions with @tool_schema
-            for name, obj in inspect.getmembers(module, inspect.isfunction):
-                if hasattr(obj, '_tool_schema'):
-                    schema = obj._tool_schema
-                    tool_name = prefix + schema.get('name', name)
-
+        # Scan for WeaverTool subclasses
+        if WeaverTool is not None:
+            for name, obj in inspect.getmembers(module, inspect.isclass):
+                if issubclass(obj, WeaverTool) and obj is not WeaverTool:
                     try:
-                        metadata = self.register(
-                            name=tool_name,
-                            tool=obj,
-                            description=schema.get('description', ''),
-                            parameters=schema.get('parameters', {}),
-                            tags=(tags or []) + ['auto_discovered']
+                        instance = obj()
+                        registered.extend(
+                            self.register_weaver_tool(instance, tags=tags)
                         )
-                        registered.append(metadata)
-                    except ValueError:
-                        logger.warning(f"Tool {tool_name} already registered, skipping")
+                    except Exception as e:
+                        logger.error(f"Failed to instantiate {name}: {e}")
 
-            logger.info(
-                f"Discovered {len(registered)} tools from module '{module_name}'"
-            )
+        # Scan for functions with @tool_schema
+        for name, obj in inspect.getmembers(module, inspect.isfunction):
+            if hasattr(obj, '_tool_schema'):
+                schema = obj._tool_schema
+                tool_name = prefix + schema.get('name', name)
 
-        except ImportError as e:
-            logger.error(f"Failed to import module '{module_name}': {e}")
+                try:
+                    metadata = self.register(
+                        name=tool_name,
+                        tool=obj,
+                        description=schema.get('description', ''),
+                        parameters=schema.get('parameters', {}),
+                        tags=(tags or []) + ['auto_discovered']
+                    )
+                    registered.append(metadata)
+                except ValueError:
+                    logger.warning(f"Tool {tool_name} already registered, skipping")
+
+        logger.info(
+            f"Discovered {len(registered)} tools from module '{module_name}'"
+        )
 
         return registered
 

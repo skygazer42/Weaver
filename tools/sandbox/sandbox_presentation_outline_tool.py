@@ -101,11 +101,9 @@ Respond with a valid JSON object matching the PresentationOutline schema.
 
 def _get_event_emitter(thread_id: str):
     """Get event emitter for a thread."""
-    try:
-        from agent.core.events import get_emitter_sync
-        return get_emitter_sync(thread_id)
-    except ImportError:
-        return None
+    from agent.core.events import get_emitter_sync
+
+    return get_emitter_sync(thread_id)
 
 
 class _PresentationOutlineBaseTool(BaseTool):
@@ -293,7 +291,7 @@ class OutlineToSlidesTool(_PresentationOutlineBaseTool):
             session = sandbox_browser_sessions.get(self.thread_id)
             if session and hasattr(session, "_handles") and session._handles:
                 return session._handles.sandbox
-        except ImportError:
+        except Exception:
             pass
         return None
 

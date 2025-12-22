@@ -94,20 +94,16 @@ def clean_path(path: str, workspace: str = "/workspace") -> str:
 
 def _get_sandbox_session(thread_id: str):
     """Get sandbox session for a thread."""
-    try:
-        from tools.sandbox.sandbox_browser_session import sandbox_browser_sessions
-        return sandbox_browser_sessions.get(thread_id)
-    except ImportError:
-        return None
+    from tools.sandbox.sandbox_browser_session import sandbox_browser_sessions
+
+    return sandbox_browser_sessions.get(thread_id)
 
 
 def _get_event_emitter(thread_id: str):
     """Get event emitter for a thread."""
-    try:
-        from agent.core.events import get_emitter_sync
-        return get_emitter_sync(thread_id)
-    except ImportError:
-        return None
+    from agent.core.events import get_emitter_sync
+
+    return get_emitter_sync(thread_id)
 
 
 class _SandboxFilesBaseTool(BaseTool):

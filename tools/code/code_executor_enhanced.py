@@ -19,13 +19,7 @@ from common.config import settings
 import logging
 import json
 
-try:
-    from e2b_code_interpreter import Sandbox
-    E2B_AVAILABLE = True
-except ImportError:
-    E2B_AVAILABLE = False
-    logger = logging.getLogger(__name__)
-    logger.warning("e2b_code_interpreter not installed. Code execution will be disabled.")
+from e2b_code_interpreter import Sandbox
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +42,7 @@ class CodeExecutorTool(WeaverTool):
             api_key: E2B API key (defaults to settings.e2b_api_key)
         """
         self.api_key = api_key or settings.e2b_api_key
-        if not self.api_key and E2B_AVAILABLE:
+        if not self.api_key:
             logger.warning("E2B API key not set")
         super().__init__()
 

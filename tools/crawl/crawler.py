@@ -26,6 +26,8 @@ from typing import Any, Dict, List, Optional
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from common.config import settings
+
 logger = logging.getLogger(__name__)
 
 # Suppress Playwright's verbose logging
@@ -88,39 +90,26 @@ class CrawlerOptimized:
         if self.browser:
             return  # Already initialized
 
-        try:
-            from playwright.async_api import async_playwright
+        from playwright.async_api import async_playwright
 
-            self.playwright = await async_playwright().start()
+        self.playwright = await async_playwright().start()
 
-            self.browser = await self.playwright.chromium.launch(
-                headless=self.headless,
-                timeout=self.browser_timeout,
-            )
+        self.browser = await self.playwright.chromium.launch(
+            headless=self.headless,
+            timeout=self.browser_timeout,
+        )
 
-            if not self.browser:
-                raise RuntimeError("Browser failed to launch")
+        if not self.browser:
+            raise RuntimeError("Browser failed to launch")
 
-            self.context = await self.browser.new_context(
-                user_agent=DEFAULT_UA,
-                viewport={"width": 1920, "height": 1080},
-            )
+        self.context = await self.browser.new_context(
+            user_agent=DEFAULT_UA,
+            viewport={"width": 1920, "height": 1080},
+        )
 
-            self._semaphore = asyncio.Semaphore(self.max_concurrent)
+        self._semaphore = asyncio.Semaphore(self.max_concurrent)
 
-            logger.info(f"[crawler] Browser initialized (headless={self.headless})")
-
-        except ImportError:
-            logger.warning(
-                "[crawler] Playwright not installed. Run: pip install playwright && playwright install chromium"
-            )
-            raise
-        except Exception as e:
-            logger.error(f"[crawler] Browser initialization failed: {e}")
-            self.browser = None
-            self.context = None
-            self.playwright = None
-            raise
+        logger.info(f"[crawler] Browser initialized (headless={self.headless})")
 
     async def close_browser(self) -> None:
         """Close browser and clean up resources."""
@@ -255,15 +244,9 @@ async def get_global_crawler() -> CrawlerOptimized:
     async with _crawler_lock:
         if _global_crawler is None:
             # Try to get settings
-            try:
-                from common.config import settings
-                headless = getattr(settings, "crawler_headless", True)
-                page_timeout = getattr(settings, "crawler_page_timeout", 20000)
-                max_concurrent = getattr(settings, "crawler_max_concurrent", 5)
-            except ImportError:
-                headless = True
-                page_timeout = 20000
-                max_concurrent = 5
+            headless = getattr(settings, "crawler_headless", True)
+            page_timeout = getattr(settings, "crawler_page_timeout", 20000)
+            max_concurrent = getattr(settings, "crawler_max_concurrent", 5)
 
             _global_crawler = CrawlerOptimized(
                 headless=headless,
@@ -339,16 +322,7 @@ def _crawl_urls_legacy(urls: List[str], timeout: int = 10) -> List[Dict[str, str
 
 def _should_use_optimized() -> bool:
     """Check if we should use the optimized Playwright crawler."""
-    try:
-        from common.config import settings
-        return getattr(settings, "use_optimized_crawler", True)  # Default to True
-    except ImportError:
-        # No settings available, check if Playwright is installed
-        try:
-            import playwright
-            return True
-        except ImportError:
-            return False
+    return getattr(settings, "use_optimized_crawler", True)
 
 
 def crawl_urls(urls: List[str], timeout: int = 10) -> List[Dict[str, str]]:
@@ -381,19 +355,13 @@ def crawl_urls(urls: List[str], timeout: int = 10) -> List[Dict[str, str]]:
 
     if use_optimized:
         try:
-            # Try to use optimized Playwright crawler
             logger.debug("[crawler] Attempting to use optimized Playwright crawler")
             return _run_async_crawl(urls)
-        except ImportError as e:
-            logger.warning(
-                f"[crawler] Playwright not available ({e}), falling back to legacy urllib crawler"
-            )
         except Exception as e:
             logger.warning(
                 f"[crawler] Optimized crawler failed ({e}), falling back to legacy urllib crawler"
             )
 
-    # Fallback to legacy urllib crawler
     logger.debug("[crawler] Using legacy urllib crawler")
     return _crawl_urls_legacy(urls, timeout)
 
