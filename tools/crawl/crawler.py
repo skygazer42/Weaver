@@ -28,6 +28,15 @@ from urllib.request import Request, urlopen
 
 from common.config import settings
 
+# 环境变量控制是否无头模式（默认 true 无窗口；false 可视化调试）
+_CRAWLER_HEADLESS = str(getattr(settings, "crawler_headless", "") or "").strip().lower()
+if not _CRAWLER_HEADLESS:
+    import os
+    _CRAWLER_HEADLESS = os.getenv("CRAWLER_HEADLESS", "true").strip().lower()
+
+def _is_headless() -> bool:
+    return _CRAWLER_HEADLESS not in ("false", "0", "no", "off")
+
 logger = logging.getLogger(__name__)
 
 # Suppress Playwright's verbose logging
@@ -74,7 +83,8 @@ class CrawlerOptimized:
             wait_until: Page load strategy ("domcontentloaded", "load", "networkidle")
             max_concurrent: Maximum concurrent page requests
         """
-        self.headless = headless
+        # 默认使用 env/config 决定是否无头；若入参显式指定则覆盖
+        self.headless = headless if headless is not None else _is_headless()
         self.browser_timeout = browser_timeout
         self.page_timeout = page_timeout
         self.wait_until = wait_until
