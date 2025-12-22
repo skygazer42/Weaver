@@ -58,12 +58,9 @@ class BrowserUseTool(BaseTool):
             pass
 
     async def _ensure_context(self):
-        try:
-            from browser_use import Browser as BrowserUseBrowser, BrowserConfig
-            from browser_use.browser.context import BrowserContextConfig
-            from browser_use.dom.service import DomService
-        except Exception as e:  # pragma: no cover - optional dependency
-            raise RuntimeError(f"browser-use not installed: {e}")
+        from browser_use import Browser as BrowserUseBrowser, BrowserConfig
+        from browser_use.browser.context import BrowserContextConfig
+        from browser_use.dom.service import DomService
 
         if self._browser is None:
             cfg_kwargs = {

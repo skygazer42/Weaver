@@ -7,7 +7,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from pydantic_settings import BaseSettings
 
 
@@ -96,11 +96,11 @@ class AppConfig(BaseModel):
     run_flow_config: Optional[RunflowSettings] = None
     daytona_config: Optional[DaytonaSettings] = None
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class Settings(BaseSettings):
+    model_config = ConfigDict(env_file=".env", case_sensitive=False)
     """Application settings."""
 
     # API Keys
@@ -240,10 +240,6 @@ class Settings(BaseSettings):
     prompt_optimizer_model: str = "gpt-4o"  # 用于优化 Prompt 的模型
     prompt_optimization_epochs: int = 3      # 优化迭代轮次
     prompt_optimization_sample_size: int = 50  # 每轮评估样本数
-
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
 
     @property
     def cors_origins_list(self) -> List[str]:
