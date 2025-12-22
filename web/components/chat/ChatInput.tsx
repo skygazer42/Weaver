@@ -327,7 +327,7 @@ export function ChatInput({
   ]
   
   return (
-    <div className="relative z-20 mx-auto w-full max-w-3xl px-4 pb-6">
+    <div className="relative z-20 mx-auto w-full max-w-5xl px-4 pb-6">
       <div className="flex flex-col gap-2">
         
         {/* Command Menu */}

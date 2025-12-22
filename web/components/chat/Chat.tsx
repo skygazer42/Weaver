@@ -239,13 +239,13 @@ export function Chat() {
                 atBottomStateChange={handleAtBottomChange}
                 className="scrollbar-thin scrollbar-thumb-muted/20"
                 itemContent={(index, message) => (
-                    <div className="max-w-3xl mx-auto px-4 sm:px-0">
+                    <div className="max-w-5xl mx-auto px-4 sm:px-0">
                         <MessageItem key={message.id} message={message} onEdit={handleEditMessage} />
                     </div>
                 )}
                 components={{
                     Footer: () => (
-                        <div className="max-w-3xl mx-auto px-4 sm:px-0 pb-4">
+                        <div className="max-w-5xl mx-auto px-4 sm:px-0 pb-4">
                             {currentStatus && (
                                 <div className="flex items-center gap-2 text-sm text-muted-foreground py-2 animate-in fade-in slide-in-from-bottom-2">
                                     <Loader2 className="h-3 w-3 animate-spin text-primary" />

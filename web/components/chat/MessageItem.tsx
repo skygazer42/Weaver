@@ -179,8 +179,7 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
             {/* Bot Avatar - Removed */}
             <div className={cn(
                 'flex flex-col',
-                isEditing ? "w-full max-w-full" : "max-w-[90%] md:max-w-[85%]", 
-                isUser ? 'items-end ml-auto' : 'items-start mr-auto ml-4 md:ml-12',
+                isUser ? "max-w-[90%] md:max-w-[85%] items-end ml-auto" : "w-full max-w-full items-start mr-auto",
       )}>
         
         {/* Thinking Process */}
@@ -263,7 +262,7 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
                             
                             if (isInline) {
                                return (
-                                    <code className="bg-black/10 dark:bg-black/30 px-1.5 py-0.5 rounded text-sm font-mono" {...props}>
+                                    <code className="bg-black/10 dark:bg-black/30 px-1.5 py-0.5 rounded text-sm font-mono break-words whitespace-pre-wrap" {...props}>
                                         {children}
                                     </code>
                                )

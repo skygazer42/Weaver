@@ -52,17 +52,29 @@ export function CodeBlock({ language, value }: CodeBlockProps) {
          <SyntaxHighlighter
             language={language?.toLowerCase() || 'text'}
             style={oneDark}
-            customStyle={{
-                margin: 0,
-                padding: '1.5rem',
-                background: 'transparent',
-                fontSize: '14px',
-                lineHeight: '1.6',
-                fontFamily: 'var(--font-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-            }}
-            showLineNumbers={true}
-            wrapLongLines={false} // Enable horizontal scrolling
-            PreTag="div"
+                            customStyle={{
+                                margin: 0,
+                                padding: '1.5rem',
+                                background: 'transparent',
+                                fontSize: '14px',
+                                lineHeight: '1.6',
+                                fontFamily: 'var(--font-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                                whiteSpace: 'pre-wrap',
+                                wordBreak: 'normal',
+                                overflowWrap: 'anywhere',
+                            }}
+                            codeTagProps={{
+                                style: {
+                                    whiteSpace: 'pre-wrap',
+                                    wordBreak: 'normal',
+                                                                        overflowWrap: 'anywhere'
+                                                                    }
+                                                                }}
+                                                                showLineNumbers={false}
+                                                                    
+                                                wrapLongLines={false} // Rely on CSS wrapping
+                                                PreTag="div"
+                                    
          >
             {value}
          </SyntaxHighlighter>

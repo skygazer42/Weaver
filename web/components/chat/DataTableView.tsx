@@ -35,8 +35,16 @@ export function DataTableView({ data, type }: DataTableViewProps) {
 
   if (!parsedData || parsedData.length === 0) return null
 
-  // Get headers from first row
-  const headers = Object.keys(parsedData[0] as object)
+  // Determine if we have an array of primitives
+  const firstItem = parsedData[0]
+  const isPrimitive = firstItem !== null && typeof firstItem !== 'object'
+
+  // If it's a primitive array (e.g. list of strings), don't render a table.
+  // Let the CodeBlock handle it as text which is more readable.
+  if (isPrimitive) return null
+
+  // Get headers
+  const headers = Object.keys(firstItem || {})
   const rows = parsedData.slice(page * pageSize, (page + 1) * pageSize)
   const totalPages = Math.ceil(parsedData.length / pageSize)
 
@@ -79,11 +87,14 @@ export function DataTableView({ data, type }: DataTableViewProps) {
                 <tbody className="[&_tr:last-child]:border-0">
                     {rows.map((row: any, i) => (
                         <tr key={i} className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-                            {headers.map(header => (
-                                <td key={header} className="p-4 align-middle [&:has([role=checkbox])]:pr-0 whitespace-nowrap">
-                                    {typeof row[header] === 'object' ? JSON.stringify(row[header]) : String(row[header])}
-                                </td>
-                            ))}
+                            {headers.map(header => {
+                                const cellValue = isPrimitive ? row : row[header]
+                                return (
+                                    <td key={header} className="p-4 align-middle [&:has([role=checkbox])]:pr-0 whitespace-nowrap">
+                                        {typeof cellValue === 'object' && cellValue !== null ? JSON.stringify(cellValue) : String(cellValue)}
+                                    </td>
+                                )
+                            })}
                         </tr>
                     ))}
                 </tbody>
