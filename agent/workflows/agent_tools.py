@@ -5,6 +5,7 @@ from typing import Any, Dict, List
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
 
+from common.config import settings
 from tools import tavily_search, execute_python_code
 from tools.code.chart_viz_tool import chart_visualize
 from tools.core.registry import get_registered_tools
@@ -191,6 +192,14 @@ def build_agent_tools(config: RunnableConfig) -> List[BaseTool]:
         from tools.sandbox import daytona_create, daytona_stop
         tools.append(daytona_create)
         tools.append(daytona_stop)
+
+    # Align per-thread emitters for tools that support it (e.g., MCPClientTool)
+    for t in tools:
+        if hasattr(t, "thread_id"):
+            try:
+                setattr(t, "thread_id", thread_id)
+            except Exception:
+                pass
 
     # De-dup by tool name to avoid collisions
     deduped: Dict[str, BaseTool] = {}

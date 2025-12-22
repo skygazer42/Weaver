@@ -209,9 +209,35 @@ research_graph = create_research_graph(
     store=store,
 )
 support_graph = create_support_graph(checkpointer=checkpointer, store=store)
+mcp_thread_id = "default"  # thread id for MCP event emission; per-request tools will override
 mcp_enabled = settings.enable_mcp
 mcp_servers_config = settings.mcp_servers
 mcp_loaded_tools = 0
+
+
+def _apply_mcp_thread_id(config: Any, thread_id: str) -> Any:
+    """
+    Ensure MCP server config carries a __thread_id__ hint for event emitters.
+
+    Accepts dict or JSON string and returns the same type with injected field.
+    """
+    if not thread_id:
+        return config
+
+    if isinstance(config, str):
+        try:
+            parsed = json.loads(config)
+        except json.JSONDecodeError:
+            return config
+        parsed["__thread_id__"] = thread_id
+        return parsed
+
+    if isinstance(config, dict):
+        updated = dict(config)
+        updated["__thread_id__"] = thread_id
+        return updated
+
+    return config
 
 
 async def startup_event():
@@ -228,13 +254,12 @@ async def startup_event():
     logger.info(f"Checkpointer: {'Enabled' if checkpointer else 'Disabled'}")
 
     # Initialize MCP tools
-    global mcp_loaded_tools
+    global mcp_loaded_tools, mcp_servers_config
     try:
         logger.info("Initializing MCP tools...")
-        # Attach thread_id for emitter separation
-        if isinstance(mcp_servers_config, dict):
-            mcp_servers_config["__thread_id__"] = mcp_thread_id
-        mcp_tools = await init_mcp_tools(servers_override=mcp_servers_config, enabled=mcp_enabled)
+        servers_cfg = _apply_mcp_thread_id(mcp_servers_config, mcp_thread_id)
+        mcp_servers_config = servers_cfg
+        mcp_tools = await init_mcp_tools(servers_override=servers_cfg, enabled=mcp_enabled)
         if mcp_tools:
             set_registered_tools(mcp_tools)
             mcp_loaded_tools = len(mcp_tools)
@@ -1405,7 +1430,9 @@ async def update_mcp_config(payload: MCPConfigPayload):
 
     if mcp_enabled and mcp_servers_config:
         try:
-            tools = await reload_mcp_tools(mcp_servers_config, enabled=True)
+            cfg = _apply_mcp_thread_id(mcp_servers_config, mcp_thread_id)
+            mcp_servers_config = cfg
+            tools = await reload_mcp_tools(cfg, enabled=True)
             set_registered_tools(tools)
             mcp_loaded_tools = len(tools)
         except Exception as e:

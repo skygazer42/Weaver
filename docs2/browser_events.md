@@ -8,4 +8,4 @@
 - 线程隔离：thread_id 透传到 emitter，前端订阅 `/api/events/{thread_id}`。
 - 后续可在 navigate/click 等内部加 `tool_progress`/`tool_screenshot`，按需扩展。
 
-- 沙盒浏览器工具新增 tool_progress，便于前端显示浏览步骤。
+- 沙盒浏览器工具现在在 navigate/click/type/press/scroll/screenshot/reset 阶段发出 `tool_progress`，便于前端显示浏览步骤。

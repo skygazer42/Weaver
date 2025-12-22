@@ -217,15 +217,18 @@ class SbBrowserNavigateTool(_SbBrowserTool):
         full_page: bool = True,
     ) -> Dict[str, Any]:
         start_time = self._emit_tool_start("navigate", {"url": url})
+        self._emit_progress("navigate", f"goto {url}")
 
         try:
             page = self._page()
             page.goto(url, wait_until=wait_until, timeout=60000)
             if wait_ms:
                 page.wait_for_timeout(int(wait_ms))
+            self._emit_progress("navigate", "page_loaded")
 
             info = self._page_info()
             screenshot = self._screenshot_with_save("navigate", full_page=full_page)
+            self._emit_progress("navigate", "screenshot_captured")
 
             result = {**info, **screenshot}
 
@@ -260,6 +263,7 @@ class SbBrowserClickTool(_SbBrowserTool):
         full_page: bool = True,
     ) -> Dict[str, Any]:
         start_time = self._emit_tool_start("click", {"selector": selector, "text": text})
+        self._emit_progress("click", selector or text or "")
 
         try:
             page = self._page()
@@ -279,6 +283,7 @@ class SbBrowserClickTool(_SbBrowserTool):
 
             if wait_ms:
                 page.wait_for_timeout(int(wait_ms))
+            self._emit_progress("click", "after_click_wait")
 
             info = self._page_info()
             screenshot = self._screenshot_with_save("click", full_page=full_page)
@@ -321,6 +326,7 @@ class SbBrowserTypeTool(_SbBrowserTool):
             "selector": selector,
             "press_enter": press_enter,
         })
+        self._emit_progress("type", selector or "first_input")
 
         try:
             page = self._page()
@@ -338,6 +344,7 @@ class SbBrowserTypeTool(_SbBrowserTool):
                 page.keyboard.press("Enter")
             if wait_ms:
                 page.wait_for_timeout(int(wait_ms))
+            self._emit_progress("type", "after_type_wait")
 
             info = self._page_info()
             screenshot = self._screenshot_with_save("type", full_page=full_page)
@@ -367,12 +374,14 @@ class SbBrowserPressTool(_SbBrowserTool):
 
     def _run(self, keys: str, wait_ms: int = 500, full_page: bool = True) -> Dict[str, Any]:
         start_time = self._emit_tool_start("press", {"keys": keys})
+        self._emit_progress("press", keys)
 
         try:
             page = self._page()
             page.keyboard.press(keys)
             if wait_ms:
                 page.wait_for_timeout(int(wait_ms))
+            self._emit_progress("press", "after_press_wait")
 
             info = self._page_info()
             screenshot = self._screenshot_with_save("press", full_page=full_page)
@@ -402,6 +411,7 @@ class SbBrowserScrollTool(_SbBrowserTool):
 
     def _run(self, amount: int, wait_ms: int = 500, full_page: bool = True) -> Dict[str, Any]:
         start_time = self._emit_tool_start("scroll", {"amount": amount})
+        self._emit_progress("scroll", str(amount))
 
         try:
             page = self._page()
@@ -409,6 +419,7 @@ class SbBrowserScrollTool(_SbBrowserTool):
             page.mouse.wheel(0, amt)
             if wait_ms:
                 page.wait_for_timeout(int(wait_ms))
+            self._emit_progress("scroll", "after_scroll_wait")
 
             info = self._page_info()
             screenshot = self._screenshot_with_save("scroll", full_page=full_page)
@@ -436,6 +447,7 @@ class SbBrowserExtractTextTool(_SbBrowserTool):
 
     def _run(self, max_chars: int = 5000) -> Dict[str, Any]:
         start_time = self._emit_tool_start("extract_text", {"max_chars": max_chars})
+        self._emit_progress("extract_text", f"max_chars={max_chars}")
 
         try:
             page = self._page()
@@ -467,6 +479,7 @@ class SbBrowserScreenshotTool(_SbBrowserTool):
 
     def _run(self, full_page: bool = True) -> Dict[str, Any]:
         start_time = self._emit_tool_start("screenshot", {"full_page": full_page})
+        self._emit_progress("screenshot", "capturing")
 
         try:
             info = self._page_info()
@@ -490,6 +503,7 @@ class SbBrowserResetTool(_SbBrowserTool):
 
     def _run(self) -> Dict[str, Any]:
         start_time = self._emit_tool_start("reset", {})
+        self._emit_progress("reset", "closing session")
 
         try:
             sandbox_browser_sessions.reset(self.thread_id)
