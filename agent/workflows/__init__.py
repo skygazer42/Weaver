@@ -11,6 +11,7 @@ from .agent_tools import build_agent_tools
 from .response_handler import ResponseHandler
 from .continuation import ContinuationState, ToolResultInjector, ContinuationHandler
 from .result_aggregator import ResultAggregator
+from .search_cache import QueryDeduplicator, get_search_cache, SearchCache
 
 __all__ = [
     "initialize_enhanced_tools",
@@ -27,4 +28,7 @@ __all__ = [
     "ToolResultInjector",
     "ContinuationHandler",
     "ResultAggregator",
+    "QueryDeduplicator",
+    "get_search_cache",
+    "SearchCache",
 ]

@@ -9,6 +9,12 @@
     "Deep search failed: 1 validation error for ChatOpenAI\n  Value error, Unknown scheme for proxy URL URL('socks://127.0.0.1:35983/') [type=value_error, input_value={'model': 'deepseek-chat'... {}, 'model_kwargs': {}}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/value_error",
     "User: Analyze the current state of AI Agent frameworks in 2024\nAssistant: Deep search failed: 1 validation error for ChatOpenAI\n  Value error, Unknown scheme for proxy URL URL('socks://127.0.0.1:35983/') [type=value_error, input_value={'model': 'deepseek-chat'... {}, 'model_kwargs': {}}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/value_error",
     "Hi",
-    "User: Hello, respond with just 'Hi'\nAssistant: Hi"
+    "User: Hello, respond with just 'Hi'\nAssistant: Hi",
+    "\u4f60\u597d\uff01\u6709\u4ec0\u4e48\u6211\u53ef\u4ee5\u5e2e\u52a9\u4f60\u7684\u5417\uff1f",
+    "User: \u4f60\u597d\nAssistant: \u4f60\u597d\uff01\u6709\u4ec0\u4e48\u6211\u53ef\u4ee5\u5e2e\u52a9\u4f60\u7684\u5417\uff1f",
+    "\u4f60\u597d\uff01\u6709\u4ec0\u4e48\u6211\u53ef\u4ee5\u5e2e\u52a9\u4f60\u7684\u5417\uff1f",
+    "User: \u4f60\u597d\nAssistant: \u4f60\u597d\uff01\u6709\u4ec0\u4e48\u6211\u53ef\u4ee5\u5e2e\u52a9\u4f60\u7684\u5417\uff1f",
+    "Hi",
+    "User: Hello, just say 'Hi' back.\nAssistant: Hi"
   ]
 }

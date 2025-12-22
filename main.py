@@ -1470,9 +1470,7 @@ async def get_run_metrics(thread_id: str):
 
 @app.get("/metrics")
 async def metrics():
-    """Prometheus metrics endpoint (enable with ENABLE_PROMETHEUS=true)."""
-    if not settings.enable_prometheus or not generate_latest:
-        raise HTTPException(status_code=404, detail="Prometheus not enabled")
+    """Prometheus metrics endpoint."""
     data = generate_latest()
     return StreamingResponse(iter([data]), media_type=CONTENT_TYPE_LATEST)
 
