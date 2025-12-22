@@ -19,22 +19,7 @@ from dataclasses import dataclass, field
 from typing import Literal, Optional, Dict, Any
 import logging
 
-# Try to import settings, but make it optional
-try:
-    from common.config import settings
-except ImportError:
-    # Create a mock settings object for standalone testing
-    class MockSettings:
-        agent_xml_tool_calling = True
-        agent_native_tool_calling = True
-        agent_execute_tools = True
-        agent_auto_continue = False
-        agent_max_auto_continues = 25
-        agent_tool_execution_strategy = 'sequential'
-        tool_call_limit = 10
-        tool_retry = False
-        tool_retry_max_attempts = 3
-    settings = MockSettings()
+from common.config import settings
 
 logger = logging.getLogger(__name__)
 

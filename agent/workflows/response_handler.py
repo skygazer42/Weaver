@@ -17,26 +17,23 @@ tools according to configuration, and inject results back into the
 conversation flow.
 """
 
-from agent.parsers.xml_parser import XMLToolParser, XMLToolCall
-from agent.core.processor_config import AgentProcessorConfig
-from tools.core.base import ToolResult, validate_tool_result
-from typing import AsyncGenerator, Dict, Any, List, Optional, Callable
 import asyncio
 import json
 import logging
 from datetime import datetime
+from typing import AsyncGenerator, Dict, Any, List, Optional, Callable
 
-# Import continuation support (with fallback if not available)
-try:
-    from agent.workflows.continuation import (
-        ContinuationHandler,
-        ContinuationDecider,
-        ToolResultInjector,
-        ContinuationState
-    )
-    CONTINUATION_AVAILABLE = True
-except ImportError:
-    CONTINUATION_AVAILABLE = False
+from agent.parsers.xml_parser import XMLToolParser, XMLToolCall
+from agent.core.processor_config import AgentProcessorConfig
+from tools.core.base import ToolResult, validate_tool_result
+
+from agent.workflows.continuation import (
+    ContinuationHandler,
+    ContinuationDecider,
+    ToolResultInjector,
+    ContinuationState,
+)
+CONTINUATION_AVAILABLE = True
 
 logger = logging.getLogger(__name__)
 

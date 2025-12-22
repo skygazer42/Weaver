@@ -23,15 +23,9 @@ from agent.workflows.stuck_middleware import detect_stuck, inject_stuck_hint
 from agent.workflows.browser_context_helper import build_browser_context_hint
 from common.config import settings
 from common.cancellation import cancellation_manager, check_cancellation as _check_cancellation
-
-# Phase 2-4: Enhanced tool calling and auto-continuation
-try:
-    from agent.workflows.response_handler import ResponseHandler
-    from agent.core.processor_config import AgentProcessorConfig
-    ENHANCED_TOOLS_AVAILABLE = True
-except ImportError:
-    ENHANCED_TOOLS_AVAILABLE = False
-    logger.warning("Enhanced tool calling not available (Phase 2-4 components missing)")
+from agent.workflows.response_handler import ResponseHandler
+from agent.core.processor_config import AgentProcessorConfig
+ENHANCED_TOOLS_AVAILABLE = True
 
 logger = logging.getLogger(__name__)
 

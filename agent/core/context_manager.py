@@ -22,6 +22,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import tiktoken
 from langchain_core.messages import (
     AIMessage,
     BaseMessage,
@@ -31,14 +32,7 @@ from langchain_core.messages import (
 )
 
 logger = logging.getLogger(__name__)
-
-# Try to import tiktoken for accurate token counting
-try:
-    import tiktoken
-    TIKTOKEN_AVAILABLE = True
-except ImportError:
-    TIKTOKEN_AVAILABLE = False
-    logger.warning("[context_manager] tiktoken not installed. Using character-based estimation.")
+TIKTOKEN_AVAILABLE = True
 
 
 # Model token limits (context window sizes)

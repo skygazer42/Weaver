@@ -37,20 +37,16 @@ def _trim(text: str, max_chars: int) -> str:
 
 def _get_event_emitter(thread_id: str):
     """Get event emitter for a thread (lazy import to avoid circular deps)."""
-    try:
-        from agent.core.events import get_emitter_sync
-        return get_emitter_sync(thread_id)
-    except ImportError:
-        return None
+    from agent.core.events import get_emitter_sync
+
+    return get_emitter_sync(thread_id)
 
 
 def _get_screenshot_service():
     """Get screenshot service (lazy import)."""
-    try:
-        from tools.io.screenshot_service import get_screenshot_service
-        return get_screenshot_service()
-    except ImportError:
-        return None
+    from tools.io.screenshot_service import get_screenshot_service
+
+    return get_screenshot_service()
 
 
 class _SbBrowserTool(BaseTool):

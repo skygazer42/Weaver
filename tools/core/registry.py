@@ -28,18 +28,8 @@ import logging
 from pathlib import Path
 import json
 
-try:
-    from tools.core.base import WeaverTool, ToolResult, tool_schema
-except ImportError:
-    WeaverTool = None
-    ToolResult = None
-    tool_schema = None
-
-# LangChain compatibility
-try:
-    from langchain.tools import BaseTool
-except ImportError:
-    BaseTool = None
+from tools.core.base import WeaverTool, ToolResult, tool_schema
+from langchain.tools import BaseTool
 
 logger = logging.getLogger(__name__)
 

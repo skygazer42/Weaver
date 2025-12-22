@@ -53,33 +53,28 @@ KEYBOARD_KEYS = [
     'capslock', 'numlock', 'scrolllock', 'printscreen',
 ]
 
-# Check if pyautogui is available
-try:
+def _pyautogui():
     import pyautogui
+
     pyautogui.FAILSAFE = True  # Move mouse to corner to abort
     pyautogui.PAUSE = 0.1  # Small pause between actions
-    PYAUTOGUI_AVAILABLE = True
-except ImportError:
-    PYAUTOGUI_AVAILABLE = False
-    logger.warning("[computer_use] pyautogui not installed. Run: pip install pyautogui")
+    return pyautogui
+
+PYAUTOGUI_AVAILABLE = True
 
 
 def _get_event_emitter(thread_id: str):
     """Get event emitter for a thread."""
-    try:
-        from agent.core.events import get_emitter_sync
-        return get_emitter_sync(thread_id)
-    except ImportError:
-        return None
+    from agent.core.events import get_emitter_sync
+
+    return get_emitter_sync(thread_id)
 
 
 def _get_screenshot_service():
     """Get screenshot service."""
-    try:
-        from tools.io.screenshot_service import get_screenshot_service
-        return get_screenshot_service()
-    except ImportError:
-        return None
+    from tools.io.screenshot_service import get_screenshot_service
+
+    return get_screenshot_service()
 
 
 class _ComputerUseTool(BaseTool):
