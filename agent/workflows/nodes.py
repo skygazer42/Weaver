@@ -19,6 +19,7 @@ from tools.core.registry import get_registered_tools, get_global_registry
 from .deepsearch import run_deepsearch
 from .agent_factory import build_writer_agent, build_tool_agent
 from .agent_tools import build_agent_tools
+from agent.workflows.stuck_middleware import detect_stuck, inject_stuck_hint
 from common.config import settings
 from common.cancellation import cancellation_manager, check_cancellation as _check_cancellation
 
@@ -796,6 +797,13 @@ You can also use XML format for tool calls:
             text = getattr(last, "content", "") if hasattr(last, "content") else str(last)
         else:
             text = getattr(response, "content", None) or str(response)
+
+        # Stuck detection: if last two AI messages repeat, inject hint
+        if detect_stuck(response.get("messages", []) if isinstance(response, dict) else [], threshold=1):
+            result_messages = response.get("messages", []) if isinstance(response, dict) else []
+            result_messages = inject_stuck_hint(result_messages)
+            response = {"messages": result_messages}
+            text = getattr(result_messages[-1], "content", text)
 
         # Enhanced: Detect XML tool calls in response if enabled
         continuation_needed = False

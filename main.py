@@ -233,7 +233,7 @@ async def startup_event():
         logger.info("Initializing MCP tools...")
         # Attach thread_id for emitter separation
         if isinstance(mcp_servers_config, dict):
-            mcp_servers_config["__thread_id__"] = "default"
+            mcp_servers_config["__thread_id__"] = mcp_thread_id
         mcp_tools = await init_mcp_tools(servers_override=mcp_servers_config, enabled=mcp_enabled)
         if mcp_tools:
             set_registered_tools(mcp_tools)
@@ -365,7 +365,7 @@ async def shutdown_event():
     # Best-effort stop all Daytona sandboxes
     try:
         from tools.sandbox.daytona_client import daytona_stop_all
-        daytona_stop_all(thread_id="default")
+        daytona_stop_all(thread_id=mcp_thread_id)
     except Exception as e:
         logger.warning(f"Error stopping Daytona sandboxes: {e}")
 

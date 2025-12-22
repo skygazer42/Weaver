@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from .browser_session import browser_sessions
 from agent.core.events import get_emitter_sync, ToolEventType
+from tools.browser.browser_use_events import emit_progress
 
 
 def _trim(text: str, max_chars: int) -> str:
@@ -30,6 +31,9 @@ class _BrowserTool(BaseTool):
         except Exception:
             pass
 
+    def _progress(self, action: str, info: str):
+        emit_progress(self.thread_id, self.name, action, info)
+
 
 class BrowserSearchInput(BaseModel):
     query: str = Field(min_length=1)
@@ -46,6 +50,7 @@ class BrowserSearchTool(_BrowserTool):
     args_schema: type[BaseModel] = BrowserSearchInput
 
     def _run(self, query: str, engine: str = "duckduckgo", max_links: int = 10) -> Dict[str, Any]:
+        self._progress("search", f"{engine} {query}")
         self._emit(ToolEventType.TOOL_START, {"tool": self.name, "args": {"query": query, "engine": engine}})
         page = self._session().search(query=query, engine=engine)
         return {
@@ -67,6 +72,7 @@ class BrowserNavigateTool(_BrowserTool):
     args_schema: type[BaseModel] = BrowserNavigateInput
 
     def _run(self, url: str, max_links: int = 10) -> Dict[str, Any]:
+        self._progress("navigate", url)
         self._emit(ToolEventType.TOOL_START, {"tool": self.name, "args": {"url": url}})
         page = self._session().navigate(url=url)
         return {
@@ -96,6 +102,7 @@ class BrowserClickTool(_BrowserTool):
         if idx < 0 or idx >= len(links):
             raise ValueError(f"index out of range (1-{len(links)})")
         url = links[idx].get("url") or ""
+        self._progress("click", f"{index} -> {url}")
         self._emit(ToolEventType.TOOL_START, {"tool": self.name, "args": {"index": index, "url": url}})
         page = session.navigate(url=url)
         return {
