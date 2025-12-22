@@ -1,0 +1,20 @@
+
+# MCP servers
+mcp_servers = '{"server1": {"type": "sse", "url": "https://example.com/mcp"}}'
+enable_mcp = true
+
+# Daytona sandbox
+daytona_api_key = "<your-key>"
+daytona_server_url = "https://app.daytona.io/api"
+daytona_target = "us"
+
+# Search engines (fallback order)
+search_engines = "tavily"
+
+# Tool events & filters
+emit_tool_events = true
+# tool_whitelist = ""
+# tool_blacklist = ""
+
+# Sandbox mode
+sandbox_mode = "local"

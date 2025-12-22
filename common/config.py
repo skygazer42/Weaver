@@ -95,6 +95,17 @@ class Settings(BaseSettings):
     deepsearch_save_data: bool = False       # save deepsearch run data to disk
     deepsearch_save_dir: str = "eval/deepsearch_data"
 
+    # Daytona sandbox
+    daytona_api_key: str = ""
+    daytona_server_url: str = "https://app.daytona.io/api"
+    daytona_target: str = "us"
+    daytona_image_name: str = "whitezxj/sandbox:0.1.0"
+    daytona_entrypoint: str = "/usr/bin/supervisord -n -c /etc/supervisor/conf.d/supervisord.conf"
+    daytona_vnc_password: str = "123456"
+
+    # Sandbox mode: local (E2B), daytona (remote), none (disabled)
+    sandbox_mode: str = "local"
+
     # Tool / middleware controls
     tool_retry: bool = False
     tool_retry_max_attempts: int = 3
@@ -113,6 +124,14 @@ class Settings(BaseSettings):
     enable_todo_middleware: bool = False  # enable todo list middleware
     todo_system_prompt: str = ""  # custom system prompt for todo middleware
     todo_tool_description: str = ""  # custom tool description for todo middleware
+
+    # Tool visibility / events
+    emit_tool_events: bool = True  # wrap tools with event emitters for front-end
+    tool_whitelist: str = ""  # comma-separated tool names to allow (empty = all)
+    tool_blacklist: str = ""  # comma-separated tool names to block
+
+    # Search fallback
+    search_engines: str = "tavily"  # comma-separated engines in order
 
     # Prompt Optimization (Prompt 优化)
     prompt_optimizer_model: str = "gpt-4o"  # 用于优化 Prompt 的模型
@@ -139,6 +158,21 @@ class Settings(BaseSettings):
     def tool_selector_always_include_list(self) -> List[str]:
         """Comma separated tool names that must always be kept when selector is on."""
         return [t.strip() for t in self.tool_selector_always_include.split(",") if t.strip()]
+
+    @property
+    def tool_whitelist_list(self) -> List[str]:
+        """Comma separated tool whitelist."""
+        return [t.strip() for t in self.tool_whitelist.split(",") if t.strip()]
+
+    @property
+    def tool_blacklist_list(self) -> List[str]:
+        """Comma separated tool blacklist."""
+        return [t.strip() for t in self.tool_blacklist.split(",") if t.strip()]
+
+    @property
+    def search_engines_list(self) -> List[str]:
+        """Comma separated ordered search engines."""
+        return [e.strip() for e in self.search_engines.split(",") if e.strip()]
 
 
 settings = Settings()

@@ -24,3 +24,7 @@
 20. **测试与冒烟**：添加最小集成测试：MCP mock、搜索回退、浏览器上下文 hook、Daytona fake client、ToolCollection 动态增删；CI 增加无沙盒/有沙盒两套冒烟。
 
 优先建议：先完成 2/3/4/5/6/8/10 形成可运行骨架，再并行移植工具（11–15）和体验/质量项（17–20）。
+
+进度快照（当前迭代）：
+- 已完成：搜索回退链、工具事件包装、工具白/黑名单、浏览器截图事件、Daytona 配置与工具、HITL/编辑/Bash 工具、crawl4ai/chart_viz 工具、MCP 事件化客户端与代理工具、沙盒模式配置。
+- 待做（高优先）：MCP lifespan 自动连接/断开、BrowserUse/Playwright/sandbox 细粒度事件、Daytona 生命周期绑定 thread/shutdown、Planning 工具接入、stuck middleware 应用、测试/冒烟。 

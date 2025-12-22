@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "server1": {
+      "type": "sse",
+      "url": "https://example.com/mcp"
+    },
+    "server2": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["-m", "my_mcp_server"]
+    }
+  }
+}

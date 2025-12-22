@@ -160,6 +160,14 @@ class _SbBrowserTool(BaseTool):
         })
         return start_time
 
+    def _emit_progress(self, action: str, info: str):
+        self._emit_event("tool_progress", {
+            "tool": self.name,
+            "action": action,
+            "info": info,
+            "thread_id": self.thread_id,
+        })
+
     def _emit_tool_result(
         self,
         action: str,

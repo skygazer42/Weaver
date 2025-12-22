@@ -7,6 +7,7 @@ from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
 from .browser_session import browser_sessions
+from agent.core.events import get_emitter_sync, ToolEventType
 
 
 def _trim(text: str, max_chars: int) -> str:
@@ -21,6 +22,13 @@ class _BrowserTool(BaseTool):
 
     def _session(self):
         return browser_sessions.get((self.thread_id or "").strip() or "default")
+
+    def _emit(self, event_type: ToolEventType, data: Dict[str, Any]):
+        emitter = get_emitter_sync(self.thread_id)
+        try:
+            emitter.emit(event_type, data)  # async, fire-and-forget
+        except Exception:
+            pass
 
 
 class BrowserSearchInput(BaseModel):
@@ -38,6 +46,7 @@ class BrowserSearchTool(_BrowserTool):
     args_schema: type[BaseModel] = BrowserSearchInput
 
     def _run(self, query: str, engine: str = "duckduckgo", max_links: int = 10) -> Dict[str, Any]:
+        self._emit(ToolEventType.TOOL_START, {"tool": self.name, "args": {"query": query, "engine": engine}})
         page = self._session().search(query=query, engine=engine)
         return {
             "url": page.url,
@@ -58,6 +67,7 @@ class BrowserNavigateTool(_BrowserTool):
     args_schema: type[BaseModel] = BrowserNavigateInput
 
     def _run(self, url: str, max_links: int = 10) -> Dict[str, Any]:
+        self._emit(ToolEventType.TOOL_START, {"tool": self.name, "args": {"url": url}})
         page = self._session().navigate(url=url)
         return {
             "url": page.url,
@@ -86,6 +96,7 @@ class BrowserClickTool(_BrowserTool):
         if idx < 0 or idx >= len(links):
             raise ValueError(f"index out of range (1-{len(links)})")
         url = links[idx].get("url") or ""
+        self._emit(ToolEventType.TOOL_START, {"tool": self.name, "args": {"index": index, "url": url}})
         page = session.navigate(url=url)
         return {
             "clicked": links[idx],
@@ -101,6 +112,7 @@ class BrowserBackTool(_BrowserTool):
     description: str = "Go back to the previous page in this browser session."
 
     def _run(self) -> Dict[str, Any]:
+        self._emit(ToolEventType.TOOL_START, {"tool": self.name})
         page = self._session().back()
         return {
             "url": page.url,
@@ -123,6 +135,7 @@ class BrowserExtractTextTool(_BrowserTool):
         session = self._session()
         if not session.current:
             raise ValueError("No current page. Use browser_search or browser_navigate first.")
+        self._emit(ToolEventType.TOOL_START, {"tool": self.name})
         return {
             "url": session.current.url,
             "title": session.current.title,
@@ -143,6 +156,7 @@ class BrowserListLinksTool(_BrowserTool):
         session = self._session()
         if not session.current:
             raise ValueError("No current page. Use browser_search or browser_navigate first.")
+        self._emit(ToolEventType.TOOL_START, {"tool": self.name})
         return {"url": session.current.url, "title": session.current.title, "links": session.current.links[: int(max_links)]}
 
 
@@ -151,6 +165,7 @@ class BrowserResetTool(_BrowserTool):
     description: str = "Reset the browser session (clears current page and history)."
 
     def _run(self) -> Dict[str, Any]:
+        self._emit(ToolEventType.TOOL_START, {"tool": self.name})
         browser_sessions.reset(self.thread_id)
         return {"status": "reset", "thread_id": self.thread_id}
 
@@ -196,9 +211,24 @@ class BrowserScreenshotTool(_BrowserTool):
             finally:
                 browser.close()
 
+        image_b64 = base64.b64encode(png_bytes).decode("ascii")
+
+        # Emit screenshot event for front-end visualization
+        try:
+            self._emit(
+                ToolEventType.TOOL_SCREENSHOT,
+                {
+                    "tool": self.name,
+                    "url": target,
+                    "image": image_b64,
+                },
+            )
+        except Exception:
+            pass
+
         return {
             "url": target,
-            "image": base64.b64encode(png_bytes).decode("ascii"),
+            "image": image_b64,
         }
 
 

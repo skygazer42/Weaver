@@ -30,7 +30,7 @@ from agent import (
     remove_emitter,
 )
 from support_agent import create_support_graph
-from tools.core.mcp import init_mcp_tools, close_mcp_tools, reload_mcp_tools
+from tools.mcp import init_mcp_tools, close_mcp_tools, reload_mcp_tools
 from tools.core.registry import set_registered_tools
 from tools.core.memory_client import fetch_memories, add_memory_entry, store_interaction
 from tools.io.asr import get_asr_service, init_asr_service
@@ -231,6 +231,9 @@ async def startup_event():
     global mcp_loaded_tools
     try:
         logger.info("Initializing MCP tools...")
+        # Attach thread_id for emitter separation
+        if isinstance(mcp_servers_config, dict):
+            mcp_servers_config["__thread_id__"] = "default"
         mcp_tools = await init_mcp_tools(servers_override=mcp_servers_config, enabled=mcp_enabled)
         if mcp_tools:
             set_registered_tools(mcp_tools)
@@ -358,6 +361,13 @@ async def shutdown_event():
         logger.info("MCP tools closed successfully")
     except Exception as e:
         logger.error(f"Error closing MCP tools: {e}", exc_info=True)
+
+    # Best-effort stop all Daytona sandboxes
+    try:
+        from tools.sandbox.daytona_client import daytona_stop_all
+        daytona_stop_all(thread_id="default")
+    except Exception as e:
+        logger.warning(f"Error stopping Daytona sandboxes: {e}")
 
     # Shutdown trigger system
     try:
