@@ -168,6 +168,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Thread-ID"],  # Allow frontend to read this header
 )
 
 # Initialize agent graphs with short-term memory (checkpointer)

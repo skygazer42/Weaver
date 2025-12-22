@@ -69,8 +69,14 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
         throw new Error('Failed to get response')
       }
 
-      const threadHeader = response.headers.get('x-thread-id')
+      const threadHeader = response.headers.get('X-Thread-ID') || response.headers.get('x-thread-id')
+      console.log('[useChatStream] Response headers:', {
+        'X-Thread-ID': response.headers.get('X-Thread-ID'),
+        'x-thread-id': response.headers.get('x-thread-id'),
+        threadHeader
+      })
       if (threadHeader) {
+        console.log('[useChatStream] Setting threadId:', threadHeader)
         setThreadId(threadHeader)
       }
 

@@ -71,6 +71,16 @@ export function Chat() {
     handleApproveInterrupt
   } = useChatStream({ selectedModel, searchMode })
 
+  // Debug: Log browser viewer conditions
+  useEffect(() => {
+    console.log('[Chat] Browser Viewer Debug:', {
+      currentView,
+      threadId,
+      showBrowserViewer,
+      shouldShow: currentView === 'dashboard' && !!threadId
+    })
+  }, [currentView, threadId, showBrowserViewer])
+
   // Load Model from LocalStorage
   useEffect(() => {
       const savedModel = localStorage.getItem(STORAGE_KEYS.MODEL)
