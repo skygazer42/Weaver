@@ -18,22 +18,30 @@ from common.config import settings
 from langgraph.types import Command
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.store.memory import InMemoryStore
-from agent import create_research_graph, create_checkpointer, AgentState
-from agent.deep_agent import get_deep_agent_prompt
-from agent.agent_prompts import get_default_agent_prompt
+from agent import (
+    AgentState,
+    ToolEvent,
+    create_checkpointer,
+    create_research_graph,
+    event_stream_generator,
+    get_deep_agent_prompt,
+    get_default_agent_prompt,
+    get_emitter,
+    initialize_enhanced_tools,
+    remove_emitter,
+)
 from support_agent import create_support_graph
-from tools.mcp import init_mcp_tools, close_mcp_tools, reload_mcp_tools
-from tools.registry import set_registered_tools
-from tools.memory_client import fetch_memories, add_memory_entry, store_interaction
-from tools.asr import get_asr_service, init_asr_service
-from tools.tts import get_tts_service, init_tts_service, AVAILABLE_VOICES
+from tools.core.mcp import init_mcp_tools, close_mcp_tools, reload_mcp_tools
+from tools.core.registry import set_registered_tools
+from tools.core.memory_client import fetch_memories, add_memory_entry, store_interaction
+from tools.io.asr import get_asr_service, init_asr_service
+from tools.io.tts import get_tts_service, init_tts_service, AVAILABLE_VOICES
 from common.logger import setup_logging, get_logger, LogContext
 from common.metrics import metrics_registry
 from common.cancellation import cancellation_manager
-from tools.browser_session import browser_sessions
+from tools.browser.browser_session import browser_sessions
 from tools.sandbox import sandbox_browser_sessions
-from tools.screenshot_service import get_screenshot_service, init_screenshot_service
-from agent.events import get_emitter, remove_emitter, ToolEvent
+from tools.io.screenshot_service import get_screenshot_service, init_screenshot_service
 from common.agents_store import (
     AgentProfile,
     ensure_default_agent,
@@ -238,7 +246,6 @@ async def startup_event():
 
     # Initialize enhanced tool system (Phase 1-4)
     try:
-        from agent.nodes import initialize_enhanced_tools
         logger.info("Initializing enhanced tool system (Phase 1-4)...")
         initialize_enhanced_tools()
         logger.info("Enhanced tool system initialized")
@@ -1722,8 +1729,6 @@ async def stream_tool_events(thread_id: str):
             console.log(data.type, data.data);
         };
     """
-    from agent.events import event_stream_generator
-
     async def event_generator():
         async for event_sse in event_stream_generator(thread_id, timeout=300.0):
             yield event_sse

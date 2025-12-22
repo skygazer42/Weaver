@@ -19,7 +19,7 @@ async def test_agents_crud(tmp_path, monkeypatch):
     don't touch repo data/agents.json.
     """
     from common import agents_store
-    from agent.agent_prompts import get_default_agent_prompt
+    from agent.prompts.agent_prompts import get_default_agent_prompt
 
     def _paths(_project_root=None):
         return agents_store.AgentsStorePaths(root=tmp_path, file=tmp_path / "agents.json")

@@ -11,7 +11,7 @@ Tests cover:
 
 import pytest
 import json
-from tools.base import (
+from tools.core.base import (
     ToolResult,
     WeaverTool,
     tool_schema,

@@ -104,7 +104,7 @@ messages.append(HumanMessage(content=_build_user_content(...)))
 **After**:
 ```python
 # Build enhanced system prompt with context
-from agent.prompts_enhanced import get_agent_prompt
+from agent.prompts.prompts_enhanced import get_agent_prompt
 
 enhanced_system_prompt = get_agent_prompt(
     mode="agent",
@@ -145,7 +145,7 @@ messages: List[Any] = [
 **After**:
 ```python
 # Use enhanced writer prompt
-from agent.prompts_enhanced import get_writer_prompt
+from agent.prompts.prompts_enhanced import get_writer_prompt
 writer_system_prompt = get_writer_prompt()
 
 messages: List[Any] = [
@@ -259,7 +259,7 @@ CUSTOM_WRITER_PROMPT_PATH=prompts/my_writer.txt
 ### 代码中使用
 
 ```python
-from agent.prompt_manager import get_prompt_manager
+from agent.prompts.prompt_manager import get_prompt_manager
 from datetime import datetime
 
 # 获取全局管理器
@@ -275,7 +275,7 @@ agent_prompt = mgr.get_agent_prompt(context={
 writer_prompt = mgr.get_writer_prompt()
 
 # 切换风格
-from agent.prompt_manager import set_prompt_manager, PromptManager
+from agent.prompts.prompt_manager import set_prompt_manager, PromptManager
 set_prompt_manager(PromptManager(prompt_style="simple"))
 ```
 
@@ -364,7 +364,7 @@ def get_custom_prompt(self) -> str:
         return self._custom_prompts["custom"]
 
     if self.prompt_style == "enhanced":
-        from agent.prompts_enhanced import get_custom_prompt
+        from agent.prompts.prompts_enhanced import get_custom_prompt
         return get_custom_prompt()
 
     return "Default custom prompt"

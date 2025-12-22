@@ -1,9 +1,11 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Check, Copy, Terminal } from 'lucide-react'
+import { Check, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
+import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { cn } from '@/lib/utils'
 
 interface CodeBlockProps {
@@ -22,34 +24,48 @@ export function CodeBlock({ language, value }: CodeBlockProps) {
   }
 
   return (
-    <div className="relative w-full my-4 rounded-xl overflow-hidden border border-border/60 bg-card/40 backdrop-blur-sm shadow-sm group transition-all hover:shadow-md">
+    <div className="relative w-full my-4 rounded-xl overflow-hidden border border-border/40 bg-[#282c34] shadow-sm group transition-all hover:shadow-md">
       {/* Header - Glassy MacOS Style */}
-      <div className="flex items-center justify-between px-4 py-2 bg-muted/20 border-b border-border/50">
+      <div className="flex items-center justify-between px-4 py-2.5 bg-white/5 border-b border-white/10 backdrop-blur-sm select-none">
         <div className="flex items-center gap-3">
-            <div className="flex gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-red-500/40 border border-red-500/20" />
-                <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/40 border border-yellow-500/20" />
-                <div className="w-2.5 h-2.5 rounded-full bg-green-500/40 border border-green-500/20" />
+            <div className="flex gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
+                <div className="w-2.5 h-2.5 rounded-full bg-[#ff5f56]" />
+                <div className="w-2.5 h-2.5 rounded-full bg-[#ffbd2e]" />
+                <div className="w-2.5 h-2.5 rounded-full bg-[#27c93f]" />
             </div>
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest opacity-70">
-                {language || 'TEXT'}
+            <span className="text-xs font-medium text-white/50 font-mono lowercase">
+                {language || 'text'}
             </span>
         </div>
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7 text-muted-foreground hover:text-foreground transition-all"
+          className="h-6 w-6 text-white/50 hover:text-white hover:bg-white/10 transition-all"
           onClick={handleCopy}
         >
-          {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+          {copied ? <Check className="h-3.5 w-3.5 text-green-400" /> : <Copy className="h-3.5 w-3.5" />}
         </Button>
       </div>
 
-      {/* Code Content - Unified Background */}
-      <div className="overflow-x-auto p-4 bg-transparent selection:bg-primary/10">
-        <code className="text-[13px] font-mono leading-relaxed text-foreground/90 whitespace-pre-wrap break-all">
-          {value}
-        </code>
+      {/* Code Content */}
+      <div className="overflow-x-auto">
+         <SyntaxHighlighter
+            language={language?.toLowerCase() || 'text'}
+            style={oneDark}
+            customStyle={{
+                margin: 0,
+                padding: '1.5rem',
+                background: 'transparent',
+                fontSize: '14px',
+                lineHeight: '1.6',
+                fontFamily: 'var(--font-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+            }}
+            showLineNumbers={true}
+            wrapLongLines={false} // Enable horizontal scrolling
+            PreTag="div"
+         >
+            {value}
+         </SyntaxHighlighter>
       </div>
     </div>
   )

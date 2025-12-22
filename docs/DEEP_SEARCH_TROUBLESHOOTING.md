@@ -267,7 +267,7 @@ print("Graph edges:", workflow._edges)
 
 ```python
 from agent import create_research_graph
-from agent.state import AgentState
+from agent.core.state import AgentState
 
 graph = create_research_graph()
 

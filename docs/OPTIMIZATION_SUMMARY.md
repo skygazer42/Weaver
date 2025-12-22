@@ -229,8 +229,8 @@ tail -f logs/weaver.log | grep -E "\[deepsearch\]|\[crawler\]"
 
 import time
 import asyncio
-from agent.deepsearch import run_deepsearch
-from agent.deepsearch_optimized import run_deepsearch_optimized
+from agent.workflows.deepsearch import run_deepsearch
+from agent.workflows.deepsearch_optimized import run_deepsearch_optimized
 
 async def test_performance():
     state = {

@@ -245,7 +245,7 @@ python main.py
 ```python
 # agent/deepsearch_optimized.py
 
-from tools.crawler import CrawlerOptimized  # 从合并后的 crawler.py 导入
+from tools.crawl.crawler import CrawlerOptimized  # 从合并后的 crawler.py 导入
 import asyncio
 
 async def run_deepsearch_optimized_async(
@@ -350,7 +350,7 @@ def run_deepsearch_optimized(
 # test_crawler_optimized.py
 
 import asyncio
-from tools.crawler import CrawlerOptimized  # 从合并后的 crawler.py 导入
+from tools.crawl.crawler import CrawlerOptimized  # 从合并后的 crawler.py 导入
 
 async def test_basic():
     """测试基础爬取功能"""
@@ -407,8 +407,8 @@ python test_crawler_optimized.py
 # test_crawler_js_rendering.py
 
 import asyncio
-from tools.crawler import CrawlerOptimized  # 从合并后的 crawler.py 导入
-from tools.crawler import _crawl_urls_legacy  # 导入 legacy 版本对比
+from tools.crawl.crawler import CrawlerOptimized  # 从合并后的 crawler.py 导入
+from tools.crawl.crawler import _crawl_urls_legacy  # 导入 legacy 版本对比
 
 async def test_js_rendering():
     """对比测试：原版本 vs 优化版本（JS 渲染）"""
@@ -478,7 +478,7 @@ https://vuejs.org:
 
 import time
 import asyncio
-from tools.crawler import _crawl_urls_legacy, crawl_urls  # 从合并后的 crawler.py 导入
+from tools.crawl.crawler import _crawl_urls_legacy, crawl_urls  # 从合并后的 crawler.py 导入
 
 def test_performance():
     """对比测试：原版本 vs 优化版本（性能）"""
@@ -687,7 +687,7 @@ async def my_function():
 **场景 2: 根据 URL 数量选择**
 ```python
 def smart_crawl(urls):
-    from tools.crawler import _crawl_urls_legacy, crawl_urls
+    from tools.crawl.crawler import _crawl_urls_legacy, crawl_urls
 
     if len(urls) < 3:
         # URL 太少，用 urllib 更快（避免浏览器启动开销）

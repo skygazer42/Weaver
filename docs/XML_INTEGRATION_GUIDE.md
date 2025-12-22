@@ -95,7 +95,7 @@ AGENT_MAX_AUTO_CONTINUES=25
 **Method 2: Code Configuration**
 
 ```python
-from agent.processor_config import AgentProcessorConfig
+from agent.core.processor_config import AgentProcessorConfig
 
 # Use Claude preset
 config = AgentProcessorConfig.for_claude()
@@ -113,7 +113,7 @@ config = AgentProcessorConfig(
 ### 2. Parse XML Tool Calls
 
 ```python
-from agent.xml_parser import XMLToolParser
+from agent.parsers.xml_parser import XMLToolParser
 
 parser = XMLToolParser()
 
@@ -142,8 +142,8 @@ for call in tool_calls:
 ### 3. Process Responses with Tool Execution
 
 ```python
-from agent.response_handler import ResponseHandler
-from agent.processor_config import AgentProcessorConfig
+from agent.workflows.response_handler import ResponseHandler
+from agent.core.processor_config import AgentProcessorConfig
 
 # Setup
 tool_registry = {
@@ -262,9 +262,9 @@ The XML tool calling system can be integrated into `agent/nodes.py` in several w
 Enhance the existing `agent_node` to support both XML and native tool calling:
 
 ```python
-from agent.xml_parser import XMLToolParser
-from agent.processor_config import AgentProcessorConfig
-from agent.response_handler import ResponseHandler
+from agent.parsers.xml_parser import XMLToolParser
+from agent.core.processor_config import AgentProcessorConfig
+from agent.workflows.response_handler import ResponseHandler
 from common.config import settings
 
 async def agent_node(state: State) -> Command[Literal["tools", "respond"]]:
@@ -387,7 +387,7 @@ async def smart_agent_node(state: State) -> Command:
 If you just want to add XML parsing without changing the workflow:
 
 ```python
-from agent.xml_parser import XMLToolParser
+from agent.parsers.xml_parser import XMLToolParser
 
 # In your existing agent_node
 async def agent_node(state: State) -> Command:
@@ -415,7 +415,7 @@ async def agent_node(state: State) -> Command:
 ### Example 1: Basic XML Parsing
 
 ```python
-from agent.xml_parser import XMLToolParser
+from agent.parsers.xml_parser import XMLToolParser
 
 parser = XMLToolParser()
 
@@ -487,7 +487,7 @@ print(call.parameters)
 ### Example 4: Streaming Response Processing
 
 ```python
-from agent.response_handler import ResponseHandler
+from agent.workflows.response_handler import ResponseHandler
 import asyncio
 
 async def process_stream():

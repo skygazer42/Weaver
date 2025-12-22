@@ -121,7 +121,7 @@ def method_name(self, ...) -> ToolResult:
 
 ```python
 # my_custom_tool.py
-from tools.base import WeaverTool, ToolResult, tool_schema
+from tools.core.base import WeaverTool, ToolResult, tool_schema
 import logging
 
 logger = logging.getLogger(__name__)
@@ -188,7 +188,7 @@ class WeatherTool(WeaverTool):
 ### 步骤 2: 转换为 LangChain 工具
 
 ```python
-from tools.langchain_adapter import weaver_tool_to_langchain
+from tools.core.langchain_adapter import weaver_tool_to_langchain
 
 # 创建工具实例
 weather_tool = WeatherTool(api_key="your-api-key")
@@ -474,7 +474,7 @@ def tavily_search(query: str, max_results: int = 5) -> str:
 
 **新代码** (WeaverTool):
 ```python
-from tools.base import WeaverTool, ToolResult, tool_schema
+from tools.core.base import WeaverTool, ToolResult, tool_schema
 
 class TavilySearchTool(WeaverTool):
     def __init__(self, api_key: str):

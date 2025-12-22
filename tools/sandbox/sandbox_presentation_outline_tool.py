@@ -102,7 +102,7 @@ Respond with a valid JSON object matching the PresentationOutline schema.
 def _get_event_emitter(thread_id: str):
     """Get event emitter for a thread."""
     try:
-        from agent.events import get_emitter_sync
+        from agent.core.events import get_emitter_sync
         return get_emitter_sync(thread_id)
     except ImportError:
         return None

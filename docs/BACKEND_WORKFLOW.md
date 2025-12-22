@@ -49,7 +49,7 @@
 建议结合图看：`docs/graph_mermaid.md`。如需重新生成，可运行：
 
 ```powershell
-python -c "from agent.graph import export_graph_mermaid; export_graph_mermaid('docs/graph_mermaid.md')"
+python -c "from agent.core.graph import export_graph_mermaid; export_graph_mermaid('docs/graph_mermaid.md')"
 ```
 
 ## 4. 工具执行管线

@@ -391,7 +391,7 @@ Configure agent tools in `data/agents.json`:
 ### Context Management
 
 ```python
-from agent.context_manager import ContextManager
+from agent.core.context_manager import ContextManager
 
 manager = ContextManager(
     model_name="gpt-4o",

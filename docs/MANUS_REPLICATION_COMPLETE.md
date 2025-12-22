@@ -99,7 +99,7 @@ docs/
 
 **示例**:
 ```python
-from tools.base import WeaverTool, ToolResult, tool_schema
+from tools.core.base import WeaverTool, ToolResult, tool_schema
 
 class MyTool(WeaverTool):
     @tool_schema(
@@ -341,7 +341,7 @@ AGENT_TOOL_EXECUTION_STRATEGY=parallel
 
 **2. 创建工具**:
 ```python
-from tools.base import WeaverTool, ToolResult, tool_schema
+from tools.core.base import WeaverTool, ToolResult, tool_schema
 
 class MyTool(WeaverTool):
     @tool_schema(
@@ -358,7 +358,7 @@ class MyTool(WeaverTool):
 
 **3. 注册工具**:
 ```python
-from tools.registry import get_global_registry
+from tools.core.registry import get_global_registry
 
 registry = get_global_registry()
 tool = MyTool()
@@ -367,8 +367,8 @@ registry.register_weaver_tool(tool)
 
 **4. 使用自动续写**:
 ```python
-from agent.response_handler import ResponseHandler
-from agent.processor_config import AgentProcessorConfig
+from agent.workflows.response_handler import ResponseHandler
+from agent.core.processor_config import AgentProcessorConfig
 
 config = AgentProcessorConfig.for_claude()
 handler = ResponseHandler(registry.get_all(), config)
@@ -395,9 +395,9 @@ async for event in handler.process_with_auto_continue(
 
 1. **导入新组件**
 ```python
-from tools.registry import get_global_registry
-from agent.response_handler import ResponseHandler
-from agent.processor_config import AgentProcessorConfig
+from tools.core.registry import get_global_registry
+from agent.workflows.response_handler import ResponseHandler
+from agent.core.processor_config import AgentProcessorConfig
 ```
 
 2. **初始化配置**

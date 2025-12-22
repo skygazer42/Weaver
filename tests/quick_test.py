@@ -16,7 +16,7 @@ sys.path.insert(0, str(project_root))
 os.environ.setdefault("OPENAI_API_KEY", "your-key-here")
 os.environ.setdefault("DATABASE_URL", "sqlite:///weaver.db")
 
-from agent.prompt_manager import PromptManager, get_prompt_manager
+from agent.prompts.prompt_manager import PromptManager, get_prompt_manager
 from datetime import datetime
 
 

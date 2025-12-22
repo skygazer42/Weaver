@@ -9,6 +9,7 @@ import { FileText, Code, BarChart, Download, Maximize2, Minimize2, ChevronRight,
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { Artifact } from '@/types/chat'
+import { CodeBlock } from './message/CodeBlock'
 
 interface ArtifactsPanelProps {
   artifacts: Artifact[]
@@ -138,14 +139,32 @@ function ArtifactCard({ artifact, isFullscreen }: { artifact: Artifact, isFullsc
              />
           </div>
         ) : artifact.type === 'code' ? (
-          <ScrollArea className={cn("w-full", isFullscreen ? "h-[400px]" : "h-[200px]")}>
-            <pre className={cn("font-mono text-zinc-300", isFullscreen ? "p-6 text-sm" : "p-3 text-[10px]")}>
-                <code>{artifact.content}</code>
-            </pre>
-          </ScrollArea>
+          <div className="p-2">
+             <CodeBlock language="python" value={artifact.content} />
+          </div>
         ) : (
           <div className={cn("prose dark:prose-invert max-w-none leading-relaxed", isFullscreen ? "prose-base p-6" : "prose-xs p-3")}>
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            <ReactMarkdown 
+                remarkPlugins={[remarkGfm]}
+                components={{
+                    pre: ({children}) => <>{children}</>,
+                    code: ({node, className, children, ...props}: any) => {
+                        const match = /language-(\w+)/.exec(className || '')
+                        const isInline = !match && !String(children).includes('\n')
+                        const content = String(children).replace(/\n$/, '')
+                        if (isInline) {
+                            return (
+                                <code className="bg-muted px-1.5 py-0.5 rounded text-[11px] font-mono" {...props}>
+                                    {children}
+                                </code>
+                            )
+                        }
+                        return (
+                            <CodeBlock language={match ? match[1] : 'text'} value={content} />
+                        )
+                    }
+                }}
+            >
               {artifact.content}
             </ReactMarkdown>
           </div>

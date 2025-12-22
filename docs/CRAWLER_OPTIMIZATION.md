@@ -368,7 +368,7 @@ logger.info(f"[crawler] Completed: {success_count}/{len(valid_urls)} successful"
 # agent/deepsearch_optimized.py
 
 # 原来
-from tools.crawler import crawl_urls
+from tools.crawl.crawler import crawl_urls
 
 # 修改为
 from tools.crawler_optimized import crawl_urls
@@ -520,7 +520,7 @@ asyncio.run(test_basic())
 
 import time
 import asyncio
-from tools.crawler import crawl_urls as crawl_legacy
+from tools.crawl.crawler import crawl_urls as crawl_legacy
 from tools.crawler_optimized import crawl_urls as crawl_optimized
 
 test_urls = [

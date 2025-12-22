@@ -768,7 +768,7 @@ def tool_schema(**schema):
 
 ```python
 # tools/search_tool.py
-from tools.base import WeaverTool, tool_schema, ToolResult
+from tools.core.base import WeaverTool, tool_schema, ToolResult
 
 class SearchTool(WeaverTool):
     def __init__(self, api_key: str):
@@ -815,7 +815,7 @@ class SearchTool(WeaverTool):
 
 ```python
 # 新增 agent/xml_tool_support.py
-from agent.xml_parser import XMLToolParser
+from agent.parsers.xml_parser import XMLToolParser
 from typing import AsyncGenerator, Dict, Any
 
 class EnhancedResponseProcessor:
@@ -1018,7 +1018,7 @@ class Settings(BaseSettings):
 ```python
 # 增强 tools/registry.py
 from typing import Type, List, Optional, Dict, Any, Callable
-from tools.base import WeaverTool
+from tools.core.base import WeaverTool
 
 class EnhancedToolRegistry:
     """增强的工具注册表"""
@@ -1214,7 +1214,7 @@ class EnhancedToolRegistry:
 
 ```python
 # tools/enhanced_search_tool.py
-from tools.base import WeaverTool, tool_schema, ToolResult
+from tools.core.base import WeaverTool, tool_schema, ToolResult
 from typing import List, Dict, Any
 import json
 

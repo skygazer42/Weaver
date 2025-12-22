@@ -455,8 +455,8 @@ AGENT_TOOL_EXECUTION_STRATEGY=sequential
 
 **2. 配置代码**:
 ```python
-from agent.response_handler import ResponseHandler
-from agent.processor_config import AgentProcessorConfig
+from agent.workflows.response_handler import ResponseHandler
+from agent.core.processor_config import AgentProcessorConfig
 
 # 配置
 config = AgentProcessorConfig(
@@ -590,8 +590,8 @@ async def claude_callable(messages):
 ```python
 # agent/nodes.py
 
-from agent.response_handler import ResponseHandler
-from agent.processor_config import AgentProcessorConfig
+from agent.workflows.response_handler import ResponseHandler
+from agent.core.processor_config import AgentProcessorConfig
 
 async def agent_node(state: State) -> Command:
     """Enhanced agent node with auto-continuation."""

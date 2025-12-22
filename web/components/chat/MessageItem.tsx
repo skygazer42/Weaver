@@ -217,9 +217,7 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
                     remarkPlugins={[remarkGfm, remarkMath]}
                     rehypePlugins={[rehypeKatex]}
                     components={{
-                        pre: ({node, ...props}) => (
-                            <pre className="not-prose my-2 w-full overflow-hidden rounded-lg border bg-zinc-950 dark:bg-zinc-900" {...props} />
-                        ),
+                        pre: ({children}) => <>{children}</>,
                         p: ({node, children, ...props}) => (
                              <p className="mb-2 last:mb-0 leading-7" {...props}>
                                 {React.Children.map(children, child => {

@@ -241,7 +241,7 @@ LLM 驱动的查询意图分类，支持:
 - **建议查询生成**: 为研究类查询生成搜索词
 
 ```python
-from agent.smart_router import smart_route
+from agent.core.smart_router import smart_route
 
 result = smart_route(
     query="Compare the AI strategies of Microsoft and Google",
@@ -291,7 +291,7 @@ E2B 沙盒中的 Excel/CSV 操作:
 - **多工作表**: 添加和管理多个工作表
 
 ```python
-from tools.sandbox_sheets_tool import build_sandbox_sheets_tools
+from tools.sandbox.sandbox_sheets_tool import build_sandbox_sheets_tools
 
 tools = build_sandbox_sheets_tools(thread_id="thread_123")
 # 包含: sandbox_create_spreadsheet, sandbox_write_data, sandbox_format_cells,
@@ -308,7 +308,7 @@ E2B 沙盒中的 PowerPoint 操作:
 - **获取信息**: 幻灯片数量和结构
 
 ```python
-from tools.sandbox_presentation_tool import build_sandbox_presentation_tools
+from tools.sandbox.sandbox_presentation_tool import build_sandbox_presentation_tools
 
 tools = build_sandbox_presentation_tools(thread_id="thread_123")
 # 包含: sandbox_create_presentation, sandbox_add_slide, sandbox_update_slide,
@@ -325,7 +325,7 @@ E2B 沙盒中的图像处理:
 - **图像对比**: 相似度计算
 
 ```python
-from tools.sandbox_vision_tool import build_sandbox_vision_tools
+from tools.sandbox.sandbox_vision_tool import build_sandbox_vision_tools
 
 tools = build_sandbox_vision_tools(thread_id="thread_123")
 # 包含: sandbox_extract_text, sandbox_get_image_info, sandbox_resize_image,

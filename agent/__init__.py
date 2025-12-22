@@ -1,5 +1,10 @@
-from .graph import create_research_graph, create_checkpointer
-from .state import AgentState
-from .deep_agent import get_deep_agent_prompt
+"""
+Lightweight facade for the agent package.
 
-__all__ = ["create_research_graph", "create_checkpointer", "AgentState", "get_deep_agent_prompt"]
+Only the stable, public-facing symbols are exported here. For anything else,
+import from the relevant submodule (agent.core.*, agent.workflows.*, etc.).
+"""
+
+from agent.api import *  # noqa: F401,F403
+
+__all__ = list(set(globals().get("__all__", [])))  # keep surface small and explicit

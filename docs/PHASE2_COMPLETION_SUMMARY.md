@@ -303,7 +303,7 @@ AGENT_AUTO_CONTINUE=true
 
 **方法 2: 代码配置**
 ```python
-from agent.processor_config import AgentProcessorConfig
+from agent.core.processor_config import AgentProcessorConfig
 
 # 使用预设
 config = AgentProcessorConfig.for_claude()
@@ -319,7 +319,7 @@ config = AgentProcessorConfig(
 ### 处理 LLM 响应
 
 ```python
-from agent.response_handler import ResponseHandler
+from agent.workflows.response_handler import ResponseHandler
 
 # 创建处理器
 handler = ResponseHandler(
@@ -335,7 +335,7 @@ async for event in handler.process_streaming_response(llm_stream):
 ### 解析 XML 工具调用
 
 ```python
-from agent.xml_parser import XMLToolParser
+from agent.parsers.xml_parser import XMLToolParser
 
 parser = XMLToolParser()
 

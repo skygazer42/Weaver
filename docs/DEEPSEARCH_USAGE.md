@@ -191,8 +191,8 @@ tail -f logs/weaver.log | grep "已选总数"
 # test_deepsearch_performance.py
 import time
 import asyncio
-from agent.deepsearch import run_deepsearch
-from agent.deepsearch_optimized import run_deepsearch_optimized
+from agent.workflows.deepsearch import run_deepsearch
+from agent.workflows.deepsearch_optimized import run_deepsearch_optimized
 
 async def test_performance():
     state = {"input": "人工智能在医疗领域的应用", "cancel_token_id": "test_1"}

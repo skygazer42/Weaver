@@ -16,7 +16,7 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, Base
 from langchain_openai import ChatOpenAI
 
 from common.config import settings
-from tools.memory_client import fetch_memories, store_interaction
+from tools.core.memory_client import fetch_memories, store_interaction
 
 
 class SupportState(TypedDict):
