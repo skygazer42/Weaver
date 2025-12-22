@@ -1,4 +1,4 @@
-﻿from fastapi import FastAPI, HTTPException, Request, UploadFile, File
+﻿from fastapi import FastAPI, HTTPException, Request, UploadFile, File, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 import base64
@@ -1778,6 +1778,255 @@ async def stream_tool_events(thread_id: str):
             "X-Accel-Buffering": "no",
         }
     )
+
+
+# ==================== Browser Session Endpoints ====================
+
+@app.get("/api/browser/{thread_id}/info")
+async def get_browser_session_info(thread_id: str):
+    """
+    Get browser session information including CDP endpoint.
+
+    Returns browser session status and capabilities for real-time viewing.
+    """
+    result = {
+        "active": False,
+        "thread_id": thread_id,
+        "mode": None,
+        "cdp_endpoint": None,
+        "current_url": None,
+    }
+
+    # Check sandbox browser session first
+    try:
+        session = sandbox_browser_sessions.get(thread_id)
+        if session:
+            info = session.get_info()
+            result["active"] = True
+            result["mode"] = "e2b"
+            result["cdp_endpoint"] = info.get("cdp_endpoint")
+            result["current_url"] = info.get("url")
+    except Exception:
+        pass
+
+    # Check local browser session if sandbox not found
+    if not result["active"]:
+        try:
+            session = browser_sessions.get(thread_id)
+            if session and session.current:
+                result["active"] = True
+                result["mode"] = "local"
+                result["current_url"] = session.current.url
+        except Exception:
+            pass
+
+    return result
+
+
+@app.post("/api/browser/{thread_id}/screenshot")
+async def trigger_browser_screenshot(thread_id: str):
+    """
+    Trigger a manual screenshot capture for the browser session.
+    """
+    # Try sandbox browser first
+    try:
+        session = sandbox_browser_sessions.get(thread_id)
+        if session:
+            page = session.get_page()
+            png_bytes = page.screenshot(full_page=True)
+
+            # Save screenshot
+            service = get_screenshot_service()
+            save_result = await service.save_screenshot(
+                image_data=png_bytes,
+                action="manual",
+                thread_id=thread_id,
+                page_url=page.url if page else None,
+            )
+
+            # Emit screenshot event
+            emitter = await get_emitter(thread_id)
+            await emitter.emit("tool_screenshot", {
+                "tool": "manual",
+                "action": "manual",
+                "url": save_result.get("url"),
+                "filename": save_result.get("filename"),
+                "page_url": page.url if page else None,
+            })
+
+            return {
+                "success": True,
+                "screenshot_url": save_result.get("url"),
+                "filename": save_result.get("filename"),
+            }
+    except Exception as e:
+        logger.error(f"Failed to capture screenshot: {e}")
+
+    return {"success": False, "error": "No active browser session"}
+
+
+@app.websocket("/api/browser/{thread_id}/stream")
+async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
+    """
+    WebSocket endpoint for real-time browser frame streaming.
+
+    Uses CDP Page.startScreencast to stream frames at ~5 FPS.
+    Frames are sent as base64-encoded JPEG images.
+
+    Message format:
+        Incoming: {"action": "start" | "stop" | "capture"}
+        Outgoing: {"type": "frame", "data": "<base64>", "timestamp": <float>}
+                  {"type": "status", "message": "..."}
+                  {"type": "error", "message": "..."}
+    """
+    await websocket.accept()
+
+    screencast = None
+    frame_queue: asyncio.Queue = asyncio.Queue(maxsize=10)
+    streaming = False
+
+    async def on_frame(frame_data: str, metadata: dict):
+        """Callback for screencast frames."""
+        nonlocal frame_queue
+        try:
+            # Drop old frames if queue is full
+            if frame_queue.full():
+                try:
+                    frame_queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    pass
+            await frame_queue.put({
+                "type": "frame",
+                "data": frame_data,
+                "timestamp": time.time(),
+                "metadata": metadata,
+            })
+        except Exception:
+            pass
+
+    async def send_frames():
+        """Background task to send frames to client."""
+        nonlocal streaming
+        while streaming:
+            try:
+                frame = await asyncio.wait_for(frame_queue.get(), timeout=1.0)
+                await websocket.send_json(frame)
+            except asyncio.TimeoutError:
+                continue
+            except Exception:
+                break
+
+    try:
+        await websocket.send_json({
+            "type": "status",
+            "message": "Connected to browser stream",
+            "thread_id": thread_id,
+        })
+
+        # Get browser session
+        try:
+            session = sandbox_browser_sessions.get(thread_id)
+            page = session.get_page()
+        except Exception as e:
+            await websocket.send_json({
+                "type": "error",
+                "message": f"No browser session found: {e}",
+            })
+            await websocket.close()
+            return
+
+        # Import screencast manager
+        from tools.browser.cdp_screencast import CDPScreencast
+
+        while True:
+            try:
+                data = await websocket.receive_json()
+                action = data.get("action", "")
+
+                if action == "start":
+                    if screencast and screencast.is_running:
+                        await websocket.send_json({
+                            "type": "status",
+                            "message": "Screencast already running",
+                        })
+                        continue
+
+                    quality = data.get("quality", 70)
+                    max_fps = data.get("max_fps", 5)
+
+                    screencast = CDPScreencast(page, on_frame, thread_id)
+                    success = await screencast.start(
+                        quality=quality,
+                        max_fps=max_fps,
+                        max_width=1280,
+                        max_height=720,
+                    )
+
+                    if success:
+                        streaming = True
+                        asyncio.create_task(send_frames())
+                        await websocket.send_json({
+                            "type": "status",
+                            "message": "Screencast started",
+                            "quality": quality,
+                            "max_fps": max_fps,
+                        })
+                    else:
+                        await websocket.send_json({
+                            "type": "error",
+                            "message": "Failed to start screencast",
+                        })
+
+                elif action == "stop":
+                    streaming = False
+                    if screencast:
+                        await screencast.stop()
+                        screencast = None
+                    await websocket.send_json({
+                        "type": "status",
+                        "message": "Screencast stopped",
+                    })
+
+                elif action == "capture":
+                    # Capture single frame
+                    if screencast:
+                        frame = await screencast.capture_frame()
+                        if frame:
+                            await websocket.send_json({
+                                "type": "frame",
+                                "data": frame,
+                                "timestamp": time.time(),
+                            })
+                    else:
+                        # Capture without screencast
+                        try:
+                            png_bytes = page.screenshot(full_page=False)
+                            frame = base64.b64encode(png_bytes).decode("ascii")
+                            await websocket.send_json({
+                                "type": "frame",
+                                "data": frame,
+                                "timestamp": time.time(),
+                            })
+                        except Exception as e:
+                            await websocket.send_json({
+                                "type": "error",
+                                "message": f"Capture failed: {e}",
+                            })
+
+            except WebSocketDisconnect:
+                break
+            except Exception as e:
+                logger.error(f"WebSocket error: {e}")
+                await websocket.send_json({
+                    "type": "error",
+                    "message": str(e),
+                })
+
+    finally:
+        streaming = False
+        if screencast:
+            await screencast.stop()
+        logger.info(f"Browser stream WebSocket closed for thread {thread_id}")
 
 
 # ==================== Trigger System Endpoints ====================

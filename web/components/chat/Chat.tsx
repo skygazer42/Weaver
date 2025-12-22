@@ -19,6 +19,7 @@ import { filesToImageAttachments } from '@/lib/file-utils'
 import { Discover } from '@/components/views/Discover'
 import { Library } from '@/components/views/Library'
 import { SettingsDialog } from '@/components/settings/SettingsDialog'
+import { BrowserViewer } from './BrowserViewer'
 
 export function Chat() {
   // UI State
@@ -62,6 +63,7 @@ export function Chat() {
     setArtifacts,
     pendingInterrupt,
     setPendingInterrupt,
+    threadId,
     setThreadId,
     processChat,
     handleStop,
@@ -356,10 +358,21 @@ export function Chat() {
             "border-l hidden xl:flex flex-col bg-card animate-in slide-in-from-right duration-500 shadow-2xl z-20 transition-all",
             isArtifactsOpen ? "w-[400px]" : "w-[50px]"
         )}>
-          <ArtifactsPanel 
-              artifacts={artifacts} 
+          <ArtifactsPanel
+              artifacts={artifacts}
               isOpen={isArtifactsOpen}
               onToggle={() => setIsArtifactsOpen(!isArtifactsOpen)}
+          />
+        </div>
+      )}
+
+      {/* Browser Viewer - Shows during agent/deep mode browser operations */}
+      {currentView === 'dashboard' && (searchMode === 'agent' || searchMode === 'ultra') && threadId && (
+        <div className="fixed bottom-24 right-6 z-40 hidden lg:block">
+          <BrowserViewer
+            threadId={threadId}
+            className="w-[480px] shadow-2xl"
+            defaultExpanded={true}
           />
         </div>
       )}
