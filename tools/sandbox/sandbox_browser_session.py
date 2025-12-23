@@ -71,17 +71,29 @@ if [ -z "$CHROME_BIN" ]; then
     CHROME_BIN="$(command -v chromium)"
   elif command -v chromium-browser >/dev/null 2>&1; then
     CHROME_BIN="$(command -v chromium-browser)"
-  else
-    echo "No Chrome/Chromium binary found" >&2
-    exit 1
   fi
+fi
+
+# If system Chrome isn't available, use (or install) Playwright Chromium.
+if [ -z "$CHROME_BIN" ]; then
+  CHROME_BIN="$(ls -1t /home/user/.cache/ms-playwright/chromium-*/chrome-linux/chrome 2>/dev/null | head -n 1 || true)"
+fi
+if [ -z "$CHROME_BIN" ]; then
+  echo "Chromium not found; installing via playwright-core..." >&2
+  cd /opt/playwright-server
+  npx playwright-core install chromium
+  CHROME_BIN="$(ls -1t /home/user/.cache/ms-playwright/chromium-*/chrome-linux/chrome 2>/dev/null | head -n 1 || true)"
+fi
+if [ -z "$CHROME_BIN" ]; then
+  echo "No Chrome/Chromium binary found" >&2
+  exit 1
 fi
 nohup "$CHROME_BIN" \\
   --no-sandbox \\
   --disable-dev-shm-usage \\
   --remote-debugging-port={port} \\
   --remote-debugging-address=0.0.0.0 \\
-  --headless=new \\
+  --headless \\
   --disable-gpu \\
   --no-first-run \\
   --no-default-browser-check \\
@@ -230,10 +242,16 @@ class SandboxBrowserSession:
                 allow_internet_access=_bool_env("SANDBOX_ALLOW_INTERNET", True),
             )
 
-            # Ensure chrome is running with remote debugging.
-            check = sandbox.commands.run(f"pgrep -f 'remote-debugging-port={port}' || echo not_running")
+            # Ensure Chrome/Chromium is running with the remote debugging port.
+            # NOTE: pgrep can match itself when the pattern appears in argv, so we
+            # filter by browser name after.
+            check = sandbox.commands.run(
+                "pgrep -af 'remote-debugging-port={port}' | "
+                "grep -E '(chrome|chromium)' | "
+                "grep -v pgrep || echo not_running".format(port=port)
+            )
             if "not_running" in (getattr(check, "stdout", "") or ""):
-                sandbox.commands.run(_chrome_start_cmd(port), timeout=60)
+                sandbox.commands.run(_chrome_start_cmd(port), timeout=600)
                 time.sleep(5)
 
             debug = bool(getattr(getattr(sandbox, "connection_config", None), "debug", False))
@@ -247,7 +265,7 @@ class SandboxBrowserSession:
             # being reachable via the external host mapping.
             cdp_endpoint = cdp_http_endpoint
             ws_debugger_url = None
-            for _ in range(12):
+            for _ in range(60):
                 ws_debugger_url = _read_cdp_ws_url_from_sandbox(sandbox, port)
                 if ws_debugger_url:
                     break
@@ -277,7 +295,9 @@ class SandboxBrowserSession:
                         endpoints_to_try.append("ws://" + cdp_ws_endpoint[len("wss://") :])
                     elif cdp_ws_endpoint.startswith("ws://"):
                         endpoints_to_try.append("wss://" + cdp_ws_endpoint[len("ws://") :])
-                endpoints_to_try.append(cdp_http_endpoint)
+                else:
+                    # Fallback: some providers expose /json/version over HTTP(S).
+                    endpoints_to_try.append(cdp_http_endpoint)
 
                 last_exc: Optional[Exception] = None
                 browser = None
