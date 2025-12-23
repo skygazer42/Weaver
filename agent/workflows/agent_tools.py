@@ -94,7 +94,13 @@ def build_agent_tools(config: RunnableConfig) -> List[BaseTool]:
 
     tools: List[BaseTool] = []
 
-    if _enabled(profile, "web_search", default=True):
+    prefer_visual_search = (
+        _enabled(profile, "sandbox_web_search", default=False)
+        and _sandbox_template_available()
+        and settings.sandbox_mode == "local"
+    )
+
+    if _enabled(profile, "web_search", default=True) and not prefer_visual_search:
         # Use fallback search if multiple engines configured
         if len(settings.search_engines_list) > 1:
             from tools import fallback_search

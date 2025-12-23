@@ -196,7 +196,12 @@ class EventEmitter:
             except Exception as e:
                 logger.warning(f"[events] Async listener error: {e}")
 
-        logger.debug(f"[events] Emitted: {event_type.value} | {data}")
+        # event_type may be passed in as str; rely on normalized Event.type
+        try:
+            etype = event.type.value if isinstance(event.type, ToolEventType) else str(event.type)
+        except Exception:
+            etype = str(event_type)
+        logger.debug(f"[events] Emitted: {etype} | {data}")
         return event
 
     async def emit_tool_start(

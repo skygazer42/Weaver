@@ -30,6 +30,7 @@ export function BrowserViewer({
 }: BrowserViewerProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded)
   const [selectedScreenshot, setSelectedScreenshot] = useState<BrowserScreenshot | null>(null)
+  const isLiveMode = mode === 'stream'
 
   // SSE-based screenshot events
   const {
@@ -55,13 +56,12 @@ export function BrowserViewer({
     stop: stopStream,
     capture: captureFrame
   } = useBrowserStream({
-    threadId,
+    threadId: isLiveMode ? threadId : null,
     autoStart: false,
     quality: 70,
     maxFps: 5
   })
 
-  const isLiveMode = mode === 'stream'
   const isActive = isLiveMode ? isStreaming : isEventsActive
 
   const handleClose = useCallback(() => {

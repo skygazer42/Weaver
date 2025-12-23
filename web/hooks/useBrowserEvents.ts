@@ -87,6 +87,13 @@ export function useBrowserEvents({
             if (!imageUrl && eventData.image) {
               imageUrl = `data:image/png;base64,${eventData.image}`
             }
+            // If backend returns a relative URL, prefix with API base
+            if (imageUrl && imageUrl.startsWith('/')) {
+              const base = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '')
+              if (base) {
+                imageUrl = `${base}${imageUrl}`
+              }
+            }
 
             if (imageUrl) {
               const newScreenshot: BrowserScreenshot = {

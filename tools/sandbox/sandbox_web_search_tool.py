@@ -229,7 +229,7 @@ class SandboxWebSearchInput(BaseModel):
     """Input schema for sandbox web search."""
     query: str = Field(min_length=1, description="Search query")
     engine: Literal["google", "bing", "duckduckgo"] = Field(
-        default="google",
+        default="bing",
         description="Search engine to use"
     )
     max_results: int = Field(
@@ -282,7 +282,7 @@ class SandboxWebSearchTool(_SandboxWebSearchBaseTool):
 
         try:
             # Get search engine config
-            engine_config = SEARCH_ENGINES.get(engine, SEARCH_ENGINES["google"])
+            engine_config = SEARCH_ENGINES.get(engine, SEARCH_ENGINES["bing"])
             search_url = engine_config["url"].format(query=quote_plus(query))
 
             # Emit progress: navigating
@@ -410,7 +410,7 @@ class SandboxSearchAndClickInput(BaseModel):
         description="Which result to click (1-based index)"
     )
     engine: Literal["google", "bing", "duckduckgo"] = Field(
-        default="google",
+        default="bing",
         description="Search engine to use"
     )
     wait_ms: int = Field(default=3000, ge=500, le=15000)
@@ -447,7 +447,7 @@ class SandboxSearchAndClickTool(_SandboxWebSearchBaseTool):
 
         try:
             # Get search engine config
-            engine_config = SEARCH_ENGINES.get(engine, SEARCH_ENGINES["google"])
+            engine_config = SEARCH_ENGINES.get(engine, SEARCH_ENGINES["bing"])
             search_url = engine_config["url"].format(query=quote_plus(query))
 
             # Step 1: Navigate to search

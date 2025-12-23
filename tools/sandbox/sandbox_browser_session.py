@@ -5,6 +5,7 @@ import threading
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
+from urllib.parse import urlparse, urlunparse
 
 from common.config import settings
 
@@ -51,17 +52,31 @@ def _sandbox_timeout_seconds() -> int:
 
 
 def _chrome_port() -> int:
-    raw = _env("SANDBOX_BROWSER_REMOTE_DEBUG_PORT", "9223")
+    raw = _env("SANDBOX_BROWSER_REMOTE_DEBUG_PORT", "9222")
     try:
         return int(raw)
     except Exception:
-        return 9223
+        return 9222
 
 
 def _chrome_start_cmd(port: int) -> str:
     # Port must match the one we later expose via sandbox.get_host(port).
     return f"""
-nohup /usr/bin/google-chrome \\
+set -e
+CHROME_BIN="${{SANDBOX_CHROME_BIN:-}}"
+if [ -z "$CHROME_BIN" ]; then
+  if command -v google-chrome >/dev/null 2>&1; then
+    CHROME_BIN="$(command -v google-chrome)"
+  elif command -v chromium >/dev/null 2>&1; then
+    CHROME_BIN="$(command -v chromium)"
+  elif command -v chromium-browser >/dev/null 2>&1; then
+    CHROME_BIN="$(command -v chromium-browser)"
+  else
+    echo "No Chrome/Chromium binary found" >&2
+    exit 1
+  fi
+fi
+nohup "$CHROME_BIN" \\
   --no-sandbox \\
   --disable-dev-shm-usage \\
   --remote-debugging-port={port} \\
@@ -78,9 +93,77 @@ nohup /usr/bin/google-chrome \\
   --metrics-recording-only \\
   --mute-audio \\
   --no-zygote \\
+  --user-data-dir=/tmp/weaver-chrome-{port} \\
   --window-size=1920,1080 \\
   > /tmp/chrome.log 2>&1 &
 """
+
+
+def _read_cdp_ws_url_from_sandbox(sandbox: Any, port: int) -> Optional[str]:
+    """
+    Read Chrome's webSocketDebuggerUrl from within the sandbox.
+
+    We prefer doing this inside the sandbox because some E2B host mappings may not
+    expose the /json/version endpoint reliably over HTTPS, while the WebSocket
+    endpoint works.
+    """
+    urls = (
+        f"http://127.0.0.1:{port}/json/version",
+        f"http://localhost:{port}/json/version",
+        f"http://0.0.0.0:{port}/json/version",
+    )
+
+    def _run(cmd: str) -> str:
+        res = sandbox.commands.run(cmd, timeout=15)
+        return (getattr(res, "stdout", "") or "").strip()
+
+    stdout = ""
+    for url in urls:
+        for cmd in (
+            f"curl -fsSL {url}",
+            f"wget -qO- {url}",
+            f"""python3 - <<'PY'
+import urllib.request
+print(urllib.request.urlopen("{url}", timeout=2).read().decode("utf-8"))
+PY""",
+            f"""python - <<'PY'
+import urllib.request
+print(urllib.request.urlopen("{url}", timeout=2).read().decode("utf-8"))
+PY""",
+            f"""node - <<'JS'
+const http = require('http');
+http.get("{url}", (res) => {{
+  let data = '';
+  res.on('data', (c) => data += c);
+  res.on('end', () => console.log(data));
+}}).on('error', () => process.exit(1));
+JS""",
+        ):
+            try:
+                stdout = _run(cmd)
+                if stdout:
+                    break
+            except Exception:
+                continue
+        if stdout:
+            break
+
+    try:
+        if not stdout:
+            return None
+        # Some tools may emit extra newlines; keep JSON segment only.
+        if "{" in stdout and "}" in stdout:
+            stdout = stdout[stdout.find("{") : stdout.rfind("}") + 1].strip()
+        try:
+            import json as _json
+
+            data = _json.loads(stdout)
+        except Exception:
+            return None
+        ws_url = (data.get("webSocketDebuggerUrl") or "").strip()
+        return ws_url or None
+    except Exception:
+        return None
 
 
 @dataclass
@@ -148,20 +231,65 @@ class SandboxBrowserSession:
             )
 
             # Ensure chrome is running with remote debugging.
-            check = sandbox.commands.run(f"pgrep -f 'chrome.*remote-debugging-port={port}' || echo not_running")
+            check = sandbox.commands.run(f"pgrep -f 'remote-debugging-port={port}' || echo not_running")
             if "not_running" in (getattr(check, "stdout", "") or ""):
                 sandbox.commands.run(_chrome_start_cmd(port), timeout=60)
                 time.sleep(5)
 
-            # Build CDP endpoint using E2B host mapping.
             debug = bool(getattr(getattr(sandbox, "connection_config", None), "debug", False))
-            scheme = "http" if debug else "https"
+            http_scheme = "http" if debug else "https"
+            ws_scheme = "ws" if debug else "wss"
             host = sandbox.get_host(port)
-            cdp_endpoint = f"{scheme}://{host}"
+            cdp_http_endpoint = f"{http_scheme}://{host}"
+
+            # Prefer connecting via WebSocket (wss://...) using the devtools path
+            # discovered inside the sandbox. This avoids relying on /json/version
+            # being reachable via the external host mapping.
+            cdp_endpoint = cdp_http_endpoint
+            ws_debugger_url = None
+            for _ in range(12):
+                ws_debugger_url = _read_cdp_ws_url_from_sandbox(sandbox, port)
+                if ws_debugger_url:
+                    break
+                time.sleep(1)
+
+            cdp_ws_endpoint = None
+            if ws_debugger_url:
+                parsed = urlparse(ws_debugger_url)
+                cdp_ws_endpoint = urlunparse(
+                    (
+                        ws_scheme,
+                        host,
+                        parsed.path,
+                        parsed.params,
+                        parsed.query,
+                        parsed.fragment,
+                    )
+                )
+                cdp_endpoint = cdp_ws_endpoint
 
             pw = sync_playwright().start()
             try:
-                browser = pw.chromium.connect_over_cdp(cdp_endpoint)
+                endpoints_to_try = []
+                if cdp_ws_endpoint:
+                    endpoints_to_try.append(cdp_ws_endpoint)
+                    if cdp_ws_endpoint.startswith("wss://"):
+                        endpoints_to_try.append("ws://" + cdp_ws_endpoint[len("wss://") :])
+                    elif cdp_ws_endpoint.startswith("ws://"):
+                        endpoints_to_try.append("wss://" + cdp_ws_endpoint[len("ws://") :])
+                endpoints_to_try.append(cdp_http_endpoint)
+
+                last_exc: Optional[Exception] = None
+                browser = None
+                for endpoint in endpoints_to_try:
+                    try:
+                        browser = pw.chromium.connect_over_cdp(endpoint)
+                        cdp_endpoint = endpoint
+                        break
+                    except Exception as e:
+                        last_exc = e
+                if browser is None:
+                    raise last_exc or RuntimeError("Failed to connect to sandbox browser via CDP.")
                 context = browser.contexts[0] if getattr(browser, "contexts", None) else browser.new_context()
                 page = context.new_page()
             except Exception:
