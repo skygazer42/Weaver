@@ -4,6 +4,7 @@ from common.config import settings
 import logging
 
 from e2b_code_interpreter import Sandbox
+from common.e2b_env import prepare_e2b_env
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,7 @@ def execute_python_code(code: str) -> Dict[str, Any]:
     if not settings.e2b_api_key:
         raise RuntimeError("E2B_API_KEY is required to execute code with the E2B sandbox.")
 
+    prepare_e2b_env()
     with Sandbox(api_key=settings.e2b_api_key) as sandbox:
         execution = sandbox.run_code(code)
 

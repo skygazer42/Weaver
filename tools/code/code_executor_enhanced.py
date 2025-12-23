@@ -20,6 +20,7 @@ import logging
 import json
 
 from e2b_code_interpreter import Sandbox
+from common.e2b_env import prepare_e2b_env
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +98,7 @@ class CodeExecutorTool(WeaverTool):
             )
 
         try:
+            prepare_e2b_env()
             with Sandbox(api_key=self.api_key, timeout=timeout) as sandbox:
                 execution = sandbox.run_code(code)
 

@@ -9,6 +9,8 @@ from urllib.parse import urlparse, urlunparse
 
 from common.config import settings
 
+from common.e2b_env import prepare_e2b_env
+
 
 def _env(name: str, default: str = "") -> str:
     return (os.getenv(name) or default).strip()
@@ -233,6 +235,7 @@ class SandboxBrowserSession:
                 "thread_id": self.thread_id,
             }
 
+            prepare_e2b_env(domain)
             sandbox = Sandbox(
                 template=template,
                 timeout=timeout,
