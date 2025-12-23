@@ -4,14 +4,6 @@
     "User: Hello support\nAssistant: Hello again! How can I assist you today? \ud83d\ude0a"
   ],
   "default_user": [
-    "Agent mode failed: 404: template 'chrome-stable' not found",
-    "User: \u5e2e\u6211\u67e5\u4e00\u4e0b\u4eca\u5929\u7684\u79d1\u6280\u65b0\u95fb\nAssistant: Agent mode failed: 404: template 'chrome-stable' not found",
-    "Agent mode failed: 404: template 'chrome-stable' not found",
-    "User: \u5e2e\u6211\u67e5\u4e00\u4e0b\u4eca\u5929\u7684\u79d1\u6280\u65b0\u95fb\nAssistant: Agent mode failed: 404: template 'chrome-stable' not found",
-    "Agent mode failed: BrowserType.connect_over_cdp: Unexpected status 502 when connecting to https://9223-i2ro32f2pa24m7ciqd6z7.e2b.app/json/version/.\nThis does not look like a DevTools server, try connecting via ws://.\nCall log:\n  - <ws preparing> retrieving websocket url from https://9223-i2ro32f2pa24m7ciqd6z7.e2b.app\n",
-    "User: \u5e2e\u6211\u67e5\u4e00\u4e0b\u4eca\u5929\u7684\u79d1\u6280\u65b0\u95fb\nAssistant: Agent mode failed: BrowserType.connect_over_cdp: Unexpected status 502 when connecting to https://9223-i2ro32f2pa24m7ciqd6z7.e2b.app/json/version/.\nThis does not look like a DevTools server, try connecting via ws://.\nCall log:\n  - <ws preparing> retrieving websocket url from https://9223-i2ro32f2pa24m7ciqd6z7.e2b.app\n",
-    "Agent mode failed: BrowserType.connect_over_cdp: Unexpected status 502 when connecting to https://9223-i2ro32f2pa24m7ciqd6z7.e2b.app/json/version/.\nThis does not look like a DevTools server, try connecting via ws://.\nCall log:\n  - <ws preparing> retrieving websocket url from https://9223-i2ro32f2pa24m7ciqd6z7.e2b.app\n",
-    "User: \u5e2e\u6211\u67e5\u4e00\u4e0b\u4eca\u5929\u7684\u79d1\u6280\u65b0\u95fb\nAssistant: Agent mode failed: BrowserType.connect_over_cdp: Unexpected status 502 when connecting to https://9223-i2ro32f2pa24m7ciqd6z7.e2b.app/json/version/.\nThis does not look like a DevTools server, try connecting via ws://.\nCall log:\n  - <ws preparing> retrieving websocket url from https://9223-i2ro32f2pa24m7ciqd6z7.e2b.app\n",
     "Agent mode failed: BrowserType.connect_over_cdp: Unexpected status 502 when connecting to https://9223-iahk6vv1wwnpdfxbzxm7j.e2b.app/json/version/.\nThis does not look like a DevTools server, try connecting via ws://.\nCall log:\n  - <ws preparing> retrieving websocket url from https://9223-iahk6vv1wwnpdfxbzxm7j.e2b.app\n",
     "User: \u5e2e\u6211\u67e5\u4e00\u4e0b\u4eca\u5929\u7684\u79d1\u6280\u65b0\u95fb\nAssistant: Agent mode failed: BrowserType.connect_over_cdp: Unexpected status 502 when connecting to https://9223-iahk6vv1wwnpdfxbzxm7j.e2b.app/json/version/.\nThis does not look like a DevTools server, try connecting via ws://.\nCall log:\n  - <ws preparing> retrieving websocket url from https://9223-iahk6vv1wwnpdfxbzxm7j.e2b.app\n",
     "Agent mode failed: BrowserType.connect_over_cdp: Unexpected status 502 when connecting to https://9223-iahk6vv1wwnpdfxbzxm7j.e2b.app/json/version/.\nThis does not look like a DevTools server, try connecting via ws://.\nCall log:\n  - <ws preparing> retrieving websocket url from https://9223-iahk6vv1wwnpdfxbzxm7j.e2b.app\n",
@@ -23,6 +15,14 @@
     "Agent mode failed: Server disconnected without sending a response.",
     "User: \u5e2e\u6211\u67e5\u4e00\u4e0b\u4eca\u5929\u7684\u79d1\u6280\u65b0\u95fb\nAssistant: Agent mode failed: Server disconnected without sending a response.",
     "Agent mode failed: Server disconnected without sending a response.",
-    "User: \u5e2e\u6211\u67e5\u4e00\u4e0b\u4eca\u5929\u7684\u79d1\u6280\u65b0\u95fb\nAssistant: Agent mode failed: Server disconnected without sending a response."
+    "User: \u5e2e\u6211\u67e5\u4e00\u4e0b\u4eca\u5929\u7684\u79d1\u6280\u65b0\u95fb\nAssistant: Agent mode failed: Server disconnected without sending a response.",
+    "Agent mode failed: cannot switch to a different thread (which happens to have exited)",
+    "User: \u5e2e\u6211\u67e5\u4e00\u4e0b\u4eca\u5929\u7684\u79d1\u6280\u65b0\u95fb\nAssistant: Agent mode failed: cannot switch to a different thread (which happens to have exited)",
+    "Agent mode failed: cannot switch to a different thread (which happens to have exited)",
+    "User: \u5e2e\u6211\u67e5\u4e00\u4e0b\u4eca\u5929\u7684\u79d1\u6280\u65b0\u95fb\nAssistant: Agent mode failed: cannot switch to a different thread (which happens to have exited)",
+    "Agent mode failed: cannot switch to a different thread (which happens to have exited)",
+    "User: \u5e2e\u6211\u67e5\u4e00\u4e0b\u4eca\u5929\u7684\u79d1\u6280\u65b0\u95fb\nAssistant: Agent mode failed: cannot switch to a different thread (which happens to have exited)",
+    "Agent mode failed: cannot switch to a different thread (which happens to have exited)",
+    "User: \u5e2e\u6211\u67e5\u4e00\u4e0b\u4eca\u5929\u7684\u79d1\u6280\u65b0\u95fb\nAssistant: Agent mode failed: cannot switch to a different thread (which happens to have exited)"
   ]
 }

@@ -137,18 +137,13 @@ class _SandboxWebSearchBaseTool(BaseTool):
             service = _get_screenshot_service()
             if service:
                 try:
-                    loop = asyncio.new_event_loop()
-                    try:
-                        save_result = loop.run_until_complete(
-                            service.save_screenshot(
-                                image_data=png_bytes,
-                                action=action,
-                                thread_id=self.thread_id,
-                                page_url=self._page_info().get("url"),
-                            )
-                        )
-                    finally:
-                        loop.close()
+                    # Use synchronous save method to avoid event loop conflicts
+                    save_result = service.save_screenshot_sync(
+                        image_data=png_bytes,
+                        action=action,
+                        thread_id=self.thread_id,
+                        page_url=self._page_info().get("url"),
+                    )
 
                     if save_result.get("url"):
                         result["screenshot_url"] = save_result["url"]
@@ -169,11 +164,8 @@ class _SandboxWebSearchBaseTool(BaseTool):
             return
 
         try:
-            loop = asyncio.new_event_loop()
-            try:
-                loop.run_until_complete(emitter.emit(event_type, data))
-            finally:
-                loop.close()
+            # Use synchronous emit method to avoid event loop conflicts
+            emitter.emit_sync(event_type, data)
         except Exception as e:
             logger.warning(f"[sandbox_search] Failed to emit event: {e}")
 

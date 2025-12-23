@@ -46,12 +46,7 @@ class EventedTool(BaseTool):
     def _emit_sync(self, event_type: ToolEventType, data: Dict[str, Any]):
         """Best-effort async emit from sync context."""
         emitter = get_emitter_sync(self.thread_id)
-        try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(emitter.emit(event_type, data))
-        except RuntimeError:
-            # No running loop; run a temporary loop
-            asyncio.run(emitter.emit(event_type, data))
+        emitter.emit_sync(event_type, data)
 
     def _run(self, tool_input: Any = None, **kwargs) -> Any:
         start = time.time()

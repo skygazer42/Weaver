@@ -380,21 +380,33 @@ class SandboxBrowserSession:
 class SandboxBrowserSessionManager:
     def __init__(self):
         self._lock = threading.Lock()
-        self._sessions: Dict[str, SandboxBrowserSession] = {}
+        # Playwright sync API objects are thread-affine. LangGraph tool execution
+        # may run in a thread pool, so we keep a dedicated session per
+        # (conversation thread_id, worker thread ident) to avoid cross-thread
+        # usage that triggers greenlet errors.
+        self._sessions: Dict[tuple[str, int], SandboxBrowserSession] = {}
+
+    def _key(self, thread_id: str) -> tuple[str, int]:
+        thread_id = (thread_id or "").strip() or "default"
+        return (thread_id, threading.get_ident())
 
     def get(self, thread_id: str) -> SandboxBrowserSession:
-        thread_id = (thread_id or "").strip() or "default"
+        key = self._key(thread_id)
         with self._lock:
-            if thread_id not in self._sessions:
-                self._sessions[thread_id] = SandboxBrowserSession(thread_id)
-            return self._sessions[thread_id]
+            if key not in self._sessions:
+                self._sessions[key] = SandboxBrowserSession(key[0])
+            return self._sessions[key]
 
     def reset(self, thread_id: str) -> None:
         thread_id = (thread_id or "").strip() or "default"
         with self._lock:
-            session = self._sessions.pop(thread_id, None)
-        if session:
-            session.close()
+            keys = [k for k in self._sessions.keys() if k[0] == thread_id]
+            sessions = [self._sessions.pop(k) for k in keys]
+        for session in sessions:
+            try:
+                session.close()
+            except Exception:
+                pass
 
 
 sandbox_browser_sessions = SandboxBrowserSessionManager()

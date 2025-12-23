@@ -32,6 +32,7 @@ Usage:
 import asyncio
 import json
 import logging
+import threading
 import time
 import uuid
 from dataclasses import asdict, dataclass, field
@@ -130,6 +131,20 @@ class EventEmitter:
         self._async_listeners: List[EventListener] = []
         self._event_buffer: List[Event] = []
         self._lock = asyncio.Lock()
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._buffer_lock = threading.Lock()
+
+    def _bind_loop(self, loop: asyncio.AbstractEventLoop) -> None:
+        """Bind an asyncio loop used for cross-thread safe emits."""
+        if self._loop is None:
+            self._loop = loop
+            return
+        try:
+            if not self._loop.is_running():
+                self._loop = loop
+        except Exception:
+            # If loop state can't be inspected, prefer keeping the existing binding.
+            pass
 
     def on_event(self, listener: EventListener) -> None:
         """
@@ -176,8 +191,8 @@ class EventEmitter:
             thread_id=self.thread_id,
         )
 
-        # Buffer the event
-        async with self._lock:
+        # Buffer the event (thread-safe, fast path)
+        with self._buffer_lock:
             self._event_buffer.append(event)
             if len(self._event_buffer) > self.buffer_size:
                 self._event_buffer.pop(0)
@@ -203,6 +218,44 @@ class EventEmitter:
             etype = str(event_type)
         logger.debug(f"[events] Emitted: {etype} | {data}")
         return event
+
+    def emit_sync(
+        self,
+        event_type: Union[ToolEventType, str],
+        data: Dict[str, Any],
+    ) -> None:
+        """
+        Best-effort emit from sync contexts.
+
+        If the emitter is bound to a running loop (typically the FastAPI/uvicorn
+        loop handling `/api/events/...`), schedule the coroutine there so async
+        listeners (like the SSE queue listener) run on the correct loop.
+        """
+        coro = self.emit(event_type, data)
+
+        # If we're already in a running loop, prefer scheduling on it when it is
+        # the bound loop (or when no bound loop exists).
+        try:
+            running = asyncio.get_running_loop()
+        except RuntimeError:
+            running = None
+
+        if running is not None:
+            if self._loop is None or self._loop is running:
+                running.create_task(coro)
+                return
+
+        # If we have a bound running loop (usually main server loop), schedule
+        # the emit there from any thread.
+        if self._loop is not None and self._loop.is_running():
+            asyncio.run_coroutine_threadsafe(coro, self._loop)
+            return
+
+        # Fallback: no bound loop yet (e.g., before SSE connected). Run locally.
+        if running is not None:
+            running.create_task(coro)
+            return
+        asyncio.run(coro)
 
     async def emit_tool_start(
         self,
@@ -286,6 +339,49 @@ class EventEmitter:
         """Convenience method to emit done event."""
         return await self.emit(ToolEvent.DONE, {"message": message or "Stream completed"})
 
+    def emit_sync(
+        self,
+        event_type: Union[ToolEventType, str],
+        data: Dict[str, Any],
+    ) -> Event:
+        """
+        Synchronous version of emit for non-async contexts.
+
+        This method is safe to call from sync code running in threads
+        (e.g., Playwright sync_api, LangGraph tool nodes).
+
+        Args:
+            event_type: The type of event
+            data: Event data payload
+
+        Returns:
+            The emitted Event object
+        """
+        event = Event(
+            type=event_type if isinstance(event_type, ToolEventType) else ToolEventType(event_type),
+            data=data,
+            thread_id=self.thread_id,
+        )
+
+        # Buffer the event (no async lock needed for append)
+        self._event_buffer.append(event)
+        if len(self._event_buffer) > self.buffer_size:
+            self._event_buffer.pop(0)
+
+        # Notify sync listeners only (skip async listeners in sync context)
+        for listener in self._listeners:
+            try:
+                listener(event)
+            except Exception as e:
+                logger.warning(f"[events] Sync listener error: {e}")
+
+        try:
+            etype = event.type.value if isinstance(event.type, ToolEventType) else str(event.type)
+        except Exception:
+            etype = str(event_type)
+        logger.debug(f"[events] Emitted (sync): {etype} | {data}")
+        return event
+
     def get_buffered_events(self) -> List[Event]:
         """Get all buffered events for replay."""
         return list(self._event_buffer)
@@ -313,6 +409,10 @@ async def get_emitter(thread_id: str) -> EventEmitter:
     async with _emitters_lock:
         if thread_id not in _emitters:
             _emitters[thread_id] = EventEmitter(thread_id=thread_id)
+        try:
+            _emitters[thread_id]._bind_loop(asyncio.get_running_loop())
+        except Exception:
+            pass
         return _emitters[thread_id]
 
 
@@ -346,6 +446,10 @@ def get_emitter_sync(thread_id: str) -> EventEmitter:
     """
     if thread_id not in _emitters:
         _emitters[thread_id] = EventEmitter(thread_id=thread_id)
+    try:
+        _emitters[thread_id]._bind_loop(asyncio.get_running_loop())
+    except Exception:
+        pass
     return _emitters[thread_id]
 
 

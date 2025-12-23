@@ -33,6 +33,7 @@ import base64
 import logging
 import os
 import re
+import threading
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -73,10 +74,65 @@ class ScreenshotService:
         self.base_url = base_url.rstrip("/")
         self.retention_hours = retention_hours
         self._lock = asyncio.Lock()
+        self._sync_lock = threading.Lock()
 
         # Ensure directory exists
         self.screenshots_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f"[screenshot] Service initialized | Dir: {self.screenshots_dir}")
+
+    def save_screenshot_sync(
+        self,
+        image_data: bytes,
+        action: str = "screenshot",
+        thread_id: Optional[str] = None,
+        page_url: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Synchronous version of save_screenshot.
+
+        Used by sync tools (e.g., Playwright sync API) to avoid nested event loop
+        errors like "Cannot run the event loop while another loop is running".
+        """
+        with self._sync_lock:
+            try:
+                extension = "png"
+                if image_data[:3] == b"\xff\xd8\xff":
+                    extension = "jpg"
+                elif image_data[:4] == b"\x89PNG":
+                    extension = "png"
+
+                filename = self._generate_filename(action, thread_id, extension)
+                filepath = self.screenshots_dir / filename
+                filepath.write_bytes(image_data)
+
+                url = f"{self.base_url}/{filename}"
+                result = {
+                    "url": url,
+                    "filename": filename,
+                    "path": str(filepath),
+                    "action": action,
+                    "thread_id": thread_id,
+                    "page_url": page_url,
+                    "timestamp": datetime.now().isoformat(),
+                    "size_bytes": len(image_data),
+                }
+
+                if metadata:
+                    result["metadata"] = metadata
+
+                logger.debug(f"[screenshot] Saved(sync): {filename} ({len(image_data)} bytes)")
+                return result
+
+            except Exception as e:
+                logger.error(f"[screenshot] Failed to save(sync): {e}")
+                return {
+                    "url": None,
+                    "filename": None,
+                    "error": str(e),
+                    "action": action,
+                    "thread_id": thread_id,
+                }
 
     def _generate_filename(
         self,
@@ -219,6 +275,75 @@ class ScreenshotService:
                 "action": action,
                 "thread_id": thread_id,
             }
+
+    def save_screenshot_sync(
+        self,
+        image_data: bytes,
+        action: str = "screenshot",
+        thread_id: Optional[str] = None,
+        page_url: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Synchronous version of save_screenshot for non-async contexts.
+
+        This method is safe to call from sync code running in threads
+        (e.g., Playwright sync_api, LangGraph tool nodes).
+
+        Args:
+            image_data: Raw image bytes (PNG/JPEG)
+            action: Action name that triggered the screenshot
+            thread_id: Thread/conversation ID
+            page_url: URL of the page being captured
+            metadata: Additional metadata to include in result
+
+        Returns:
+            Dict with url, filename, path, and metadata
+        """
+        with self._sync_lock:
+            try:
+                # Detect image format
+                extension = "png"
+                if image_data[:3] == b"\xff\xd8\xff":
+                    extension = "jpg"
+                elif image_data[:4] == b"\x89PNG":
+                    extension = "png"
+
+                # Generate filename and path
+                filename = self._generate_filename(action, thread_id, extension)
+                filepath = self.screenshots_dir / filename
+
+                # Save to disk
+                filepath.write_bytes(image_data)
+
+                # Build result
+                url = f"{self.base_url}/{filename}"
+                result = {
+                    "url": url,
+                    "filename": filename,
+                    "path": str(filepath),
+                    "action": action,
+                    "thread_id": thread_id,
+                    "page_url": page_url,
+                    "timestamp": datetime.now().isoformat(),
+                    "size_bytes": len(image_data),
+                }
+
+                if metadata:
+                    result["metadata"] = metadata
+
+                logger.debug(f"[screenshot] Saved (sync): {filename} ({len(image_data)} bytes)")
+                return result
+
+            except Exception as e:
+                logger.error(f"[screenshot] Failed to save (sync): {e}")
+                return {
+                    "url": None,
+                    "filename": None,
+                    "error": str(e),
+                    "action": action,
+                    "thread_id": thread_id,
+                }
 
     def get_screenshot_path(self, filename: str) -> Optional[Path]:
         """
