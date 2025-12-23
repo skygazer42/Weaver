@@ -15,6 +15,8 @@ def _env(name: str, default: str = "") -> str:
 
 def _bool_env(name: str, default: bool = False) -> bool:
     raw = (os.getenv(name) or "").strip().lower()
+    if not raw and isinstance(settings.sandbox_allow_internet, bool):
+        return settings.sandbox_allow_internet
     if not raw:
         return default
     if raw in {"1", "true", "yes", "y", "on"}:
@@ -34,7 +36,7 @@ def _sandbox_domain() -> Optional[str]:
 
 
 def _browser_template() -> str:
-    template = _env("SANDBOX_TEMPLATE_BROWSER")
+    template = _env("SANDBOX_TEMPLATE_BROWSER") or (settings.sandbox_template_browser or "").strip()
     if not template:
         raise RuntimeError("SANDBOX_TEMPLATE_BROWSER is required for sandbox browser tools.")
     return template
@@ -245,4 +247,3 @@ class SandboxBrowserSessionManager:
 
 
 sandbox_browser_sessions = SandboxBrowserSessionManager()
-

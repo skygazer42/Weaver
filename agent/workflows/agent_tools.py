@@ -47,6 +47,8 @@ def _sandbox_template_available() -> bool:
     Detect whether sandbox browser template is configured.
     Required by sandbox browser / sandbox web search tools.
     """
+    if getattr(settings, "sandbox_template_browser", "").strip():
+        return True
     env_template = os.getenv("SANDBOX_TEMPLATE_BROWSER", "").strip()
     return bool(env_template)
 

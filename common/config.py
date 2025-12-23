@@ -212,6 +212,8 @@ class Settings(BaseSettings):
 
     # Sandbox mode: local (E2B), daytona (remote), none (disabled)
     sandbox_mode: str = "local"
+    sandbox_template_browser: str = ""  # e2b sandbox browser template ID (e.g., chrome-stable)
+    sandbox_allow_internet: bool = True  # allow internet access inside sandbox
 
     # Tool / middleware controls
     tool_retry: bool = False
