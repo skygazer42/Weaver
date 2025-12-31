@@ -396,7 +396,7 @@ export function Chat() {
             <div className="fixed bottom-40 right-6 z-40">
               <BrowserViewer
                 threadId={threadId}
-                className="w-[480px] shadow-2xl"
+                className="shadow-2xl"
                 defaultExpanded={true}
                 alwaysShow={true}
                 onClose={() => setShowBrowserViewer(false)}

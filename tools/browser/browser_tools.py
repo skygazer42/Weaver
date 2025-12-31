@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import logging
 from typing import Any, Dict, List, Optional
 
 from langchain_core.tools import BaseTool
@@ -9,6 +10,8 @@ from pydantic import BaseModel, Field
 from .browser_session import browser_sessions
 from agent.core.events import get_emitter_sync, ToolEventType
 from tools.browser.browser_use_events import emit_progress
+
+logger = logging.getLogger(__name__)
 
 
 def _trim(text: str, max_chars: int) -> str:
@@ -34,6 +37,98 @@ class _BrowserTool(BaseTool):
     def _progress(self, action: str, info: str):
         emit_progress(self.thread_id, self.name, action, info)
 
+    def _maybe_emit_screenshot(
+        self,
+        *,
+        page_url: str,
+        action: str,
+        full_page: bool = False,
+        wait_ms: int = 1200,
+    ) -> None:
+        """
+        Best-effort screenshot emission for lightweight browser tools.
+
+        This keeps the "browser_*" tools JS-free for content extraction but still
+        emits a visual screenshot event when the agent opens a URL, so the UI can
+        show the page in BrowserViewer.
+        """
+        target = (page_url or "").strip()
+        if not target.startswith(("http://", "https://")):
+            return
+
+        try:
+            from playwright.sync_api import sync_playwright  # type: ignore
+        except Exception:
+            # Playwright isn't available; skip silently.
+            return
+
+        png_bytes: Optional[bytes] = None
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                try:
+                    page = browser.new_page(viewport={"width": 1280, "height": 720})
+                    page.goto(target, wait_until="networkidle", timeout=30000)
+                    if wait_ms:
+                        page.wait_for_timeout(int(wait_ms))
+                    try:
+                        png_bytes = page.screenshot(
+                            full_page=bool(full_page),
+                            type="jpeg",
+                            quality=85,
+                            animations="disabled",
+                            caret="hide",
+                        )
+                    except TypeError:
+                        # Backwards-compat: older Playwright builds may not support animations/caret options.
+                        png_bytes = page.screenshot(full_page=bool(full_page), type="jpeg", quality=85)
+                finally:
+                    browser.close()
+        except Exception as e:
+            # Don't fail the primary tool action.
+            logger.debug("[browser_tools] screenshot skipped: %s", e)
+            return
+
+        if not png_bytes:
+            return
+
+        screenshot_url: Optional[str] = None
+        screenshot_filename: Optional[str] = None
+        mime_type: str = "image/jpeg"
+        image_b64: Optional[str] = None
+
+        try:
+            from tools.io.screenshot_service import get_screenshot_service
+
+            save_result = get_screenshot_service().save_screenshot_sync(
+                image_data=png_bytes,
+                action=f"{self.name}_{action}",
+                thread_id=self.thread_id,
+                page_url=target,
+            )
+            screenshot_url = save_result.get("url")
+            screenshot_filename = save_result.get("filename")
+            mime_type = save_result.get("mime_type") or mime_type
+        except Exception:
+            image_b64 = base64.b64encode(png_bytes).decode("ascii")
+
+        try:
+            self._emit(
+                ToolEventType.TOOL_SCREENSHOT,
+                {
+                    "tool": self.name,
+                    "action": action,
+                    "url": screenshot_url,
+                    "filename": screenshot_filename,
+                    "page_url": target,
+                    "mime_type": mime_type,
+                    # Only include base64 when we couldn't persist to disk.
+                    "image": None if screenshot_url else image_b64,
+                },
+            )
+        except Exception:
+            pass
+
 
 class BrowserSearchInput(BaseModel):
     query: str = Field(min_length=1)
@@ -53,6 +148,8 @@ class BrowserSearchTool(_BrowserTool):
         self._progress("search", f"{engine} {query}")
         self._emit(ToolEventType.TOOL_START, {"tool": self.name, "args": {"query": query, "engine": engine}})
         page = self._session().search(query=query, engine=engine)
+        q = " ".join((query or "").split())
+        self._maybe_emit_screenshot(page_url=page.url, action=f"search:{engine} {_trim(q, 40)}")
         return {
             "url": page.url,
             "title": page.title,
@@ -75,6 +172,13 @@ class BrowserNavigateTool(_BrowserTool):
         self._progress("navigate", url)
         self._emit(ToolEventType.TOOL_START, {"tool": self.name, "args": {"url": url}})
         page = self._session().navigate(url=url)
+        try:
+            from urllib.parse import urlparse
+
+            host = urlparse(page.url or "").netloc
+        except Exception:
+            host = ""
+        self._maybe_emit_screenshot(page_url=page.url, action=f"open:{host}" if host else "open")
         return {
             "url": page.url,
             "title": page.title,
@@ -105,6 +209,13 @@ class BrowserClickTool(_BrowserTool):
         self._progress("click", f"{index} -> {url}")
         self._emit(ToolEventType.TOOL_START, {"tool": self.name, "args": {"index": index, "url": url}})
         page = session.navigate(url=url)
+        try:
+            from urllib.parse import urlparse
+
+            host = urlparse(page.url or "").netloc
+        except Exception:
+            host = ""
+        self._maybe_emit_screenshot(page_url=page.url, action=f"open#{index}:{host}" if host else f"open#{index}")
         return {
             "clicked": links[idx],
             "url": page.url,
@@ -121,6 +232,7 @@ class BrowserBackTool(_BrowserTool):
     def _run(self) -> Dict[str, Any]:
         self._emit(ToolEventType.TOOL_START, {"tool": self.name})
         page = self._session().back()
+        self._maybe_emit_screenshot(page_url=page.url, action="back")
         return {
             "url": page.url,
             "title": page.title,
@@ -187,7 +299,7 @@ class BrowserScreenshotTool(_BrowserTool):
     name: str = "browser_screenshot"
     description: str = (
         "Take a real browser screenshot (requires Playwright + installed browsers). "
-        "Returns base64 PNG in `image`."
+        "Returns `screenshot_url` when available (base64 fallback in `image`)."
     )
     args_schema: type[BaseModel] = BrowserScreenshotInput
 
@@ -214,11 +326,13 @@ class BrowserScreenshotTool(_BrowserTool):
                 page.goto(target, wait_until="networkidle", timeout=30000)
                 if wait_ms:
                     page.wait_for_timeout(int(wait_ms))
-                png_bytes = page.screenshot(full_page=bool(full_page))
+                try:
+                    png_bytes = page.screenshot(full_page=bool(full_page), animations="disabled", caret="hide")
+                except TypeError:
+                    png_bytes = page.screenshot(full_page=bool(full_page))
             finally:
                 browser.close()
 
-        image_b64 = base64.b64encode(png_bytes).decode("ascii")
         screenshot_url: Optional[str] = None
         screenshot_filename: Optional[str] = None
         mime_type: str = "image/png"
@@ -239,6 +353,11 @@ class BrowserScreenshotTool(_BrowserTool):
         except Exception:
             pass
 
+        # Only include base64 when we couldn't persist to disk.
+        image_b64: Optional[str] = None
+        if not screenshot_url:
+            image_b64 = base64.b64encode(png_bytes).decode("ascii")
+
         # Emit screenshot event for front-end visualization
         try:
             self._emit(
@@ -251,20 +370,22 @@ class BrowserScreenshotTool(_BrowserTool):
                     "page_url": target,
                     "mime_type": mime_type,
                     # Only include base64 when we couldn't persist to disk.
-                    "image": None if screenshot_url else image_b64,
+                    "image": image_b64,
                 },
             )
         except Exception:
             pass
 
-        return {
+        result: Dict[str, Any] = {
             "url": target,  # page URL (kept for backwards compatibility)
             "page_url": target,
-            "image": image_b64,
             "screenshot_url": screenshot_url,
             "filename": screenshot_filename,
             "mime_type": mime_type,
         }
+        if image_b64:
+            result["image"] = image_b64
+        return result
 
 
 def build_browser_tools(thread_id: str) -> List[BaseTool]:

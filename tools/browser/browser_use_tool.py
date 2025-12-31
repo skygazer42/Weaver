@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import hashlib
+import time
 from typing import Any, Optional
 
 from langchain_core.tools import BaseTool
@@ -48,6 +50,10 @@ class BrowserUseTool(BaseTool):
         self._context = None
         self._dom_service = None
         self._lock = asyncio.Lock()
+        self._last_screenshot_at = 0.0
+        self._last_screenshot_hash: Optional[str] = None
+        self._scroll_accum_px = 0
+        self._arrow_press_accum = 0
 
     # ------------- helpers -------------
     def _emit(self, event_type: ToolEventType, data: dict):
@@ -97,24 +103,81 @@ class BrowserUseTool(BaseTool):
                 self._dom_service = None
         return self._context
 
-    async def _take_screenshot(self, page, *, action: str = "screenshot") -> Optional[str]:
+    async def _take_screenshot(
+        self,
+        page,
+        *,
+        action: str = "screenshot",
+        full_page: bool = False,
+        min_interval_ms: int = 0,
+        dedupe: bool = True,
+    ) -> Optional[str]:
         try:
+            now = time.monotonic()
+            if min_interval_ms > 0 and (now - self._last_screenshot_at) < (min_interval_ms / 1000.0):
+                return None
             await page.bring_to_front()
             await page.wait_for_load_state()
-            img = await page.screenshot(full_page=True, animations="disabled", type="jpeg", quality=85)
-            b64 = base64.b64encode(img).decode("utf-8")
+            try:
+                img = await page.screenshot(
+                    full_page=bool(full_page),
+                    animations="disabled",
+                    caret="hide",
+                    type="jpeg",
+                    quality=85,
+                )
+            except TypeError:
+                # Backwards-compat: older Playwright builds may not support animations/caret options.
+                img = await page.screenshot(full_page=bool(full_page), type="jpeg", quality=85)
+
+            img_hash = hashlib.sha256(img).hexdigest()
+            # We already paid the cost of capturing; record the time so we don't
+            # spam follow-up captures on rapid-fire actions.
+            self._last_screenshot_at = now
+            if dedupe and self._last_screenshot_hash == img_hash:
+                return None
+
+            screenshot_url: Optional[str] = None
+            screenshot_filename: Optional[str] = None
+            mime_type: str = "image/jpeg"
+            b64: Optional[str] = None
+
+            # Best-effort: persist screenshot so SSE stays lightweight and tool
+            # output doesn't explode the token budget.
+            try:
+                from tools.io.screenshot_service import get_screenshot_service
+
+                save_result = get_screenshot_service().save_screenshot_sync(
+                    image_data=img,
+                    action=f"{self.name}_{action}",
+                    thread_id=self.thread_id,
+                    page_url=page.url,
+                )
+                screenshot_url = save_result.get("url")
+                screenshot_filename = save_result.get("filename")
+                mime_type = save_result.get("mime_type") or mime_type
+            except Exception:
+                screenshot_url = None
+
+            # Only include base64 when we couldn't persist to disk.
+            if not screenshot_url:
+                b64 = base64.b64encode(img).decode("utf-8")
+
             self._emit(
                 ToolEventType.TOOL_SCREENSHOT,
                 {
                     "tool": self.name,
                     "action": action,
-                    "url": None,
+                    "url": screenshot_url,
+                    "filename": screenshot_filename,
                     "page_url": page.url,
                     "image": b64,
-                    "mime_type": "image/jpeg",
+                    "mime_type": mime_type,
                 },
             )
-            return b64
+            self._last_screenshot_hash = img_hash
+            # Keep tool outputs small: return URL when available, else omit (SSE may still carry base64).
+            return screenshot_url
         except Exception:
             return None
 
@@ -137,11 +200,15 @@ class BrowserUseTool(BaseTool):
                     await page.goto(url)
                     await page.wait_for_load_state()
                     shot = await self._take_screenshot(page, action="navigate")
+                    self._scroll_accum_px = 0
+                    self._arrow_press_accum = 0
                     return {"status": "ok", "url": page.url, "title": await page.title(), "screenshot": shot}
 
                 if action == "go_back":
                     await ctx.go_back()
                     shot = await self._take_screenshot(page, action="back")
+                    self._scroll_accum_px = 0
+                    self._arrow_press_accum = 0
                     return {"status": "ok", "message": "back", "screenshot": shot}
 
                 if action == "click_element":
@@ -153,6 +220,8 @@ class BrowserUseTool(BaseTool):
                         raise ValueError(f"Element {idx} not found")
                     await ctx._click_element_node(element)
                     shot = await self._take_screenshot(page, action="click")
+                    self._scroll_accum_px = 0
+                    self._arrow_press_accum = 0
                     return {"status": "ok", "clicked": idx, "screenshot": shot}
 
                 if action == "input_text":
@@ -170,40 +239,88 @@ class BrowserUseTool(BaseTool):
                     if amount is None:
                         amount = ctx.config.browser_window_size.get("height", 800)
                     await ctx.execute_javascript(f"window.scrollBy(0, {direction * amount});")
-                    return {"status": "ok", "scrolled": direction * amount}
+                    page = await ctx.get_current_page()
+                    viewport_h = (page.viewport_size or {}).get("height") if getattr(page, "viewport_size", None) else None
+                    threshold = int((int(viewport_h) if viewport_h else 800) * 0.75)
+                    self._scroll_accum_px += direction * int(amount)
+                    shot = None
+                    if abs(self._scroll_accum_px) >= threshold:
+                        shot = await self._take_screenshot(page, action=action, min_interval_ms=800)
+                        self._scroll_accum_px = 0
+                    return {"status": "ok", "scrolled": direction * amount, "screenshot": shot}
 
                 if action == "scroll_to_text":
                     text = kwargs.get("text") or ""
                     locator = page.get_by_text(text, exact=False)
                     await locator.scroll_into_view_if_needed()
-                    return {"status": "ok", "text": text}
+                    page = await ctx.get_current_page()
+                    shot = await self._take_screenshot(page, action="scroll_to_text")
+                    self._scroll_accum_px = 0
+                    return {"status": "ok", "text": text, "screenshot": shot}
 
                 if action == "send_keys":
                     keys = kwargs.get("keys") or ""
                     await page.keyboard.press(keys)
-                    return {"status": "ok", "keys": keys}
+                    page = await ctx.get_current_page()
+                    keys_upper = keys.upper().replace(" ", "")
+                    meaningful_keys = ("ENTER", "PAGEDOWN", "PAGEUP", "HOME", "END", "SPACE")
+                    arrow_keys = ("ARROWDOWN", "ARROWUP")
+                    shot = None
+                    if any(token in keys_upper for token in meaningful_keys):
+                        self._arrow_press_accum = 0
+                        self._scroll_accum_px = 0
+                        shot = await self._take_screenshot(page, action=f"keys:{keys}", min_interval_ms=700)
+                    elif any(token in keys_upper for token in arrow_keys):
+                        self._arrow_press_accum += 1
+                        if self._arrow_press_accum >= 3:
+                            shot = await self._take_screenshot(page, action=f"keys:{keys}", min_interval_ms=700)
+                            self._arrow_press_accum = 0
+                    else:
+                        self._arrow_press_accum = 0
+                    return {"status": "ok", "keys": keys, "screenshot": shot}
 
                 if action == "switch_tab":
                     tab_id = kwargs.get("tab_id")
                     await ctx.switch_to_tab(tab_id)
+                    page = await ctx.get_current_page()
                     await page.wait_for_load_state()
-                    return {"status": "ok", "tab": tab_id}
+                    shot = await self._take_screenshot(page, action="switch_tab")
+                    self._scroll_accum_px = 0
+                    self._arrow_press_accum = 0
+                    return {"status": "ok", "tab": tab_id, "screenshot": shot}
 
                 if action == "open_tab":
                     url = kwargs.get("url")
                     await ctx.create_new_tab(url)
-                    return {"status": "ok", "opened": url}
+                    page = await ctx.get_current_page()
+                    await page.wait_for_load_state()
+                    shot = await self._take_screenshot(page, action="open_tab")
+                    self._scroll_accum_px = 0
+                    self._arrow_press_accum = 0
+                    return {"status": "ok", "opened": url, "screenshot": shot}
 
                 if action == "close_tab":
                     await ctx.close_current_tab()
-                    return {"status": "ok", "closed": True}
+                    page = await ctx.get_current_page()
+                    await page.wait_for_load_state()
+                    shot = await self._take_screenshot(page, action="close_tab")
+                    self._scroll_accum_px = 0
+                    self._arrow_press_accum = 0
+                    return {"status": "ok", "closed": True, "screenshot": shot}
 
                 if action == "wait":
                     await asyncio.sleep(kwargs.get("seconds") or 3)
-                    return {"status": "ok", "waited": kwargs.get("seconds") or 3}
+                    page = await ctx.get_current_page()
+                    seconds = kwargs.get("seconds") or 3
+                    shot = (
+                        await self._take_screenshot(page, action="wait", min_interval_ms=2000)
+                        if int(seconds) >= 2
+                        else None
+                    )
+                    return {"status": "ok", "waited": seconds, "screenshot": shot}
 
                 if action == "screenshot":
-                    shot = await self._take_screenshot(page, action="screenshot")
+                    shot = await self._take_screenshot(page, action="screenshot", full_page=True)
                     return {"status": "ok", "screenshot": shot}
 
                 if action == "web_search":

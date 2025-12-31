@@ -126,12 +126,13 @@ class _SandboxWebSearchBaseTool(BaseTool):
         action: str,
         full_page: bool = False,
     ) -> Dict[str, Any]:
-        """Take screenshot, save to disk, and return both base64 and URL."""
+        """Take screenshot, save to disk, and return URL (base64 fallback)."""
         page = self._page()
-        png_bytes = page.screenshot(full_page=bool(full_page))
-        b64_image = base64.b64encode(png_bytes).decode("ascii")
-
-        result = {"image": b64_image, "mime_type": "image/png"}
+        try:
+            png_bytes = page.screenshot(full_page=bool(full_page), animations="disabled", caret="hide")
+        except TypeError:
+            png_bytes = page.screenshot(full_page=bool(full_page))
+        result: Dict[str, Any] = {"mime_type": "image/png"}
 
         if self.save_screenshots:
             service = _get_screenshot_service()
@@ -153,6 +154,10 @@ class _SandboxWebSearchBaseTool(BaseTool):
                         logger.debug(f"[sandbox_search] Screenshot saved: {save_result['url']}")
                 except Exception as e:
                     logger.warning(f"[sandbox_search] Failed to save screenshot: {e}")
+
+        # Only include base64 when we couldn't persist to disk.
+        if not result.get("screenshot_url"):
+            result["image"] = base64.b64encode(png_bytes).decode("ascii")
 
         return result
 

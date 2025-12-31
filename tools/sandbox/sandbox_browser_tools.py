@@ -16,9 +16,10 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import hashlib
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
@@ -26,6 +27,27 @@ from pydantic import BaseModel, Field
 from .sandbox_browser_session import sandbox_browser_sessions
 
 logger = logging.getLogger(__name__)
+
+# Per-thread state to keep screenshots human-like:
+# - De-dupe identical screenshots across tool calls
+# - Accumulate small scroll/arrow interactions into meaningful captures
+_SB_THREAD_STATE: Dict[str, Dict[str, Any]] = {}
+
+
+def _get_thread_state(thread_id: str) -> Dict[str, Any]:
+    tid = (thread_id or "").strip() or "default"
+    state = _SB_THREAD_STATE.get(tid)
+    if state is None:
+        state = {
+            "last_hash": None,
+            "last_url": None,
+            "last_filename": None,
+            "last_mime_type": None,
+            "scroll_accum": 0,
+            "arrow_accum": 0,
+        }
+        _SB_THREAD_STATE[tid] = state
+    return state
 
 
 def _trim(text: str, max_chars: int) -> str:
@@ -76,27 +98,46 @@ class _SbBrowserTool(BaseTool):
             pass
         return {"url": url, "title": title}
 
+    def _screenshot_bytes(self, *, full_page: bool) -> bytes:
+        page = self._page()
+        try:
+            return page.screenshot(full_page=bool(full_page), animations="disabled", caret="hide")
+        except TypeError:
+            # Backwards-compat: older Playwright builds may not support animations/caret options.
+            return page.screenshot(full_page=bool(full_page))
+
     def _screenshot_b64(self, *, full_page: bool = True) -> str:
         """Take screenshot and return base64 encoded image."""
-        png = self._page().screenshot(full_page=bool(full_page))
+        png = self._screenshot_bytes(full_page=full_page)
         return base64.b64encode(png).decode("ascii")
 
     def _screenshot_with_save(
         self,
         action: str,
         full_page: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> Tuple[Dict[str, Any], str]:
         """
-        Take screenshot, save to disk, and return both base64 and URL.
+        Take screenshot, save to disk, and return URL (base64 fallback).
 
         Returns:
-            Dict with 'image' (base64), 'screenshot_url', 'screenshot_filename'
+            Dict with 'screenshot_url' (preferred) and 'image' (base64 fallback)
         """
-        page = self._page()
-        png_bytes = page.screenshot(full_page=bool(full_page))
-        b64_image = base64.b64encode(png_bytes).decode("ascii")
+        png_bytes = self._screenshot_bytes(full_page=full_page)
+        image_hash = hashlib.sha256(png_bytes).hexdigest()
 
-        result = {"image": b64_image, "mime_type": "image/png"}
+        # If the view didn't change, don't generate a new file; reuse the last URL.
+        state = _get_thread_state(self.thread_id)
+        if state.get("last_hash") == image_hash and state.get("last_url"):
+            return (
+                {
+                    "screenshot_url": state.get("last_url"),
+                    "screenshot_filename": state.get("last_filename"),
+                    "mime_type": state.get("last_mime_type") or "image/png",
+                },
+                image_hash,
+            )
+
+        result: Dict[str, Any] = {"mime_type": "image/png"}
 
         # Save to disk if screenshot service is available
         if self.save_screenshots:
@@ -120,7 +161,11 @@ class _SbBrowserTool(BaseTool):
                 except Exception as e:
                     logger.warning(f"[sb_browser] Failed to save screenshot: {e}")
 
-        return result
+        # Only include base64 when we couldn't persist to disk.
+        if not result.get("screenshot_url"):
+            result["image"] = base64.b64encode(png_bytes).decode("ascii")
+
+        return result, image_hash
 
     def _emit_event(self, event_type: str, data: Dict[str, Any]) -> None:
         """Emit an event (synchronous version for tool execution)."""
@@ -173,31 +218,56 @@ class _SbBrowserTool(BaseTool):
             "result_keys": list(result.keys()),
         })
 
-    def _emit_screenshot(self, screenshot_data: Dict[str, Any], action: str) -> None:
+    def _emit_screenshot(
+        self,
+        screenshot_data: Dict[str, Any],
+        action: str,
+        *,
+        image_hash: Optional[str] = None,
+    ) -> None:
         """Emit screenshot event - supports both URL and base64 image."""
         url = screenshot_data.get("screenshot_url")
         image = screenshot_data.get("image")
         mime_type = screenshot_data.get("mime_type")
 
         # Emit if we have either URL or base64 image
-        if url or image:
-            self._emit_event("tool_screenshot", {
-                "tool": self.name,
-                "action": action,
-                "url": url,
-                # Keep stream light when the image is accessible by URL.
-                "image": image if not url else None,
-                "filename": screenshot_data.get("screenshot_filename"),
-                "mime_type": mime_type,
-                "page_url": self._page_info().get("url"),
-            })
+        if not (url or image):
+            return
+
+        # De-dupe identical screenshots across all sb_browser_* tools in the same thread.
+        state = _get_thread_state(self.thread_id)
+        if image_hash and state.get("last_hash") == image_hash:
+            # If we previously couldn't persist (no URL) but now we can, record it
+            # so future duplicates can reuse the saved file.
+            if url and not state.get("last_url"):
+                state["last_url"] = url
+                state["last_filename"] = screenshot_data.get("screenshot_filename")
+                state["last_mime_type"] = mime_type
+            return
+
+        self._emit_event("tool_screenshot", {
+            "tool": self.name,
+            "action": action,
+            "url": url,
+            # Keep stream light when the image is accessible by URL.
+            "image": image if not url else None,
+            "filename": screenshot_data.get("screenshot_filename"),
+            "mime_type": mime_type,
+            "page_url": self._page_info().get("url"),
+        })
+
+        if image_hash:
+            state["last_hash"] = image_hash
+            state["last_url"] = url
+            state["last_filename"] = screenshot_data.get("screenshot_filename")
+            state["last_mime_type"] = mime_type
 
 
 class SbBrowserNavigateInput(BaseModel):
     url: str = Field(min_length=1)
     wait_until: str = Field(default="domcontentloaded", description="domcontentloaded|load|networkidle")
     wait_ms: int = Field(default=1000, ge=0, le=15000)
-    full_page: bool = True
+    full_page: bool = False
 
 
 class SbBrowserNavigateTool(_SbBrowserTool):
@@ -210,10 +280,13 @@ class SbBrowserNavigateTool(_SbBrowserTool):
         url: str,
         wait_until: str = "domcontentloaded",
         wait_ms: int = 1000,
-        full_page: bool = True,
+        full_page: bool = False,
     ) -> Dict[str, Any]:
         start_time = self._emit_tool_start("navigate", {"url": url})
         self._emit_progress("navigate", f"goto {url}")
+        state = _get_thread_state(self.thread_id)
+        state["scroll_accum"] = 0
+        state["arrow_accum"] = 0
 
         try:
             page = self._page()
@@ -223,13 +296,13 @@ class SbBrowserNavigateTool(_SbBrowserTool):
             self._emit_progress("navigate", "page_loaded")
 
             info = self._page_info()
-            screenshot = self._screenshot_with_save("navigate", full_page=full_page)
+            screenshot, screenshot_hash = self._screenshot_with_save("navigate", full_page=full_page)
             self._emit_progress("navigate", "screenshot_captured")
 
             result = {**info, **screenshot}
 
             # Emit screenshot event
-            self._emit_screenshot(screenshot, "navigate")
+            self._emit_screenshot(screenshot, "navigate", image_hash=screenshot_hash)
             self._emit_tool_result("navigate", result, start_time, success=True)
 
             return result
@@ -243,7 +316,7 @@ class SbBrowserClickInput(BaseModel):
     selector: Optional[str] = Field(default=None, description="CSS selector to click")
     text: Optional[str] = Field(default=None, description="Visible text to click (fallback)")
     wait_ms: int = Field(default=800, ge=0, le=15000)
-    full_page: bool = True
+    full_page: bool = False
 
 
 class SbBrowserClickTool(_SbBrowserTool):
@@ -256,7 +329,7 @@ class SbBrowserClickTool(_SbBrowserTool):
         selector: Optional[str] = None,
         text: Optional[str] = None,
         wait_ms: int = 800,
-        full_page: bool = True,
+        full_page: bool = False,
     ) -> Dict[str, Any]:
         start_time = self._emit_tool_start("click", {"selector": selector, "text": text})
         self._emit_progress("click", selector or text or "")
@@ -282,11 +355,14 @@ class SbBrowserClickTool(_SbBrowserTool):
             self._emit_progress("click", "after_click_wait")
 
             info = self._page_info()
-            screenshot = self._screenshot_with_save("click", full_page=full_page)
+            state = _get_thread_state(self.thread_id)
+            state["scroll_accum"] = 0
+            state["arrow_accum"] = 0
+            screenshot, screenshot_hash = self._screenshot_with_save("click", full_page=full_page)
 
             result = {**info, **screenshot}
 
-            self._emit_screenshot(screenshot, "click")
+            self._emit_screenshot(screenshot, "click", image_hash=screenshot_hash)
             self._emit_tool_result("click", result, start_time, success=True)
 
             return result
@@ -301,12 +377,15 @@ class SbBrowserTypeInput(BaseModel):
     selector: Optional[str] = Field(default=None, description="CSS selector for an input/textarea; defaults to first input")
     press_enter: bool = False
     wait_ms: int = Field(default=800, ge=0, le=15000)
-    full_page: bool = True
+    full_page: bool = False
 
 
 class SbBrowserTypeTool(_SbBrowserTool):
     name: str = "sb_browser_type"
-    description: str = "Fill an input (by selector or first input) with text. Returns screenshot."
+    description: str = (
+        "Fill an input (by selector or first input) with text. "
+        "Emits/returns a screenshot when submitting (press_enter=true)."
+    )
     args_schema: type[BaseModel] = SbBrowserTypeInput
 
     def _run(
@@ -315,7 +394,7 @@ class SbBrowserTypeTool(_SbBrowserTool):
         selector: Optional[str] = None,
         press_enter: bool = False,
         wait_ms: int = 800,
-        full_page: bool = True,
+        full_page: bool = False,
     ) -> Dict[str, Any]:
         start_time = self._emit_tool_start("type", {
             "text": text[:50] + "..." if len(text) > 50 else text,
@@ -343,11 +422,19 @@ class SbBrowserTypeTool(_SbBrowserTool):
             self._emit_progress("type", "after_type_wait")
 
             info = self._page_info()
-            screenshot = self._screenshot_with_save("type", full_page=full_page)
+            screenshot: Dict[str, Any] = {}
+            screenshot_hash: Optional[str] = None
+            screenshot_action = "submit" if press_enter else "type"
+            if press_enter:
+                state = _get_thread_state(self.thread_id)
+                state["scroll_accum"] = 0
+                state["arrow_accum"] = 0
+                screenshot, screenshot_hash = self._screenshot_with_save("type", full_page=full_page)
 
             result = {**info, **screenshot}
 
-            self._emit_screenshot(screenshot, "type")
+            if screenshot:
+                self._emit_screenshot(screenshot, screenshot_action, image_hash=screenshot_hash)
             self._emit_tool_result("type", result, start_time, success=True)
 
             return result
@@ -360,15 +447,19 @@ class SbBrowserTypeTool(_SbBrowserTool):
 class SbBrowserPressInput(BaseModel):
     keys: str = Field(min_length=1, description="e.g. Enter, Control+L, ArrowDown")
     wait_ms: int = Field(default=500, ge=0, le=15000)
-    full_page: bool = True
+    full_page: bool = False
 
 
 class SbBrowserPressTool(_SbBrowserTool):
     name: str = "sb_browser_press"
-    description: str = "Send a keyboard shortcut to the sandbox browser. Returns screenshot."
+    description: str = (
+        "Send a keyboard shortcut to the sandbox browser. "
+        "Emits/returns a screenshot for view-changing keys (Enter/PageUp/PageDown/Home/End/Space) "
+        "and after a few ArrowUp/ArrowDown steps."
+    )
     args_schema: type[BaseModel] = SbBrowserPressInput
 
-    def _run(self, keys: str, wait_ms: int = 500, full_page: bool = True) -> Dict[str, Any]:
+    def _run(self, keys: str, wait_ms: int = 500, full_page: bool = False) -> Dict[str, Any]:
         start_time = self._emit_tool_start("press", {"keys": keys})
         self._emit_progress("press", keys)
 
@@ -380,11 +471,27 @@ class SbBrowserPressTool(_SbBrowserTool):
             self._emit_progress("press", "after_press_wait")
 
             info = self._page_info()
-            screenshot = self._screenshot_with_save("press", full_page=full_page)
+            keys_upper = (keys or "").upper().replace(" ", "")
+            meaningful = any(token in keys_upper for token in ("ENTER", "PAGEDOWN", "PAGEUP", "HOME", "END", "SPACE"))
+            screenshot: Dict[str, Any] = {}
+            screenshot_hash: Optional[str] = None
+            state = _get_thread_state(self.thread_id)
+            if meaningful:
+                state["arrow_accum"] = 0
+                state["scroll_accum"] = 0
+                screenshot, screenshot_hash = self._screenshot_with_save("press", full_page=full_page)
+            elif any(token in keys_upper for token in ("ARROWDOWN", "ARROWUP")):
+                state["arrow_accum"] = int(state.get("arrow_accum") or 0) + 1
+                if state["arrow_accum"] >= 3:
+                    screenshot, screenshot_hash = self._screenshot_with_save("press", full_page=full_page)
+                    state["arrow_accum"] = 0
+            else:
+                state["arrow_accum"] = 0
 
             result = {**info, **screenshot}
 
-            self._emit_screenshot(screenshot, "press")
+            if screenshot:
+                self._emit_screenshot(screenshot, f"press:{keys}", image_hash=screenshot_hash)
             self._emit_tool_result("press", result, start_time, success=True)
 
             return result
@@ -397,15 +504,18 @@ class SbBrowserPressTool(_SbBrowserTool):
 class SbBrowserScrollInput(BaseModel):
     amount: int = Field(description="Positive = scroll down, negative = scroll up")
     wait_ms: int = Field(default=500, ge=0, le=15000)
-    full_page: bool = True
+    full_page: bool = False
 
 
 class SbBrowserScrollTool(_SbBrowserTool):
     name: str = "sb_browser_scroll"
-    description: str = "Scroll the sandbox browser page. Returns screenshot."
+    description: str = (
+        "Scroll the sandbox browser page. "
+        "Emits/returns a screenshot when the scroll is significant (about a page)."
+    )
     args_schema: type[BaseModel] = SbBrowserScrollInput
 
-    def _run(self, amount: int, wait_ms: int = 500, full_page: bool = True) -> Dict[str, Any]:
+    def _run(self, amount: int, wait_ms: int = 500, full_page: bool = False) -> Dict[str, Any]:
         start_time = self._emit_tool_start("scroll", {"amount": amount})
         self._emit_progress("scroll", str(amount))
 
@@ -418,11 +528,20 @@ class SbBrowserScrollTool(_SbBrowserTool):
             self._emit_progress("scroll", "after_scroll_wait")
 
             info = self._page_info()
-            screenshot = self._screenshot_with_save("scroll", full_page=full_page)
+            viewport_h = (page.viewport_size or {}).get("height") if getattr(page, "viewport_size", None) else None
+            threshold = int((int(viewport_h) if viewport_h else 800) * 0.75)
+            screenshot: Dict[str, Any] = {}
+            screenshot_hash: Optional[str] = None
+            state = _get_thread_state(self.thread_id)
+            state["scroll_accum"] = int(state.get("scroll_accum") or 0) + amt
+            if abs(int(state["scroll_accum"])) >= threshold:
+                screenshot, screenshot_hash = self._screenshot_with_save("scroll", full_page=full_page)
+                state["scroll_accum"] = 0
 
             result = {**info, **screenshot}
 
-            self._emit_screenshot(screenshot, "scroll")
+            if screenshot:
+                self._emit_screenshot(screenshot, "scroll", image_hash=screenshot_hash)
             self._emit_tool_result("scroll", result, start_time, success=True)
 
             return result
@@ -465,7 +584,7 @@ class SbBrowserExtractTextTool(_SbBrowserTool):
 
 
 class SbBrowserScreenshotInput(BaseModel):
-    full_page: bool = True
+    full_page: bool = False
 
 
 class SbBrowserScreenshotTool(_SbBrowserTool):
@@ -473,17 +592,17 @@ class SbBrowserScreenshotTool(_SbBrowserTool):
     description: str = "Take a screenshot of the current sandbox browser page."
     args_schema: type[BaseModel] = SbBrowserScreenshotInput
 
-    def _run(self, full_page: bool = True) -> Dict[str, Any]:
+    def _run(self, full_page: bool = False) -> Dict[str, Any]:
         start_time = self._emit_tool_start("screenshot", {"full_page": full_page})
         self._emit_progress("screenshot", "capturing")
 
         try:
             info = self._page_info()
-            screenshot = self._screenshot_with_save("screenshot", full_page=full_page)
+            screenshot, screenshot_hash = self._screenshot_with_save("screenshot", full_page=full_page)
 
             result = {**info, **screenshot}
 
-            self._emit_screenshot(screenshot, "screenshot")
+            self._emit_screenshot(screenshot, "screenshot", image_hash=screenshot_hash)
             self._emit_tool_result("screenshot", result, start_time, success=True)
 
             return result

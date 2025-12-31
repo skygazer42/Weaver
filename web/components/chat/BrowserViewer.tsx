@@ -44,7 +44,7 @@ export function BrowserViewer({
   } = useBrowserEvents({
     threadId,
     enabled: viewerMode === 'events',
-    maxScreenshots: 20
+    maxScreenshots: 100
   })
 
   // WebSocket-based live streaming
@@ -100,7 +100,7 @@ export function BrowserViewer({
     <div
       className={cn(
         'border rounded-lg overflow-hidden bg-background shadow-lg transition-all duration-200',
-        isExpanded ? 'w-full' : 'w-80',
+        isExpanded ? 'w-[480px] max-w-[calc(100vw-3rem)]' : 'w-80',
         className
       )}
     >
@@ -219,37 +219,39 @@ export function BrowserViewer({
       {isExpanded && (
         <>
           {/* Main Screenshot/Frame Display */}
-          <div className="relative aspect-video bg-muted/30">
-            {/* Live stream mode */}
-            {isLiveMode && liveImageUrl ? (
-              <img
-                src={liveImageUrl}
-                alt="Live browser view"
-                className="w-full h-full object-contain bg-white"
-              />
-            ) : isLiveMode && isConnected ? (
-              <div className="flex items-center justify-center h-full text-muted-foreground">
-                <div className="text-center">
-                  <Play className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">Click play to start live view</p>
+          <div className="relative bg-muted/30">
+            <div className="max-h-[60vh] min-h-[240px] overflow-auto">
+              {/* Live stream mode */}
+              {isLiveMode && liveImageUrl ? (
+                <img
+                  src={liveImageUrl}
+                  alt="Live browser view"
+                  className="block w-full h-auto bg-white"
+                />
+              ) : isLiveMode && isConnected ? (
+                <div className="flex items-center justify-center min-h-[240px] text-muted-foreground">
+                  <div className="text-center">
+                    <Play className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">Click play to start live view</p>
+                  </div>
                 </div>
-              </div>
-            ) : displayScreenshot ? (
-              /* Screenshot mode */
-              <img
-                src={displayScreenshot.url}
-                alt={`Browser screenshot - ${displayScreenshot.action || 'view'}`}
-                className="w-full h-full object-contain bg-white"
-                loading="lazy"
-              />
-            ) : (
-              <div className="flex items-center justify-center h-full text-muted-foreground">
-                <div className="text-center">
-                  <Globe className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">Waiting for browser activity...</p>
+              ) : displayScreenshot ? (
+                /* Screenshot mode */
+                <img
+                  src={displayScreenshot.url}
+                  alt={`Browser screenshot - ${displayScreenshot.action || 'view'}`}
+                  className="block w-full h-auto bg-white"
+                  loading="lazy"
+                />
+              ) : (
+                <div className="flex items-center justify-center min-h-[240px] text-muted-foreground">
+                  <div className="text-center">
+                    <Globe className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">Waiting for browser activity...</p>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
             {/* Action Badge */}
             {!isLiveMode && displayScreenshot?.action && (
