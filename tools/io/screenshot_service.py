@@ -80,60 +80,6 @@ class ScreenshotService:
         self.screenshots_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f"[screenshot] Service initialized | Dir: {self.screenshots_dir}")
 
-    def save_screenshot_sync(
-        self,
-        image_data: bytes,
-        action: str = "screenshot",
-        thread_id: Optional[str] = None,
-        page_url: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
-        """
-        Synchronous version of save_screenshot.
-
-        Used by sync tools (e.g., Playwright sync API) to avoid nested event loop
-        errors like "Cannot run the event loop while another loop is running".
-        """
-        with self._sync_lock:
-            try:
-                extension = "png"
-                if image_data[:3] == b"\xff\xd8\xff":
-                    extension = "jpg"
-                elif image_data[:4] == b"\x89PNG":
-                    extension = "png"
-
-                filename = self._generate_filename(action, thread_id, extension)
-                filepath = self.screenshots_dir / filename
-                filepath.write_bytes(image_data)
-
-                url = f"{self.base_url}/{filename}"
-                result = {
-                    "url": url,
-                    "filename": filename,
-                    "path": str(filepath),
-                    "action": action,
-                    "thread_id": thread_id,
-                    "page_url": page_url,
-                    "timestamp": datetime.now().isoformat(),
-                    "size_bytes": len(image_data),
-                }
-
-                if metadata:
-                    result["metadata"] = metadata
-
-                logger.debug(f"[screenshot] Saved(sync): {filename} ({len(image_data)} bytes)")
-                return result
-
-            except Exception as e:
-                logger.error(f"[screenshot] Failed to save(sync): {e}")
-                return {
-                    "url": None,
-                    "filename": None,
-                    "error": str(e),
-                    "action": action,
-                    "thread_id": thread_id,
-                }
-
     def _generate_filename(
         self,
         action: str,
@@ -191,6 +137,7 @@ class ScreenshotService:
                     extension = "jpg"
                 elif image_data[:4] == b"\x89PNG":
                     extension = "png"
+                mime_type = "image/png" if extension == "png" else "image/jpeg"
 
                 # Generate filename and path
                 filename = self._generate_filename(action, thread_id, extension)
@@ -208,6 +155,7 @@ class ScreenshotService:
                     "action": action,
                     "thread_id": thread_id,
                     "page_url": page_url,
+                    "mime_type": mime_type,
                     "timestamp": datetime.now().isoformat(),
                     "size_bytes": len(image_data),
                 }
@@ -308,6 +256,7 @@ class ScreenshotService:
                     extension = "jpg"
                 elif image_data[:4] == b"\x89PNG":
                     extension = "png"
+                mime_type = "image/png" if extension == "png" else "image/jpeg"
 
                 # Generate filename and path
                 filename = self._generate_filename(action, thread_id, extension)
@@ -325,6 +274,7 @@ class ScreenshotService:
                     "action": action,
                     "thread_id": thread_id,
                     "page_url": page_url,
+                    "mime_type": mime_type,
                     "timestamp": datetime.now().isoformat(),
                     "size_bytes": len(image_data),
                 }
@@ -421,6 +371,8 @@ class ScreenshotService:
                     continue
 
                 filename = filepath.name
+                ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
+                mime_type = "image/png" if ext == "png" else ("image/jpeg" if ext in {"jpg", "jpeg"} else "application/octet-stream")
 
                 # Filter by thread_id if specified
                 if thread_id and thread_id not in filename:
@@ -430,6 +382,7 @@ class ScreenshotService:
                 results.append({
                     "url": f"{self.base_url}/{filename}",
                     "filename": filename,
+                    "mime_type": mime_type,
                     "size_bytes": stat.st_size,
                     "created_at": datetime.fromtimestamp(stat.st_mtime).isoformat(),
                 })

@@ -13,21 +13,27 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.sse import sse_client
-from mcp.client.stdio import stdio_client
-from mcp.types import ListToolsResult, TextContent
 from langchain.tools import BaseTool
 
 from agent.core.events import get_emitter_sync, ToolEventType
 
 logger = logging.getLogger(__name__)
 
+try:  # Optional dependency
+    from mcp import ClientSession, StdioServerParameters  # type: ignore
+    from mcp.client.sse import sse_client  # type: ignore
+    from mcp.client.stdio import stdio_client  # type: ignore
+except Exception:  # pragma: no cover
+    ClientSession = None  # type: ignore
+    StdioServerParameters = None  # type: ignore
+    sse_client = None  # type: ignore
+    stdio_client = None  # type: ignore
+
 
 class MCPClientTool(BaseTool):
     """Proxy for a remote MCP tool; emits events on execution."""
 
-    session: Optional[ClientSession] = None
+    session: Any = None
     server_id: str = ""
     original_name: str = ""
     thread_id: str = "default"
@@ -36,21 +42,27 @@ class MCPClientTool(BaseTool):
         if not self.session:
             return f"Error: not connected to MCP server {self.server_id}"
         emitter = get_emitter_sync(self.thread_id)
-        emitter.emit(ToolEventType.TOOL_START, {"tool": self.name, "args": kwargs, "server": self.server_id})
+        emitter.emit_sync(ToolEventType.TOOL_START, {"tool": self.name, "args": kwargs, "server": self.server_id})
         try:
             result = asyncio.get_event_loop().run_until_complete(
                 self.session.call_tool(self.original_name, kwargs)
             )
-            content = ", ".join(
-                item.text for item in result.content if isinstance(item, TextContent)
-            )
-            emitter.emit(
+            content_items = getattr(result, "content", None) or []
+            parts: List[str] = []
+            for item in content_items:
+                text = getattr(item, "text", None)
+                if isinstance(text, str) and text:
+                    parts.append(text)
+                else:
+                    parts.append(str(item))
+            content = ", ".join([p for p in parts if p])
+            emitter.emit_sync(
                 ToolEventType.TOOL_RESULT,
                 {"tool": self.name, "result": content or "No output", "server": self.server_id, "success": True},
             )
             return content or "No output"
         except Exception as e:
-            emitter.emit(
+            emitter.emit_sync(
                 ToolEventType.TOOL_ERROR,
                 {"tool": self.name, "error": str(e), "server": self.server_id},
             )
@@ -61,12 +73,14 @@ class MCPClients:
     """Manage multiple MCP server connections and expose their tools."""
 
     def __init__(self, thread_id: str = "default"):
-        self.sessions: Dict[str, ClientSession] = {}
+        self.sessions: Dict[str, Any] = {}
         self.exit_stacks: Dict[str, asyncio.AbstractEventLoop] = {}
         self.tools: List[BaseTool] = []
         self.thread_id = thread_id
 
     async def connect_sse(self, server_url: str, server_id: str = "") -> None:
+        if sse_client is None or ClientSession is None:
+            raise RuntimeError("Missing dependency: mcp. Install with `pip install mcp`.")
         server_id = server_id or server_url
         if server_id in self.sessions:
             await self.disconnect(server_id)
@@ -80,6 +94,8 @@ class MCPClients:
         await self._initialize(server_id)
 
     async def connect_stdio(self, command: str, args: List[str], server_id: str = "") -> None:
+        if stdio_client is None or ClientSession is None or StdioServerParameters is None:
+            raise RuntimeError("Missing dependency: mcp. Install with `pip install mcp`.")
         server_id = server_id or command
         if server_id in self.sessions:
             await self.disconnect(server_id)
@@ -101,7 +117,7 @@ class MCPClients:
         response = await session.list_tools()
         self._register_tools(response, server_id)
 
-    def _register_tools(self, tools_result: ListToolsResult, server_id: str) -> None:
+    def _register_tools(self, tools_result: Any, server_id: str) -> None:
         for tool in tools_result.tools:
             original_name = tool.name
             tool_name = f"mcp_{server_id}_{original_name}".replace(" ", "_")

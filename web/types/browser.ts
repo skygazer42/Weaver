@@ -24,6 +24,7 @@ export interface BrowserSession {
 export interface BrowserEvent {
   type: 'tool_start' | 'tool_screenshot' | 'tool_result' | 'tool_error' | 'tool_progress'
   event_id: string
+  seq: number
   timestamp: number
   data: BrowserEventData
 }
@@ -33,8 +34,12 @@ export interface BrowserEventData {
   action?: string
   url?: string
   image?: string             // Base64 image data
+  mime_type?: string
   filename?: string
   page_url?: string
+  message?: string
+  info?: string
+  progress?: number
   success?: boolean
   duration_ms?: number
   error?: string

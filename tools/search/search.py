@@ -1,4 +1,3 @@
-from tavily import TavilyClient
 from langchain.tools import tool
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
@@ -86,6 +85,18 @@ def tavily_search(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
         List of search results with content
     """
     try:
+        try:
+            from tavily import TavilyClient  # type: ignore
+        except Exception as e:
+            logger.error(
+                "Missing dependency: tavily-python. Install with `pip install tavily-python`."
+            )
+            return []
+
+        if not settings.tavily_api_key:
+            logger.warning("TAVILY_API_KEY not configured; returning empty results.")
+            return []
+
         client = TavilyClient(api_key=settings.tavily_api_key)
 
         # Use advanced search depth for better content extraction

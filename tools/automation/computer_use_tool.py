@@ -94,11 +94,7 @@ class _ComputerUseTool(BaseTool):
             return
 
         try:
-            loop = asyncio.new_event_loop()
-            try:
-                loop.run_until_complete(emitter.emit(event_type, data))
-            finally:
-                loop.close()
+            emitter.emit_sync(event_type, data)
         except Exception as e:
             logger.warning(f"[computer_use] Failed to emit event: {e}")
 
@@ -153,21 +149,16 @@ class _ComputerUseTool(BaseTool):
                 service = _get_screenshot_service()
                 if service:
                     try:
-                        loop = asyncio.new_event_loop()
-                        try:
-                            save_result = loop.run_until_complete(
-                                service.save_screenshot(
-                                    image_data=png_bytes,
-                                    action=f"computer_{action}",
-                                    thread_id=self.thread_id,
-                                )
-                            )
-                        finally:
-                            loop.close()
+                        save_result = service.save_screenshot_sync(
+                            image_data=png_bytes,
+                            action=f"computer_{action}",
+                            thread_id=self.thread_id,
+                        )
 
                         if save_result.get("url"):
                             result["screenshot_url"] = save_result["url"]
                             result["screenshot_filename"] = save_result.get("filename")
+                            result["mime_type"] = save_result.get("mime_type")
 
                             # Emit screenshot event
                             self._emit_event("tool_screenshot", {
@@ -175,6 +166,7 @@ class _ComputerUseTool(BaseTool):
                                 "action": action,
                                 "url": save_result["url"],
                                 "filename": save_result.get("filename"),
+                                "mime_type": save_result.get("mime_type"),
                             })
                     except Exception as e:
                         logger.warning(f"[computer_use] Failed to save screenshot: {e}")

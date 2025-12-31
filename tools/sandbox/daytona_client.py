@@ -23,12 +23,7 @@ from agent.core.events import get_emitter_sync, ToolEventType
 def _emit(thread_id: str, event_type: ToolEventType, data: Dict):
     try:
         emitter = get_emitter_sync(thread_id)
-        coro = emitter.emit(event_type, data)
-        try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(coro)
-        except RuntimeError:
-            asyncio.run(coro)
+        emitter.emit_sync(event_type, data)
     except Exception:
         pass
 

@@ -30,7 +30,8 @@ export function BrowserViewer({
 }: BrowserViewerProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded)
   const [selectedScreenshot, setSelectedScreenshot] = useState<BrowserScreenshot | null>(null)
-  const isLiveMode = mode === 'stream'
+  const [viewerMode, setViewerMode] = useState<'events' | 'stream'>(mode)
+  const isLiveMode = viewerMode === 'stream'
 
   // SSE-based screenshot events
   const {
@@ -38,10 +39,11 @@ export function BrowserViewer({
     latestScreenshot,
     isActive: isEventsActive,
     currentAction,
+    currentProgress,
     clearScreenshots
   } = useBrowserEvents({
     threadId,
-    enabled: mode === 'events',
+    enabled: viewerMode === 'events',
     maxScreenshots: 20
   })
 
@@ -74,6 +76,10 @@ export function BrowserViewer({
 
   const toggleExpand = useCallback(() => {
     setIsExpanded(prev => !prev)
+  }, [])
+
+  const toggleMode = useCallback(() => {
+    setViewerMode(prev => (prev === 'events' ? 'stream' : 'events'))
   }, [])
 
   // Determine what to display
@@ -138,11 +144,27 @@ export function BrowserViewer({
           )}
         </div>
 
+        {/* Mode Toggle */}
+        <button
+          onClick={toggleMode}
+          className="p-1 hover:bg-background/60 rounded transition-colors"
+          title={isLiveMode ? 'Switch to screenshots' : 'Switch to live view'}
+        >
+          {isLiveMode ? (
+            <Camera className="w-3.5 h-3.5 text-muted-foreground" />
+          ) : (
+            <Play className="w-3.5 h-3.5 text-muted-foreground" />
+          )}
+        </button>
+
         {/* Status Indicator */}
         {isActive && (
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Loader2 className="w-3 h-3 animate-spin text-primary" />
-            <span className="hidden sm:inline">{currentAction || 'Working...'}</span>
+            <span className="hidden sm:inline">
+              {currentAction || 'Working...'}
+              {typeof currentProgress === 'number' ? ` (${currentProgress}%)` : ''}
+            </span>
           </div>
         )}
 
@@ -293,13 +315,13 @@ export function BrowserViewer({
       )}
 
       {/* Collapsed View - Show mini preview */}
-      {!isExpanded && displayScreenshot && (
+      {!isExpanded && ((isLiveMode && liveImageUrl) || displayScreenshot) && (
         <div
           className="h-24 cursor-pointer hover:opacity-80 transition-opacity"
           onClick={toggleExpand}
         >
           <img
-            src={displayScreenshot.url}
+            src={isLiveMode && liveImageUrl ? liveImageUrl : displayScreenshot?.url || ''}
             alt="Browser preview"
             className="w-full h-full object-cover"
           />

@@ -53,7 +53,7 @@ class BrowserUseTool(BaseTool):
     def _emit(self, event_type: ToolEventType, data: dict):
         try:
             emitter = get_emitter_sync(self.thread_id)
-            emitter.emit(event_type, data)
+            emitter.emit_sync(event_type, data)
         except Exception:
             pass
 
@@ -97,13 +97,23 @@ class BrowserUseTool(BaseTool):
                 self._dom_service = None
         return self._context
 
-    async def _take_screenshot(self, page) -> Optional[str]:
+    async def _take_screenshot(self, page, *, action: str = "screenshot") -> Optional[str]:
         try:
             await page.bring_to_front()
             await page.wait_for_load_state()
             img = await page.screenshot(full_page=True, animations="disabled", type="jpeg", quality=85)
             b64 = base64.b64encode(img).decode("utf-8")
-            self._emit(ToolEventType.TOOL_SCREENSHOT, {"tool": self.name, "url": page.url, "image": b64})
+            self._emit(
+                ToolEventType.TOOL_SCREENSHOT,
+                {
+                    "tool": self.name,
+                    "action": action,
+                    "url": None,
+                    "page_url": page.url,
+                    "image": b64,
+                    "mime_type": "image/jpeg",
+                },
+            )
             return b64
         except Exception:
             return None
@@ -126,12 +136,12 @@ class BrowserUseTool(BaseTool):
                         raise ValueError("url is required for go_to_url")
                     await page.goto(url)
                     await page.wait_for_load_state()
-                    shot = await self._take_screenshot(page)
+                    shot = await self._take_screenshot(page, action="navigate")
                     return {"status": "ok", "url": page.url, "title": await page.title(), "screenshot": shot}
 
                 if action == "go_back":
                     await ctx.go_back()
-                    shot = await self._take_screenshot(page)
+                    shot = await self._take_screenshot(page, action="back")
                     return {"status": "ok", "message": "back", "screenshot": shot}
 
                 if action == "click_element":
@@ -142,7 +152,7 @@ class BrowserUseTool(BaseTool):
                     if not element:
                         raise ValueError(f"Element {idx} not found")
                     await ctx._click_element_node(element)
-                    shot = await self._take_screenshot(page)
+                    shot = await self._take_screenshot(page, action="click")
                     return {"status": "ok", "clicked": idx, "screenshot": shot}
 
                 if action == "input_text":
@@ -193,7 +203,7 @@ class BrowserUseTool(BaseTool):
                     return {"status": "ok", "waited": kwargs.get("seconds") or 3}
 
                 if action == "screenshot":
-                    shot = await self._take_screenshot(page)
+                    shot = await self._take_screenshot(page, action="screenshot")
                     return {"status": "ok", "screenshot": shot}
 
                 if action == "web_search":
@@ -203,7 +213,7 @@ class BrowserUseTool(BaseTool):
                     url = f"https://www.google.com/search?q={query}"
                     await page.goto(url)
                     await page.wait_for_load_state()
-                    shot = await self._take_screenshot(page)
+                    shot = await self._take_screenshot(page, action="search")
                     return {"status": "ok", "url": page.url, "screenshot": shot}
 
                 if action == "extract_content":

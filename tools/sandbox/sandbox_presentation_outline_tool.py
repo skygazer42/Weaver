@@ -119,11 +119,7 @@ class _PresentationOutlineBaseTool(BaseTool):
         emitter = _get_event_emitter(self.thread_id)
         if emitter:
             try:
-                loop = asyncio.new_event_loop()
-                try:
-                    loop.run_until_complete(emitter.emit(event_type, data))
-                finally:
-                    loop.close()
+                emitter.emit_sync(event_type, data)
             except Exception as e:
                 logger.warning(f"[presentation_outline] Failed to emit event: {e}")
 

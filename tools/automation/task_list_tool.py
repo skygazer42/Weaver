@@ -98,11 +98,7 @@ class TaskListManager:
             from agent.core.events import get_emitter_sync
             emitter = get_emitter_sync(self.thread_id)
             if emitter:
-                loop = asyncio.new_event_loop()
-                try:
-                    loop.run_until_complete(emitter.emit(event_type, data))
-                finally:
-                    loop.close()
+                emitter.emit_sync(event_type, data)
         except Exception as e:
             logger.warning(f"[task_list] Failed to emit event: {e}")
 

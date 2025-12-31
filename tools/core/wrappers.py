@@ -139,7 +139,9 @@ def wrap_tools_with_events(
     wrapped: List[Any] = []
     for tool in tools:
         name = getattr(tool, "name", None) or getattr(tool, "__name__", None)
-        if isinstance(tool, EventedTool):
+        # Many first-party tools already emit tool_* events (and expose a switch
+        # like `emit_events`). Avoid double-emitting start/result/error.
+        if isinstance(tool, EventedTool) or hasattr(tool, "emit_events") or hasattr(tool, "_emit_event"):
             wrapped.append(tool)
         else:
             wrapped.append(EventedTool(tool, thread_id=thread_id))

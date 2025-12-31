@@ -10,7 +10,7 @@ from agent.core.events import get_emitter_sync, ToolEventType
 def emit_progress(thread_id: str, tool: str, action: str, info: str):
     try:
         emitter = get_emitter_sync(thread_id)
-        emitter.emit(ToolEventType.TOOL_PROGRESS, {"tool": tool, "action": action, "info": info})
+        emitter.emit_sync(ToolEventType.TOOL_PROGRESS, {"tool": tool, "action": action, "info": info})
     except Exception:
         pass
 
@@ -18,6 +18,16 @@ def emit_progress(thread_id: str, tool: str, action: str, info: str):
 def emit_screenshot(thread_id: str, tool: str, image_b64: str, url: str = ""):
     try:
         emitter = get_emitter_sync(thread_id)
-        emitter.emit(ToolEventType.TOOL_SCREENSHOT, {"tool": tool, "image": image_b64, "url": url})
+        emitter.emit_sync(
+            ToolEventType.TOOL_SCREENSHOT,
+            {
+                "tool": tool,
+                "action": "screenshot",
+                "url": None,
+                "page_url": url or None,
+                "image": image_b64,
+                "mime_type": "image/png",
+            },
+        )
     except Exception:
         pass

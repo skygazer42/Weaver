@@ -82,6 +82,7 @@ class Event:
     type: ToolEventType
     data: Dict[str, Any]
     event_id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
+    seq: int = 0
     timestamp: float = field(default_factory=time.time)
     thread_id: Optional[str] = None
 
@@ -91,6 +92,7 @@ class Event:
             "type": self.type.value if isinstance(self.type, Enum) else self.type,
             "data": self.data,
             "event_id": self.event_id,
+            "seq": self.seq,
             "timestamp": self.timestamp,
             "thread_id": self.thread_id,
         }
@@ -98,7 +100,8 @@ class Event:
     def to_sse(self) -> str:
         """Convert event to SSE format string."""
         data = json.dumps(self.to_dict(), ensure_ascii=False)
-        return f"data: {data}\n\n"
+        # Include SSE id for browser resume support (Last-Event-ID).
+        return f"id: {self.seq}\ndata: {data}\n\n"
 
 
 # Type alias for event listeners
@@ -130,6 +133,7 @@ class EventEmitter:
         self._listeners: List[EventListener] = []
         self._async_listeners: List[EventListener] = []
         self._event_buffer: List[Event] = []
+        self._seq: int = 0
         self._lock = asyncio.Lock()
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._buffer_lock = threading.Lock()
@@ -185,14 +189,17 @@ class EventEmitter:
         Returns:
             The emitted Event object
         """
-        event = Event(
-            type=event_type if isinstance(event_type, ToolEventType) else ToolEventType(event_type),
-            data=data,
-            thread_id=self.thread_id,
-        )
+        normalized_type = event_type if isinstance(event_type, ToolEventType) else ToolEventType(event_type)
 
-        # Buffer the event (thread-safe, fast path)
+        # Allocate seq + buffer under a lock so reconnects can resume by seq.
         with self._buffer_lock:
+            self._seq += 1
+            event = Event(
+                type=normalized_type,
+                data=data,
+                seq=self._seq,
+                thread_id=self.thread_id,
+            )
             self._event_buffer.append(event)
             if len(self._event_buffer) > self.buffer_size:
                 self._event_buffer.pop(0)
@@ -339,56 +346,15 @@ class EventEmitter:
         """Convenience method to emit done event."""
         return await self.emit(ToolEvent.DONE, {"message": message or "Stream completed"})
 
-    def emit_sync(
-        self,
-        event_type: Union[ToolEventType, str],
-        data: Dict[str, Any],
-    ) -> Event:
-        """
-        Synchronous version of emit for non-async contexts.
-
-        This method is safe to call from sync code running in threads
-        (e.g., Playwright sync_api, LangGraph tool nodes).
-
-        Args:
-            event_type: The type of event
-            data: Event data payload
-
-        Returns:
-            The emitted Event object
-        """
-        event = Event(
-            type=event_type if isinstance(event_type, ToolEventType) else ToolEventType(event_type),
-            data=data,
-            thread_id=self.thread_id,
-        )
-
-        # Buffer the event (no async lock needed for append)
-        self._event_buffer.append(event)
-        if len(self._event_buffer) > self.buffer_size:
-            self._event_buffer.pop(0)
-
-        # Notify sync listeners only (skip async listeners in sync context)
-        for listener in self._listeners:
-            try:
-                listener(event)
-            except Exception as e:
-                logger.warning(f"[events] Sync listener error: {e}")
-
-        try:
-            etype = event.type.value if isinstance(event.type, ToolEventType) else str(event.type)
-        except Exception:
-            etype = str(event_type)
-        logger.debug(f"[events] Emitted (sync): {etype} | {data}")
-        return event
-
     def get_buffered_events(self) -> List[Event]:
         """Get all buffered events for replay."""
-        return list(self._event_buffer)
+        with self._buffer_lock:
+            return list(self._event_buffer)
 
     def clear_buffer(self) -> None:
         """Clear the event buffer."""
-        self._event_buffer.clear()
+        with self._buffer_lock:
+            self._event_buffer.clear()
 
 
 # Global event emitter registry by thread_id
@@ -457,6 +423,7 @@ def get_emitter_sync(thread_id: str) -> EventEmitter:
 async def event_stream_generator(
     thread_id: str,
     timeout: float = 300.0,
+    last_event_id: Optional[str] = None,
 ) -> Any:
     """
     Async generator that yields SSE events for a thread.
@@ -468,12 +435,19 @@ async def event_stream_generator(
     Args:
         thread_id: The thread/conversation ID
         timeout: Maximum time to wait for events (seconds)
+        last_event_id: Optional SSE resume cursor (from `Last-Event-ID` header).
 
     Yields:
         SSE formatted event strings
     """
     emitter = await get_emitter(thread_id)
     queue: asyncio.Queue = asyncio.Queue()
+    last_seq: Optional[int] = None
+    if last_event_id:
+        try:
+            last_seq = int(str(last_event_id).strip())
+        except Exception:
+            last_seq = None
 
     # Register listener that puts events in queue
     async def queue_listener(event: Event):
@@ -484,6 +458,8 @@ async def event_stream_generator(
     try:
         # First, yield any buffered events
         for event in emitter.get_buffered_events():
+            if last_seq is not None and event.seq <= last_seq:
+                continue
             yield event.to_sse()
 
         # Then, yield new events as they arrive
@@ -495,7 +471,7 @@ async def event_stream_generator(
                 if remaining <= 0:
                     break
 
-                event = await asyncio.wait_for(queue.get(), timeout=min(30, remaining))
+                event = await asyncio.wait_for(queue.get(), timeout=min(10, remaining))
                 yield event.to_sse()
 
                 # Check if this is the done event

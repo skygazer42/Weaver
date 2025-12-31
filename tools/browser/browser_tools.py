@@ -27,7 +27,7 @@ class _BrowserTool(BaseTool):
     def _emit(self, event_type: ToolEventType, data: Dict[str, Any]):
         emitter = get_emitter_sync(self.thread_id)
         try:
-            emitter.emit(event_type, data)  # async, fire-and-forget
+            emitter.emit_sync(event_type, data)
         except Exception:
             pass
 
@@ -219,6 +219,25 @@ class BrowserScreenshotTool(_BrowserTool):
                 browser.close()
 
         image_b64 = base64.b64encode(png_bytes).decode("ascii")
+        screenshot_url: Optional[str] = None
+        screenshot_filename: Optional[str] = None
+        mime_type: str = "image/png"
+
+        # Best-effort: save to disk so the UI can fetch the image by URL (lighter than SSE base64).
+        try:
+            from tools.io.screenshot_service import get_screenshot_service
+
+            save_result = get_screenshot_service().save_screenshot_sync(
+                image_data=png_bytes,
+                action="browser_screenshot",
+                thread_id=self.thread_id,
+                page_url=target,
+            )
+            screenshot_url = save_result.get("url")
+            screenshot_filename = save_result.get("filename")
+            mime_type = save_result.get("mime_type") or mime_type
+        except Exception:
+            pass
 
         # Emit screenshot event for front-end visualization
         try:
@@ -226,16 +245,25 @@ class BrowserScreenshotTool(_BrowserTool):
                 ToolEventType.TOOL_SCREENSHOT,
                 {
                     "tool": self.name,
-                    "url": target,
-                    "image": image_b64,
+                    "action": "screenshot",
+                    "url": screenshot_url,
+                    "filename": screenshot_filename,
+                    "page_url": target,
+                    "mime_type": mime_type,
+                    # Only include base64 when we couldn't persist to disk.
+                    "image": None if screenshot_url else image_b64,
                 },
             )
         except Exception:
             pass
 
         return {
-            "url": target,
+            "url": target,  # page URL (kept for backwards compatibility)
+            "page_url": target,
             "image": image_b64,
+            "screenshot_url": screenshot_url,
+            "filename": screenshot_filename,
+            "mime_type": mime_type,
         }
 
 

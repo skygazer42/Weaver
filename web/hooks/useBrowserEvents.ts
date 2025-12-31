@@ -12,6 +12,7 @@ interface UseBrowserEventsReturn {
   latestScreenshot: BrowserScreenshot | null
   isActive: boolean
   currentAction: string | null
+  currentProgress: number | null
   clearScreenshots: () => void
 }
 
@@ -27,14 +28,20 @@ export function useBrowserEvents({
   const [screenshots, setScreenshots] = useState<BrowserScreenshot[]>([])
   const [isActive, setIsActive] = useState(false)
   const [currentAction, setCurrentAction] = useState<string | null>(null)
+  const [currentProgress, setCurrentProgress] = useState<number | null>(null)
 
   const eventSourceRef = useRef<EventSource | null>(null)
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const lastSeqRef = useRef<number>(0)
+  const seenEventIdsRef = useRef<Set<string>>(new Set())
 
   const clearScreenshots = useCallback(() => {
     setScreenshots([])
     setIsActive(false)
     setCurrentAction(null)
+    setCurrentProgress(null)
+    lastSeqRef.current = 0
+    seenEventIdsRef.current.clear()
   }, [])
 
   useEffect(() => {
@@ -57,11 +64,26 @@ export function useBrowserEvents({
     }
 
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || ''
-    const eventUrl = `${apiUrl}/api/events/${threadId}`
+    const baseEventUrl = `${apiUrl}/api/events/${threadId}`
 
-    console.log('[useBrowserEvents] Connecting to:', eventUrl)
+    const isBrowserRelatedTool = (tool?: string | null) => {
+      if (!tool) return false
+      return (
+        tool.startsWith('sb_browser') ||
+        tool.startsWith('browser_') ||
+        tool === 'browser_use' ||
+        tool === 'sandbox_web_search' ||
+        tool.startsWith('sandbox_search') ||
+        tool.startsWith('sandbox_extract_search')
+      )
+    }
 
     const connect = () => {
+      const cursor = lastSeqRef.current
+      const eventUrl = cursor > 0 ? `${baseEventUrl}?last_event_id=${encodeURIComponent(String(cursor))}` : baseEventUrl
+
+      console.log('[useBrowserEvents] Connecting to:', eventUrl)
+
       const es = new EventSource(eventUrl)
       eventSourceRef.current = es
 
@@ -77,6 +99,28 @@ export function useBrowserEvents({
           }
 
           const data = JSON.parse(event.data) as BrowserEvent
+          const seqFromJson = typeof data.seq === 'number' ? data.seq : 0
+          const seqFromEvent = event.lastEventId ? Number(event.lastEventId) : 0
+          const seq = seqFromJson || seqFromEvent || 0
+
+          // De-dupe buffered events on reconnect.
+          if (seq > 0) {
+            if (seq <= lastSeqRef.current) return
+            lastSeqRef.current = seq
+          } else if (data.event_id) {
+            if (seenEventIdsRef.current.has(data.event_id)) return
+            seenEventIdsRef.current.add(data.event_id)
+            if (seenEventIdsRef.current.size > 2000) {
+              // Safety valve: bound memory usage.
+              seenEventIdsRef.current.clear()
+            }
+          }
+
+          const looksLikeImageUrl = (u: string) => {
+            if (u.startsWith('data:image/')) return true
+            if (u.includes('/api/screenshots/')) return true
+            return /\.(png|jpg|jpeg|gif|webp)(\?|#|$)/i.test(u)
+          }
 
           // Handle screenshot events
           if (data.type === 'tool_screenshot') {
@@ -84,8 +128,16 @@ export function useBrowserEvents({
 
             // Construct image URL - prefer URL, fallback to base64
             let imageUrl = eventData.url
+            if (imageUrl && !looksLikeImageUrl(imageUrl) && eventData.image) {
+              // Backwards-compat: some tools historically used `url` as page URL.
+              imageUrl = undefined
+            }
             if (!imageUrl && eventData.image) {
-              imageUrl = `data:image/png;base64,${eventData.image}`
+              const mimeType = eventData.mime_type
+                || (eventData.filename?.toLowerCase().endsWith('.jpg') || eventData.filename?.toLowerCase().endsWith('.jpeg')
+                  ? 'image/jpeg'
+                  : 'image/png')
+              imageUrl = `data:${mimeType};base64,${eventData.image}`
             }
             // If backend returns a relative URL, prefix with API base
             if (imageUrl && imageUrl.startsWith('/')) {
@@ -111,27 +163,49 @@ export function useBrowserEvents({
                 const updated = [...prev, newScreenshot]
                 return updated.slice(-maxScreenshots)
               })
-
-              setIsActive(true)
-              setCurrentAction(eventData.action || null)
             }
           }
 
           // Handle tool start events
           else if (data.type === 'tool_start') {
             const eventData = data.data
-            // Check if it's a browser tool
-            if (eventData.tool?.startsWith('sb_browser') || eventData.tool?.startsWith('browser_')) {
+            if (isBrowserRelatedTool(eventData.tool)) {
               setIsActive(true)
               setCurrentAction(eventData.action || eventData.tool || null)
+              setCurrentProgress(null)
+            }
+          }
+
+          // Handle tool progress events
+          else if (data.type === 'tool_progress') {
+            const eventData = data.data
+            if (isBrowserRelatedTool(eventData.tool)) {
+              setIsActive(true)
+              const msg = eventData.message || eventData.info || eventData.action || null
+              setCurrentAction(msg)
+              setCurrentProgress(typeof eventData.progress === 'number' ? eventData.progress : null)
             }
           }
 
           // Handle tool result events
           else if (data.type === 'tool_result') {
             const eventData = data.data
-            if (eventData.tool?.startsWith('sb_browser') || eventData.tool?.startsWith('browser_')) {
+            if (isBrowserRelatedTool(eventData.tool)) {
+              setIsActive(false)
               setCurrentAction(null)
+              setCurrentProgress(null)
+            }
+          }
+
+          // Handle tool error events
+          else if (data.type === 'tool_error') {
+            const eventData = data.data
+            if (isBrowserRelatedTool(eventData.tool)) {
+              setCurrentAction(eventData.error || 'Tool error')
+              setCurrentProgress(null)
+              // Keep isActive true briefly so UI can render the error state.
+              setIsActive(true)
+              setTimeout(() => setIsActive(false), 1500)
             }
           }
 
@@ -169,6 +243,9 @@ export function useBrowserEvents({
       setScreenshots([])
       setIsActive(false)
       setCurrentAction(null)
+      setCurrentProgress(null)
+      lastSeqRef.current = 0
+      seenEventIdsRef.current.clear()
     }
   }, [threadId])
 
@@ -179,6 +256,7 @@ export function useBrowserEvents({
     latestScreenshot,
     isActive,
     currentAction,
+    currentProgress,
     clearScreenshots
   }
 }

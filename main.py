@@ -1747,7 +1747,7 @@ async def cleanup_screenshots():
 # ==================== Tool Events SSE Endpoint ====================
 
 @app.get("/api/events/{thread_id}")
-async def stream_tool_events(thread_id: str):
+async def stream_tool_events(thread_id: str, request: Request, last_event_id: Optional[str] = None):
     """
     Subscribe to tool execution events for a specific thread.
 
@@ -1765,7 +1765,8 @@ async def stream_tool_events(thread_id: str):
         };
     """
     async def event_generator():
-        async for event_sse in event_stream_generator(thread_id, timeout=300.0):
+        cursor = last_event_id or request.headers.get("last-event-id")
+        async for event_sse in event_stream_generator(thread_id, timeout=300.0, last_event_id=cursor):
             yield event_sse
 
     return StreamingResponse(
@@ -1850,6 +1851,7 @@ async def trigger_browser_screenshot(thread_id: str):
                 "action": "manual",
                 "url": save_result.get("url"),
                 "filename": save_result.get("filename"),
+                "mime_type": save_result.get("mime_type"),
                 "page_url": page.url if page else None,
             })
 

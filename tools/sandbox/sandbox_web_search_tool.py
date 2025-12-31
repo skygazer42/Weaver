@@ -131,7 +131,7 @@ class _SandboxWebSearchBaseTool(BaseTool):
         png_bytes = page.screenshot(full_page=bool(full_page))
         b64_image = base64.b64encode(png_bytes).decode("ascii")
 
-        result = {"image": b64_image}
+        result = {"image": b64_image, "mime_type": "image/png"}
 
         if self.save_screenshots:
             service = _get_screenshot_service()
@@ -148,6 +148,8 @@ class _SandboxWebSearchBaseTool(BaseTool):
                     if save_result.get("url"):
                         result["screenshot_url"] = save_result["url"]
                         result["screenshot_filename"] = save_result.get("filename")
+                        if save_result.get("mime_type"):
+                            result["mime_type"] = save_result.get("mime_type")
                         logger.debug(f"[sandbox_search] Screenshot saved: {save_result['url']}")
                 except Exception as e:
                     logger.warning(f"[sandbox_search] Failed to save screenshot: {e}")
@@ -198,15 +200,20 @@ class _SandboxWebSearchBaseTool(BaseTool):
         })
 
     def _emit_screenshot(self, screenshot_data: Dict[str, Any], action: str) -> None:
-        """Emit screenshot event if URL is available."""
-        if screenshot_data.get("screenshot_url"):
-            self._emit_event("tool_screenshot", {
-                "tool": self.name,
-                "action": action,
-                "url": screenshot_data["screenshot_url"],
-                "filename": screenshot_data.get("screenshot_filename"),
-                "page_url": self._page_info().get("url"),
-            })
+        """Emit screenshot event (URL preferred, base64 fallback)."""
+        url = screenshot_data.get("screenshot_url")
+        image = screenshot_data.get("image")
+        if not url and not image:
+            return
+        self._emit_event("tool_screenshot", {
+            "tool": self.name,
+            "action": action,
+            "url": url,
+            "image": image if not url else None,  # keep stream light when URL exists
+            "filename": screenshot_data.get("screenshot_filename"),
+            "mime_type": screenshot_data.get("mime_type"),
+            "page_url": self._page_info().get("url"),
+        })
 
     def _emit_progress(self, message: str, progress: Optional[int] = None) -> None:
         """Emit progress event."""

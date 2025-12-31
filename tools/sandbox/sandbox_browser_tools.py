@@ -96,7 +96,7 @@ class _SbBrowserTool(BaseTool):
         png_bytes = page.screenshot(full_page=bool(full_page))
         b64_image = base64.b64encode(png_bytes).decode("ascii")
 
-        result = {"image": b64_image}
+        result = {"image": b64_image, "mime_type": "image/png"}
 
         # Save to disk if screenshot service is available
         if self.save_screenshots:
@@ -114,6 +114,8 @@ class _SbBrowserTool(BaseTool):
                     if save_result.get("url"):
                         result["screenshot_url"] = save_result["url"]
                         result["screenshot_filename"] = save_result.get("filename")
+                        if save_result.get("mime_type"):
+                            result["mime_type"] = save_result.get("mime_type")
                         logger.debug(f"[sb_browser] Screenshot saved: {save_result['url']}")
                 except Exception as e:
                     logger.warning(f"[sb_browser] Failed to save screenshot: {e}")
@@ -175,6 +177,7 @@ class _SbBrowserTool(BaseTool):
         """Emit screenshot event - supports both URL and base64 image."""
         url = screenshot_data.get("screenshot_url")
         image = screenshot_data.get("image")
+        mime_type = screenshot_data.get("mime_type")
 
         # Emit if we have either URL or base64 image
         if url or image:
@@ -182,8 +185,10 @@ class _SbBrowserTool(BaseTool):
                 "tool": self.name,
                 "action": action,
                 "url": url,
-                "image": image,  # base64 image data for live display
+                # Keep stream light when the image is accessible by URL.
+                "image": image if not url else None,
                 "filename": screenshot_data.get("screenshot_filename"),
+                "mime_type": mime_type,
                 "page_url": self._page_info().get("url"),
             })
 
