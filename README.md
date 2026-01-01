@@ -3,7 +3,7 @@
     <summary>🌐 Language / 语言</summary>
     <div>  
       <div align="center">
-        <strong>简体中文</strong> | <a href="README.en.md">English</a>
+        <strong>简体中文</strong> | <a href="docs/README.en.md">English</a>
       </div>
     </div>
   </details>

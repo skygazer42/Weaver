@@ -5,7 +5,7 @@
     <summary>🌐 Language / 语言</summary>
     <div>  
       <div align="center">
-        <strong>English</strong> | <a href="README.md">简体中文</a>
+        <strong>English</strong> | <a href="../README.md">简体中文</a>
       </div>
     </div>
   </details>
