@@ -178,6 +178,47 @@ def _tavily_to_results(tavily_results: Any, max_results: int) -> List[Dict[str, 
     return fallback_results
 
 
+def _normalize_api_results(results: Any, max_results: int) -> List[Dict[str, Any]]:
+    """
+    Normalize results from different API search providers into the sandbox schema.
+
+    Expected output keys: position/title/url/snippet
+    """
+    if not isinstance(results, list):
+        return []
+
+    normalized: List[Dict[str, Any]] = []
+    for idx, item in enumerate(results[: max(1, int(max_results or 10))], 1):
+        if not isinstance(item, dict):
+            continue
+
+        title = item.get("title") or item.get("name") or ""
+        url = item.get("url") or item.get("link") or item.get("href") or ""
+        snippet = (
+            item.get("snippet")
+            or item.get("summary")
+            or item.get("raw_excerpt")
+            or item.get("content")
+            or ""
+        )
+
+        try:
+            position = int(item.get("position") or idx)
+        except Exception:
+            position = idx
+
+        normalized.append(
+            {
+                "position": position,
+                "title": str(title or ""),
+                "url": str(url or ""),
+                "snippet": str(snippet or "")[:500],
+            }
+        )
+
+    return normalized
+
+
 def _render_results_html(query: str, results: List[Dict[str, Any]], *, source: str = "tavily") -> str:
     """Render a simple HTML page to visualize search results (avoids captcha pages)."""
     import html as _html
@@ -579,7 +620,7 @@ class SandboxWebSearchInput(BaseModel):
     query: str = Field(min_length=1, description="Search query")
     engine: Literal["tavily", "google", "bing", "duckduckgo"] = Field(
         default="duckduckgo",
-        description="Search engine to use (Tavily recommended in sandbox)"
+        description="Browser engine to use when API search is unavailable/blocked"
     )
     max_results: int = Field(
         default=10,
@@ -608,7 +649,7 @@ class SandboxWebSearchTool(_SandboxWebSearchBaseTool):
 
     name: str = "sandbox_web_search"
     description: str = (
-        "Perform a web search (Tavily API preferred; browser engines as fallback). "
+        "Perform a web search (API providers per SEARCH_ENGINES preferred; browser engines as fallback). "
         "Returns structured search results with titles, URLs, and snippets, "
         "plus a screenshot of the search results page. "
         "Use this for visual search process demonstration."
@@ -630,62 +671,62 @@ class SandboxWebSearchTool(_SandboxWebSearchBaseTool):
                 "max_results": max_results,
             })
 
-            # Prefer API-based search when available to avoid search-engine anti-bot interstitials.
-            if getattr(settings, "tavily_api_key", ""):
+            # Prefer API-based search providers when available (configured via SEARCH_ENGINES in `.env`).
+            try:
+                from tools.search.fallback_search import run_fallback_search
+
+                # Create the sandbox browser session early so Live view has something to show
+                # while the API search is running.
                 try:
-                    from tools.search.search import tavily_search
-
-                    # Create the sandbox browser session early so Live view has something to show
-                    # while the API search is running (which can take time if summaries are generated).
+                    page = self._page()
+                    loading_html = _render_loading_html(
+                        query,
+                        source="auto",
+                        message="Searching (API providers)...",
+                    )
                     try:
-                        page = self._page()
-                        loading_html = _render_loading_html(
-                            query,
-                            source="tavily",
-                            message="Searching with Tavily…",
-                        )
-                        try:
-                            page.set_content(loading_html, wait_until="domcontentloaded")
-                        except TypeError:
-                            page.set_content(loading_html)
-                    except Exception:
-                        page = None
-
-                    self._emit_progress("使用 Tavily 搜索...", 10)
-                    tavily_results = tavily_search.invoke({"query": query, "max_results": max_results})
-                    fallback_results = _tavily_to_results(tavily_results, max_results)
-
-                    if fallback_results:
-                        if page is None:
-                            page = self._page()
-                        html_page = _render_results_html(query, fallback_results, source="tavily")
-                        try:
-                            page.set_content(html_page, wait_until="domcontentloaded")
-                        except TypeError:
-                            page.set_content(html_page)
-                        page.wait_for_timeout(100)
-
-                        screenshot = self._screenshot_with_save("search_results", full_page=False)
-                        self._emit_screenshot(screenshot, "search_results")
-
-                        response = {
-                            "query": query,
-                            "engine": "tavily",
-                            "engine_requested": engine,
-                            "page_url": page.url,
-                            "total_results": len(fallback_results),
-                            "results": fallback_results,
-                        }
-                        if screenshot.get("screenshot_url"):
-                            response["screenshot_url"] = screenshot["screenshot_url"]
-                        if screenshot.get("image"):
-                            response["screenshot_base64"] = screenshot["image"]
-
-                        self._emit_tool_result("search", response, start_time, success=True)
-                        return response
+                        page.set_content(loading_html, wait_until="domcontentloaded")
+                    except TypeError:
+                        page.set_content(loading_html)
                 except Exception:
-                    # Best-effort: fall back to browser-based search below.
-                    pass
+                    page = None
+
+                self._emit_progress("使用 API 搜索...", 10)
+                api_engine, api_results_raw = run_fallback_search(query=query, max_results=max_results)
+                api_results = _normalize_api_results(api_results_raw, max_results)
+
+                if api_results:
+                    if page is None:
+                        page = self._page()
+
+                    html_page = _render_results_html(query, api_results, source=api_engine or "search")
+                    try:
+                        page.set_content(html_page, wait_until="domcontentloaded")
+                    except TypeError:
+                        page.set_content(html_page)
+                    page.wait_for_timeout(100)
+
+                    screenshot = self._screenshot_with_save("search_results", full_page=False)
+                    self._emit_screenshot(screenshot, "search_results")
+
+                    response = {
+                        "query": query,
+                        "engine": api_engine or "unknown",
+                        "engine_requested": engine,
+                        "page_url": page.url,
+                        "total_results": len(api_results),
+                        "results": api_results,
+                    }
+                    if screenshot.get("screenshot_url"):
+                        response["screenshot_url"] = screenshot["screenshot_url"]
+                    if screenshot.get("image"):
+                        response["screenshot_base64"] = screenshot["image"]
+
+                    self._emit_tool_result("search", response, start_time, success=True)
+                    return response
+            except Exception:
+                # Best-effort: fall back to browser-based search below.
+                pass
 
             engines_to_try = [engine]
             # In E2B sandbox, Bing may close the Chromium session; retry on DuckDuckGo for stability.
@@ -762,17 +803,18 @@ class SandboxWebSearchTool(_SandboxWebSearchBaseTool):
 
             sandbox_error = str(last_error) if last_error else "Unknown error"
 
-            # Best-effort fallback: use Tavily API search when sandbox browser is unavailable
-            # (e.g., missing/invalid E2B_API_KEY). This keeps agent mode usable without E2B.
+            # Best-effort fallback: use API search when sandbox browser is unavailable or blocked
+            # (e.g., missing/invalid E2B_API_KEY or anti-bot interstitials).
             try:
-                from tools.search.search import tavily_search
+                from tools.search.fallback_search import run_fallback_search
 
-                tavily_results = tavily_search.invoke({"query": query, "max_results": max_results})
-                fallback_results = _tavily_to_results(tavily_results, max_results)
+                api_engine, api_results_raw = run_fallback_search(query=query, max_results=max_results)
+                fallback_results = _normalize_api_results(api_results_raw, max_results)
 
                 response = {
                     "query": query,
-                    "engine": "tavily",
+                    "engine": api_engine or "unknown",
+                    "engine_requested": engine,
                     "page_url": None,
                     "total_results": len(fallback_results),
                     "results": fallback_results,
@@ -781,11 +823,11 @@ class SandboxWebSearchTool(_SandboxWebSearchBaseTool):
                 }
 
                 # When browser search engines return captcha/challenge pages, still provide a useful
-                # visualization by rendering Tavily results into a simple HTML page and screenshot it.
+                # visualization by rendering API results into a simple HTML page and screenshot it.
                 try:
-                    self._emit_progress("搜索被拦截，使用 Tavily 结果渲染页面...", 60)
+                    self._emit_progress("搜索被拦截，使用 API 结果渲染页面...", 60)
                     page = self._page()
-                    html_page = _render_results_html(query, fallback_results, source="tavily")
+                    html_page = _render_results_html(query, fallback_results, source=api_engine or "search")
                     try:
                         page.set_content(html_page, wait_until="domcontentloaded")
                     except TypeError:
@@ -907,7 +949,7 @@ class SandboxSearchAndClickInput(BaseModel):
     )
     engine: Literal["tavily", "google", "bing", "duckduckgo"] = Field(
         default="duckduckgo",
-        description="Search engine to use (Tavily recommended in sandbox)"
+        description="Browser engine to use when API search is unavailable/blocked"
     )
     wait_ms: int = Field(default=3000, ge=500, le=15000)
 
@@ -921,7 +963,7 @@ class SandboxSearchAndClickTool(_SandboxWebSearchBaseTool):
 
     name: str = "sandbox_search_and_click"
     description: str = (
-        "Search the web (Tavily API preferred; browser engines as fallback) and click on a specific result. "
+        "Search the web (API providers per SEARCH_ENGINES preferred; browser engines as fallback) and click on a specific result. "
         "Combines search and navigation into one action. "
         "Returns screenshots of both search results and the clicked page."
     )
@@ -958,33 +1000,35 @@ class SandboxSearchAndClickTool(_SandboxWebSearchBaseTool):
         })
 
         # Prefer API-based search when available to avoid captcha pages.
-        if getattr(settings, "tavily_api_key", ""):
+        try:
+            from tools.search.fallback_search import run_fallback_search
+
+            needed_results = max(10, int(result_index or 1))
+
+            # Create the sandbox browser session early so Live view shows progress.
             try:
-                from tools.search.search import tavily_search
-
-                # Create the sandbox browser session early so Live view shows progress.
+                page = self._page()
+                loading_html = _render_loading_html(
+                    query,
+                    source="auto",
+                    message="Searching (API providers)...",
+                )
                 try:
-                    page = self._page()
-                    loading_html = _render_loading_html(
-                        query,
-                        source="tavily",
-                        message="Searching with Tavily…",
-                    )
-                    try:
-                        page.set_content(loading_html, wait_until="domcontentloaded")
-                    except TypeError:
-                        page.set_content(loading_html)
-                except Exception:
-                    page = None
+                    page.set_content(loading_html, wait_until="domcontentloaded")
+                except TypeError:
+                    page.set_content(loading_html)
+            except Exception:
+                page = None
 
-                self._emit_progress("使用 Tavily 搜索...", 10)
-                tavily_results = tavily_search.invoke({"query": query, "max_results": max(10, int(result_index or 1))})
-                fallback_results = _tavily_to_results(tavily_results, max(10, int(result_index or 1)))
+            self._emit_progress("使用 API 搜索...", 10)
+            api_engine, api_results_raw = run_fallback_search(query=query, max_results=needed_results)
+            api_results = _normalize_api_results(api_results_raw, needed_results)
 
-                if result_index > len(fallback_results):
-                    raise ValueError(f"只找到 {len(fallback_results)} 个结果，无法点击第 {result_index} 个")
+            if api_results:
+                if result_index > len(api_results):
+                    raise ValueError(f"只找到 {len(api_results)} 个结果，无法点击第 {result_index} 个")
 
-                clicked = fallback_results[result_index - 1] if fallback_results else {}
+                clicked = api_results[result_index - 1] if api_results else {}
                 clicked_url = str(clicked.get("url") or "")
                 clicked_title = str(clicked.get("title") or "")
 
@@ -995,7 +1039,7 @@ class SandboxSearchAndClickTool(_SandboxWebSearchBaseTool):
                 try:
                     if page is None:
                         page = self._page()
-                    html_page = _render_results_html(query, fallback_results, source="tavily")
+                    html_page = _render_results_html(query, api_results, source=api_engine or "search")
                     try:
                         page.set_content(html_page, wait_until="domcontentloaded")
                     except TypeError:
@@ -1020,7 +1064,7 @@ class SandboxSearchAndClickTool(_SandboxWebSearchBaseTool):
                 page_info = self._page_info()
                 response = {
                     "query": query,
-                    "engine": "tavily",
+                    "engine": api_engine or "unknown",
                     "engine_requested": engine,
                     "fallback": False,
                     "clicked_result": {
@@ -1042,9 +1086,9 @@ class SandboxSearchAndClickTool(_SandboxWebSearchBaseTool):
 
                 self._emit_tool_result("search_and_click", response, start_time, success=bool(clicked_url))
                 return response
-            except Exception:
-                # Best-effort: fall back to browser-based flow below.
-                pass
+        except Exception:
+            # Best-effort: fall back to browser-based flow below.
+            pass
 
         engines_to_try = [engine]
         if engine == "bing":

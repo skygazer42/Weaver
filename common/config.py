@@ -161,6 +161,14 @@ class Settings(BaseSettings):
     openai_timeout: int = 60
     openai_extra_body: str = ""  # JSON string for extra OpenAI-compatible params
     tavily_api_key: str = ""
+    # Web search providers (optional; used when SEARCH_ENGINES includes them)
+    serper_api_key: str = ""
+    serpapi_api_key: str = ""
+    bing_api_key: str = ""
+    exa_api_key: str = ""
+    firecrawl_api_key: str = ""
+    google_search_api_key: str = ""  # Google Custom Search API key
+    google_search_engine_id: str = ""  # Google Custom Search Engine ID (cx)
     e2b_api_key: str = ""
     anthropic_api_key: str = ""
     dashscope_api_key: str = ""  # 阿里云 DashScope API Key (语音识别)
