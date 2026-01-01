@@ -11,7 +11,53 @@ from typing import List, Dict, Any, Optional
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 
+from common.config import settings
+
 logger = logging.getLogger(__name__)
+
+def _build_llm(
+    *,
+    model: str,
+    temperature: float,
+    api_base_url: Optional[str] = None,
+    api_key: Optional[str] = None,
+) -> ChatOpenAI:
+    """
+    Build a ChatOpenAI instance using `.env`/settings by default.
+
+    Some LangChain clients fall back to process env vars if `api_key` is omitted;
+    we always pass an explicit key to avoid accidental env leakage.
+    """
+    resolved_base_url = api_base_url or settings.openai_base_url or None
+    resolved_api_key = api_key or settings.openai_api_key or None
+
+    params: Dict[str, Any] = {
+        "model": model,
+        "temperature": temperature,
+        "timeout": settings.openai_timeout or None,
+    }
+
+    if settings.use_azure and not resolved_base_url:
+        params.update(
+            {
+                "azure_endpoint": settings.azure_endpoint or None,
+                "azure_deployment": model,
+                "api_version": settings.azure_api_version or None,
+                "api_key": settings.azure_api_key or resolved_api_key,
+            }
+        )
+    else:
+        if resolved_base_url:
+            params["base_url"] = resolved_base_url
+        params["api_key"] = resolved_api_key
+
+    if settings.openai_extra_body:
+        try:
+            params["extra_body"] = json.loads(settings.openai_extra_body)
+        except Exception:
+            pass
+
+    return ChatOpenAI(**params)
 
 
 class ErrorAnalyzer:
@@ -85,16 +131,12 @@ Prompt: {current_prompt}
         api_base_url: Optional[str] = None,
         api_key: Optional[str] = None
     ):
-        params = {
-            "model": model,
-            "temperature": temperature
-        }
-        if api_base_url:
-            params["base_url"] = api_base_url
-        if api_key:
-            params["api_key"] = api_key
-
-        self.llm = ChatOpenAI(**params)
+        self.llm = _build_llm(
+            model=model,
+            temperature=temperature,
+            api_base_url=api_base_url,
+            api_key=api_key,
+        )
         self.model = model
 
     async def analyze(
@@ -301,7 +343,7 @@ class ComparativeAnalyzer:
     """
 
     def __init__(self, model: str = "gpt-4o"):
-        self.llm = ChatOpenAI(model=model, temperature=0.2)
+        self.llm = _build_llm(model=model, temperature=0.2)
 
     async def compare_prompts(
         self,

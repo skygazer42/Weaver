@@ -29,6 +29,7 @@ from urllib.parse import quote_plus, urljoin
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
+from common.config import settings
 from .sandbox_browser_session import sandbox_browser_sessions
 
 logger = logging.getLogger(__name__)
@@ -72,6 +73,222 @@ _BROWSER_CLOSED_ERROR_FRAGMENTS = (
 def _looks_like_browser_closed_error(err: Exception) -> bool:
     msg = str(err) or ""
     return any(fragment in msg for fragment in _BROWSER_CLOSED_ERROR_FRAGMENTS)
+
+
+def _safe_page_text(page, *, max_chars: int = 5000) -> str:
+    """Best-effort: read visible page text / HTML for captcha/challenge detection."""
+    budget = max(0, int(max_chars or 0))
+    if budget <= 0:
+        return ""
+
+    parts: List[str] = []
+    try:
+        text = page.inner_text("body", timeout=2000) or ""
+        if text:
+            parts.append(text)
+    except Exception:
+        pass
+
+    # Some interstitials don't expose meaningful innerText quickly; fall back to HTML.
+    try:
+        html = page.content() or ""
+        if html:
+            parts.append(html)
+    except Exception:
+        pass
+
+    joined = "\n".join(parts)
+    return joined[:budget]
+
+
+def _looks_like_antibot_challenge(page, engine_config: Optional[Dict[str, str]] = None) -> bool:
+    """
+    Heuristic detection for anti-bot interstitials (captcha / "are you human" pages).
+
+    In some sandbox environments, major search engines frequently return challenge pages.
+    When detected, we fall back to API-based search to keep the tool usable.
+    """
+    try:
+        url = (getattr(page, "url", "") or "").strip()
+    except Exception:
+        url = ""
+    try:
+        title = (page.title() or "").strip()
+    except Exception:
+        title = ""
+
+    text = _safe_page_text(page, max_chars=8000)
+    haystack = f"{url}\n{title}\n{text}".lower()
+
+    patterns = (
+        # Generic
+        "captcha",
+        "verify you are",
+        "verification",
+        "unusual traffic",
+        "are you a human",
+        "please complete",
+        "please verify",
+        "challenge",
+        # Chinese
+        "验证码",
+        "人机",
+        "验证",
+        "访问异常",
+        "请完成",
+        "抱歉",
+        # DuckDuckGo specific
+        "bots use duckduckgo",
+        "duckduckgo too",
+        "select all squares containing a duck",
+        # Google specific
+        "/sorry/",
+    )
+    if any(p in haystack for p in patterns):
+        return True
+
+    # Structural heuristic: if the expected result containers never appear, treat as blocked.
+    if engine_config:
+        sel = (engine_config.get("result_selector") or "").strip()
+        if sel:
+            try:
+                if page.locator(sel).count() <= 0:
+                    # Many challenges include a "protected"/"verification" marker.
+                    if any(p in haystack for p in ("protected", "verification", "verify", "captcha", "challenge")):
+                        return True
+            except Exception:
+                pass
+
+    return False
+
+
+def _tavily_to_results(tavily_results: Any, max_results: int) -> List[Dict[str, Any]]:
+    fallback_results: List[Dict[str, Any]] = []
+    if not isinstance(tavily_results, list):
+        return fallback_results
+    for idx, item in enumerate(tavily_results[:max_results], 1):
+        if not isinstance(item, dict):
+            continue
+        fallback_results.append({
+            "position": idx,
+            "title": item.get("title", ""),
+            "url": item.get("url", ""),
+            "snippet": (item.get("summary") or item.get("snippet") or item.get("raw_excerpt") or "")[:500],
+        })
+    return fallback_results
+
+
+def _render_results_html(query: str, results: List[Dict[str, Any]], *, source: str = "tavily") -> str:
+    """Render a simple HTML page to visualize search results (avoids captcha pages)."""
+    import html as _html
+
+    safe_query = _html.escape(query or "")
+    items = []
+    for r in results:
+        title = _html.escape(str(r.get("title", "") or ""))
+        url = _html.escape(str(r.get("url", "") or ""))
+        snippet = _html.escape(str(r.get("snippet", "") or ""))
+        pos = int(r.get("position") or 0)
+        items.append(
+            f"""
+            <div class="result">
+              <div class="title"><a href="{url}" data-weaver-result-index="{pos}">{title or url}</a></div>
+              <div class="url">{url}</div>
+              <div class="snippet">{snippet}</div>
+            </div>
+            """.strip()
+        )
+
+    joined = "\n".join(items) if items else "<div class='empty'>No results.</div>"
+    safe_source = _html.escape(source or "tavily")
+    return f"""<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Search Results</title>
+    <style>
+      :root {{
+        color-scheme: light;
+        --bg: #ffffff;
+        --fg: #111827;
+        --muted: #6b7280;
+        --border: #e5e7eb;
+        --link: #2563eb;
+        --card: #f9fafb;
+      }}
+      body {{
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji",
+          "Segoe UI Emoji";
+        background: var(--bg);
+        color: var(--fg);
+      }}
+      .wrap {{
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 20px 18px 40px;
+      }}
+      .header {{
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 14px 16px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--card);
+      }}
+      .header .q {{
+        font-size: 18px;
+        font-weight: 650;
+        line-height: 1.2;
+      }}
+      .header .meta {{
+        font-size: 12px;
+        color: var(--muted);
+      }}
+      .result {{
+        padding: 14px 2px;
+        border-bottom: 1px solid var(--border);
+      }}
+      .title a {{
+        color: var(--link);
+        text-decoration: none;
+        font-size: 16px;
+        font-weight: 600;
+      }}
+      .url {{
+        font-size: 12px;
+        color: #047857;
+        margin-top: 4px;
+        word-break: break-all;
+      }}
+      .snippet {{
+        font-size: 13px;
+        color: var(--muted);
+        margin-top: 6px;
+        line-height: 1.45;
+      }}
+      .empty {{
+        padding: 24px 0;
+        color: var(--muted);
+        font-size: 13px;
+      }}
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="header">
+        <div class="q">{safe_query}</div>
+        <div class="meta">Source: {safe_source} · Generated by Weaver</div>
+      </div>
+      <div class="results">
+        {joined}
+      </div>
+    </div>
+  </body>
+</html>
+"""
 
 
 @dataclass
@@ -246,9 +463,9 @@ class _SandboxWebSearchBaseTool(BaseTool):
 class SandboxWebSearchInput(BaseModel):
     """Input schema for sandbox web search."""
     query: str = Field(min_length=1, description="Search query")
-    engine: Literal["google", "bing", "duckduckgo"] = Field(
+    engine: Literal["tavily", "google", "bing", "duckduckgo"] = Field(
         default="duckduckgo",
-        description="Search engine to use"
+        description="Search engine to use (Tavily recommended in sandbox)"
     )
     max_results: int = Field(
         default=10,
@@ -277,7 +494,7 @@ class SandboxWebSearchTool(_SandboxWebSearchBaseTool):
 
     name: str = "sandbox_web_search"
     description: str = (
-        "Perform a web search using a sandboxed browser (Google/Bing/DuckDuckGo). "
+        "Perform a web search (Tavily API preferred; browser engines as fallback). "
         "Returns structured search results with titles, URLs, and snippets, "
         "plus a screenshot of the search results page. "
         "Use this for visual search process demonstration."
@@ -298,6 +515,46 @@ class SandboxWebSearchTool(_SandboxWebSearchBaseTool):
                 "engine": engine,
                 "max_results": max_results,
             })
+
+            # Prefer API-based search when available to avoid search-engine anti-bot interstitials.
+            if getattr(settings, "tavily_api_key", ""):
+                try:
+                    from tools.search.search import tavily_search
+
+                    self._emit_progress("使用 Tavily 搜索...", 10)
+                    tavily_results = tavily_search.invoke({"query": query, "max_results": max_results})
+                    fallback_results = _tavily_to_results(tavily_results, max_results)
+
+                    if fallback_results:
+                        page = self._page()
+                        html_page = _render_results_html(query, fallback_results, source="tavily")
+                        try:
+                            page.set_content(html_page, wait_until="domcontentloaded")
+                        except TypeError:
+                            page.set_content(html_page)
+                        page.wait_for_timeout(100)
+
+                        screenshot = self._screenshot_with_save("search_results", full_page=False)
+                        self._emit_screenshot(screenshot, "search_results")
+
+                        response = {
+                            "query": query,
+                            "engine": "tavily",
+                            "engine_requested": engine,
+                            "page_url": page.url,
+                            "total_results": len(fallback_results),
+                            "results": fallback_results,
+                        }
+                        if screenshot.get("screenshot_url"):
+                            response["screenshot_url"] = screenshot["screenshot_url"]
+                        if screenshot.get("image"):
+                            response["screenshot_base64"] = screenshot["image"]
+
+                        self._emit_tool_result("search", response, start_time, success=True)
+                        return response
+                except Exception:
+                    # Best-effort: fall back to browser-based search below.
+                    pass
 
             engines_to_try = [engine]
             # In E2B sandbox, Bing may close the Chromium session; retry on DuckDuckGo for stability.
@@ -321,6 +578,10 @@ class SandboxWebSearchTool(_SandboxWebSearchBaseTool):
                     # Wait for results to load
                     self._emit_progress("等待搜索结果加载...", 30)
                     page.wait_for_timeout(int(wait_ms))
+
+                    # Heuristic: detect captcha / anti-bot interstitials and fall back.
+                    if _looks_like_antibot_challenge(page, engine_config):
+                        raise RuntimeError(f"Search engine returned an anti-bot challenge: {attempt_engine}")
 
                     # Take screenshot of search results
                     self._emit_progress("正在截取搜索结果截图...", 50)
@@ -376,17 +637,7 @@ class SandboxWebSearchTool(_SandboxWebSearchBaseTool):
                 from tools.search.search import tavily_search
 
                 tavily_results = tavily_search.invoke({"query": query, "max_results": max_results})
-                fallback_results: List[Dict[str, Any]] = []
-                if isinstance(tavily_results, list):
-                    for idx, item in enumerate(tavily_results[:max_results], 1):
-                        if not isinstance(item, dict):
-                            continue
-                        fallback_results.append({
-                            "position": idx,
-                            "title": item.get("title", ""),
-                            "url": item.get("url", ""),
-                            "snippet": (item.get("summary") or item.get("snippet") or "")[:500],
-                        })
+                fallback_results = _tavily_to_results(tavily_results, max_results)
 
                 response = {
                     "query": query,
@@ -397,6 +648,32 @@ class SandboxWebSearchTool(_SandboxWebSearchBaseTool):
                     "fallback": True,
                     "sandbox_error": sandbox_error,
                 }
+
+                # When browser search engines return captcha/challenge pages, still provide a useful
+                # visualization by rendering Tavily results into a simple HTML page and screenshot it.
+                try:
+                    self._emit_progress("搜索被拦截，使用 Tavily 结果渲染页面...", 60)
+                    page = self._page()
+                    html_page = _render_results_html(query, fallback_results, source="tavily")
+                    try:
+                        page.set_content(html_page, wait_until="domcontentloaded")
+                    except TypeError:
+                        page.set_content(html_page)
+                    page.wait_for_timeout(100)
+
+                    screenshot = self._screenshot_with_save("search_results", full_page=False)
+                    self._emit_screenshot(screenshot, "search_results")
+                    if screenshot.get("screenshot_url"):
+                        response["screenshot_url"] = screenshot["screenshot_url"]
+                    if screenshot.get("image"):
+                        response["screenshot_base64"] = screenshot["image"]
+                    try:
+                        response["page_url"] = page.url
+                    except Exception:
+                        pass
+                except Exception:
+                    # Rendering is best-effort; keep the text results even if the sandbox is unavailable.
+                    pass
 
                 # Consider fallback a successful tool response (even though the sandbox failed),
                 # so the agent can continue reasoning with search results.
@@ -497,9 +774,9 @@ class SandboxSearchAndClickInput(BaseModel):
         le=10,
         description="Which result to click (1-based index)"
     )
-    engine: Literal["google", "bing", "duckduckgo"] = Field(
+    engine: Literal["tavily", "google", "bing", "duckduckgo"] = Field(
         default="duckduckgo",
-        description="Search engine to use"
+        description="Search engine to use (Tavily recommended in sandbox)"
     )
     wait_ms: int = Field(default=3000, ge=500, le=15000)
 
@@ -513,7 +790,7 @@ class SandboxSearchAndClickTool(_SandboxWebSearchBaseTool):
 
     name: str = "sandbox_search_and_click"
     description: str = (
-        "Search the web and click on a specific result. "
+        "Search the web (Tavily API preferred; browser engines as fallback) and click on a specific result. "
         "Combines search and navigation into one action. "
         "Returns screenshots of both search results and the clicked page."
     )
@@ -549,6 +826,79 @@ class SandboxSearchAndClickTool(_SandboxWebSearchBaseTool):
             "engine": engine,
         })
 
+        # Prefer API-based search when available to avoid captcha pages.
+        if getattr(settings, "tavily_api_key", ""):
+            try:
+                from tools.search.search import tavily_search
+
+                self._emit_progress("使用 Tavily 搜索...", 10)
+                tavily_results = tavily_search.invoke({"query": query, "max_results": max(10, int(result_index or 1))})
+                fallback_results = _tavily_to_results(tavily_results, max(10, int(result_index or 1)))
+
+                if result_index > len(fallback_results):
+                    raise ValueError(f"只找到 {len(fallback_results)} 个结果，无法点击第 {result_index} 个")
+
+                clicked = fallback_results[result_index - 1] if fallback_results else {}
+                clicked_url = str(clicked.get("url") or "")
+                clicked_title = str(clicked.get("title") or "")
+
+                search_screenshot: Dict[str, Any] = {}
+                dest_screenshot: Dict[str, Any] = {}
+                destination_error: Optional[str] = None
+
+                try:
+                    page = self._page()
+                    html_page = _render_results_html(query, fallback_results, source="tavily")
+                    try:
+                        page.set_content(html_page, wait_until="domcontentloaded")
+                    except TypeError:
+                        page.set_content(html_page)
+                    page.wait_for_timeout(100)
+                    search_screenshot = self._screenshot_with_save("search_page", full_page=False)
+                    self._emit_screenshot(search_screenshot, "search_page")
+                except Exception:
+                    pass
+
+                try:
+                    if clicked_url:
+                        self._emit_progress("打开目标页面...", 70)
+                        page = self._page()
+                        page.goto(clicked_url, wait_until="domcontentloaded", timeout=60000)
+                        page.wait_for_timeout(int(wait_ms))
+                        dest_screenshot = self._screenshot_with_save("destination_page", full_page=False)
+                        self._emit_screenshot(dest_screenshot, "destination_page")
+                except Exception as e:
+                    destination_error = str(e)
+
+                page_info = self._page_info()
+                response = {
+                    "query": query,
+                    "engine": "tavily",
+                    "engine_requested": engine,
+                    "fallback": False,
+                    "clicked_result": {
+                        "position": result_index,
+                        "title": clicked_title,
+                        "url": clicked_url,
+                    },
+                    "destination": {
+                        "url": page_info.get("url") or clicked_url,
+                        "title": page_info.get("title"),
+                    },
+                    "screenshots": {
+                        "search_page": search_screenshot.get("screenshot_url"),
+                        "destination_page": dest_screenshot.get("screenshot_url"),
+                    },
+                }
+                if destination_error:
+                    response["destination_error"] = destination_error
+
+                self._emit_tool_result("search_and_click", response, start_time, success=bool(clicked_url))
+                return response
+            except Exception:
+                # Best-effort: fall back to browser-based flow below.
+                pass
+
         engines_to_try = [engine]
         if engine == "bing":
             engines_to_try.append("duckduckgo")
@@ -565,6 +915,10 @@ class SandboxSearchAndClickTool(_SandboxWebSearchBaseTool):
                 page = self._page()
                 page.goto(search_url, wait_until="domcontentloaded", timeout=60000)
                 page.wait_for_timeout(2000)
+
+                # Heuristic: detect captcha / anti-bot interstitials and fall back.
+                if _looks_like_antibot_challenge(page, engine_config):
+                    raise RuntimeError(f"Search engine returned an anti-bot challenge: {attempt_engine}")
 
                 # Screenshot search results
                 self._emit_progress("正在截取搜索结果...", 30)
@@ -643,24 +997,100 @@ class SandboxSearchAndClickTool(_SandboxWebSearchBaseTool):
 
                 if attempt_engine != engines_to_try[-1]:
                     continue
-                response = {
-                    "query": query,
-                    "engine": attempt_engine,
-                    "error": err,
-                    "requires": "E2B_API_KEY",
-                }
-                self._emit_tool_result("search_and_click", response, start_time, success=False)
-                return response
+                break
 
-        err = str(last_error) if last_error else "Unknown error"
-        response = {
-            "query": query,
-            "engine": engine,
-            "error": err,
-            "requires": "E2B_API_KEY",
-        }
-        self._emit_tool_result("search_and_click", response, start_time, success=False)
-        return response
+        sandbox_error = str(last_error) if last_error else "Unknown error"
+
+        # Fallback: use Tavily API search, then render results into a local HTML page so the UI
+        # still gets a meaningful screenshot (avoids captcha pages).
+        try:
+            from tools.search.search import tavily_search
+
+            tavily_results = tavily_search.invoke({"query": query, "max_results": max(10, int(result_index or 1))})
+            fallback_results: List[Dict[str, Any]] = []
+            if isinstance(tavily_results, list):
+                for idx, item in enumerate(tavily_results[: max(10, int(result_index or 1))], 1):
+                    if not isinstance(item, dict):
+                        continue
+                    fallback_results.append({
+                        "position": idx,
+                        "title": item.get("title", ""),
+                        "url": item.get("url", ""),
+                        "snippet": (item.get("summary") or item.get("snippet") or "")[:500],
+                    })
+
+            if result_index > len(fallback_results):
+                raise ValueError(f"只找到 {len(fallback_results)} 个结果，无法点击第 {result_index} 个")
+
+            clicked = fallback_results[result_index - 1] if fallback_results else {}
+            clicked_url = str(clicked.get("url") or "")
+            clicked_title = str(clicked.get("title") or "")
+
+            search_screenshot: Dict[str, Any] = {}
+            dest_screenshot: Dict[str, Any] = {}
+            destination_error: Optional[str] = None
+
+            try:
+                self._emit_progress("搜索被拦截，使用 Tavily 结果...", 30)
+                page = self._page()
+                html_page = _render_results_html(query, fallback_results, source="tavily")
+                try:
+                    page.set_content(html_page, wait_until="domcontentloaded")
+                except TypeError:
+                    page.set_content(html_page)
+                page.wait_for_timeout(100)
+                search_screenshot = self._screenshot_with_save("search_page", full_page=False)
+                self._emit_screenshot(search_screenshot, "search_page")
+            except Exception:
+                pass
+
+            try:
+                if clicked_url:
+                    self._emit_progress("打开目标页面...", 70)
+                    page = self._page()
+                    page.goto(clicked_url, wait_until="domcontentloaded", timeout=60000)
+                    page.wait_for_timeout(int(wait_ms))
+                    dest_screenshot = self._screenshot_with_save("destination_page", full_page=False)
+                    self._emit_screenshot(dest_screenshot, "destination_page")
+            except Exception as e:
+                destination_error = str(e)
+
+            page_info = self._page_info()
+            response = {
+                "query": query,
+                "engine": "tavily",
+                "fallback": True,
+                "sandbox_error": sandbox_error,
+                "clicked_result": {
+                    "position": result_index,
+                    "title": clicked_title,
+                    "url": clicked_url,
+                },
+                "destination": {
+                    "url": page_info.get("url") or clicked_url,
+                    "title": page_info.get("title"),
+                },
+                "screenshots": {
+                    "search_page": search_screenshot.get("screenshot_url"),
+                    "destination_page": dest_screenshot.get("screenshot_url"),
+                },
+            }
+            if destination_error:
+                response["destination_error"] = destination_error
+
+            # Treat fallback as successful if we have at least a clicked URL; the agent can continue.
+            self._emit_tool_result("search_and_click", response, start_time, success=bool(clicked_url))
+            return response
+
+        except Exception as fallback_e:
+            response = {
+                "query": query,
+                "engine": engine,
+                "error": sandbox_error,
+                "fallback_error": str(fallback_e),
+            }
+            self._emit_tool_result("search_and_click", response, start_time, success=False)
+            return response
 
 
 class SandboxExtractSearchResultsInput(BaseModel):

@@ -16,6 +16,7 @@ from langchain_core.prompts import ChatPromptTemplate
 
 from .config import OptimizationConfig
 from .analyzer import ErrorAnalyzer
+from common.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -76,34 +77,65 @@ class PromptOptimizer:
             raise ValueError(f"Invalid config: {errors}")
 
         self.config = config
+
+        resolved_base_url = config.api_base_url or settings.openai_base_url or None
+        resolved_api_key = config.api_key or settings.openai_api_key or None
+        resolved_timeout = config.timeout or settings.openai_timeout or None
+        resolved_extra_body = None
+        if settings.openai_extra_body:
+            try:
+                resolved_extra_body = json.loads(settings.openai_extra_body)
+            except Exception:
+                resolved_extra_body = None
+
         self.analyzer = ErrorAnalyzer(
             model=config.optimizer_model,
             temperature=0.3,
-            api_base_url=config.api_base_url,
-            api_key=config.api_key
+            api_base_url=resolved_base_url,
+            api_key=resolved_api_key
         )
 
         # 优化器 LLM
         optimizer_params = {
             "model": config.optimizer_model,
-            "temperature": config.optimizer_temperature
+            "temperature": config.optimizer_temperature,
+            "timeout": resolved_timeout,
         }
-        if config.api_base_url:
-            optimizer_params["base_url"] = config.api_base_url
-        if config.api_key:
-            optimizer_params["api_key"] = config.api_key
+        if settings.use_azure and not resolved_base_url:
+            optimizer_params.update({
+                "azure_endpoint": settings.azure_endpoint or None,
+                "azure_deployment": config.optimizer_model,
+                "api_version": settings.azure_api_version or None,
+                "api_key": settings.azure_api_key or resolved_api_key,
+            })
+        else:
+            if resolved_base_url:
+                optimizer_params["base_url"] = resolved_base_url
+            optimizer_params["api_key"] = resolved_api_key
+        if resolved_extra_body:
+            optimizer_params["extra_body"] = resolved_extra_body
 
         self.optimizer_llm = ChatOpenAI(**optimizer_params)
 
         # 目标 LLM（被优化的模型）
         target_params = {
             "model": config.target_model,
-            "temperature": config.temperature
+            "temperature": config.temperature,
+            "timeout": resolved_timeout,
         }
-        if config.api_base_url:
-            target_params["base_url"] = config.api_base_url
-        if config.api_key:
-            target_params["api_key"] = config.api_key
+        if settings.use_azure and not resolved_base_url:
+            target_params.update({
+                "azure_endpoint": settings.azure_endpoint or None,
+                "azure_deployment": config.target_model,
+                "api_version": settings.azure_api_version or None,
+                "api_key": settings.azure_api_key or resolved_api_key,
+            })
+        else:
+            if resolved_base_url:
+                target_params["base_url"] = resolved_base_url
+            target_params["api_key"] = resolved_api_key
+        if resolved_extra_body:
+            target_params["extra_body"] = resolved_extra_body
 
         self.target_llm = ChatOpenAI(**target_params)
 
