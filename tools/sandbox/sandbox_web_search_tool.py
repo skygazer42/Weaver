@@ -291,6 +291,120 @@ def _render_results_html(query: str, results: List[Dict[str, Any]], *, source: s
 """
 
 
+def _render_loading_html(query: str, *, source: str = "tavily", message: str = "Searching...") -> str:
+    """Render an animated loading page so Live view shows progress while API tools run."""
+    import html as _html
+
+    safe_query = _html.escape(query or "")
+    safe_source = _html.escape(source or "tavily")
+    safe_message = _html.escape(message or "Searching...")
+    return f"""<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Searching…</title>
+    <style>
+      :root {{
+        color-scheme: light;
+        --bg: #ffffff;
+        --fg: #111827;
+        --muted: #6b7280;
+        --border: #e5e7eb;
+        --card: #f9fafb;
+        --accent: #2563eb;
+      }}
+      body {{
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+        background: var(--bg);
+        color: var(--fg);
+      }}
+      .wrap {{
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 20px 18px 40px;
+      }}
+      .card {{
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--card);
+        padding: 16px;
+      }}
+      .q {{
+        font-size: 18px;
+        font-weight: 650;
+        line-height: 1.2;
+        margin-bottom: 8px;
+      }}
+      .meta {{
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 14px;
+      }}
+      .row {{
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }}
+      .spinner {{
+        width: 18px;
+        height: 18px;
+        border-radius: 999px;
+        border: 3px solid rgba(37, 99, 235, 0.25);
+        border-top-color: var(--accent);
+        animation: spin 0.9s linear infinite;
+      }}
+      @keyframes spin {{
+        to {{ transform: rotate(360deg); }}
+      }}
+      .msg {{
+        font-size: 13px;
+        color: var(--muted);
+      }}
+      .hint {{
+        margin-top: 10px;
+        font-size: 12px;
+        color: var(--muted);
+      }}
+      .bar {{
+        margin-top: 14px;
+        height: 8px;
+        border-radius: 999px;
+        background: rgba(37, 99, 235, 0.12);
+        overflow: hidden;
+      }}
+      .bar > div {{
+        height: 100%;
+        width: 40%;
+        background: rgba(37, 99, 235, 0.55);
+        animation: slide 1.3s ease-in-out infinite;
+      }}
+      @keyframes slide {{
+        0% {{ transform: translateX(-60%); }}
+        50% {{ transform: translateX(160%); }}
+        100% {{ transform: translateX(160%); }}
+      }}
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <div class="q">{safe_query}</div>
+        <div class="meta">Source: {safe_source}</div>
+        <div class="row">
+          <div class="spinner" aria-hidden="true"></div>
+          <div class="msg">{safe_message}</div>
+        </div>
+        <div class="bar" aria-hidden="true"><div></div></div>
+        <div class="hint">Live view will update automatically while results are being prepared.</div>
+      </div>
+    </div>
+  </body>
+</html>
+"""
+
+
 @dataclass
 class SearchResult:
     """A single search result."""
@@ -521,12 +635,29 @@ class SandboxWebSearchTool(_SandboxWebSearchBaseTool):
                 try:
                     from tools.search.search import tavily_search
 
+                    # Create the sandbox browser session early so Live view has something to show
+                    # while the API search is running (which can take time if summaries are generated).
+                    try:
+                        page = self._page()
+                        loading_html = _render_loading_html(
+                            query,
+                            source="tavily",
+                            message="Searching with Tavily…",
+                        )
+                        try:
+                            page.set_content(loading_html, wait_until="domcontentloaded")
+                        except TypeError:
+                            page.set_content(loading_html)
+                    except Exception:
+                        page = None
+
                     self._emit_progress("使用 Tavily 搜索...", 10)
                     tavily_results = tavily_search.invoke({"query": query, "max_results": max_results})
                     fallback_results = _tavily_to_results(tavily_results, max_results)
 
                     if fallback_results:
-                        page = self._page()
+                        if page is None:
+                            page = self._page()
                         html_page = _render_results_html(query, fallback_results, source="tavily")
                         try:
                             page.set_content(html_page, wait_until="domcontentloaded")
@@ -831,6 +962,21 @@ class SandboxSearchAndClickTool(_SandboxWebSearchBaseTool):
             try:
                 from tools.search.search import tavily_search
 
+                # Create the sandbox browser session early so Live view shows progress.
+                try:
+                    page = self._page()
+                    loading_html = _render_loading_html(
+                        query,
+                        source="tavily",
+                        message="Searching with Tavily…",
+                    )
+                    try:
+                        page.set_content(loading_html, wait_until="domcontentloaded")
+                    except TypeError:
+                        page.set_content(loading_html)
+                except Exception:
+                    page = None
+
                 self._emit_progress("使用 Tavily 搜索...", 10)
                 tavily_results = tavily_search.invoke({"query": query, "max_results": max(10, int(result_index or 1))})
                 fallback_results = _tavily_to_results(tavily_results, max(10, int(result_index or 1)))
@@ -847,7 +993,8 @@ class SandboxSearchAndClickTool(_SandboxWebSearchBaseTool):
                 destination_error: Optional[str] = None
 
                 try:
-                    page = self._page()
+                    if page is None:
+                        page = self._page()
                     html_page = _render_results_html(query, fallback_results, source="tavily")
                     try:
                         page.set_content(html_page, wait_until="domcontentloaded")
