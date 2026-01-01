@@ -17,6 +17,7 @@ import { ThinkingProcess } from './message/ThinkingProcess'
 import { CodeBlock } from './message/CodeBlock'
 import { CitationBadge } from './message/CitationBadge'
 import { useArtifacts } from '@/hooks/useArtifacts'
+import { getApiBaseUrl } from '@/lib/api'
 
 // Lazy load MermaidBlock as it's a heavy dependency
 const MermaidBlock = dynamic(() => import('./MermaidBlock').then(mod => mod.MermaidBlock), {
@@ -111,7 +112,7 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
     setIsTTSLoading(true)
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/tts/synthesize`, {
+      const response = await fetch(`${getApiBaseUrl()}/api/tts/synthesize`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -7,6 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { MessageItem } from './MessageItem'
 import { SearchModeSelector, SearchMode } from './SearchModeSelector'
 import { Send, Loader2, Sparkles } from 'lucide-react'
+import { getApiBaseUrl } from '@/lib/api'
 
 interface Message {
   id: string
@@ -54,7 +55,7 @@ export function ChatInterface({ selectedModel }: ChatInterfaceProps) {
 
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/chat`,
+        `${getApiBaseUrl()}/api/chat`,
         {
           method: 'POST',
           headers: {

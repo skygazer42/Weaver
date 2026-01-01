@@ -17,6 +17,7 @@ import { useI18n } from '@/lib/i18n/i18n-context'
 import { cn } from '@/lib/utils'
 import { Check, ChevronDown, Plug, RefreshCw, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { getApiBaseUrl } from '@/lib/api'
 
 interface SettingsDialogProps {
   open: boolean
@@ -106,7 +107,7 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
   const fetchMcpConfig = async () => {
     try {
       setMcpLoading(true)
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/mcp/config`)
+      const res = await fetch(`${getApiBaseUrl()}/api/mcp/config`)
       if (!res.ok) throw new Error('Failed to fetch config')
       const data = await res.json()
       setMcpEnabled(data.enabled)
@@ -132,7 +133,7 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
         return false
       }
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/mcp/config`, {
+      const res = await fetch(`${getApiBaseUrl()}/api/mcp/config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

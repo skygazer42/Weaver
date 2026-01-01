@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react'
 import { Message, Artifact, ToolInvocation, ImageAttachment } from '@/types/chat'
+import { getApiBaseUrl } from '@/lib/api'
 
 interface UseChatStreamProps {
   selectedModel: string
@@ -21,7 +22,7 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
     if (threadId) {
       try {
         await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/chat/cancel/${threadId}`,
+          `${getApiBaseUrl()}/api/chat/cancel/${threadId}`,
           { method: 'POST' }
         )
         setCurrentStatus('已发送取消请求...')
@@ -45,7 +46,7 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
 
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/chat`,
+        `${getApiBaseUrl()}/api/chat`,
         {
           method: 'POST',
           headers: {
@@ -220,7 +221,7 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
     try {
       const toolCalls = pendingInterrupt?.prompts?.[0]?.tool_calls
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/interrupt/resume`,
+        `${getApiBaseUrl()}/api/interrupt/resume`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

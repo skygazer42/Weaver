@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 try:
     import tomllib  # Python 3.11+
 except ModuleNotFoundError:  # pragma: no cover
@@ -107,6 +108,49 @@ class Settings(BaseSettings):
     model_config = ConfigDict(env_file=".env", case_sensitive=False)
     """Application settings."""
 
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls,
+        init_settings,
+        env_settings,
+        dotenv_settings,
+        file_secret_settings,
+    ):
+        """
+        In local dev, prefer `.env` over process environment variables.
+
+        Many users run multiple projects in the same shell/conda env; a stale
+        `OPENAI_API_KEY` in the process env can silently override `.env` and
+        lead to confusing auth errors. In prod, keep the standard precedence
+        (env vars override dotenv).
+        """
+
+        app_env = (os.getenv("APP_ENV") or "").strip().lower()
+        debug_raw = (os.getenv("DEBUG") or "").strip().lower()
+        debug = debug_raw in {"1", "true", "yes", "y", "on"}
+
+        # If the process explicitly declares production, keep the standard precedence.
+        if app_env in {"prod", "production"}:
+            return (init_settings, env_settings, dotenv_settings, file_secret_settings)
+
+        # If the process declares dev/debug, prefer dotenv.
+        if debug or app_env in {"dev", "debug", "local", "test"}:
+            return (init_settings, dotenv_settings, env_settings, file_secret_settings)
+
+        # Heuristic: if a `.env` file exists, assume a local/dev-style run.
+        # This avoids confusing cases where a stale process env var overrides `.env`.
+        if any(
+            candidate.is_file()
+            for candidate in (
+                Path(".env"),
+                Path(__file__).resolve().parent.parent / ".env",
+            )
+        ):
+            return (init_settings, dotenv_settings, env_settings, file_secret_settings)
+
+        return (init_settings, env_settings, dotenv_settings, file_secret_settings)
+
     # API Keys
     openai_api_key: str
     openai_base_url: str = ""
@@ -141,7 +185,7 @@ class Settings(BaseSettings):
 
     # App Config
     debug: bool = False
-    cors_origins: str = "http://localhost:3000"
+    cors_origins: str = "http://localhost:3000,http://localhost:3100"
     interrupt_before_nodes: str = ""  # comma-separated node names for LangGraph interrupts
     app_config_path: str = "config/config.toml"  # Optional TOML config (OpenManus style)
     mcp_config_path: str = "config/mcp.json"     # MCP servers definition (JSON)
@@ -256,7 +300,22 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> List[str]:
         """Parse CORS origins string into list."""
-        return [origin.strip() for origin in self.cors_origins.split(",")]
+        origins = [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+        # Dev ergonomics: allow common local frontend ports by default.
+        # This keeps the UI working even when CORS_ORIGINS in `.env` is outdated.
+        env = (self.app_env or "").strip().lower()
+        if self.debug or env in {"dev", "debug", "local", "test"} or env not in {"prod", "production"}:
+            for extra in (
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+                "http://localhost:3100",
+                "http://127.0.0.1:3100",
+            ):
+                if extra not in origins:
+                    origins.append(extra)
+
+        return origins
 
     @property
     def interrupt_nodes_list(self) -> List[str]:

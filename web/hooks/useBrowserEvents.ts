@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { BrowserScreenshot, BrowserEvent } from '@/types/browser'
+import { getApiBaseUrl } from '@/lib/api'
 
 interface UseBrowserEventsProps {
   threadId: string | null
@@ -63,7 +64,7 @@ export function useBrowserEvents({
       return
     }
 
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || ''
+    const apiUrl = getApiBaseUrl()
     const baseEventUrl = `${apiUrl}/api/events/${threadId}`
 
     const isBrowserRelatedTool = (tool?: string | null) => {
@@ -141,7 +142,7 @@ export function useBrowserEvents({
             }
             // If backend returns a relative URL, prefix with API base
             if (imageUrl && imageUrl.startsWith('/')) {
-              const base = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '')
+              const base = getApiBaseUrl()
               if (base) {
                 imageUrl = `${base}${imageUrl}`
               }

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { getApiWsBaseUrl } from '@/lib/api'
 
 interface UseBrowserStreamProps {
   threadId: string | null
@@ -67,8 +68,7 @@ export function useBrowserStream({
       wsRef.current.close()
     }
 
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || ''
-    const wsUrl = apiUrl.replace(/^http/, 'ws') + `/api/browser/${threadId}/stream`
+    const wsUrl = getApiWsBaseUrl() + `/api/browser/${threadId}/stream`
 
     console.log('[useBrowserStream] Connecting to:', wsUrl)
 

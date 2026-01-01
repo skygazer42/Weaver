@@ -7,6 +7,7 @@ import { useI18n } from '@/lib/i18n/i18n-context'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { createFilePreview } from '@/lib/file-utils'
+import { getApiBaseUrl } from '@/lib/api'
 
 interface ChatInputProps {
   input: string
@@ -189,7 +190,7 @@ export function ChatInput({
           reader.onloadend = async () => {
             const base64Audio = (reader.result as string).split(',')[1]
 
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/asr/recognize`, {
+            const response = await fetch(`${getApiBaseUrl()}/api/asr/recognize`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({

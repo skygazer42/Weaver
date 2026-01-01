@@ -8,6 +8,7 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { Plug, Server, RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react'
+import { getApiBaseUrl } from '@/lib/api'
 
 export function McpConfigDialog() {
   const [open, setOpen] = useState(false)
@@ -19,7 +20,7 @@ export function McpConfigDialog() {
   const fetchConfig = async () => {
     try {
       setLoading(true)
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/mcp/config`)
+      const res = await fetch(`${getApiBaseUrl()}/api/mcp/config`)
       if (!res.ok) throw new Error('Failed to fetch config')
       const data = await res.json()
       setEnabled(data.enabled)
@@ -52,7 +53,7 @@ export function McpConfigDialog() {
         return
       }
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/mcp/config`, {
+      const res = await fetch(`${getApiBaseUrl()}/api/mcp/config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
