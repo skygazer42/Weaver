@@ -36,6 +36,7 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
     }
     setIsLoading(false)
     setCurrentStatus('已取消')
+    setTimeout(() => setCurrentStatus(''), 3000)
   }, [threadId])
 
   const processChat = useCallback(async (messageHistory: Message[], images?: ImageAttachment[]) => {

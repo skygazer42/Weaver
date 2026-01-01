@@ -261,7 +261,7 @@ export function Chat() {
                         <div className="max-w-5xl mx-auto px-4 sm:px-0 pb-4">
                             {currentStatus && (
                                 <div className="flex items-center gap-2 text-sm text-muted-foreground py-2 animate-in fade-in slide-in-from-bottom-2">
-                                    <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                                    {isLoading && <Loader2 className="h-3 w-3 animate-spin text-primary" />}
                                     <span className="font-medium animate-pulse">{currentStatus}</span>
                                 </div>
                             )}

@@ -38,6 +38,14 @@ function ErrorFallback({ error }: { error: Error }) {
     )
 }
 
+// Helper to normalize LaTeX delimiters
+const preprocessContent = (content: string) => {
+    if (!content) return ''
+    return content
+        .replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$') // \( ... \) -> $ ... $
+        .replace(/\\\[([\s\S]*?)\\\]/g, '$$$$$1$$$$') // \[ ... \] -> $$ ... $$
+}
+
 interface MessageItemProps {
     message: Message
     onEdit?: (id: string, newContent: string) => void
@@ -54,6 +62,9 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
   const [audioRef, setAudioRef] = useState<HTMLAudioElement | null>(null)
 
   const { saveArtifact } = useArtifacts()
+
+  // Preprocess content for Math rendering
+  const displayContent = preprocessContent(message.content || '')
 
   const handleCopy = () => {
     navigator.clipboard.writeText(message.content)
@@ -221,9 +232,9 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
                              <p className="mb-2 last:mb-0 leading-7" {...props}>
                                 {React.Children.map(children, child => {
                                     if (typeof child === 'string') {
-                                        const parts = child.split(/(\[d+]) /g) 
+                                        const parts = child.split(/(\[\d+\])/g)
                                         return parts.map((part, i) => {
-                                            const match = part.match(/^\\\\[(\\d+)\\]$/)
+                                            const match = part.match(/^\[(\d+)\]$/)
                                             if (match) {
                                                 return <CitationBadge key={i} num={match[1]} />
                                             }
@@ -277,7 +288,7 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
                         )
                     }}
                 >
-                  {message.content || (hasTools ? "" : "")}
+                  {displayContent || (hasTools ? "" : "")}
                 </ReactMarkdown>
 
                 {message.attachments && message.attachments.length > 0 && (
