@@ -303,21 +303,13 @@ MCP_SERVERS={"filesystem": {...}}
 
 ### 第三步：安装依赖
 
-**方法 A：一键安装（推荐）**
-
-```bash
-npm run install:all
-```
-
-**方法 B：手动安装**
-
 ```bash
 # 后端依赖
 pip install -r requirements.txt
 
 # 前端依赖
 cd web
-npm install
+pnpm install
 cd ..
 
 # 可选：浏览器自动化
@@ -328,25 +320,7 @@ playwright install chromium
 pip install pyautogui pillow
 ```
 
-### 第四步：启动数据库（可选）
-
-```bash
-# 使用 Docker 启动 PostgreSQL
-docker-compose up postgres -d
-
-# 或者使用内存存储（无需数据库）
-# 将 .env 中的 DATABASE_URL 留空即可
-```
-
-### 第五步：启动服务
-
-**方法 A：同时启动前后端**
-
-```bash
-npm run dev
-```
-
-**方法 B：分别启动**
+### 第四步：启动服务
 
 ```bash
 # 终端 1：启动后端
@@ -357,7 +331,7 @@ cd web
 pnpm run dev -- -p 8080  # 使用端口 8080（如果 3000 被占用）
 ```
 
-### 第六步：访问应用
+### 第五步：访问应用
 
 - 🌐 **前端界面**：http://localhost:8080
 - 🔌 **后端 API**：http://localhost:8000
@@ -876,8 +850,8 @@ env: {
 git clone https://github.com/skygazer42/weaver.git
 cd weaver
 cp .env.example .env
-npm run install:all
-npm run dev
+pnpm run install:all
+pnpm run dev
 ```
 
 ### 代码规范

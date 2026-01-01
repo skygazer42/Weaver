@@ -154,29 +154,31 @@ ENABLE_MCP=false                          # MCP tool servers
 ### 3️⃣ Install Dependencies
 
 ```bash
-# Install all (backend + frontend)
-npm run install:all
-
-# Or manually:
+# Backend
 pip install -r requirements.txt
-cd web && npm install && cd ..
 
-# Optional: Desktop automation
-pip install pyautogui pillow
+# Frontend
+cd web
+pnpm install
+cd ..
 
 # Optional: Browser automation
 pip install playwright
 playwright install chromium
+
+# Optional: Desktop automation
+pip install pyautogui pillow
 ```
 
 ### 4️⃣ Start Services
 
 ```bash
-# Start PostgreSQL database
-docker-compose up postgres -d
+# Terminal 1: Start backend
+python main.py
 
-# Start both backend and frontend
-npm run dev
+# Terminal 2: Start frontend
+cd web
+pnpm run dev
 ```
 
 **Access points:**
@@ -762,7 +764,7 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
 # Frontend only
 cd web
-npm run dev
+pnpm run dev
 
 # Database
 docker-compose up postgres -d
@@ -908,7 +910,7 @@ psql $DATABASE_URL -c "SELECT 1"
 echo "NEXT_PUBLIC_API_URL=http://localhost:8000" > web/.env.local
 
 # Restart frontend
-cd web && npm run dev
+cd web && pnpm run dev
 ```
 
 #### 6. CORS errors
@@ -1098,13 +1100,13 @@ git clone https://github.com/skygazer42/weaver.git
 cd weaver
 
 # Install dependencies
-npm run install:all
+pnpm run install:all
 
 # Create .env
 cp .env.example .env
 
 # Start development
-npm run dev
+pnpm run dev
 ```
 
 **Code Standards:**
