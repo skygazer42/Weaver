@@ -59,6 +59,20 @@ SEARCH_ENGINES = {
     },
 }
 
+_BROWSER_CLOSED_ERROR_FRAGMENTS = (
+    "TargetClosedError",
+    "Target page, context or browser has been closed",
+    "browser has been closed",
+    "Browser has been closed",
+    "Browser closed",
+    "Playwright connection closed",
+)
+
+
+def _looks_like_browser_closed_error(err: Exception) -> bool:
+    msg = str(err) or ""
+    return any(fragment in msg for fragment in _BROWSER_CLOSED_ERROR_FRAGMENTS)
+
 
 @dataclass
 class SearchResult:
@@ -233,7 +247,7 @@ class SandboxWebSearchInput(BaseModel):
     """Input schema for sandbox web search."""
     query: str = Field(min_length=1, description="Search query")
     engine: Literal["google", "bing", "duckduckgo"] = Field(
-        default="bing",
+        default="duckduckgo",
         description="Search engine to use"
     )
     max_results: int = Field(
@@ -273,7 +287,7 @@ class SandboxWebSearchTool(_SandboxWebSearchBaseTool):
     def _run(
         self,
         query: str,
-        engine: str = "google",
+        engine: str = "duckduckgo",
         max_results: int = 10,
         wait_ms: int = 2000,
     ) -> Dict[str, Any]:
@@ -285,100 +299,122 @@ class SandboxWebSearchTool(_SandboxWebSearchBaseTool):
                 "max_results": max_results,
             })
 
-            try:
-                # Get search engine config
-                engine_config = SEARCH_ENGINES.get(engine, SEARCH_ENGINES["bing"])
-                search_url = engine_config["url"].format(query=quote_plus(query))
+            engines_to_try = [engine]
+            # In E2B sandbox, Bing may close the Chromium session; retry on DuckDuckGo for stability.
+            if engine == "bing":
+                engines_to_try.append("duckduckgo")
 
-                # Emit progress: navigating
-                self._emit_progress(f"正在打开 {engine} 搜索...", 10)
-
-                # Navigate to search page
-                page = self._page()
-                page.goto(search_url, wait_until="domcontentloaded", timeout=60000)
-
-                # Wait for results to load
-                self._emit_progress("等待搜索结果加载...", 30)
-                page.wait_for_timeout(int(wait_ms))
-
-                # Take screenshot of search results
-                self._emit_progress("正在截取搜索结果截图...", 50)
-                screenshot = self._screenshot_with_save("search_results", full_page=False)
-                self._emit_screenshot(screenshot, "search_results")
-
-                # Parse search results
-                self._emit_progress("正在解析搜索结果...", 70)
-                results = self._parse_search_results(page, engine_config, max_results)
-
-                # Build response
-                self._emit_progress("搜索完成", 100)
-
-                response = {
-                    "query": query,
-                    "engine": engine,
-                    "page_url": page.url,
-                    "total_results": len(results),
-                    "results": results,
-                }
-
-                # Add screenshot info
-                if screenshot.get("screenshot_url"):
-                    response["screenshot_url"] = screenshot["screenshot_url"]
-                if screenshot.get("image"):
-                    response["screenshot_base64"] = screenshot["image"]
-
-                self._emit_tool_result("search", response, start_time, success=True)
-                return response
-
-            except Exception as e:
-                sandbox_error = str(e)
-                logger.error(f"[sandbox_search] Search failed: {sandbox_error}")
-
-                # Best-effort fallback: use Tavily API search when sandbox browser is unavailable
-                # (e.g., missing/invalid E2B_API_KEY). This keeps agent mode usable without E2B.
+            last_error: Optional[Exception] = None
+            for attempt_engine in engines_to_try:
                 try:
-                    from tools.search.search import tavily_search
+                    # Get search engine config
+                    engine_config = SEARCH_ENGINES.get(attempt_engine, SEARCH_ENGINES["duckduckgo"])
+                    search_url = engine_config["url"].format(query=quote_plus(query))
 
-                    tavily_results = tavily_search.invoke({"query": query, "max_results": max_results})
-                    fallback_results: List[Dict[str, Any]] = []
-                    if isinstance(tavily_results, list):
-                        for idx, item in enumerate(tavily_results[:max_results], 1):
-                            if not isinstance(item, dict):
-                                continue
-                            fallback_results.append({
-                                "position": idx,
-                                "title": item.get("title", ""),
-                                "url": item.get("url", ""),
-                                "snippet": (item.get("summary") or item.get("snippet") or "")[:500],
-                            })
+                    # Emit progress: navigating
+                    self._emit_progress(f"正在打开 {attempt_engine} 搜索...", 10)
+
+                    # Navigate to search page
+                    page = self._page()
+                    page.goto(search_url, wait_until="domcontentloaded", timeout=60000)
+
+                    # Wait for results to load
+                    self._emit_progress("等待搜索结果加载...", 30)
+                    page.wait_for_timeout(int(wait_ms))
+
+                    # Take screenshot of search results
+                    self._emit_progress("正在截取搜索结果截图...", 50)
+                    screenshot = self._screenshot_with_save("search_results", full_page=False)
+                    self._emit_screenshot(screenshot, "search_results")
+
+                    # Parse search results
+                    self._emit_progress("正在解析搜索结果...", 70)
+                    results = self._parse_search_results(page, engine_config, max_results)
+
+                    # Build response
+                    self._emit_progress("搜索完成", 100)
 
                     response = {
                         "query": query,
-                        "engine": "tavily",
-                        "page_url": None,
-                        "total_results": len(fallback_results),
-                        "results": fallback_results,
-                        "fallback": True,
-                        "sandbox_error": sandbox_error,
+                        "engine": attempt_engine,
+                        "page_url": page.url,
+                        "total_results": len(results),
+                        "results": results,
                     }
 
-                    # Consider fallback a successful tool response (even though the sandbox failed),
-                    # so the agent can continue reasoning with search results.
+                    # Add screenshot info
+                    if screenshot.get("screenshot_url"):
+                        response["screenshot_url"] = screenshot["screenshot_url"]
+                    if screenshot.get("image"):
+                        response["screenshot_base64"] = screenshot["image"]
+
                     self._emit_tool_result("search", response, start_time, success=True)
                     return response
 
-                except Exception as fallback_e:
-                    response = {
-                        "query": query,
-                        "engine": engine,
-                        "page_url": None,
-                        "total_results": 0,
-                        "results": [],
-                        "error": sandbox_error,
-                        "fallback_error": str(fallback_e),
-                    }
-                    self._emit_tool_result("search", response, start_time, success=False)
-                    return response
+                except Exception as e:
+                    last_error = e
+                    sandbox_error = str(e)
+                    logger.error(f"[sandbox_search] Search failed ({attempt_engine}): {sandbox_error}")
+
+                    # If the Playwright page/context was closed, close the session so future calls can recover.
+                    if _looks_like_browser_closed_error(e):
+                        try:
+                            self._session().close()
+                        except Exception:
+                            pass
+
+                    # Retry with fallback engine when configured.
+                    if attempt_engine != engines_to_try[-1]:
+                        continue
+                    break
+
+            sandbox_error = str(last_error) if last_error else "Unknown error"
+
+            # Best-effort fallback: use Tavily API search when sandbox browser is unavailable
+            # (e.g., missing/invalid E2B_API_KEY). This keeps agent mode usable without E2B.
+            try:
+                from tools.search.search import tavily_search
+
+                tavily_results = tavily_search.invoke({"query": query, "max_results": max_results})
+                fallback_results: List[Dict[str, Any]] = []
+                if isinstance(tavily_results, list):
+                    for idx, item in enumerate(tavily_results[:max_results], 1):
+                        if not isinstance(item, dict):
+                            continue
+                        fallback_results.append({
+                            "position": idx,
+                            "title": item.get("title", ""),
+                            "url": item.get("url", ""),
+                            "snippet": (item.get("summary") or item.get("snippet") or "")[:500],
+                        })
+
+                response = {
+                    "query": query,
+                    "engine": "tavily",
+                    "page_url": None,
+                    "total_results": len(fallback_results),
+                    "results": fallback_results,
+                    "fallback": True,
+                    "sandbox_error": sandbox_error,
+                }
+
+                # Consider fallback a successful tool response (even though the sandbox failed),
+                # so the agent can continue reasoning with search results.
+                self._emit_tool_result("search", response, start_time, success=True)
+                return response
+
+            except Exception as fallback_e:
+                response = {
+                    "query": query,
+                    "engine": engine,
+                    "page_url": None,
+                    "total_results": 0,
+                    "results": [],
+                    "error": sandbox_error,
+                    "fallback_error": str(fallback_e),
+                }
+                self._emit_tool_result("search", response, start_time, success=False)
+                return response
 
         return sandbox_browser_sessions.run_sync(self.thread_id, _impl)
 
@@ -462,7 +498,7 @@ class SandboxSearchAndClickInput(BaseModel):
         description="Which result to click (1-based index)"
     )
     engine: Literal["google", "bing", "duckduckgo"] = Field(
-        default="bing",
+        default="duckduckgo",
         description="Search engine to use"
     )
     wait_ms: int = Field(default=3000, ge=500, le=15000)
@@ -487,7 +523,7 @@ class SandboxSearchAndClickTool(_SandboxWebSearchBaseTool):
         self,
         query: str,
         result_index: int = 1,
-        engine: str = "google",
+        engine: str = "duckduckgo",
         wait_ms: int = 3000,
     ) -> Dict[str, Any]:
         return sandbox_browser_sessions.run_sync(
@@ -503,7 +539,7 @@ class SandboxSearchAndClickTool(_SandboxWebSearchBaseTool):
         self,
         query: str,
         result_index: int = 1,
-        engine: str = "google",
+        engine: str = "duckduckgo",
         wait_ms: int = 3000,
     ) -> Dict[str, Any]:
         """Execute search and click."""
@@ -513,93 +549,118 @@ class SandboxSearchAndClickTool(_SandboxWebSearchBaseTool):
             "engine": engine,
         })
 
-        try:
-            # Get search engine config
-            engine_config = SEARCH_ENGINES.get(engine, SEARCH_ENGINES["bing"])
-            search_url = engine_config["url"].format(query=quote_plus(query))
+        engines_to_try = [engine]
+        if engine == "bing":
+            engines_to_try.append("duckduckgo")
 
-            # Step 1: Navigate to search
-            self._emit_progress("正在搜索...", 10)
-            page = self._page()
-            page.goto(search_url, wait_until="domcontentloaded", timeout=60000)
-            page.wait_for_timeout(2000)
-
-            # Screenshot search results
-            self._emit_progress("正在截取搜索结果...", 30)
-            search_screenshot = self._screenshot_with_save("search_page", full_page=False)
-            self._emit_screenshot(search_screenshot, "search_page")
-
-            # Step 2: Find and click the result
-            self._emit_progress(f"正在点击第 {result_index} 个结果...", 50)
-
-            result_selector = engine_config.get("result_selector", "div.g")
-            link_selector = engine_config.get("link_selector", "a")
-
-            # Get the nth result
-            results = page.locator(result_selector).all()
-            if result_index > len(results):
-                raise ValueError(f"只找到 {len(results)} 个结果，无法点击第 {result_index} 个")
-
-            target_result = results[result_index - 1]
-            link = target_result.locator(link_selector).first
-
-            # Get link info before clicking
-            clicked_url = link.get_attribute("href") or ""
-            clicked_title = ""
+        last_error: Optional[Exception] = None
+        for attempt_engine in engines_to_try:
             try:
-                title_selector = engine_config.get("title_selector", "h3")
-                clicked_title = target_result.locator(title_selector).first.inner_text(timeout=1000)
-            except Exception:
-                pass
+                # Get search engine config
+                engine_config = SEARCH_ENGINES.get(attempt_engine, SEARCH_ENGINES["duckduckgo"])
+                search_url = engine_config["url"].format(query=quote_plus(query))
 
-            # Click
-            link.click(timeout=30000)
+                # Step 1: Navigate to search
+                self._emit_progress("正在搜索...", 10)
+                page = self._page()
+                page.goto(search_url, wait_until="domcontentloaded", timeout=60000)
+                page.wait_for_timeout(2000)
 
-            # Wait for page load
-            self._emit_progress("等待页面加载...", 70)
-            page.wait_for_timeout(int(wait_ms))
+                # Screenshot search results
+                self._emit_progress("正在截取搜索结果...", 30)
+                search_screenshot = self._screenshot_with_save("search_page", full_page=False)
+                self._emit_screenshot(search_screenshot, "search_page")
 
-            # Screenshot destination page
-            self._emit_progress("正在截取目标页面...", 90)
-            dest_screenshot = self._screenshot_with_save("destination_page", full_page=False)
-            self._emit_screenshot(dest_screenshot, "destination_page")
+                # Step 2: Find and click the result
+                self._emit_progress(f"正在点击第 {result_index} 个结果...", 50)
 
-            # Build response
-            self._emit_progress("完成", 100)
+                result_selector = engine_config.get("result_selector", "div.g")
+                link_selector = engine_config.get("link_selector", "a")
 
-            page_info = self._page_info()
-            response = {
-                "query": query,
-                "engine": engine,
-                "clicked_result": {
-                    "position": result_index,
-                    "title": clicked_title,
-                    "url": clicked_url,
-                },
-                "destination": {
-                    "url": page_info.get("url"),
-                    "title": page_info.get("title"),
-                },
-                "screenshots": {
-                    "search_page": search_screenshot.get("screenshot_url"),
-                    "destination_page": dest_screenshot.get("screenshot_url"),
-                },
-            }
+                # Get the nth result
+                results = page.locator(result_selector).all()
+                if result_index > len(results):
+                    raise ValueError(f"只找到 {len(results)} 个结果，无法点击第 {result_index} 个")
 
-            self._emit_tool_result("search_and_click", response, start_time, success=True)
-            return response
+                target_result = results[result_index - 1]
+                link = target_result.locator(link_selector).first
 
-        except Exception as e:
-            err = str(e)
-            logger.error(f"[sandbox_search] Search and click failed: {err}")
-            response = {
-                "query": query,
-                "engine": engine,
-                "error": err,
-                "requires": "E2B_API_KEY",
-            }
-            self._emit_tool_result("search_and_click", response, start_time, success=False)
-            return response
+                # Get link info before clicking
+                clicked_url = link.get_attribute("href") or ""
+                clicked_title = ""
+                try:
+                    title_selector = engine_config.get("title_selector", "h3")
+                    clicked_title = target_result.locator(title_selector).first.inner_text(timeout=1000)
+                except Exception:
+                    pass
+
+                # Click
+                link.click(timeout=30000)
+
+                # Wait for page load
+                self._emit_progress("等待页面加载...", 70)
+                page.wait_for_timeout(int(wait_ms))
+
+                # Screenshot destination page
+                self._emit_progress("正在截取目标页面...", 90)
+                dest_screenshot = self._screenshot_with_save("destination_page", full_page=False)
+                self._emit_screenshot(dest_screenshot, "destination_page")
+
+                # Build response
+                self._emit_progress("完成", 100)
+
+                page_info = self._page_info()
+                response = {
+                    "query": query,
+                    "engine": attempt_engine,
+                    "clicked_result": {
+                        "position": result_index,
+                        "title": clicked_title,
+                        "url": clicked_url,
+                    },
+                    "destination": {
+                        "url": page_info.get("url"),
+                        "title": page_info.get("title"),
+                    },
+                    "screenshots": {
+                        "search_page": search_screenshot.get("screenshot_url"),
+                        "destination_page": dest_screenshot.get("screenshot_url"),
+                    },
+                }
+
+                self._emit_tool_result("search_and_click", response, start_time, success=True)
+                return response
+
+            except Exception as e:
+                last_error = e
+                err = str(e)
+                logger.error(f"[sandbox_search] Search and click failed ({attempt_engine}): {err}")
+                if _looks_like_browser_closed_error(e):
+                    try:
+                        self._session().close()
+                    except Exception:
+                        pass
+
+                if attempt_engine != engines_to_try[-1]:
+                    continue
+                response = {
+                    "query": query,
+                    "engine": attempt_engine,
+                    "error": err,
+                    "requires": "E2B_API_KEY",
+                }
+                self._emit_tool_result("search_and_click", response, start_time, success=False)
+                return response
+
+        err = str(last_error) if last_error else "Unknown error"
+        response = {
+            "query": query,
+            "engine": engine,
+            "error": err,
+            "requires": "E2B_API_KEY",
+        }
+        self._emit_tool_result("search_and_click", response, start_time, success=False)
+        return response
 
 
 class SandboxExtractSearchResultsInput(BaseModel):

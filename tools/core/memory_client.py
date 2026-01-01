@@ -14,6 +14,11 @@ _fallback_path = _ROOT_DIR / "data" / "memory_store.json"
 _legacy_fallback_path = _ROOT_DIR / ".memory_store.json"
 
 
+def _normalize_user_id(user_id: Optional[str]) -> str:
+    user = (user_id or settings.memory_user_id or "default_user").strip()
+    return user or "default_user"
+
+
 def _ensure_fallback_path():
     """
     Ensure fallback path exists under `data/` and migrate legacy root file if present.
@@ -102,7 +107,7 @@ def _fallback_save(data: dict) -> None:
 
 def add_memory_entry(content: str, user_id: Optional[str] = None) -> bool:
     """Store a memory entry (long-term)."""
-    user = user_id or settings.memory_user_id
+    user = _normalize_user_id(user_id)
     if not content:
         return False
 
@@ -134,7 +139,7 @@ def store_interaction(user_input: str, assistant_output: str, user_id: Optional[
 
 def fetch_memories(query: str = "*", user_id: Optional[str] = None, limit: Optional[int] = None) -> List[str]:
     """Retrieve memories (most recent first)."""
-    user = user_id or settings.memory_user_id
+    user = _normalize_user_id(user_id)
     k = limit or settings.memory_top_k
 
     client = _get_mem_client()

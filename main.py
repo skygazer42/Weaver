@@ -869,7 +869,7 @@ async def stream_agent_events(
             store_text = "\n".join(f"- {m}" for m in store_memories)
             messages.append(SystemMessage(content=f"Stored memories:\n{store_text}"))
 
-        mem_entries = fetch_memories(query=input_text)
+        mem_entries = fetch_memories(query=input_text, user_id=user_id)
         if mem_entries:
             memory_text = "\n".join(f"- {m}" for m in mem_entries)
             messages.append(SystemMessage(content=f"Relevant past knowledge:\n{memory_text}"))
@@ -1251,7 +1251,7 @@ async def chat(request: ChatRequest):
                 store_text = "\n".join(f"- {m}" for m in store_memories)
                 messages.append(SystemMessage(content=f"Stored memories:\n{store_text}"))
 
-            mem_entries = fetch_memories(query=last_message)
+            mem_entries = fetch_memories(query=last_message, user_id=user_id)
             if mem_entries:
                 memory_text = "\n".join(f"- {m}" for m in mem_entries)
                 messages.append(SystemMessage(content=f"Relevant past knowledge:\n{memory_text}"))
@@ -1782,6 +1782,21 @@ async def stream_tool_events(thread_id: str, request: Request, last_event_id: Op
 
 # ==================== Browser Session Endpoints ====================
 
+_BROWSER_CLOSED_ERROR_FRAGMENTS = (
+    "TargetClosedError",
+    "Target page, context or browser has been closed",
+    "browser has been closed",
+    "Browser has been closed",
+    "Browser closed",
+    "Playwright connection closed",
+)
+
+
+def _looks_like_browser_closed_error(err: Exception) -> bool:
+    msg = str(err) or ""
+    return any(fragment in msg for fragment in _BROWSER_CLOSED_ERROR_FRAGMENTS)
+
+
 @app.get("/api/browser/{thread_id}/info")
 async def get_browser_session_info(thread_id: str):
     """
@@ -1845,7 +1860,17 @@ async def trigger_browser_screenshot(thread_id: str):
                 page_url = None
             return png_bytes, page_url
 
-        png_bytes, page_url = await sandbox_browser_sessions.run_async(thread_id, _capture)
+        try:
+            png_bytes, page_url = await sandbox_browser_sessions.run_async(thread_id, _capture)
+        except Exception as e:
+            if not _looks_like_browser_closed_error(e):
+                raise
+            # Session got closed (common after some sites); reset and retry once.
+            try:
+                await sandbox_browser_sessions.run_async(thread_id, lambda: sandbox_browser_sessions.get(thread_id).close())
+            except Exception:
+                pass
+            png_bytes, page_url = await sandbox_browser_sessions.run_async(thread_id, _capture)
 
         # Save screenshot
         service = get_screenshot_service()
@@ -1919,7 +1944,17 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
                 pass
             return jpg_bytes, metadata
 
-        jpg_bytes, metadata = await sandbox_browser_sessions.run_async(thread_id, _capture)
+        try:
+            jpg_bytes, metadata = await sandbox_browser_sessions.run_async(thread_id, _capture)
+        except Exception as e:
+            if not _looks_like_browser_closed_error(e):
+                raise
+            # Session got closed; reset and retry once.
+            try:
+                await sandbox_browser_sessions.run_async(thread_id, lambda: sandbox_browser_sessions.get(thread_id).close())
+            except Exception:
+                pass
+            jpg_bytes, metadata = await sandbox_browser_sessions.run_async(thread_id, _capture)
         return {
             "data": base64.b64encode(jpg_bytes).decode("ascii"),
             "metadata": metadata,
