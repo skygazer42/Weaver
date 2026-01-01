@@ -24,6 +24,8 @@
 
 [在线演示](https://weaver-demo.vercel.app) · [文档](docs/) · [问题反馈](https://github.com/your-org/weaver/issues) · [功能请求](https://github.com/your-org/weaver/issues)
 
+<img src="docs/images/dashboard.png" alt="Weaver Dashboard" width="100%" style="border-radius: 8px; margin-top: 20px;" />
+
 </div>
 
 ---
@@ -45,6 +47,21 @@
 - **🧩 高度可扩展**：MCP 协议支持、插件化架构、自定义工具开发
 
 本项目致力于打造一个**可迁移、可扩展、面向开发者**的智能体平台模板系统。你可以基于 Weaver 快速构建专属领域的 AI 助手，仅需调整提示词和工具配置，即可实现高质量的智能交互体验。
+
+### 🖼️ 界面展示
+
+<div align="center">
+  <img src="docs/images/dashboard.png" alt="Weaver 主界面" width="90%" />
+  <p><i>Weaver 主界面 - 现代化的对话体验</i></p>
+</div>
+
+**界面特点**：
+- 🎨 简洁优雅的 UI 设计
+- 🌓 支持亮色/暗色主题切换
+- 📱 响应式布局，适配各种设备
+- 🚀 快速示例卡片，一键启动对话
+- 🔄 实时事件流，展示 Agent 工作过程
+- 🎯 多模式切换（Web/Agent/Deep Research/MCP）
 
 ---
 
@@ -853,45 +870,6 @@ env: {
 - [x] Prometheus 监控
 - [x] Docker 部署
 
-### 🚧 进行中（v1.0）
-
-**前端优化**
-- [ ] 深度研究消息对齐修复
-- [ ] Artifact 画廊视图
-- [ ] 高级搜索过滤
-- [ ] 主题定制
-
-**后端增强**
-- [ ] Agent 运行持久化
-- [ ] 高级图像编辑
-- [ ] Web 开发脚手架
-- [ ] 沙箱一键部署（Vercel/Netlify）
-
-### 🔮 规划中（v1.1+）
-
-**认证与多用户**
-- [ ] JWT 用户认证
-- [ ] 多用户支持
-- [ ] 基于角色的访问控制
-- [ ] API Key 管理
-
-**知识库**
-- [ ] RAG（检索增强生成）
-- [ ] 文档上传与索引
-- [ ] 向量搜索
-- [ ] 知识图谱
-
-**高级特性**
-- [ ] 多 Agent 协作
-- [ ] 工作流模板
-- [ ] 自定义工具构建 UI
-- [ ] Agent 市场
-
-**集成**
-- [ ] Slack Bot
-- [ ] Discord Bot
-- [ ] Telegram Bot
-- [ ] 邮件集成
 
 ---
 

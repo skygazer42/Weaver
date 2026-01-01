@@ -22,6 +22,8 @@
 
 [Demo](https://weaver-demo.vercel.app) · [Documentation](docs/) · [Report Bug](https://github.com/your-org/weaver/issues) · [Request Feature](https://github.com/your-org/weaver/issues)
 
+<img src="docs/images/dashboard.png" alt="Weaver Dashboard" width="100%" style="border-radius: 8px; margin-top: 20px;" />
+
 </div>
 
 ---
@@ -1074,31 +1076,9 @@ MEMORY_STORE_URL=redis://localhost:6379/0
 - [ ] Web development scaffolding
 - [ ] Deploy to Vercel/Netlify from sandbox
 
-### 🔮 Planned (v1.1+)
+### 🔮 Future Plans
 
-**Authentication & Multi-User**
-- [ ] User authentication (JWT)
-- [ ] Multi-user support
-- [ ] Role-based access control
-- [ ] API key management
-
-**Knowledge Base**
-- [ ] RAG (Retrieval-Augmented Generation)
-- [ ] Document upload and indexing
-- [ ] Vector search
-- [ ] Knowledge graph
-
-**Advanced Features**
-- [ ] Multi-agent collaboration
-- [ ] Workflow templates
-- [ ] Custom tool builder UI
-- [ ] Agent marketplace
-
-**Integrations**
-- [ ] Slack bot
-- [ ] Discord bot
-- [ ] Telegram bot
-- [ ] Email integration
+We are continuously improving Weaver. Feel free to contribute or suggest new features!
 
 ## 🤝 Contributing
 
