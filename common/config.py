@@ -105,7 +105,7 @@ class AppConfig(BaseModel):
 
 
 class Settings(BaseSettings):
-    model_config = ConfigDict(env_file=".env", case_sensitive=False)
+    model_config = ConfigDict(env_file=".env", env_file_encoding="utf-8-sig", case_sensitive=False)
     """Application settings."""
 
     @classmethod
