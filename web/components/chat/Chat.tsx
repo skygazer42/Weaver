@@ -384,7 +384,7 @@ export function Chat() {
           <Button
             variant="outline"
             size="icon"
-            className="fixed bottom-28 right-6 z-50 rounded-full shadow-lg bg-background"
+            className="fixed bottom-32 right-6 z-50 rounded-full shadow-lg bg-background"
             onClick={() => setShowBrowserViewer(!showBrowserViewer)}
             title={showBrowserViewer ? "Hide Browser" : "Show Browser"}
           >
@@ -393,7 +393,7 @@ export function Chat() {
 
           {/* Browser Viewer Panel */}
           {showBrowserViewer && (
-            <div className="fixed bottom-40 right-6 z-40">
+            <div className="fixed bottom-48 right-6 z-40">
               <BrowserViewer
                 threadId={threadId}
                 className="shadow-2xl"

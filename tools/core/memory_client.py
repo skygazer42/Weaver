@@ -1,13 +1,14 @@
 import json
 import logging
-from typing import List, Optional
+from typing import Any, List, Optional
 from pathlib import Path
 
 from common.config import settings
 
 logger = logging.getLogger(__name__)
 
-_mem_client = None
+_MEM_INIT_FAILED = object()
+_mem_client: Any = None
 _ROOT_DIR = Path(__file__).resolve().parents[1]
 _fallback_path = _ROOT_DIR / "data" / "memory_store.json"
 _legacy_fallback_path = _ROOT_DIR / ".memory_store.json"
@@ -35,19 +36,41 @@ def _get_mem_client():
     global _mem_client
     if not settings.enable_memory:
         return None
+    if _mem_client is _MEM_INIT_FAILED:
+        return None
     if _mem_client is not None:
         return _mem_client
-    try:
-        from mem0 import Memory
-    except Exception:
-        logger.warning("mem0 not installed; memory disabled.")
-        return None
 
     try:
+        import mem0  # noqa: F401
+    except Exception:
+        logger.warning("mem0 not installed; memory disabled.")
+        _mem_client = _MEM_INIT_FAILED
+        return None
+
+    # mem0ai>=1.0.0 exposes a hosted API client via MemoryClient; prefer that.
+    try:
+        from mem0 import MemoryClient  # type: ignore
+    except Exception:
+        MemoryClient = None  # type: ignore
+
+    if MemoryClient is not None:
+        try:
+            _mem_client = MemoryClient(api_key=settings.mem0_api_key or None)
+            return _mem_client
+        except Exception as e:
+            logger.warning(f"Failed to init mem0 MemoryClient: {e}")
+            _mem_client = _MEM_INIT_FAILED
+            return None
+
+    # Backward-compatible fallback for older mem0 versions.
+    try:
+        from mem0 import Memory  # type: ignore
         _mem_client = Memory(api_key=settings.mem0_api_key or None)
         return _mem_client
     except Exception as e:
         logger.warning(f"Failed to init mem0 client: {e}")
+        _mem_client = _MEM_INIT_FAILED
         return None
 
 
@@ -117,19 +140,43 @@ def fetch_memories(query: str = "*", user_id: Optional[str] = None, limit: Optio
     client = _get_mem_client()
     if client:
         try:
-            results = client.search(
-                query=query or "*",
-                user_id=user,
-                limit=k
-            )
-            # mem0 returns list of dicts with "content" key
+            # mem0 MemoryClient uses `top_k`; older clients may accept `limit`.
+            try:
+                results = client.search(query=query or "*", user_id=user, top_k=k)
+            except TypeError:
+                results = client.search(query=query or "*", user_id=user, limit=k)
+
+            # Normalize common return shapes across mem0 versions:
+            # - list[dict|str]
+            # - {"results": [...]}
+            if isinstance(results, dict):
+                results = results.get("results", [])
+
+            out: List[str] = []
             if isinstance(results, list):
-                out = []
                 for item in results:
-                    if isinstance(item, dict) and item.get("content"):
-                        out.append(str(item["content"]))
-                    elif isinstance(item, str):
-                        out.append(item)
+                    if isinstance(item, str) and item.strip():
+                        out.append(item.strip())
+                        continue
+                    if not isinstance(item, dict):
+                        continue
+                    # Try a few common keys used across mem0 API versions.
+                    for key in ("content", "text", "memory", "message"):
+                        val = item.get(key)
+                        if isinstance(val, str) and val.strip():
+                            out.append(val.strip())
+                            break
+                    else:
+                        # Sometimes the payload nests under "memory" or "data".
+                        nested = item.get("memory") if isinstance(item.get("memory"), dict) else item.get("data")
+                        if isinstance(nested, dict):
+                            for key in ("content", "text"):
+                                val = nested.get(key)
+                                if isinstance(val, str) and val.strip():
+                                    out.append(val.strip())
+                                    break
+
+            if out:
                 return out[:k]
         except Exception as e:
             logger.warning(f"mem0 search failed: {e}")
