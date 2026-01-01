@@ -613,7 +613,7 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 cd web && pnpm run dev
 
 # 数据库
-docker-compose up postgres -d
+docker-compose -f docker/docker-compose.yml up postgres -d
 ```
 
 ### 运行测试
@@ -685,13 +685,13 @@ docker run -d \
 
 ```bash
 # 启动所有服务
-docker-compose up -d
+docker-compose -f docker/docker-compose.yml up -d
 
 # 查看日志
-docker-compose logs -f backend
+docker-compose -f docker/docker-compose.yml logs -f backend
 
 # 停止服务
-docker-compose down
+docker-compose -f docker/docker-compose.yml down
 ```
 
 ### 前端部署（Vercel）
@@ -763,7 +763,7 @@ python -c "from e2b_code_interpreter import Sandbox; s = Sandbox(); print('OK')"
 
 ```bash
 # 启动 PostgreSQL
-docker-compose up postgres -d
+docker-compose -f docker/docker-compose.yml up postgres -d
 
 # 测试连接
 psql $DATABASE_URL -c "SELECT 1"

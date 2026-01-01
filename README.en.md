@@ -246,7 +246,9 @@ weaver/
 │   └── lib/                        # Utilities
 │
 ├── main.py                         # FastAPI entry point
-├── docker-compose.yml              # Docker services
+├── docker/                         # Docker configuration
+│   ├── docker-compose.yml          # Service orchestration
+│   └── Dockerfile                  # Container image
 └── .env.example                    # Environment template
 ```
 
@@ -766,7 +768,7 @@ cd web
 pnpm run dev
 
 # Database
-docker-compose up postgres -d
+docker-compose -f docker/docker-compose.yml up postgres -d
 ```
 
 ## 🚢 Deployment
@@ -790,13 +792,13 @@ docker run -p 8000:8000 \
 
 ```bash
 # Start all services
-docker-compose up -d
+docker-compose -f docker/docker-compose.yml up -d
 
 # View logs
-docker-compose logs -f
+docker-compose -f docker/docker-compose.yml logs -f
 
 # Stop
-docker-compose down
+docker-compose -f docker/docker-compose.yml down
 ```
 
 **Services:**
