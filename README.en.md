@@ -20,7 +20,7 @@
 [![Node.js 18+](https://img.shields.io/badge/node-18+-green.svg)](https://nodejs.org/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-0.2+-purple.svg)](https://github.com/langchain-ai/langgraph)
 
-[Demo](https://weaver-demo.vercel.app) · [Documentation](docs/) · [Report Bug](https://github.com/your-org/weaver/issues) · [Request Feature](https://github.com/your-org/weaver/issues)
+[Demo](https://weaver-demo.vercel.app) · [Documentation](docs/) · [Report Bug](https://github.com/skygazer42/weaver/issues) · [Request Feature](https://github.com/skygazer42/weaver/issues)
 
 <img src="docs/images/dashboard.png" alt="Weaver Dashboard" width="100%" style="border-radius: 8px; margin-top: 20px;" />
 
@@ -123,7 +123,7 @@
 ### 1️⃣ Clone & Setup
 
 ```bash
-git clone https://github.com/your-org/weaver.git
+git clone https://github.com/skygazer42/weaver.git
 cd weaver
 
 # Copy environment template
@@ -1094,7 +1094,7 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 **Development Setup:**
 ```bash
 # Clone your fork
-git clone https://github.com/your-username/weaver.git
+git clone https://github.com/skygazer42/weaver.git
 cd weaver
 
 # Install dependencies
@@ -1128,8 +1128,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Contact & Support
 
-- **Issues**: [GitHub Issues](https://github.com/your-org/weaver/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/your-org/weaver/discussions)
+- **Issues**: [GitHub Issues](https://github.com/skygazer42/weaver/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/skygazer42/weaver/discussions)
 - **Twitter**: [@WeaverAI](https://twitter.com/WeaverAI)
 - **Discord**: [Join our community](https://discord.gg/weaver)
 

@@ -22,7 +22,7 @@
 ![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat&logo=docker&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green.svg?style=flat)
 
-[在线演示](https://weaver-demo.vercel.app) · [文档](docs/) · [问题反馈](https://github.com/your-org/weaver/issues) · [功能请求](https://github.com/your-org/weaver/issues)
+[在线演示](https://weaver-demo.vercel.app) · [文档](docs/) · [问题反馈](https://github.com/skygazer42/weaver/issues) · [功能请求](https://github.com/skygazer42/weaver/issues)
 
 <img src="docs/images/dashboard.png" alt="Weaver Dashboard" width="100%" style="border-radius: 8px; margin-top: 20px;" />
 
@@ -47,21 +47,6 @@
 - **🧩 高度可扩展**：MCP 协议支持、插件化架构、自定义工具开发
 
 本项目致力于打造一个**可迁移、可扩展、面向开发者**的智能体平台模板系统。你可以基于 Weaver 快速构建专属领域的 AI 助手，仅需调整提示词和工具配置，即可实现高质量的智能交互体验。
-
-### 🖼️ 界面展示
-
-<div align="center">
-  <img src="docs/images/dashboard.png" alt="Weaver 主界面" width="90%" />
-  <p><i>Weaver 主界面 - 现代化的对话体验</i></p>
-</div>
-
-**界面特点**：
-- 🎨 简洁优雅的 UI 设计
-- 🌓 支持亮色/暗色主题切换
-- 📱 响应式布局，适配各种设备
-- 🚀 快速示例卡片，一键启动对话
-- 🔄 实时事件流，展示 Agent 工作过程
-- 🎯 多模式切换（Web/Agent/Deep Research/MCP）
 
 ---
 
@@ -269,7 +254,7 @@ graph LR
 ### 第一步：克隆仓库
 
 ```bash
-git clone https://github.com/your-org/weaver.git
+git clone https://github.com/skygazer42/weaver.git
 cd weaver
 ```
 
@@ -888,7 +873,7 @@ env: {
 ### 开发环境搭建
 
 ```bash
-git clone https://github.com/your-username/weaver.git
+git clone https://github.com/skygazer42/weaver.git
 cd weaver
 cp .env.example .env
 npm run install:all
@@ -923,8 +908,8 @@ npm run dev
 
 ## 📞 联系我们
 
-- **问题反馈**：[GitHub Issues](https://github.com/your-org/weaver/issues)
-- **讨论交流**：[GitHub Discussions](https://github.com/your-org/weaver/discussions)
+- **问题反馈**：[GitHub Issues](https://github.com/skygazer42/weaver/issues)
+- **讨论交流**：[GitHub Discussions](https://github.com/skygazer42/weaver/discussions)
 - **Twitter**：[@WeaverAI](https://twitter.com/WeaverAI)
 - **Discord**：[加入社区](https://discord.gg/weaver)
 
