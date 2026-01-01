@@ -19,10 +19,21 @@ from common.config import settings
 import logging
 import json
 
-from e2b_code_interpreter import Sandbox
+try:
+    from e2b_code_interpreter import Sandbox  # type: ignore
+    E2B_AVAILABLE = True
+except Exception:  # pragma: no cover
+    Sandbox = None  # type: ignore[assignment]
+    E2B_AVAILABLE = False
 from common.e2b_env import prepare_e2b_env
 
 logger = logging.getLogger(__name__)
+
+_E2B_PLACEHOLDER_KEYS = {
+    "e2b_...",  # common placeholder
+    # The repo's .env.example ships with a non-working sample key; treat as placeholder.
+    "e2b_39ce8c3d299470afd09b42629c436edec32728d8",
+}
 
 
 class CodeExecutorTool(WeaverTool):
@@ -85,7 +96,8 @@ class CodeExecutorTool(WeaverTool):
                 metadata={"error_type": "DependencyError"}
             )
 
-        if not self.api_key:
+        api_key = (self.api_key or "").strip()
+        if not api_key or api_key in _E2B_PLACEHOLDER_KEYS:
             return self.fail_response(
                 "E2B API key not configured",
                 metadata={"config_required": "E2B_API_KEY"}
@@ -99,7 +111,7 @@ class CodeExecutorTool(WeaverTool):
 
         try:
             prepare_e2b_env()
-            with Sandbox(api_key=self.api_key, timeout=timeout) as sandbox:
+            with Sandbox(api_key=api_key, timeout=timeout) as sandbox:  # type: ignore[misc]
                 execution = sandbox.run_code(code)
 
                 # Extract execution results

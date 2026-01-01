@@ -1,15 +1,20 @@
 from __future__ import annotations
 
+import asyncio
+import functools
 import os
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional, TypeVar
 from urllib.parse import urlparse, urlunparse
 
 from common.config import settings
 
 from common.e2b_env import prepare_e2b_env
+
+_T = TypeVar("_T")
 
 
 def _env(name: str, default: str = "") -> str:
@@ -29,9 +34,25 @@ def _bool_env(name: str, default: bool = False) -> bool:
     return default
 
 
+_E2B_PLACEHOLDER_KEYS = {
+    "e2b_...",  # common placeholder
+    # The repo's .env.example ships with a non-working sample key; treat as placeholder.
+    "e2b_39ce8c3d299470afd09b42629c436edec32728d8",
+}
+_E2B_DISABLED_REASON: Optional[str] = None
+
+
 def _require_e2b() -> None:
-    if not settings.e2b_api_key:
-        raise RuntimeError("E2B_API_KEY is required for sandbox browser tools.")
+    global _E2B_DISABLED_REASON
+    if _E2B_DISABLED_REASON:
+        raise RuntimeError(_E2B_DISABLED_REASON)
+
+    key = (settings.e2b_api_key or "").strip()
+    if not key or key in _E2B_PLACEHOLDER_KEYS:
+        raise RuntimeError(
+            "E2B_API_KEY is required for sandbox browser tools. "
+            "Get one at https://e2b.dev/docs/api-key"
+        )
 
 
 def _sandbox_domain() -> Optional[str]:
@@ -236,14 +257,26 @@ class SandboxBrowserSession:
             }
 
             prepare_e2b_env(domain)
-            sandbox = Sandbox(
-                template=template,
-                timeout=timeout,
-                api_key=settings.e2b_api_key,
-                domain=domain,
-                metadata=metadata,
-                allow_internet_access=_bool_env("SANDBOX_ALLOW_INTERNET", True),
-            )
+            try:
+                sandbox = Sandbox(
+                    template=template,
+                    timeout=timeout,
+                    api_key=settings.e2b_api_key,
+                    domain=domain,
+                    metadata=metadata,
+                    allow_internet_access=_bool_env("SANDBOX_ALLOW_INTERNET", True),
+                )
+            except Exception as e:
+                # Common failure mode: 401 Invalid API key → avoid repeated API calls.
+                msg = str(e)
+                if "Invalid API key" in msg or "Cannot get the team" in msg or "401" in msg:
+                    global _E2B_DISABLED_REASON
+                    _E2B_DISABLED_REASON = (
+                        "Invalid E2B_API_KEY for sandbox tools. "
+                        "Set a valid key from https://e2b.dev/docs/api-key"
+                    )
+                    raise RuntimeError(_E2B_DISABLED_REASON) from e
+                raise
 
             # Ensure Chrome/Chromium is running with the remote debugging port.
             # NOTE: pgrep can match itself when the pattern appears in argv, so we
@@ -385,9 +418,17 @@ class SandboxBrowserSessionManager:
         # (conversation thread_id, worker thread ident) to avoid cross-thread
         # usage that triggers greenlet errors.
         self._sessions: Dict[tuple[str, int], SandboxBrowserSession] = {}
+        # Additionally, provide an opt-in per-thread single-worker executor so
+        # async FastAPI endpoints (WebSocket, screenshots) can safely interact
+        # with the sync Playwright API without running it on the asyncio loop.
+        self._executors: Dict[str, ThreadPoolExecutor] = {}
+        self._executor_thread_id: Dict[str, int] = {}
+
+    def _normalize_thread_id(self, thread_id: str) -> str:
+        return (thread_id or "").strip() or "default"
 
     def _key(self, thread_id: str) -> tuple[str, int]:
-        thread_id = (thread_id or "").strip() or "default"
+        thread_id = self._normalize_thread_id(thread_id)
         return (thread_id, threading.get_ident())
 
     def get(self, thread_id: str) -> SandboxBrowserSession:
@@ -397,14 +438,93 @@ class SandboxBrowserSessionManager:
                 self._sessions[key] = SandboxBrowserSession(key[0])
             return self._sessions[key]
 
-    def reset(self, thread_id: str) -> None:
-        thread_id = (thread_id or "").strip() or "default"
+    def _get_executor(self, thread_id: str) -> ThreadPoolExecutor:
+        thread_id = self._normalize_thread_id(thread_id)
         with self._lock:
-            keys = [k for k in self._sessions.keys() if k[0] == thread_id]
+            executor = self._executors.get(thread_id)
+            if executor is None:
+                executor = ThreadPoolExecutor(
+                    max_workers=1,
+                    thread_name_prefix=f"weaver-sb-{thread_id[:12]}",
+                )
+                self._executors[thread_id] = executor
+            return executor
+
+    def _run_and_record(self, thread_id: str, fn: Callable[[], _T]) -> _T:
+        thread_id = self._normalize_thread_id(thread_id)
+        with self._lock:
+            self._executor_thread_id[thread_id] = threading.get_ident()
+        return fn()
+
+    def run_sync(self, thread_id: str, fn: Callable[..., _T], *args, **kwargs) -> _T:
+        """
+        Run `fn(*args, **kwargs)` on a per-thread single-worker executor and block for result.
+
+        This is safe to call from any thread and keeps sync Playwright objects
+        confined to a single thread per conversation thread_id.
+        """
+        thread_id = self._normalize_thread_id(thread_id)
+        with self._lock:
+            executor_thread_id = self._executor_thread_id.get(thread_id)
+
+        if executor_thread_id is not None and threading.get_ident() == executor_thread_id:
+            return fn(*args, **kwargs)
+
+        executor = self._get_executor(thread_id)
+        bound = functools.partial(fn, *args, **kwargs)
+        return executor.submit(self._run_and_record, thread_id, bound).result()
+
+    async def run_async(self, thread_id: str, fn: Callable[..., _T], *args, **kwargs) -> _T:
+        """
+        Run `fn(*args, **kwargs)` on a per-thread single-worker executor and await result.
+
+        Intended for async FastAPI endpoints to avoid calling sync Playwright APIs
+        on the running asyncio event loop.
+        """
+        thread_id = self._normalize_thread_id(thread_id)
+        with self._lock:
+            executor_thread_id = self._executor_thread_id.get(thread_id)
+
+        if executor_thread_id is not None and threading.get_ident() == executor_thread_id:
+            return fn(*args, **kwargs)
+
+        executor = self._get_executor(thread_id)
+        bound = functools.partial(fn, *args, **kwargs)
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(executor, functools.partial(self._run_and_record, thread_id, bound))
+
+    def reset(self, thread_id: str) -> None:
+        thread_id = self._normalize_thread_id(thread_id)
+
+        # Best-effort: close the primary session on its executor thread to avoid
+        # Playwright's "sync API inside asyncio loop"/greenlet thread-affinity errors.
+        with self._lock:
+            executor = self._executors.get(thread_id)
+
+        if executor is not None:
+            try:
+                self.run_sync(thread_id, lambda: self.get(thread_id).close())
+            except Exception:
+                pass
+
+        with self._lock:
+            keys = [k for k in list(self._sessions.keys()) if k[0] == thread_id]
             sessions = [self._sessions.pop(k) for k in keys]
+            executor = self._executors.pop(thread_id, None)
+            self._executor_thread_id.pop(thread_id, None)
+
+        # Close any remaining sessions best-effort (may already be closed).
         for session in sessions:
             try:
                 session.close()
+            except Exception:
+                pass
+
+        if executor is not None:
+            try:
+                executor.shutdown(wait=False, cancel_futures=True)
+            except TypeError:
+                executor.shutdown(wait=False)
             except Exception:
                 pass
 

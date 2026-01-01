@@ -140,11 +140,24 @@ def fetch_memories(query: str = "*", user_id: Optional[str] = None, limit: Optio
     client = _get_mem_client()
     if client:
         try:
-            # mem0 MemoryClient uses `top_k`; older clients may accept `limit`.
+            results = None
+
+            # mem0 v2 hosted API requires a non-empty `filters` dict.
+            # Older clients use `user_id=...` without `filters`.
             try:
-                results = client.search(query=query or "*", user_id=user, top_k=k)
+                results = client.search(query=query or "*", filters={"user_id": user}, top_k=k)
             except TypeError:
-                results = client.search(query=query or "*", user_id=user, limit=k)
+                try:
+                    results = client.search(query=query or "*", filters={"user_id": user}, limit=k)
+                except TypeError:
+                    results = None
+
+            if results is None:
+                # Backward compatibility: mem0 Memory/older MemoryClient.
+                try:
+                    results = client.search(query=query or "*", user_id=user, top_k=k)
+                except TypeError:
+                    results = client.search(query=query or "*", user_id=user, limit=k)
 
             # Normalize common return shapes across mem0 versions:
             # - list[dict|str]

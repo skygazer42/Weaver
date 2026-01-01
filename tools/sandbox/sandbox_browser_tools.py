@@ -282,34 +282,38 @@ class SbBrowserNavigateTool(_SbBrowserTool):
         wait_ms: int = 1000,
         full_page: bool = False,
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("navigate", {"url": url})
-        self._emit_progress("navigate", f"goto {url}")
-        state = _get_thread_state(self.thread_id)
-        state["scroll_accum"] = 0
-        state["arrow_accum"] = 0
+        def _impl() -> Dict[str, Any]:
+            start_time = self._emit_tool_start("navigate", {"url": url})
+            self._emit_progress("navigate", f"goto {url}")
+            state = _get_thread_state(self.thread_id)
+            state["scroll_accum"] = 0
+            state["arrow_accum"] = 0
 
-        try:
-            page = self._page()
-            page.goto(url, wait_until=wait_until, timeout=60000)
-            if wait_ms:
-                page.wait_for_timeout(int(wait_ms))
-            self._emit_progress("navigate", "page_loaded")
+            try:
+                page = self._page()
+                page.goto(url, wait_until=wait_until, timeout=60000)
+                if wait_ms:
+                    page.wait_for_timeout(int(wait_ms))
+                self._emit_progress("navigate", "page_loaded")
 
-            info = self._page_info()
-            screenshot, screenshot_hash = self._screenshot_with_save("navigate", full_page=full_page)
-            self._emit_progress("navigate", "screenshot_captured")
+                info = self._page_info()
+                screenshot, screenshot_hash = self._screenshot_with_save("navigate", full_page=full_page)
+                self._emit_progress("navigate", "screenshot_captured")
 
-            result = {**info, **screenshot}
+                result = {**info, **screenshot}
 
-            # Emit screenshot event
-            self._emit_screenshot(screenshot, "navigate", image_hash=screenshot_hash)
-            self._emit_tool_result("navigate", result, start_time, success=True)
+                # Emit screenshot event
+                self._emit_screenshot(screenshot, "navigate", image_hash=screenshot_hash)
+                self._emit_tool_result("navigate", result, start_time, success=True)
 
-            return result
+                return result
 
-        except Exception as e:
-            self._emit_tool_result("navigate", {"error": str(e)}, start_time, success=False)
-            raise
+            except Exception as e:
+                result = {"error": str(e), "url": url}
+                self._emit_tool_result("navigate", result, start_time, success=False)
+                return result
+
+        return sandbox_browser_sessions.run_sync(self.thread_id, _impl)
 
 
 class SbBrowserClickInput(BaseModel):
@@ -331,45 +335,49 @@ class SbBrowserClickTool(_SbBrowserTool):
         wait_ms: int = 800,
         full_page: bool = False,
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("click", {"selector": selector, "text": text})
-        self._emit_progress("click", selector or text or "")
+        def _impl() -> Dict[str, Any]:
+            start_time = self._emit_tool_start("click", {"selector": selector, "text": text})
+            self._emit_progress("click", selector or text or "")
 
-        try:
-            page = self._page()
-            if selector and selector.strip():
-                page.locator(selector.strip()).first.click(timeout=30000)
-            elif text and text.strip():
-                t = text.strip()
-                try:
-                    page.get_by_role("link", name=t).first.click(timeout=30000)
-                except Exception:
+            try:
+                page = self._page()
+                if selector and selector.strip():
+                    page.locator(selector.strip()).first.click(timeout=30000)
+                elif text and text.strip():
+                    t = text.strip()
                     try:
-                        page.get_by_role("button", name=t).first.click(timeout=30000)
+                        page.get_by_role("link", name=t).first.click(timeout=30000)
                     except Exception:
-                        page.get_by_text(t, exact=False).first.click(timeout=30000)
-            else:
-                raise ValueError("Either selector or text is required.")
+                        try:
+                            page.get_by_role("button", name=t).first.click(timeout=30000)
+                        except Exception:
+                            page.get_by_text(t, exact=False).first.click(timeout=30000)
+                else:
+                    raise ValueError("Either selector or text is required.")
 
-            if wait_ms:
-                page.wait_for_timeout(int(wait_ms))
-            self._emit_progress("click", "after_click_wait")
+                if wait_ms:
+                    page.wait_for_timeout(int(wait_ms))
+                self._emit_progress("click", "after_click_wait")
 
-            info = self._page_info()
-            state = _get_thread_state(self.thread_id)
-            state["scroll_accum"] = 0
-            state["arrow_accum"] = 0
-            screenshot, screenshot_hash = self._screenshot_with_save("click", full_page=full_page)
+                info = self._page_info()
+                state = _get_thread_state(self.thread_id)
+                state["scroll_accum"] = 0
+                state["arrow_accum"] = 0
+                screenshot, screenshot_hash = self._screenshot_with_save("click", full_page=full_page)
 
-            result = {**info, **screenshot}
+                result = {**info, **screenshot}
 
-            self._emit_screenshot(screenshot, "click", image_hash=screenshot_hash)
-            self._emit_tool_result("click", result, start_time, success=True)
+                self._emit_screenshot(screenshot, "click", image_hash=screenshot_hash)
+                self._emit_tool_result("click", result, start_time, success=True)
 
-            return result
+                return result
 
-        except Exception as e:
-            self._emit_tool_result("click", {"error": str(e)}, start_time, success=False)
-            raise
+            except Exception as e:
+                result = {"error": str(e), "selector": selector, "text": text}
+                self._emit_tool_result("click", result, start_time, success=False)
+                return result
+
+        return sandbox_browser_sessions.run_sync(self.thread_id, _impl)
 
 
 class SbBrowserTypeInput(BaseModel):
@@ -396,52 +404,56 @@ class SbBrowserTypeTool(_SbBrowserTool):
         wait_ms: int = 800,
         full_page: bool = False,
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("type", {
-            "text": text[:50] + "..." if len(text) > 50 else text,
-            "selector": selector,
-            "press_enter": press_enter,
-        })
-        self._emit_progress("type", selector or "first_input")
+        def _impl() -> Dict[str, Any]:
+            start_time = self._emit_tool_start("type", {
+                "text": text[:50] + "..." if len(text) > 50 else text,
+                "selector": selector,
+                "press_enter": press_enter,
+            })
+            self._emit_progress("type", selector or "first_input")
 
-        try:
-            page = self._page()
-            loc = (
-                page.locator(selector.strip()).first
-                if selector and selector.strip()
-                else page.locator("input, textarea, [contenteditable='true']").first
-            )
-            loc.click(timeout=30000)
             try:
-                loc.fill(text)
-            except Exception:
-                loc.type(text)
-            if press_enter:
-                page.keyboard.press("Enter")
-            if wait_ms:
-                page.wait_for_timeout(int(wait_ms))
-            self._emit_progress("type", "after_type_wait")
+                page = self._page()
+                loc = (
+                    page.locator(selector.strip()).first
+                    if selector and selector.strip()
+                    else page.locator("input, textarea, [contenteditable='true']").first
+                )
+                loc.click(timeout=30000)
+                try:
+                    loc.fill(text)
+                except Exception:
+                    loc.type(text)
+                if press_enter:
+                    page.keyboard.press("Enter")
+                if wait_ms:
+                    page.wait_for_timeout(int(wait_ms))
+                self._emit_progress("type", "after_type_wait")
 
-            info = self._page_info()
-            screenshot: Dict[str, Any] = {}
-            screenshot_hash: Optional[str] = None
-            screenshot_action = "submit" if press_enter else "type"
-            if press_enter:
-                state = _get_thread_state(self.thread_id)
-                state["scroll_accum"] = 0
-                state["arrow_accum"] = 0
-                screenshot, screenshot_hash = self._screenshot_with_save("type", full_page=full_page)
+                info = self._page_info()
+                screenshot: Dict[str, Any] = {}
+                screenshot_hash: Optional[str] = None
+                screenshot_action = "submit" if press_enter else "type"
+                if press_enter:
+                    state = _get_thread_state(self.thread_id)
+                    state["scroll_accum"] = 0
+                    state["arrow_accum"] = 0
+                    screenshot, screenshot_hash = self._screenshot_with_save("type", full_page=full_page)
 
-            result = {**info, **screenshot}
+                result = {**info, **screenshot}
 
-            if screenshot:
-                self._emit_screenshot(screenshot, screenshot_action, image_hash=screenshot_hash)
-            self._emit_tool_result("type", result, start_time, success=True)
+                if screenshot:
+                    self._emit_screenshot(screenshot, screenshot_action, image_hash=screenshot_hash)
+                self._emit_tool_result("type", result, start_time, success=True)
 
-            return result
+                return result
 
-        except Exception as e:
-            self._emit_tool_result("type", {"error": str(e)}, start_time, success=False)
-            raise
+            except Exception as e:
+                result = {"error": str(e), "selector": selector, "press_enter": press_enter}
+                self._emit_tool_result("type", result, start_time, success=False)
+                return result
+
+        return sandbox_browser_sessions.run_sync(self.thread_id, _impl)
 
 
 class SbBrowserPressInput(BaseModel):
@@ -460,45 +472,49 @@ class SbBrowserPressTool(_SbBrowserTool):
     args_schema: type[BaseModel] = SbBrowserPressInput
 
     def _run(self, keys: str, wait_ms: int = 500, full_page: bool = False) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("press", {"keys": keys})
-        self._emit_progress("press", keys)
+        def _impl() -> Dict[str, Any]:
+            start_time = self._emit_tool_start("press", {"keys": keys})
+            self._emit_progress("press", keys)
 
-        try:
-            page = self._page()
-            page.keyboard.press(keys)
-            if wait_ms:
-                page.wait_for_timeout(int(wait_ms))
-            self._emit_progress("press", "after_press_wait")
+            try:
+                page = self._page()
+                page.keyboard.press(keys)
+                if wait_ms:
+                    page.wait_for_timeout(int(wait_ms))
+                self._emit_progress("press", "after_press_wait")
 
-            info = self._page_info()
-            keys_upper = (keys or "").upper().replace(" ", "")
-            meaningful = any(token in keys_upper for token in ("ENTER", "PAGEDOWN", "PAGEUP", "HOME", "END", "SPACE"))
-            screenshot: Dict[str, Any] = {}
-            screenshot_hash: Optional[str] = None
-            state = _get_thread_state(self.thread_id)
-            if meaningful:
-                state["arrow_accum"] = 0
-                state["scroll_accum"] = 0
-                screenshot, screenshot_hash = self._screenshot_with_save("press", full_page=full_page)
-            elif any(token in keys_upper for token in ("ARROWDOWN", "ARROWUP")):
-                state["arrow_accum"] = int(state.get("arrow_accum") or 0) + 1
-                if state["arrow_accum"] >= 3:
-                    screenshot, screenshot_hash = self._screenshot_with_save("press", full_page=full_page)
+                info = self._page_info()
+                keys_upper = (keys or "").upper().replace(" ", "")
+                meaningful = any(token in keys_upper for token in ("ENTER", "PAGEDOWN", "PAGEUP", "HOME", "END", "SPACE"))
+                screenshot: Dict[str, Any] = {}
+                screenshot_hash: Optional[str] = None
+                state = _get_thread_state(self.thread_id)
+                if meaningful:
                     state["arrow_accum"] = 0
-            else:
-                state["arrow_accum"] = 0
+                    state["scroll_accum"] = 0
+                    screenshot, screenshot_hash = self._screenshot_with_save("press", full_page=full_page)
+                elif any(token in keys_upper for token in ("ARROWDOWN", "ARROWUP")):
+                    state["arrow_accum"] = int(state.get("arrow_accum") or 0) + 1
+                    if state["arrow_accum"] >= 3:
+                        screenshot, screenshot_hash = self._screenshot_with_save("press", full_page=full_page)
+                        state["arrow_accum"] = 0
+                else:
+                    state["arrow_accum"] = 0
 
-            result = {**info, **screenshot}
+                result = {**info, **screenshot}
 
-            if screenshot:
-                self._emit_screenshot(screenshot, f"press:{keys}", image_hash=screenshot_hash)
-            self._emit_tool_result("press", result, start_time, success=True)
+                if screenshot:
+                    self._emit_screenshot(screenshot, f"press:{keys}", image_hash=screenshot_hash)
+                self._emit_tool_result("press", result, start_time, success=True)
 
-            return result
+                return result
 
-        except Exception as e:
-            self._emit_tool_result("press", {"error": str(e)}, start_time, success=False)
-            raise
+            except Exception as e:
+                result = {"error": str(e), "keys": keys}
+                self._emit_tool_result("press", result, start_time, success=False)
+                return result
+
+        return sandbox_browser_sessions.run_sync(self.thread_id, _impl)
 
 
 class SbBrowserScrollInput(BaseModel):
@@ -516,39 +532,43 @@ class SbBrowserScrollTool(_SbBrowserTool):
     args_schema: type[BaseModel] = SbBrowserScrollInput
 
     def _run(self, amount: int, wait_ms: int = 500, full_page: bool = False) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("scroll", {"amount": amount})
-        self._emit_progress("scroll", str(amount))
+        def _impl() -> Dict[str, Any]:
+            start_time = self._emit_tool_start("scroll", {"amount": amount})
+            self._emit_progress("scroll", str(amount))
 
-        try:
-            page = self._page()
-            amt = int(amount)
-            page.mouse.wheel(0, amt)
-            if wait_ms:
-                page.wait_for_timeout(int(wait_ms))
-            self._emit_progress("scroll", "after_scroll_wait")
+            try:
+                page = self._page()
+                amt = int(amount)
+                page.mouse.wheel(0, amt)
+                if wait_ms:
+                    page.wait_for_timeout(int(wait_ms))
+                self._emit_progress("scroll", "after_scroll_wait")
 
-            info = self._page_info()
-            viewport_h = (page.viewport_size or {}).get("height") if getattr(page, "viewport_size", None) else None
-            threshold = int((int(viewport_h) if viewport_h else 800) * 0.75)
-            screenshot: Dict[str, Any] = {}
-            screenshot_hash: Optional[str] = None
-            state = _get_thread_state(self.thread_id)
-            state["scroll_accum"] = int(state.get("scroll_accum") or 0) + amt
-            if abs(int(state["scroll_accum"])) >= threshold:
-                screenshot, screenshot_hash = self._screenshot_with_save("scroll", full_page=full_page)
-                state["scroll_accum"] = 0
+                info = self._page_info()
+                viewport_h = (page.viewport_size or {}).get("height") if getattr(page, "viewport_size", None) else None
+                threshold = int((int(viewport_h) if viewport_h else 800) * 0.75)
+                screenshot: Dict[str, Any] = {}
+                screenshot_hash: Optional[str] = None
+                state = _get_thread_state(self.thread_id)
+                state["scroll_accum"] = int(state.get("scroll_accum") or 0) + amt
+                if abs(int(state["scroll_accum"])) >= threshold:
+                    screenshot, screenshot_hash = self._screenshot_with_save("scroll", full_page=full_page)
+                    state["scroll_accum"] = 0
 
-            result = {**info, **screenshot}
+                result = {**info, **screenshot}
 
-            if screenshot:
-                self._emit_screenshot(screenshot, "scroll", image_hash=screenshot_hash)
-            self._emit_tool_result("scroll", result, start_time, success=True)
+                if screenshot:
+                    self._emit_screenshot(screenshot, "scroll", image_hash=screenshot_hash)
+                self._emit_tool_result("scroll", result, start_time, success=True)
 
-            return result
+                return result
 
-        except Exception as e:
-            self._emit_tool_result("scroll", {"error": str(e)}, start_time, success=False)
-            raise
+            except Exception as e:
+                result = {"error": str(e), "amount": amount}
+                self._emit_tool_result("scroll", result, start_time, success=False)
+                return result
+
+        return sandbox_browser_sessions.run_sync(self.thread_id, _impl)
 
 
 class SbBrowserExtractTextInput(BaseModel):
@@ -561,26 +581,30 @@ class SbBrowserExtractTextTool(_SbBrowserTool):
     args_schema: type[BaseModel] = SbBrowserExtractTextInput
 
     def _run(self, max_chars: int = 5000) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("extract_text", {"max_chars": max_chars})
-        self._emit_progress("extract_text", f"max_chars={max_chars}")
+        def _impl() -> Dict[str, Any]:
+            start_time = self._emit_tool_start("extract_text", {"max_chars": max_chars})
+            self._emit_progress("extract_text", f"max_chars={max_chars}")
 
-        try:
-            page = self._page()
             try:
-                text = page.inner_text("body")
-            except Exception:
-                text = page.content()
+                page = self._page()
+                try:
+                    text = page.inner_text("body")
+                except Exception:
+                    text = page.content()
 
-            info = self._page_info()
-            result = {**info, "text": _trim(text, int(max_chars))}
+                info = self._page_info()
+                result = {**info, "text": _trim(text, int(max_chars))}
 
-            self._emit_tool_result("extract_text", result, start_time, success=True)
+                self._emit_tool_result("extract_text", result, start_time, success=True)
 
-            return result
+                return result
 
-        except Exception as e:
-            self._emit_tool_result("extract_text", {"error": str(e)}, start_time, success=False)
-            raise
+            except Exception as e:
+                result = {"error": str(e), "max_chars": max_chars}
+                self._emit_tool_result("extract_text", result, start_time, success=False)
+                return result
+
+        return sandbox_browser_sessions.run_sync(self.thread_id, _impl)
 
 
 class SbBrowserScreenshotInput(BaseModel):
@@ -593,23 +617,27 @@ class SbBrowserScreenshotTool(_SbBrowserTool):
     args_schema: type[BaseModel] = SbBrowserScreenshotInput
 
     def _run(self, full_page: bool = False) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("screenshot", {"full_page": full_page})
-        self._emit_progress("screenshot", "capturing")
+        def _impl() -> Dict[str, Any]:
+            start_time = self._emit_tool_start("screenshot", {"full_page": full_page})
+            self._emit_progress("screenshot", "capturing")
 
-        try:
-            info = self._page_info()
-            screenshot, screenshot_hash = self._screenshot_with_save("screenshot", full_page=full_page)
+            try:
+                info = self._page_info()
+                screenshot, screenshot_hash = self._screenshot_with_save("screenshot", full_page=full_page)
 
-            result = {**info, **screenshot}
+                result = {**info, **screenshot}
 
-            self._emit_screenshot(screenshot, "screenshot", image_hash=screenshot_hash)
-            self._emit_tool_result("screenshot", result, start_time, success=True)
+                self._emit_screenshot(screenshot, "screenshot", image_hash=screenshot_hash)
+                self._emit_tool_result("screenshot", result, start_time, success=True)
 
-            return result
+                return result
 
-        except Exception as e:
-            self._emit_tool_result("screenshot", {"error": str(e)}, start_time, success=False)
-            raise
+            except Exception as e:
+                result = {"error": str(e), "full_page": full_page}
+                self._emit_tool_result("screenshot", result, start_time, success=False)
+                return result
+
+        return sandbox_browser_sessions.run_sync(self.thread_id, _impl)
 
 
 class SbBrowserResetTool(_SbBrowserTool):
@@ -617,20 +645,24 @@ class SbBrowserResetTool(_SbBrowserTool):
     description: str = "Close and reset the sandbox browser session (kills the sandbox)."
 
     def _run(self) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("reset", {})
-        self._emit_progress("reset", "closing session")
+        def _impl() -> Dict[str, Any]:
+            start_time = self._emit_tool_start("reset", {})
+            self._emit_progress("reset", "closing session")
 
-        try:
-            sandbox_browser_sessions.reset(self.thread_id)
-            result = {"status": "reset", "thread_id": self.thread_id}
+            try:
+                sandbox_browser_sessions.reset(self.thread_id)
+                result = {"status": "reset", "thread_id": self.thread_id}
 
-            self._emit_tool_result("reset", result, start_time, success=True)
+                self._emit_tool_result("reset", result, start_time, success=True)
 
-            return result
+                return result
 
-        except Exception as e:
-            self._emit_tool_result("reset", {"error": str(e)}, start_time, success=False)
-            raise
+            except Exception as e:
+                result = {"error": str(e), "thread_id": self.thread_id}
+                self._emit_tool_result("reset", result, start_time, success=False)
+                return result
+
+        return sandbox_browser_sessions.run_sync(self.thread_id, _impl)
 
 
 def build_sandbox_browser_tools(

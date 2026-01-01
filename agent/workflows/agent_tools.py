@@ -53,6 +53,28 @@ def _sandbox_template_available() -> bool:
     return bool(env_template)
 
 
+_E2B_PLACEHOLDER_KEYS = {
+    "e2b_...",  # common placeholder
+    # The repo's .env.example ships with a non-working sample key; treat as placeholder.
+    "e2b_39ce8c3d299470afd09b42629c436edec32728d8",
+}
+
+
+def _e2b_api_key_configured() -> bool:
+    """
+    Return True when an E2B API key is configured (and not a known placeholder).
+
+    E2B-backed tools (sandbox browser/search/files/shell/...) should be gated on this to
+    avoid hard failures when users haven't provided a real key.
+    """
+    key = (settings.e2b_api_key or "").strip()
+    if not key:
+        return False
+    if key in _E2B_PLACEHOLDER_KEYS:
+        return False
+    return True
+
+
 def _configurable(config: RunnableConfig) -> Dict[str, Any]:
     if isinstance(config, dict):
         cfg = config.get("configurable") or {}
@@ -93,11 +115,13 @@ def build_agent_tools(config: RunnableConfig) -> List[BaseTool]:
     thread_id = str(cfg.get("thread_id") or "default")
 
     tools: List[BaseTool] = []
+    e2b_ready = _e2b_api_key_configured()
 
     prefer_visual_search = (
         _enabled(profile, "sandbox_web_search", default=False)
         and _sandbox_template_available()
         and settings.sandbox_mode == "local"
+        and e2b_ready
     )
 
     if _enabled(profile, "web_search", default=True) and not prefer_visual_search:
@@ -115,7 +139,7 @@ def build_agent_tools(config: RunnableConfig) -> List[BaseTool]:
 
     # Browser: prefer sandbox browser if explicitly enabled.
     if _enabled(profile, "sandbox_browser", default=False):
-        if settings.sandbox_mode == "local":
+        if settings.sandbox_mode == "local" and e2b_ready:
             tools.extend(build_sandbox_browser_tools(thread_id))
         elif settings.sandbox_mode == "daytona":
             # For daytona mode, rely on daytona tools; skip local sandbox browser
@@ -129,52 +153,52 @@ def build_agent_tools(config: RunnableConfig) -> List[BaseTool]:
 
     # Sandbox web search: visual search using sandbox browser
     if _enabled(profile, "sandbox_web_search", default=False):
-        if settings.sandbox_mode == "local":
+        if settings.sandbox_mode == "local" and e2b_ready:
             tools.extend(build_sandbox_web_search_tools(thread_id))
 
     # Sandbox files: file operations in E2B sandbox
     if _enabled(profile, "sandbox_files", default=False):
-        if settings.sandbox_mode == "local":
+        if settings.sandbox_mode == "local" and e2b_ready:
             tools.extend(build_sandbox_files_tools(thread_id))
 
     # Sandbox shell: command execution in E2B sandbox
     if _enabled(profile, "sandbox_shell", default=False):
-        if settings.sandbox_mode == "local":
+        if settings.sandbox_mode == "local" and e2b_ready:
             tools.extend(build_sandbox_shell_tools(thread_id))
 
     # Sandbox sheets: Excel/spreadsheet generation in E2B sandbox
     if _enabled(profile, "sandbox_sheets", default=False):
-        if settings.sandbox_mode == "local":
+        if settings.sandbox_mode == "local" and e2b_ready:
             tools.extend(build_sandbox_sheets_tools(thread_id))
 
     # Sandbox presentation: PowerPoint generation in E2B sandbox
     if _enabled(profile, "sandbox_presentation", default=False):
-        if settings.sandbox_mode == "local":
+        if settings.sandbox_mode == "local" and e2b_ready:
             tools.extend(build_sandbox_presentation_tools(thread_id))
 
     # Sandbox vision: Image analysis and OCR in E2B sandbox
     if _enabled(profile, "sandbox_vision", default=False):
-        if settings.sandbox_mode == "local":
+        if settings.sandbox_mode == "local" and e2b_ready:
             tools.extend(build_sandbox_vision_tools(thread_id))
 
     # Sandbox image edit: Advanced image editing in E2B sandbox
     if _enabled(profile, "sandbox_image_edit", default=False):
-        if settings.sandbox_mode == "local":
+        if settings.sandbox_mode == "local" and e2b_ready:
             tools.extend(build_image_edit_tools(thread_id))
 
     # Sandbox web development: scaffold & deploy web apps
     if _enabled(profile, "sandbox_web_dev", default=False):
-        if settings.sandbox_mode == "local":
+        if settings.sandbox_mode == "local" and e2b_ready:
             tools.extend(build_sandbox_web_dev_tools(thread_id))
 
     # Presentation outline: LLM-based PPT outline generation
     if _enabled(profile, "presentation_outline", default=False):
-        if settings.sandbox_mode == "local":
+        if settings.sandbox_mode == "local" and e2b_ready:
             tools.extend(build_presentation_outline_tools(thread_id))
 
     # Presentation v2: Enhanced PPT features (themes, transitions)
     if _enabled(profile, "presentation_v2", default=False):
-        if settings.sandbox_mode == "local":
+        if settings.sandbox_mode == "local" and e2b_ready:
             tools.extend(build_presentation_v2_tools(thread_id))
 
     if _enabled(profile, "python", default=False):

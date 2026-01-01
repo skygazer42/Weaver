@@ -278,61 +278,109 @@ class SandboxWebSearchTool(_SandboxWebSearchBaseTool):
         wait_ms: int = 2000,
     ) -> Dict[str, Any]:
         """Execute the search."""
-        start_time = self._emit_tool_start("search", {
-            "query": query,
-            "engine": engine,
-            "max_results": max_results,
-        })
-
-        try:
-            # Get search engine config
-            engine_config = SEARCH_ENGINES.get(engine, SEARCH_ENGINES["bing"])
-            search_url = engine_config["url"].format(query=quote_plus(query))
-
-            # Emit progress: navigating
-            self._emit_progress(f"正在打开 {engine} 搜索...", 10)
-
-            # Navigate to search page
-            page = self._page()
-            page.goto(search_url, wait_until="domcontentloaded", timeout=60000)
-
-            # Wait for results to load
-            self._emit_progress("等待搜索结果加载...", 30)
-            page.wait_for_timeout(int(wait_ms))
-
-            # Take screenshot of search results
-            self._emit_progress("正在截取搜索结果截图...", 50)
-            screenshot = self._screenshot_with_save("search_results", full_page=False)
-            self._emit_screenshot(screenshot, "search_results")
-
-            # Parse search results
-            self._emit_progress("正在解析搜索结果...", 70)
-            results = self._parse_search_results(page, engine_config, max_results)
-
-            # Build response
-            self._emit_progress("搜索完成", 100)
-
-            response = {
+        def _impl() -> Dict[str, Any]:
+            start_time = self._emit_tool_start("search", {
                 "query": query,
                 "engine": engine,
-                "page_url": page.url,
-                "total_results": len(results),
-                "results": results,
-            }
+                "max_results": max_results,
+            })
 
-            # Add screenshot info
-            if screenshot.get("screenshot_url"):
-                response["screenshot_url"] = screenshot["screenshot_url"]
-            if screenshot.get("image"):
-                response["screenshot_base64"] = screenshot["image"]
+            try:
+                # Get search engine config
+                engine_config = SEARCH_ENGINES.get(engine, SEARCH_ENGINES["bing"])
+                search_url = engine_config["url"].format(query=quote_plus(query))
 
-            self._emit_tool_result("search", response, start_time, success=True)
-            return response
+                # Emit progress: navigating
+                self._emit_progress(f"正在打开 {engine} 搜索...", 10)
 
-        except Exception as e:
-            logger.error(f"[sandbox_search] Search failed: {e}")
-            self._emit_tool_result("search", {"error": str(e)}, start_time, success=False)
-            raise
+                # Navigate to search page
+                page = self._page()
+                page.goto(search_url, wait_until="domcontentloaded", timeout=60000)
+
+                # Wait for results to load
+                self._emit_progress("等待搜索结果加载...", 30)
+                page.wait_for_timeout(int(wait_ms))
+
+                # Take screenshot of search results
+                self._emit_progress("正在截取搜索结果截图...", 50)
+                screenshot = self._screenshot_with_save("search_results", full_page=False)
+                self._emit_screenshot(screenshot, "search_results")
+
+                # Parse search results
+                self._emit_progress("正在解析搜索结果...", 70)
+                results = self._parse_search_results(page, engine_config, max_results)
+
+                # Build response
+                self._emit_progress("搜索完成", 100)
+
+                response = {
+                    "query": query,
+                    "engine": engine,
+                    "page_url": page.url,
+                    "total_results": len(results),
+                    "results": results,
+                }
+
+                # Add screenshot info
+                if screenshot.get("screenshot_url"):
+                    response["screenshot_url"] = screenshot["screenshot_url"]
+                if screenshot.get("image"):
+                    response["screenshot_base64"] = screenshot["image"]
+
+                self._emit_tool_result("search", response, start_time, success=True)
+                return response
+
+            except Exception as e:
+                sandbox_error = str(e)
+                logger.error(f"[sandbox_search] Search failed: {sandbox_error}")
+
+                # Best-effort fallback: use Tavily API search when sandbox browser is unavailable
+                # (e.g., missing/invalid E2B_API_KEY). This keeps agent mode usable without E2B.
+                try:
+                    from tools.search.search import tavily_search
+
+                    tavily_results = tavily_search.invoke({"query": query, "max_results": max_results})
+                    fallback_results: List[Dict[str, Any]] = []
+                    if isinstance(tavily_results, list):
+                        for idx, item in enumerate(tavily_results[:max_results], 1):
+                            if not isinstance(item, dict):
+                                continue
+                            fallback_results.append({
+                                "position": idx,
+                                "title": item.get("title", ""),
+                                "url": item.get("url", ""),
+                                "snippet": (item.get("summary") or item.get("snippet") or "")[:500],
+                            })
+
+                    response = {
+                        "query": query,
+                        "engine": "tavily",
+                        "page_url": None,
+                        "total_results": len(fallback_results),
+                        "results": fallback_results,
+                        "fallback": True,
+                        "sandbox_error": sandbox_error,
+                    }
+
+                    # Consider fallback a successful tool response (even though the sandbox failed),
+                    # so the agent can continue reasoning with search results.
+                    self._emit_tool_result("search", response, start_time, success=True)
+                    return response
+
+                except Exception as fallback_e:
+                    response = {
+                        "query": query,
+                        "engine": engine,
+                        "page_url": None,
+                        "total_results": 0,
+                        "results": [],
+                        "error": sandbox_error,
+                        "fallback_error": str(fallback_e),
+                    }
+                    self._emit_tool_result("search", response, start_time, success=False)
+                    return response
+
+        return sandbox_browser_sessions.run_sync(self.thread_id, _impl)
 
     def _parse_search_results(
         self,
@@ -442,6 +490,22 @@ class SandboxSearchAndClickTool(_SandboxWebSearchBaseTool):
         engine: str = "google",
         wait_ms: int = 3000,
     ) -> Dict[str, Any]:
+        return sandbox_browser_sessions.run_sync(
+            self.thread_id,
+            self._run_impl,
+            query=query,
+            result_index=result_index,
+            engine=engine,
+            wait_ms=wait_ms,
+        )
+
+    def _run_impl(
+        self,
+        query: str,
+        result_index: int = 1,
+        engine: str = "google",
+        wait_ms: int = 3000,
+    ) -> Dict[str, Any]:
         """Execute search and click."""
         start_time = self._emit_tool_start("search_and_click", {
             "query": query,
@@ -526,9 +590,16 @@ class SandboxSearchAndClickTool(_SandboxWebSearchBaseTool):
             return response
 
         except Exception as e:
-            logger.error(f"[sandbox_search] Search and click failed: {e}")
-            self._emit_tool_result("search_and_click", {"error": str(e)}, start_time, success=False)
-            raise
+            err = str(e)
+            logger.error(f"[sandbox_search] Search and click failed: {err}")
+            response = {
+                "query": query,
+                "engine": engine,
+                "error": err,
+                "requires": "E2B_API_KEY",
+            }
+            self._emit_tool_result("search_and_click", response, start_time, success=False)
+            return response
 
 
 class SandboxExtractSearchResultsInput(BaseModel):
@@ -551,6 +622,13 @@ class SandboxExtractSearchResultsTool(_SandboxWebSearchBaseTool):
     args_schema: type[BaseModel] = SandboxExtractSearchResultsInput
 
     def _run(self, max_results: int = 10) -> Dict[str, Any]:
+        return sandbox_browser_sessions.run_sync(
+            self.thread_id,
+            self._run_impl,
+            max_results=max_results,
+        )
+
+    def _run_impl(self, max_results: int = 10) -> Dict[str, Any]:
         """Extract results from current page."""
         start_time = self._emit_tool_start("extract_results", {"max_results": max_results})
 
@@ -598,9 +676,18 @@ class SandboxExtractSearchResultsTool(_SandboxWebSearchBaseTool):
             return response
 
         except Exception as e:
-            logger.error(f"[sandbox_search] Extract failed: {e}")
-            self._emit_tool_result("extract_results", {"error": str(e)}, start_time, success=False)
-            raise
+            err = str(e)
+            logger.error(f"[sandbox_search] Extract failed: {err}")
+            response = {
+                "page_url": None,
+                "detected_engine": "unknown",
+                "total_results": 0,
+                "results": [],
+                "error": err,
+                "requires": "E2B_API_KEY",
+            }
+            self._emit_tool_result("extract_results", response, start_time, success=False)
+            return response
 
     def _parse_results_with_config(
         self,
