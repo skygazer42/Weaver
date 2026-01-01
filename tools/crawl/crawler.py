@@ -400,7 +400,9 @@ def _run_async_crawl(urls: List[str]) -> List[Dict[str, str]]:
         try:
             import platform
             if platform.system().lower().startswith("win"):
-                asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+                # Playwright relies on subprocess support, which requires a Proactor event loop on Windows.
+                # Using WindowsSelectorEventLoopPolicy causes `NotImplementedError` when Playwright starts.
+                asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
         except Exception:
             pass
         return asyncio.run(_async_crawl_urls(target_urls))

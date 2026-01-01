@@ -34,6 +34,29 @@ def _bool_env(name: str, default: bool = False) -> bool:
     return default
 
 
+def _ensure_windows_proactor_event_loop_policy() -> None:
+    """
+    Playwright starts a local driver process; on Windows this requires a Proactor event loop.
+
+    Some code paths in this repo previously switched to WindowsSelectorEventLoopPolicy, which
+    makes `asyncio.create_subprocess_exec` raise NotImplementedError and breaks sandbox browser tools.
+    """
+
+    if os.name != "nt":
+        return
+
+    try:
+        selector_policy = getattr(asyncio, "WindowsSelectorEventLoopPolicy", None)
+        proactor_policy = getattr(asyncio, "WindowsProactorEventLoopPolicy", None)
+        if not selector_policy or not proactor_policy:
+            return
+        policy = asyncio.get_event_loop_policy()
+        if isinstance(policy, selector_policy):
+            asyncio.set_event_loop_policy(proactor_policy())
+    except Exception:
+        return
+
+
 _E2B_PLACEHOLDER_KEYS = {
     "e2b_...",  # common placeholder
     # The repo's .env.example ships with a non-working sample key; treat as placeholder.
@@ -322,7 +345,15 @@ class SandboxBrowserSession:
                 )
                 cdp_endpoint = cdp_ws_endpoint
 
-            pw = sync_playwright().start()
+            _ensure_windows_proactor_event_loop_policy()
+            try:
+                pw = sync_playwright().start()
+            except NotImplementedError as e:
+                raise RuntimeError(
+                    "Playwright failed to start on Windows (asyncio subprocess not supported). "
+                    "Ensure the process uses WindowsProactorEventLoopPolicy "
+                    "(do not set WindowsSelectorEventLoopPolicy)."
+                ) from e
             try:
                 endpoints_to_try = []
                 if cdp_ws_endpoint:
