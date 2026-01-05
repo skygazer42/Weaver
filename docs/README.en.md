@@ -10,14 +10,14 @@
 
 **Open-source AI Agent platform with Deep Research, Code Execution, Browser Automation, and Generative UI capabilities.**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Node.js 18+](https://img.shields.io/badge/node-18+-green.svg)](https://nodejs.org/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-0.2+-purple.svg)](https://github.com/langchain-ai/langgraph)
 
-[Demo](https://weaver-demo.vercel.app) · [Documentation](docs/) · [Report Bug](https://github.com/skygazer42/weaver/issues) · [Request Feature](https://github.com/skygazer42/weaver/issues)
+[Demo](https://weaver-demo.vercel.app) · [Documentation](./) · [Report Bug](https://github.com/skygazer42/weaver/issues) · [Request Feature](https://github.com/skygazer42/weaver/issues)
 
-<img src="docs/images/dashboard.png" alt="Weaver Dashboard" width="100%" style="border-radius: 8px; margin-top: 20px;" />
+<img src="images/dashboard.png" alt="Weaver Dashboard" width="100%" style="border-radius: 8px; margin-top: 20px;" />
 
 </div>
 
@@ -686,7 +686,7 @@ Text-to-speech (TTS).
 
 ### Complete Tool List
 
-See [TOOL_REFERENCE.md](docs/TOOL_REFERENCE.md) for detailed tool documentation.
+See [TOOL_REFERENCE.md](TOOL_REFERENCE.md) for detailed tool documentation.
 
 **Quick Reference:**
 
@@ -828,14 +828,14 @@ uvicorn main:app --host 0.0.0.0 --port $PORT
 
 | Document | Description |
 |----------|-------------|
-| [MANUS_AGENT_EXTRACTION_PROGRESS.md](docs/MANUS_AGENT_EXTRACTION_PROGRESS.md) | Feature extraction from Manus (92% complete) |
-| [AGENT_VISUAL_IMPLEMENTATION_PLAN.md](docs/AGENT_VISUAL_IMPLEMENTATION_PLAN.md) | Visual agent implementation plan |
-| [MANUS_FEATURE_ANALYSIS.md](docs/MANUS_FEATURE_ANALYSIS.md) | Manus feature comparison and analysis |
-| [FRONTEND_INTEGRATION.md](docs/FRONTEND_INTEGRATION.md) | Frontend SSE integration guide |
-| [DEEP_SEARCH_ROUTING_ANALYSIS.md](docs/DEEP_SEARCH_ROUTING_ANALYSIS.md) | Deep search routing flow analysis |
-| [DEEP_SEARCH_TROUBLESHOOTING.md](docs/DEEP_SEARCH_TROUBLESHOOTING.md) | Deep search diagnostic guide |
-| [DEBUG_ALIGNMENT_ISSUE.md](docs/DEBUG_ALIGNMENT_ISSUE.md) | Message alignment debugging guide |
-| [TOOL_REFERENCE.md](docs/TOOL_REFERENCE.md) | Complete tool documentation |
+| [MANUS_AGENT_EXTRACTION_PROGRESS.md](MANUS_AGENT_EXTRACTION_PROGRESS.md) | Feature extraction from Manus (92% complete) |
+| [AGENT_VISUAL_IMPLEMENTATION_PLAN.md](AGENT_VISUAL_IMPLEMENTATION_PLAN.md) | Visual agent implementation plan |
+| [MANUS_FEATURE_ANALYSIS.md](MANUS_FEATURE_ANALYSIS.md) | Manus feature comparison and analysis |
+| [FRONTEND_INTEGRATION.md](FRONTEND_INTEGRATION.md) | Frontend SSE integration guide |
+| [DEEP_SEARCH_ROUTING_ANALYSIS.md](DEEP_SEARCH_ROUTING_ANALYSIS.md) | Deep search routing flow analysis |
+| [DEEP_SEARCH_TROUBLESHOOTING.md](DEEP_SEARCH_TROUBLESHOOTING.md) | Deep search diagnostic guide |
+| [DEBUG_ALIGNMENT_ISSUE.md](DEBUG_ALIGNMENT_ISSUE.md) | Message alignment debugging guide |
+| [TOOL_REFERENCE.md](TOOL_REFERENCE.md) | Complete tool documentation |
 
 ## Roadmap
 
@@ -938,7 +938,7 @@ We are continuously improving Weaver. Feel free to contribute or suggest new fea
 
 ## Contributing
 
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+We welcome contributions! Please see [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines.
 
 **Quick Start:**
 1. Fork the repository
@@ -972,7 +972,7 @@ pnpm run dev
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](../LICENSE) file for details.
 
 ## Acknowledgments
 
