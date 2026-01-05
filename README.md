@@ -1,5 +1,4 @@
 <div align="right">
-  <strong>Language / 语言:</strong>
   <strong>简体中文</strong> |
   <a href="docs/README.en.md">English</a>
 </div>
