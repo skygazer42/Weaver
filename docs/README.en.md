@@ -1,14 +1,9 @@
 # Weaver - AI Agent Platform
 
 <div align="right">
-  <details>
-    <summary>🌐 Language / 语言</summary>
-    <div>  
-      <div align="center">
-        <strong>English</strong> | <a href="../README.md">简体中文</a>
-      </div>
-    </div>
-  </details>
+  <strong>Language / 语言:</strong>
+  <strong>English</strong> |
+  <a href="../README.md">简体中文</a>
 </div>
 
 <div align="center">
@@ -30,18 +25,18 @@
 
 ## ✨ Highlights
 
-- 🔍 **Smart Routing** - LLM-based intelligent query routing (Direct/Web/Agent/Deep Search)
-- 🧠 **Deep Research** - Multi-epoch iterative research with parallel search and content analysis
-- 💻 **Code Execution** - Sandboxed Python interpreter with visualization support (E2B)
-- 🌐 **Browser Automation** - Full Chromium control with screenshots (Playwright + E2B)
-- 🖥️ **Desktop Automation** - Mouse, keyboard, and screen control (PyAutoGUI)
-- 📊 **Document Generation** - Excel spreadsheets and PowerPoint presentations
-- 🔄 **Trigger System** - Scheduled, Webhook, and Event-based automation
-- 🎤 **Voice I/O** - Speech recognition (ASR) and text-to-speech (TTS)
-- 🛑 **Cancellable Tasks** - Real-time task cancellation with token-based tracking
-- 🎨 **Generative UI** - Real-time event streaming with artifacts
+-  **Smart Routing**- LLM-based intelligent query routing (Direct/Web/Agent/Deep Search)
+-  **Deep Research**- Multi-epoch iterative research with parallel search and content analysis
+-  **Code Execution**- Sandboxed Python interpreter with visualization support (E2B)
+-  **Browser Automation**- Full Chromium control with screenshots (Playwright + E2B)
+-  **Desktop Automation**- Mouse, keyboard, and screen control (PyAutoGUI)
+-  **Document Generation**- Excel spreadsheets and PowerPoint presentations
+-  **Trigger System**- Scheduled, Webhook, and Event-based automation
+-  **Voice I/O**- Speech recognition (ASR) and text-to-speech (TTS)
+-  **Cancellable Tasks**- Real-time task cancellation with token-based tracking
+-  **Generative UI**- Real-time event streaming with artifacts
 
-## 📋 Table of Contents
+## Table of Contents
 
 - [Features](#features)
 - [Quick Start](#quick-start)
@@ -54,28 +49,28 @@
 - [Documentation](#documentation)
 - [Roadmap](#roadmap)
 
-## 🚀 Features
+## Features
 
 ### Core Capabilities
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| **Smart Router** | LLM-based query classification with confidence thresholds | ✅ |
-| **Deep Search** | Multi-step research with parallel search and content scraping | ✅ |
-| **Code Execution** | Python interpreter in E2B sandbox with matplotlib, pandas, numpy | ✅ |
-| **Browser Automation** | Playwright-based browser control with real-time screenshots | ✅ |
-| **Desktop Automation** | Mouse, keyboard, and screen control via PyAutoGUI | ✅ |
-| **Task Management** | Structured task tracking with progress visualization | ✅ |
-| **Trigger System** | Scheduled (Cron), Webhook, and Event-based triggers | ✅ |
-| **MCP Integration** | Model Context Protocol tool bridge for extensibility | ✅ |
-| **Voice I/O** | ASR (DashScope Paraformer) + TTS (DashScope Sambert) | ✅ |
-| **Cancellation** | Token-based task cancellation with graceful shutdown | ✅ |
-| **Memory** | Long-term memory with PostgreSQL/Redis store + Mem0 | ✅ |
+| **Smart Router**| LLM-based query classification with confidence thresholds | ✅ |
+| **Deep Search**| Multi-step research with parallel search and content scraping | ✅ |
+| **Code Execution**| Python interpreter in E2B sandbox with matplotlib, pandas, numpy | ✅ |
+| **Browser Automation**| Playwright-based browser control with real-time screenshots | ✅ |
+| **Desktop Automation**| Mouse, keyboard, and screen control via PyAutoGUI | ✅ |
+| **Task Management**| Structured task tracking with progress visualization | ✅ |
+| **Trigger System**| Scheduled (Cron), Webhook, and Event-based triggers | ✅ |
+| **MCP Integration**| Model Context Protocol tool bridge for extensibility | ✅ |
+| **Voice I/O**| ASR (DashScope Paraformer) + TTS (DashScope Sambert) | ✅ |
+| **Cancellation**| Token-based task cancellation with graceful shutdown | ✅ |
+| **Memory**| Long-term memory with PostgreSQL/Redis store + Mem0 | ✅ |
 
 ### Tool Categories
 
 ```
-🔧 Sandbox Tools (E2B)
+ Sandbox Tools (E2B)
 ├── Browser Automation
 │   ├── sb_browser_navigate        # Navigate to URL
 │   ├── sb_browser_click           # Click elements
@@ -95,19 +90,19 @@
     ├── sandbox_create_spreadsheet # Create Excel/CSV files
     └── sandbox_create_presentation # Create PowerPoint slides
 
-🖥️ Desktop Tools
+ Desktop Tools
 ├── computer_move_mouse            # Move cursor
 ├── computer_click                 # Mouse click
 ├── computer_type                  # Keyboard input
 ├── computer_screenshot            # Screen capture
 └── task_list                      # Task management
 
-🌐 Search & Crawl
+ Search & Crawl
 ├── web_search                     # Tavily API search
 ├── sandbox_web_search             # Visual web search with screenshots
 └── crawl                          # URL content extraction
 
-💻 Code Execution
+ Code Execution
 └── execute_python_code            # Sandboxed Python interpreter
 ```
 
@@ -115,11 +110,11 @@
 
 ### Prerequisites
 
-- **Python 3.11+** - [Download](https://www.python.org/downloads/)
-- **Node.js 18+** - [Download](https://nodejs.org/)
-- **Docker & Docker Compose** - [Install](https://docs.docker.com/get-docker/)
+- **Python 3.11+**- [Download](https://www.python.org/downloads/)
+- **Node.js 18+**- [Download](https://nodejs.org/)
+- **Docker & Docker Compose**- [Install](https://docs.docker.com/get-docker/)
 
-### 1️⃣ Clone & Setup
+### 1⃣ Clone & Setup
 
 ```bash
 git clone https://github.com/skygazer42/weaver.git
@@ -129,7 +124,7 @@ cd weaver
 cp .env.example .env
 ```
 
-### 2️⃣ Configure API Keys
+### 2⃣ Configure API Keys
 
 Edit `.env` with your API keys:
 
@@ -150,7 +145,7 @@ MEM0_API_KEY=...                          # Mem0 memory service
 ENABLE_MCP=false                          # MCP tool servers
 ```
 
-### 3️⃣ Install Dependencies
+### 3⃣ Install Dependencies
 
 ```bash
 # Backend
@@ -169,7 +164,7 @@ playwright install chromium
 pip install pyautogui pillow
 ```
 
-### 4️⃣ Start Services
+### 4⃣ Start Services
 
 ```bash
 # Terminal 1: Start backend
@@ -181,11 +176,11 @@ pnpm run dev
 ```
 
 **Access points:**
-- 🌐 **Web UI**: http://localhost:3000
-- 🔌 **Backend API**: http://localhost:8000
-- 📖 **API Docs**: http://localhost:8000/docs
+-  **Web UI**: http://localhost:3000
+-  **Backend API**: http://localhost:8000
+-  **API Docs**: http://localhost:8000/docs
 
-## 🏗️ Architecture
+## Architecture
 
 ### Project Structure
 
@@ -256,22 +251,22 @@ weaver/
 
 | Layer | Technology | Version |
 |-------|------------|---------|
-| **Frontend** | Next.js | 14.2+ |
+| **Frontend**| Next.js | 14.2+ |
 | | Tailwind CSS | 3.4+ |
 | | Shadcn UI | Latest |
 | | Vercel AI SDK | 3.x |
-| **Backend** | Python | 3.11+ |
+| **Backend**| Python | 3.11+ |
 | | FastAPI | 0.110+ |
 | | LangGraph | 0.2+ |
 | | LangChain | 0.2+ |
-| **Database** | PostgreSQL | 15+ |
+| **Database**| PostgreSQL | 15+ |
 | | pgvector | 0.5+ |
-| **Sandbox** | E2B | Latest |
-| **Search** | Tavily API | v1 |
-| **Desktop** | PyAutoGUI | 0.9+ |
+| **Sandbox**| E2B | Latest |
+| **Search**| Tavily API | v1 |
+| **Desktop**| PyAutoGUI | 0.9+ |
 | | Pillow | 10.0+ |
-| **Browser** | Playwright | 1.40+ |
-| **Voice** | DashScope | Latest |
+| **Browser**| Playwright | 1.40+ |
+| **Voice**| DashScope | Latest |
 
 ### Agent Execution Flow
 
@@ -307,7 +302,7 @@ graph TD
     H --> T[User Response]
 ```
 
-## ⚙️ Configuration
+## ⚙ Configuration
 
 ### Environment Variables
 
@@ -456,11 +451,11 @@ webhook = WebhookTrigger(
 await manager.add_trigger(webhook)
 ```
 
-## 📡 API Reference
+## API Reference
 
 ### Chat Endpoint
 
-**POST** `/api/chat`
+**POST**`/api/chat`
 
 Start a new chat session with streaming response.
 
@@ -517,7 +512,7 @@ Start a new chat session with streaming response.
 
 ### Cancel Endpoint
 
-**POST** `/api/chat/cancel/{thread_id}`
+**POST**`/api/chat/cancel/{thread_id}`
 
 Cancel a running chat task.
 
@@ -540,7 +535,7 @@ Cancel a running chat task.
 
 ### Resume Interrupt
 
-**POST** `/api/interrupt/resume`
+**POST**`/api/interrupt/resume`
 
 Resume after tool approval interrupt.
 
@@ -559,13 +554,13 @@ Resume after tool approval interrupt.
 
 ### Screenshot API
 
-**GET** `/api/screenshots/{filename}`
+**GET**`/api/screenshots/{filename}`
 
 Retrieve a screenshot by filename.
 
-**Response:** Image file (PNG/JPEG)
+**Response:**Image file (PNG/JPEG)
 
-**GET** `/api/screenshots?thread_id=thread_123&limit=50`
+**GET**`/api/screenshots?thread_id=thread_123&limit=50`
 
 List screenshots for a thread.
 
@@ -586,7 +581,7 @@ List screenshots for a thread.
 
 ### Trigger API
 
-**GET** `/api/triggers`
+**GET**`/api/triggers`
 
 List all triggers.
 
@@ -595,7 +590,7 @@ List all triggers.
 - `status` - Filter by status (active|paused|error)
 - `user_id` - Filter by user
 
-**POST** `/api/triggers/scheduled`
+**POST**`/api/triggers/scheduled`
 
 Create scheduled trigger.
 
@@ -612,7 +607,7 @@ Create scheduled trigger.
 }
 ```
 
-**POST** `/api/triggers/webhook`
+**POST**`/api/triggers/webhook`
 
 Create webhook trigger.
 
@@ -640,7 +635,7 @@ Create webhook trigger.
 
 ### Voice API
 
-**POST** `/api/asr/recognize`
+**POST**`/api/asr/recognize`
 
 Speech recognition (ASR).
 
@@ -665,7 +660,7 @@ Speech recognition (ASR).
 }
 ```
 
-**POST** `/api/tts/synthesize`
+**POST**`/api/tts/synthesize`
 
 Text-to-speech (TTS).
 
@@ -687,7 +682,7 @@ Text-to-speech (TTS).
 }
 ```
 
-## 🛠️ Tool Reference
+## Tool Reference
 
 ### Complete Tool List
 
@@ -708,7 +703,7 @@ See [TOOL_REFERENCE.md](docs/TOOL_REFERENCE.md) for detailed tool documentation.
 
 **Total: 62 tools**
 
-## 🧪 Development
+## Development
 
 ### Run Tests
 
@@ -771,7 +766,7 @@ pnpm run dev
 docker-compose -f docker/docker-compose.yml up postgres -d
 ```
 
-## 🚢 Deployment
+## Deployment
 
 ### Docker
 
@@ -829,7 +824,7 @@ uvicorn main:app --host 0.0.0.0 --port $PORT
 - Add PostgreSQL database addon
 - Set `DATABASE_URL` automatically
 
-## 📚 Documentation
+## Documentation
 
 | Document | Description |
 |----------|-------------|
@@ -842,7 +837,7 @@ uvicorn main:app --host 0.0.0.0 --port $PORT
 | [DEBUG_ALIGNMENT_ISSUE.md](docs/DEBUG_ALIGNMENT_ISSUE.md) | Message alignment debugging guide |
 | [TOOL_REFERENCE.md](docs/TOOL_REFERENCE.md) | Complete tool documentation |
 
-## 🗺️ Roadmap
+## Roadmap
 
 ### ✅ Completed (v0.9 - 92%)
 
@@ -923,7 +918,7 @@ uvicorn main:app --host 0.0.0.0 --port $PORT
 - [x] Structured logging
 - [x] Docker deployment
 
-### 🚧 In Progress (v1.0)
+### In Progress (v1.0)
 
 **Frontend**
 - [ ] Message alignment fixes for Deep Research
@@ -937,11 +932,11 @@ uvicorn main:app --host 0.0.0.0 --port $PORT
 - [ ] Web development scaffolding
 - [ ] Deploy to Vercel/Netlify from sandbox
 
-### 🔮 Future Plans
+### Future Plans
 
 We are continuously improving Weaver. Feel free to contribute or suggest new features!
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
@@ -975,11 +970,11 @@ pnpm run dev
 - Write tests for new features
 - Update documentation
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - **Inspired by**: [Manus](https://manus.im) - The best AI agent platform
 - **Built with**: [LangGraph](https://github.com/langchain-ai/langgraph) - Agent orchestration
@@ -987,7 +982,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Search**: [Tavily](https://tavily.com) - AI-optimized search API
 - **UI Components**: [Shadcn UI](https://ui.shadcn.com) - Beautiful React components
 
-## 📞 Contact & Support
+## Contact & Support
 
 - **Issues**: [GitHub Issues](https://github.com/skygazer42/weaver/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/skygazer42/weaver/discussions)
@@ -1000,6 +995,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **[⬆ Back to Top](#weaver---ai-agent-platform)**
 
-Made with ❤️ by the Weaver Team
+Made by the Weaver Team
 
 </div>
