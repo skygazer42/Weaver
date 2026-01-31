@@ -4,7 +4,8 @@ Runs a deterministic calculation without external APIs to verify the runtime wor
 """
 
 from typing import TypedDict
-from langgraph.graph import StateGraph, START, END
+
+from langgraph.graph import END, START, StateGraph
 
 
 class CalcState(TypedDict):

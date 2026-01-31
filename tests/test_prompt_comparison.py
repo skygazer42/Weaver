@@ -13,8 +13,9 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from agent.prompts.prompt_manager import PromptManager
 from datetime import datetime
+
+from agent.prompts.prompt_manager import PromptManager
 
 
 def test_prompt_lengths():

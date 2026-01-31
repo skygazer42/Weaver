@@ -7,9 +7,10 @@ from typing import Any, Dict, List, Optional
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
-from .browser_session import browser_sessions
-from agent.core.events import get_emitter_sync, ToolEventType
+from agent.core.events import ToolEventType, get_emitter_sync
 from tools.browser.browser_use_events import emit_progress
+
+from .browser_session import browser_sessions
 
 logger = logging.getLogger(__name__)
 

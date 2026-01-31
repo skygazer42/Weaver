@@ -11,7 +11,6 @@ from typing import Any, Callable, Dict, Optional, TypeVar
 from urllib.parse import urlparse, urlunparse
 
 from common.config import settings
-
 from common.e2b_env import prepare_e2b_env
 
 _T = TypeVar("_T")

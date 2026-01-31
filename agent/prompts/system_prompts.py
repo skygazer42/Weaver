@@ -6,8 +6,8 @@ Default pack: deepsearch (behavior templates + research prompts)
 
 from typing import Dict
 
-from prompts.templates.deepsearch import get_behavior_prompt
 from common.config import settings
+from prompts.templates.deepsearch import get_behavior_prompt
 
 # ============================================================================
 # CORE AGENT PROMPTS (legacy defaults retained)

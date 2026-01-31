@@ -21,18 +21,18 @@ import asyncio
 import json
 import logging
 from datetime import datetime
-from typing import AsyncGenerator, Dict, Any, List, Optional, Callable
+from typing import Any, AsyncGenerator, Callable, Dict, List, Optional
 
-from agent.parsers.xml_parser import XMLToolParser, XMLToolCall
 from agent.core.processor_config import AgentProcessorConfig
+from agent.parsers.xml_parser import XMLToolCall, XMLToolParser
+from agent.workflows.continuation import (
+    ContinuationDecider,
+    ContinuationHandler,
+    ContinuationState,
+    ToolResultInjector,
+)
 from tools.core.base import ToolResult, validate_tool_result
 
-from agent.workflows.continuation import (
-    ContinuationHandler,
-    ContinuationDecider,
-    ToolResultInjector,
-    ContinuationState,
-)
 CONTINUATION_AVAILABLE = True
 
 logger = logging.getLogger(__name__)

@@ -5,10 +5,10 @@
 """
 
 import asyncio
-import time
 import logging
-from typing import TypeVar, List, Callable, Awaitable, Any, Optional
+import time
 from functools import wraps
+from typing import Any, Awaitable, Callable, List, Optional, TypeVar
 
 logger = logging.getLogger(__name__)
 

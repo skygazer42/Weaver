@@ -6,12 +6,12 @@ both names can be used interchangeably without duplicating files.
 """
 
 from prompts.templates.deepsearch import (
+    final_summary_prompt,
     formulate_query_prompt,
+    get_behavior_prompt,
     related_url_prompt,
     summary_crawl_prompt,
-    final_summary_prompt,
     summary_text_prompt,
-    get_behavior_prompt,
 )
 
 __all__ = [

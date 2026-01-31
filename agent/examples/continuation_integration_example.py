@@ -15,15 +15,16 @@ Features demonstrated:
 
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import asyncio
 import json
-from typing import Dict, Any, List
-from tools.core.base import ToolResult
-from agent.workflows.response_handler import ResponseHandler
-from agent.core.processor_config import AgentProcessorConfig
+from typing import Any, Dict, List
 
+from agent.core.processor_config import AgentProcessorConfig
+from agent.workflows.response_handler import ResponseHandler
+from tools.core.base import ToolResult
 
 # ==================== Mock Tools ====================
 

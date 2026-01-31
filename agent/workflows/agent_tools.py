@@ -1,42 +1,42 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List
-import os
 import logging
+import os
+from typing import Any, Dict, List
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
 
 from common.config import settings
-from tools import tavily_search, execute_python_code
-from tools.code.chart_viz_tool import chart_visualize
-from tools.core.registry import get_registered_tools
-from tools.core.wrappers import wrap_tools_with_events
-from tools.core.collection import ToolCollection
+from tools import execute_python_code, tavily_search
+from tools.automation.ask_human_tool import ask_human
+from tools.automation.bash_tool import safe_bash
+from tools.automation.computer_use_tool import build_computer_use_tools
+from tools.automation.str_replace_tool import str_replace
+from tools.automation.task_list_tool import build_task_list_tools
 from tools.browser.browser_tools import build_browser_tools
 from tools.browser.browser_use_tool import build_browser_use_tools
-from tools.crawl.crawl_tools import build_crawl_tools
+from tools.code.chart_viz_tool import chart_visualize
+from tools.core.collection import ToolCollection
+from tools.core.registry import get_registered_tools
+from tools.core.wrappers import wrap_tools_with_events
 from tools.crawl.crawl4ai_tool import crawl4ai
-from tools.automation.task_list_tool import build_task_list_tools
-from tools.automation.computer_use_tool import build_computer_use_tools
-from tools.automation.ask_human_tool import ask_human
-from tools.automation.str_replace_tool import str_replace
-from tools.automation.bash_tool import safe_bash
+from tools.crawl.crawl_tools import build_crawl_tools
 from tools.planning.planning_tool import plan_steps
 
 # Sandbox tools (E2B)
 from tools.sandbox import (
-    build_sandbox_browser_tools,
-    build_sandbox_web_search_tools,
-    build_sandbox_files_tools,
-    build_sandbox_shell_tools,
-    build_sandbox_sheets_tools,
-    build_sandbox_presentation_tools,
+    build_image_edit_tools,
     build_presentation_outline_tools,
     build_presentation_v2_tools,
+    build_sandbox_browser_tools,
+    build_sandbox_files_tools,
+    build_sandbox_presentation_tools,
+    build_sandbox_sheets_tools,
+    build_sandbox_shell_tools,
     build_sandbox_vision_tools,
-    build_image_edit_tools,
     build_sandbox_web_dev_tools,
+    build_sandbox_web_search_tools,
 )
 
 logger = logging.getLogger(__name__)

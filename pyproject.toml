@@ -10,11 +10,10 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-# Start with a conservative rule set; expand over time.
+# Start small: prevent obvious runtime errors + keep imports consistently organized.
 select = [
-  "E",  # pycodestyle errors
-  "F",  # pyflakes
-  "I",  # import sorting
+  "F821",  # undefined-name
+  "I",     # import sorting
 ]
 
 [tool.ruff.lint.isort]

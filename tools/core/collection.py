@@ -7,8 +7,8 @@ blacklist filtering. This mirrors OpenManus's ToolCollection but is adapted to
 Weaver's tool registry and LangGraph agents.
 """
 
-from typing import Any, Dict, Iterable, List, Optional
 from dataclasses import dataclass, field
+from typing import Any, Dict, Iterable, List, Optional
 
 
 @dataclass

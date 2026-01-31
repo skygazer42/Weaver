@@ -5,10 +5,11 @@ This is a complete example showing how to create tools using the new
 WeaverTool base class and tool_schema decorator.
 """
 
-from tools.core.base import WeaverTool, ToolResult, tool_schema
-from typing import List, Dict, Any, Optional
-from datetime import datetime
 import logging
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+from tools.core.base import ToolResult, WeaverTool, tool_schema
 
 logger = logging.getLogger(__name__)
 

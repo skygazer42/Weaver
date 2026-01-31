@@ -9,14 +9,16 @@ Tests cover:
 - Utility functions (validate_tool_result, merge_tool_results)
 """
 
-import pytest
 import json
+
+import pytest
+
 from tools.core.base import (
     ToolResult,
     WeaverTool,
+    merge_tool_results,
     tool_schema,
     validate_tool_result,
-    merge_tool_results
 )
 
 

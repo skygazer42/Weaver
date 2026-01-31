@@ -7,10 +7,11 @@ Usage:
     python scripts/deep_search_routing_check.py
 """
 
-import requests
 import json
 import sys
 from datetime import datetime
+
+import requests
 
 BASE_URL = "http://localhost:8000"
 

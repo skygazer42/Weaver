@@ -5,10 +5,9 @@ import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
-from urllib.parse import urljoin, urlparse, quote_plus
+from urllib.parse import quote_plus, urljoin, urlparse
 
 import httpx
-
 
 DEFAULT_UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "

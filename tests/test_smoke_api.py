@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 
 # Ensure project root is on sys.path for direct test execution
 ROOT = Path(__file__).resolve().parents[1]
@@ -13,8 +13,8 @@ if str(ROOT) not in sys.path:
 # Force in-memory checkpointer during tests to avoid DB dependency
 os.environ["DATABASE_URL"] = ""
 
-from main import app
 from common.config import settings
+from main import app
 
 
 @pytest.mark.asyncio

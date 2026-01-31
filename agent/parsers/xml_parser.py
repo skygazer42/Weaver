@@ -23,11 +23,11 @@ Example XML format:
 Design inspired by Manus AgentPress XMLToolParser.
 """
 
-import re
 import json
 import logging
-from typing import List, Dict, Any, Optional
+import re
 from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 

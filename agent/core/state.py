@@ -1,9 +1,12 @@
-from typing import TypedDict, List, Annotated, Dict, Any, Optional, Literal
+import operator
+from typing import Annotated, Any, Dict, List, Literal, Optional, TypedDict
+
 from langchain_core.messages import BaseMessage, SystemMessage
 from langgraph.graph.message import add_messages
-import operator
-from common.config import settings
+
 from agent.core.message_utils import summarize_messages
+from common.config import settings
+
 from .middleware import maybe_strip_tool_messages
 
 

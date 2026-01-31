@@ -7,21 +7,20 @@ from typing import List
 
 from langchain.agents import create_agent
 from langchain.agents.middleware import (
-    LLMToolSelectorMiddleware,
-    ToolRetryMiddleware,
-    ToolCallLimitMiddleware,
-    HumanInTheLoopMiddleware,
-    ContextEditingMiddleware,
     ClearToolUsesEdit,
+    ContextEditingMiddleware,
+    HumanInTheLoopMiddleware,
+    LLMToolSelectorMiddleware,
     TodoListMiddleware,
+    ToolCallLimitMiddleware,
+    ToolRetryMiddleware,
 )
-
 from langchain_core.tools import BaseTool
 from langchain_openai import ChatOpenAI
 
 from common.config import settings
-from tools.core.registry import get_registered_tools
 from tools.code.code_executor import execute_python_code
+from tools.core.registry import get_registered_tools
 
 logger = logging.getLogger(__name__)
 

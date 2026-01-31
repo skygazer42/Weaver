@@ -4,7 +4,7 @@ Helper to emit progress/screenshot events from BrowserUse sessions.
 Intended to be used inside BrowserUseTool actions; keeps logic isolated.
 """
 
-from agent.core.events import get_emitter_sync, ToolEventType
+from agent.core.events import ToolEventType, get_emitter_sync
 
 
 def emit_progress(thread_id: str, tool: str, action: str, info: str):

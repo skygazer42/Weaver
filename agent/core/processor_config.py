@@ -15,9 +15,9 @@ easy switching between different strategies without code changes.
 Inspired by Manus AgentPress ProcessorConfig.
 """
 
-from dataclasses import dataclass, field
-from typing import Literal, Optional, Dict, Any
 import logging
+from dataclasses import dataclass, field
+from typing import Any, Dict, Literal, Optional
 
 from common.config import settings
 

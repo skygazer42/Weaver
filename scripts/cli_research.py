@@ -4,9 +4,10 @@ Usage:
   python scripts/cli_research.py "your question" --host http://localhost:8000
 """
 import argparse
-import httpx
 import json
 import sys
+
+import httpx
 
 
 def stream_research(query: str, host: str):

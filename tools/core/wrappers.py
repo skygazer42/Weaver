@@ -14,7 +14,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional
 
 from langchain_core.tools import BaseTool
 
-from agent.core.events import get_emitter_sync, ToolEventType
+from agent.core.events import ToolEventType, get_emitter_sync
 
 
 class EventedTool(BaseTool):

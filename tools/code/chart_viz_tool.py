@@ -1,8 +1,9 @@
-from typing import List, Dict, Any, Optional
-from langchain.tools import tool
-import matplotlib.pyplot as plt
-import io
 import base64
+import io
+from typing import Any, Dict, List, Optional
+
+import matplotlib.pyplot as plt
+from langchain.tools import tool
 
 
 @tool

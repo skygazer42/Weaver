@@ -17,14 +17,14 @@ execute the tools, inject results back into the conversation, and call
 the LLM again - all automatically until a natural stop point is reached.
 """
 
-from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional, Literal, Callable
-from datetime import datetime
-import logging
 import asyncio
+import logging
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any, Callable, Dict, List, Literal, Optional
 
-from tools.core.base import ToolResult
 from agent.parsers.xml_parser import XMLToolCall
+from tools.core.base import ToolResult
 
 logger = logging.getLogger(__name__)
 

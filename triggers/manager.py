@@ -14,14 +14,14 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 
 from .models import (
-    TriggerType,
-    TriggerStatus,
     BaseTrigger,
-    ScheduledTrigger,
-    WebhookTrigger,
     EventTrigger,
-    TriggerExecution,
+    ScheduledTrigger,
     TriggerConfig,
+    TriggerExecution,
+    TriggerStatus,
+    TriggerType,
+    WebhookTrigger,
 )
 from .scheduler import TriggerScheduler, get_scheduler
 from .webhook import WebhookHandler, get_webhook_handler

@@ -1,22 +1,37 @@
-from fastapi import FastAPI, HTTPException, Request, UploadFile, File, WebSocket, WebSocketDisconnect
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
-import base64
-from pydantic import BaseModel
-from langchain_core.messages import SystemMessage, HumanMessage
-from typing import List, Dict, Any, Optional
-import json
 import asyncio
+import base64
+import json
+import logging
+import time
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
-import time
-import logging
-from contextlib import asynccontextmanager
+from typing import Any, Dict, List, Optional
 
-from common.config import settings
-from langgraph.types import Command
+from fastapi import (
+    FastAPI,
+    File,
+    HTTPException,
+    Request,
+    UploadFile,
+    WebSocket,
+    WebSocketDisconnect,
+)
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.types import Command
+from prometheus_client import (
+    CONTENT_TYPE_LATEST,
+    REGISTRY,
+    Counter,
+    Gauge,
+    generate_latest,
+)
+from pydantic import BaseModel
+
 from agent import (
     AgentState,
     ToolEvent,
@@ -29,45 +44,44 @@ from agent import (
     initialize_enhanced_tools,
     remove_emitter,
 )
-from support_agent import create_support_graph
-from tools.mcp import init_mcp_tools, close_mcp_tools, reload_mcp_tools
-from tools.core.registry import set_registered_tools
-from tools.core.memory_client import fetch_memories, add_memory_entry, store_interaction
-from tools.io.asr import get_asr_service, init_asr_service
-from tools.io.tts import get_tts_service, init_tts_service, AVAILABLE_VOICES
-from common.logger import setup_logging, get_logger, LogContext
-from common.metrics import metrics_registry
-from common.cancellation import cancellation_manager
-from tools.browser.browser_session import browser_sessions
-from tools.sandbox import sandbox_browser_sessions
-from tools.io.screenshot_service import get_screenshot_service, init_screenshot_service
 from common.agents_store import (
     AgentProfile,
     ensure_default_agent,
     load_agents,
-    get_agent as get_agent_profile,
-    upsert_agent as upsert_agent_profile,
+)
+from common.agents_store import (
     delete_agent as delete_agent_profile,
 )
+from common.agents_store import (
+    get_agent as get_agent_profile,
+)
+from common.agents_store import (
+    upsert_agent as upsert_agent_profile,
+)
+from common.cancellation import cancellation_manager
+from common.config import settings
+from common.logger import LogContext, get_logger, setup_logging
+from common.metrics import metrics_registry
+from support_agent import create_support_graph
+from tools.browser.browser_session import browser_sessions
+from tools.core.memory_client import add_memory_entry, fetch_memories, store_interaction
+from tools.core.registry import set_registered_tools
+from tools.io.asr import get_asr_service, init_asr_service
+from tools.io.screenshot_service import get_screenshot_service, init_screenshot_service
+from tools.io.tts import AVAILABLE_VOICES, get_tts_service, init_tts_service
+from tools.mcp import close_mcp_tools, init_mcp_tools, reload_mcp_tools
+from tools.sandbox import sandbox_browser_sessions
 from triggers import (
+    EventTrigger,
+    ScheduledTrigger,
     TriggerManager,
+    TriggerStatus,
+    TriggerType,
+    WebhookTrigger,
     get_trigger_manager,
     init_trigger_manager,
     shutdown_trigger_manager,
-    ScheduledTrigger,
-    WebhookTrigger,
-    EventTrigger,
-    TriggerType,
-    TriggerStatus,
 )
-from prometheus_client import (
-    Counter,
-    Gauge,
-    generate_latest,
-    CONTENT_TYPE_LATEST,
-    REGISTRY,
-)
-
 
 # Initialize logging
 setup_logging()
@@ -1685,6 +1699,7 @@ async def research(query: str):
 # ==================== Screenshot API ====================
 
 from fastapi.responses import FileResponse
+
 
 @app.get("/api/screenshots/{filename}")
 async def get_screenshot(filename: str):

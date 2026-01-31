@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional, Set
-import re
 
 from .models import ScheduledTrigger, TriggerStatus
 

@@ -15,8 +15,8 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from openai import BadRequestError
 
-from common.config import settings
 from common.cancellation import check_cancellation as _check_cancel_token
+from common.config import settings
 from prompts.templates.deepsearch import (
     final_summary_prompt,
     formulate_query_prompt,
@@ -24,8 +24,8 @@ from prompts.templates.deepsearch import (
     summary_crawl_prompt,
     summary_text_prompt,
 )
-from tools.search.search import tavily_search
 from tools.crawl.crawler import crawl_urls
+from tools.search.search import tavily_search
 
 logger = logging.getLogger(__name__)
 

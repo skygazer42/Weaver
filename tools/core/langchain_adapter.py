@@ -11,13 +11,15 @@ Key features:
 - Support both sync and async execution
 """
 
-from tools.core.base import WeaverTool, ToolResult, validate_tool_result
-from langchain_core.tools import BaseTool, StructuredTool, ToolException
-from typing import List, Dict, Any, Optional, Callable, Type
-from pydantic import BaseModel, Field, create_model
-import logging
-import json
 import inspect
+import json
+import logging
+from typing import Any, Callable, Dict, List, Optional, Type
+
+from langchain_core.tools import BaseTool, StructuredTool, ToolException
+from pydantic import BaseModel, Field, create_model
+
+from tools.core.base import ToolResult, WeaverTool, validate_tool_result
 
 logger = logging.getLogger(__name__)
 
@@ -255,7 +257,7 @@ if __name__ == "__main__":
     from pathlib import Path
     sys.path.insert(0, str(Path(__file__).parent.parent))
 
-    from tools.examples.example_enhanced_tool import EnhancedSearchTool, DataAnalysisTool
+    from tools.examples.example_enhanced_tool import DataAnalysisTool, EnhancedSearchTool
 
     # Create WeaverTool instances
     search_tool = EnhancedSearchTool(api_key="test-key")

@@ -5,11 +5,11 @@ Run manually:
     python tests/quick_test.py
 """
 
+import inspect
 import os
 import sys
-from pathlib import Path
 from datetime import datetime
-import inspect
+from pathlib import Path
 
 # Ensure project root on path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -18,8 +18,8 @@ sys.path.insert(0, str(PROJECT_ROOT))
 os.environ.setdefault("OPENAI_API_KEY", "dummy-key")
 os.environ.setdefault("DATABASE_URL", "sqlite:///weaver.db")
 
-from agent.prompts.prompt_manager import PromptManager, get_prompt_manager  # noqa: E402
 import agent.workflows.nodes as nodes  # noqa: E402
+from agent.prompts.prompt_manager import PromptManager, get_prompt_manager  # noqa: E402
 
 
 def test_basic_functionality() -> None:

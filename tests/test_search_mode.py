@@ -6,7 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from main import _normalize_search_mode, SearchMode
+from main import SearchMode, _normalize_search_mode
 
 
 def test_normalize_search_mode_agent_string():

@@ -1,8 +1,7 @@
+from .final_summary import *
 from .formulate_query import *
 from .related_url import *
 from .summary_cralw_res import *
-from .final_summary import *
-
 
 formulate_query_prompt = formulate_query_prompt_zh
 related_url_prompt = related_url_prompt_zh

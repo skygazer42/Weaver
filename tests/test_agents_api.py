@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 
 # Ensure project root is on sys.path for direct test execution
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,8 +18,8 @@ async def test_agents_crud(tmp_path, monkeypatch):
     Agents are persisted to a local JSON file. Patch the store paths so tests
     don't touch repo data/agents.json.
     """
-    from common import agents_store
     from agent.prompts.agent_prompts import get_default_agent_prompt
+    from common import agents_store
 
     def _paths(_project_root=None):
         return agents_store.AgentsStorePaths(root=tmp_path, file=tmp_path / "agents.json")

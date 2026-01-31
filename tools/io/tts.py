@@ -8,7 +8,7 @@ import logging
 import os
 import time
 from importlib import metadata
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 import dashscope
 from dashscope.audio.tts_v2 import SpeechSynthesizer

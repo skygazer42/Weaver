@@ -2,8 +2,9 @@
 Stuck detection middleware: detects repeated assistant messages and injects a nudge.
 """
 
-from langchain_core.messages import BaseMessage, AIMessage
 from typing import List
+
+from langchain_core.messages import AIMessage, BaseMessage
 
 
 def detect_stuck(messages: List[BaseMessage], threshold: int = 2) -> bool:

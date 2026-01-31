@@ -64,7 +64,8 @@ class BrowserUseTool(BaseTool):
             pass
 
     async def _ensure_context(self):
-        from browser_use import Browser as BrowserUseBrowser, BrowserConfig
+        from browser_use import Browser as BrowserUseBrowser
+        from browser_use import BrowserConfig
         from browser_use.browser.context import BrowserContextConfig
         from browser_use.dom.service import DomService
 

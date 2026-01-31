@@ -23,8 +23,8 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import io
 import importlib.util
+import io
 import logging
 import time
 from typing import Any, Dict, List, Optional, Tuple
@@ -133,7 +133,7 @@ class _ComputerUseTool(BaseTool):
 
         try:
             # Take screenshot
-            screenshot = pyautogui.screenshot()
+            screenshot = _pyautogui().screenshot()
 
             # Convert to bytes
             buffer = io.BytesIO()
@@ -181,7 +181,7 @@ class _ComputerUseTool(BaseTool):
     def _get_screen_size(self) -> Tuple[int, int]:
         """Get screen dimensions."""
         if PYAUTOGUI_AVAILABLE:
-            return pyautogui.size()
+            return _pyautogui().size()
         return (1920, 1080)  # Default
 
 
@@ -211,7 +211,7 @@ class MoveMouseTool(_ComputerUseTool):
             y = max(0, min(y, screen_height - 1))
 
             # Move mouse
-            pyautogui.moveTo(x, y, duration=0.2)
+            _pyautogui().moveTo(x, y, duration=0.2)
 
             result = {
                 "success": True,
@@ -264,7 +264,7 @@ class ClickTool(_ComputerUseTool):
             clicks = max(1, min(3, clicks))
 
             # Click
-            pyautogui.click(x, y, clicks=clicks, button=button)
+            _pyautogui().click(x, y, clicks=clicks, button=button)
 
             # Take screenshot after click
             time.sleep(0.3)  # Wait for UI to update
@@ -309,7 +309,7 @@ class TypeTextTool(_ComputerUseTool):
 
         try:
             # Type text
-            pyautogui.typewrite(text, interval=interval)
+            _pyautogui().typewrite(text, interval=interval)
 
             # Take screenshot
             time.sleep(0.2)
@@ -363,10 +363,10 @@ class PressKeyTool(_ComputerUseTool):
 
             if len(key_parts) == 1:
                 # Single key
-                pyautogui.press(key_parts[0])
+                _pyautogui().press(key_parts[0])
             else:
                 # Key combination with modifiers
-                pyautogui.hotkey(*key_parts)
+                _pyautogui().hotkey(*key_parts)
 
             # Take screenshot
             time.sleep(0.2)
@@ -415,7 +415,7 @@ class ScrollTool(_ComputerUseTool):
             if direction.lower() == "down":
                 scroll_amount = -scroll_amount
 
-            pyautogui.scroll(scroll_amount)
+            _pyautogui().scroll(scroll_amount)
 
             # Take screenshot
             time.sleep(0.3)
@@ -494,7 +494,7 @@ class GetScreenInfoTool(_ComputerUseTool):
 
         try:
             screen_width, screen_height = self._get_screen_size()
-            mouse_x, mouse_y = pyautogui.position()
+            mouse_x, mouse_y = _pyautogui().position()
 
             return {
                 "success": True,
@@ -546,8 +546,8 @@ class DragTool(_ComputerUseTool):
 
         try:
             # Move to start, then drag to end
-            pyautogui.moveTo(start_x, start_y)
-            pyautogui.drag(
+            _pyautogui().moveTo(start_x, start_y)
+            _pyautogui().drag(
                 end_x - start_x,
                 end_y - start_y,
                 duration=duration,

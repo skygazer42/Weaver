@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional
 
 from langchain.tools import BaseTool
 
-from agent.core.events import get_emitter_sync, ToolEventType
+from agent.core.events import ToolEventType, get_emitter_sync
 
 logger = logging.getLogger(__name__)
 
@@ -23,11 +23,13 @@ try:  # Optional dependency
     from mcp import ClientSession, StdioServerParameters  # type: ignore
     from mcp.client.sse import sse_client  # type: ignore
     from mcp.client.stdio import stdio_client  # type: ignore
+    from mcp.types import ListToolsResult  # type: ignore
 except Exception:  # pragma: no cover
     ClientSession = None  # type: ignore
     StdioServerParameters = None  # type: ignore
     sse_client = None  # type: ignore
     stdio_client = None  # type: ignore
+    ListToolsResult = None  # type: ignore
 
 
 class MCPClientTool(BaseTool):

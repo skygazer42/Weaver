@@ -30,14 +30,14 @@ from .manager import (
     shutdown_trigger_manager,
 )
 from .models import (
-    TriggerType,
-    TriggerStatus,
     BaseTrigger,
-    ScheduledTrigger,
-    WebhookTrigger,
     EventTrigger,
-    TriggerExecution,
+    ScheduledTrigger,
     TriggerConfig,
+    TriggerExecution,
+    TriggerStatus,
+    TriggerType,
+    WebhookTrigger,
 )
 from .scheduler import TriggerScheduler
 from .webhook import WebhookHandler

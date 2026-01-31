@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import json
 import logging
+
+logger = logging.getLogger(__name__)
 import os
+
 try:
     import tomllib  # Python 3.11+
 except ModuleNotFoundError:  # pragma: no cover
@@ -12,9 +15,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic_settings import BaseSettings
-
 
 # -----------------------------
 # OpenManus-style AppConfig models

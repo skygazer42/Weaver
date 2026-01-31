@@ -15,7 +15,7 @@ from collections import defaultdict
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
 
-from .models import WebhookTrigger, TriggerStatus
+from .models import TriggerStatus, WebhookTrigger
 
 logger = logging.getLogger(__name__)
 

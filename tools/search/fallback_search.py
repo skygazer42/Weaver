@@ -11,12 +11,12 @@ Why this exists:
   far more stable and deterministic.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
-from langchain.tools import tool
 import logging
+from typing import Any, Dict, List, Optional, Tuple
+
+from langchain.tools import tool
 
 from common.config import settings
-from tools.search.search import tavily_search
 from tools.search.providers import (
     bing_search,
     exa_search,
@@ -25,6 +25,7 @@ from tools.search.providers import (
     serpapi_search,
     serper_search,
 )
+from tools.search.search import tavily_search
 
 logger = logging.getLogger(__name__)
 

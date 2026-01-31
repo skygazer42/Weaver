@@ -3,12 +3,12 @@ Logging configuration for Weaver backend.
 Provides structured logging with file rotation and optional JSON formatting.
 """
 
+import json
 import logging
 import logging.handlers
-import json
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
 
 from common.config import settings
 
