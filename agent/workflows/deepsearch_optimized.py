@@ -11,6 +11,7 @@ Key improvements:
 Based on: deep_search-dev reference implementation
 """
 
+import ast
 import asyncio
 import json
 import logging
@@ -110,7 +111,7 @@ def _parse_list_output(text: str) -> List[str]:
     if start != -1 and end > start:
         text = text[start : end + 1]
     try:
-        data = eval(text)  # Using eval for simple list parsing
+        data = ast.literal_eval(text)
         if isinstance(data, list):
             return [str(x).strip() for x in data if isinstance(x, (str, int, float))]
     except Exception:
