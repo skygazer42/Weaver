@@ -1,0 +1,21 @@
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+# Keep linting scoped; this repo contains build outputs and local envs.
+extend-exclude = [
+  ".venv",
+  "web/.next",
+  "web/node_modules",
+]
+
+[tool.ruff.lint]
+# Start with a conservative rule set; expand over time.
+select = [
+  "E",  # pycodestyle errors
+  "F",  # pyflakes
+  "I",  # import sorting
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["agent", "common", "tools", "triggers", "web"]
