@@ -65,3 +65,13 @@ jobs:
 
       - name: Build (next build)
         run: pnpm -C web build
+
+  docker:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -f docker/Dockerfile .
