@@ -152,7 +152,7 @@ class Settings(BaseSettings):
         return (init_settings, env_settings, dotenv_settings, file_secret_settings)
 
     # API Keys
-    openai_api_key: str
+    openai_api_key: str = ""
     openai_base_url: str = ""
     use_azure: bool = False
     azure_api_key: str = ""
@@ -189,7 +189,7 @@ class Settings(BaseSettings):
     enable_prometheus: bool = False  # expose /metrics in Prometheus format
 
     # Database
-    database_url: str
+    database_url: str = ""
 
     # App Config
     debug: bool = False
