@@ -180,7 +180,7 @@ export function ChatInterface({ selectedModel }: ChatInterfaceProps) {
                 </div>
               </div>
               <h2 className="text-2xl font-semibold">
-                欢迎使用 Manus AI
+                欢迎使用 Weaver AI
               </h2>
               <p className="text-muted-foreground">
                 我是你的 AI 研究助手，可以进行深度搜索、代码执行和生成式 UI。
@@ -188,29 +188,29 @@ export function ChatInterface({ selectedModel }: ChatInterfaceProps) {
               </p>
               <div className="grid gap-2 sm:grid-cols-2 text-left mt-6">
                 <div className="rounded-lg border p-4 hover:border-primary cursor-pointer transition-colors">
-                  <div className="font-medium mb-1">💡 研究问题</div>
-                  <div className="text-sm text-muted-foreground">
-                    "分析 2024 年最流行的 AI 框架"
-                  </div>
-                </div>
-                <div className="rounded-lg border p-4 hover:border-primary cursor-pointer transition-colors">
-                  <div className="font-medium mb-1">📊 数据分析</div>
-                  <div className="text-sm text-muted-foreground">
-                    "创建一个市场份额对比图表"
-                  </div>
-                </div>
-                <div className="rounded-lg border p-4 hover:border-primary cursor-pointer transition-colors">
-                  <div className="font-medium mb-1">🔍 深度调研</div>
-                  <div className="text-sm text-muted-foreground">
-                    "对比 Python 和 JavaScript 的优缺点"
-                  </div>
-                </div>
-                <div className="rounded-lg border p-4 hover:border-primary cursor-pointer transition-colors">
-                  <div className="font-medium mb-1">💻 代码执行</div>
-                  <div className="text-sm text-muted-foreground">
-                    "用 Python 生成斐波那契数列"
-                  </div>
-                </div>
+	                  <div className="font-medium mb-1">💡 研究问题</div>
+	                  <div className="text-sm text-muted-foreground">
+	                    &quot;分析 2024 年最流行的 AI 框架&quot;
+	                  </div>
+	                </div>
+	                <div className="rounded-lg border p-4 hover:border-primary cursor-pointer transition-colors">
+	                  <div className="font-medium mb-1">📊 数据分析</div>
+	                  <div className="text-sm text-muted-foreground">
+	                    &quot;创建一个市场份额对比图表&quot;
+	                  </div>
+	                </div>
+	                <div className="rounded-lg border p-4 hover:border-primary cursor-pointer transition-colors">
+	                  <div className="font-medium mb-1">🔍 深度调研</div>
+	                  <div className="text-sm text-muted-foreground">
+	                    &quot;对比 Python 和 JavaScript 的优缺点&quot;
+	                  </div>
+	                </div>
+	                <div className="rounded-lg border p-4 hover:border-primary cursor-pointer transition-colors">
+	                  <div className="font-medium mb-1">💻 代码执行</div>
+	                  <div className="text-sm text-muted-foreground">
+	                    &quot;用 Python 生成斐波那契数列&quot;
+	                  </div>
+	                </div>
               </div>
             </div>
           </div>
@@ -282,7 +282,7 @@ export function ChatInterface({ selectedModel }: ChatInterfaceProps) {
           <div className="text-center text-xs text-muted-foreground">
             使用模型: <span className="font-medium">{selectedModel}</span>
             {' · '}
-            <span>Manus AI 可能会出错，请验证重要信息</span>
+            <span>Weaver AI 可能会出错，请验证重要信息</span>
           </div>
         </div>
       </div>

@@ -41,9 +41,11 @@ export interface ChatSession {
 export interface Artifact {
   id: string
   sessionId?: string
-  type: 'code' | 'image' | 'text' | 'file'
+  type: 'code' | 'image' | 'text' | 'file' | 'report' | 'chart'
   title: string
   content: string
+  // Base64 payload for image-like artifacts (charts, screenshots, etc.)
+  image?: string
   mimeType?: string
   fileSize?: number
   createdAt: number

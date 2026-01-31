@@ -38,7 +38,7 @@ export function SearchInput({
         {...props}
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        className={cn("pl-10 pr-10", props.className)}
+        className={cn("pl-10 pr-10")}
       />
       {value && (
         <button
