@@ -15,7 +15,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 
-def pytest_collect_file(path, parent):
+def pytest_collect_file(file_path: Path, parent):
     # Workaround Windows special device "nul" that PyTest trips on
-    if Path(str(path)).name.lower() == "nul":
+    if file_path.name.lower() == "nul":
         return None
