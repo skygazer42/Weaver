@@ -10,4 +10,4 @@ pyautogui==0.9.54
 openpyxl==3.1.5
 python-pptx==1.0.2
 crawl4ai==0.8.0
-browser-use==0.1.1
+browser-use==0.11.5
