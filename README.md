@@ -298,39 +298,55 @@ MCP_SERVERS={"filesystem": {...}}
 ### 第三步：安装依赖
 
 ```bash
-# 后端依赖
-pip install -r requirements.txt
+# 后端（创建 .venv 并安装核心 + 开发依赖）
+make setup
 
-# 前端依赖
+# 可选：安装“重依赖”工具（桌面自动化 / Office 文档 / 爬虫等）
+make setup-full
+
+# 前端
 cd web
 pnpm install
 cd ..
 
-# 可选：浏览器自动化
-pip install playwright
+# 可选：Playwright 浏览器（需要浏览器自动化时）
+# 依赖已在 requirements.txt 中包含 playwright，仅需安装浏览器：
 playwright install chromium
-
-# 可选：桌面自动化
-pip install pyautogui pillow
 ```
 
 ### 第四步：启动服务
 
 ```bash
-# 终端 1：启动后端
-python main.py
+# 终端 1：启动后端（建议使用 .venv）
+.venv/bin/python main.py
 
-# 终端 2：启动前端
+# 终端 2：启动前端（默认端口 3100）
 cd web
-pnpm run dev -- -p 8080  # 使用端口 8080（如果 3000 被占用）
+pnpm dev
 ```
 
 ### 第五步：访问应用
 
--  **前端界面**：http://localhost:8080
+-  **前端界面**：http://localhost:3100
 -  **后端 API**：http://localhost:8000
 -  **API 文档**：http://localhost:8000/docs
 -  **监控指标**：http://localhost:8000/metrics（需启用 Prometheus）
+
+### 开发常用命令
+
+```bash
+# 运行测试
+make test
+
+# 代码检查
+make lint
+
+#（可选）启用 pre-commit
+.venv/bin/pre-commit install
+
+#（可选）本地 secret 扫描
+.venv/bin/python scripts/secret_scan.py
+```
 
 ---
 

@@ -148,37 +148,52 @@ ENABLE_MCP=false                          # MCP tool servers
 ### 3⃣ Install Dependencies
 
 ```bash
-# Backend
-pip install -r requirements.txt
+# Backend (creates .venv and installs core + dev dependencies)
+make setup
+
+# Optional: install heavy/optional tool dependencies
+make setup-full
 
 # Frontend
 cd web
 pnpm install
 cd ..
 
-# Optional: Browser automation
-pip install playwright
+# Optional: install Playwright browsers (needed for browser automation)
 playwright install chromium
-
-# Optional: Desktop automation
-pip install pyautogui pillow
 ```
 
 ### 4⃣ Start Services
 
 ```bash
-# Terminal 1: Start backend
-python main.py
+# Terminal 1: Start backend (use .venv)
+.venv/bin/python main.py
 
-# Terminal 2: Start frontend
+# Terminal 2: Start frontend (defaults to port 3100)
 cd web
-pnpm run dev
+pnpm dev
 ```
 
 **Access points:**
--  **Web UI**: http://localhost:3000
+-  **Web UI**: http://localhost:3100
 -  **Backend API**: http://localhost:8000
 -  **API Docs**: http://localhost:8000/docs
+
+### Common Dev Commands
+
+```bash
+# Run tests
+make test
+
+# Lint
+make lint
+
+# (Optional) Enable pre-commit
+.venv/bin/pre-commit install
+
+# (Optional) Local secret scan
+.venv/bin/python scripts/secret_scan.py
+```
 
 ## Architecture
 
