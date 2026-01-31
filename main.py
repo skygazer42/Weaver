@@ -541,7 +541,7 @@ async def health():
     """Detailed health check."""
     return {
         "status": "healthy",
-        "database": "connected" if checkpointer else "not configured",
+        "database": "configured" if settings.database_url else "not configured",
         "timestamp": datetime.now().isoformat(),
     }
 
