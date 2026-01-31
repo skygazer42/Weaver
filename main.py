@@ -154,6 +154,7 @@ async def log_requests(request: Request, call_next):
 
     try:
         response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
         duration = time.time() - start_time
 
         logger.info(
@@ -187,7 +188,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["X-Thread-ID"],  # Allow frontend to read this header
+    expose_headers=["X-Thread-ID", "X-Request-ID"],  # Allow frontend to read these headers
 )
 
 # Initialize agent graphs with short-term memory (checkpointer)
