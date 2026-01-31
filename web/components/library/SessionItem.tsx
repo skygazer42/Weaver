@@ -20,15 +20,15 @@ interface SessionItemProps {
   onTogglePin: (id: string) => void
 }
 
-export function SessionItem({ 
-  session, 
-  onSelect, 
-  onDelete, 
-  onRename, 
-  onTogglePin 
+export function SessionItem({
+  session,
+  onSelect,
+  onDelete,
+  onRename,
+  onTogglePin
 }: SessionItemProps) {
   return (
-    <div className="group relative p-4 rounded-xl border bg-card hover:bg-muted/50 transition-all cursor-pointer border-l-4" 
+    <div className="group relative p-4 rounded-xl border bg-card hover:bg-muted/50 transition-all cursor-pointer border-l-4"
          style={{ borderLeftColor: session.isPinned ? 'var(--primary)' : 'transparent' }}
          onClick={() => onSelect(session.id)}>
       <div className="flex items-start justify-between gap-4">
@@ -40,11 +40,11 @@ export function SessionItem({
             </h3>
             {session.isPinned && <Pin className="h-3 w-3 text-primary fill-primary" />}
           </div>
-          
+
           <p className="text-sm text-muted-foreground line-clamp-1 mb-3">
             {session.summary || "No summary available"}
           </p>
-          
+
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1 text-xs text-muted-foreground mr-2">
               <Clock className="h-3 w-3" />

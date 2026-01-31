@@ -53,14 +53,14 @@ export class StorageService {
     // Simple clear, in a real app might need more logic to only clear app-specific keys
     // For now we iterate known keys or just clear all
     // Strategy: Clear known main keys and iterate to find sessions
-    
+
     // 1. Get all session IDs first to clean them up if needed, but localStorage.clear() does it all.
     // However, we might want to keep some settings.
-    
+
     // For now, let's just clear the specific app keys we manage
     this.saveHistory([])
     this.saveArtifacts([])
-    // Also need to find and remove session_ keys. 
+    // Also need to find and remove session_ keys.
     // This is tricky without a list. We rely on the history list usually.
     // A robust way is to iterate all keys.
     Object.keys(window.localStorage).forEach(key => {

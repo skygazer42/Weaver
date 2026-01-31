@@ -27,7 +27,7 @@ const MermaidBlock = dynamic(() => import('./MermaidBlock').then(mod => mod.Merm
             <span>Loading visualization...</span>
         </div>
     ),
-    ssr: false 
+    ssr: false
 })
 
 function ErrorFallback({ error }: { error: Error }) {
@@ -169,7 +169,7 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
       toast.error('Browser TTS not supported')
     }
   }
-  
+
   const handleSaveEdit = () => {
     if (onEdit && editContent.trim() !== message.content) {
         onEdit(message.id, editContent)
@@ -193,7 +193,7 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
                 'flex flex-col',
                 isUser ? "max-w-[90%] md:max-w-[85%] items-end ml-auto" : "w-full max-w-full items-start mr-auto",
       )}>
-        
+
         {/* Thinking Process */}
         {!isUser && hasTools && !isEditing && (
           <ThinkingProcess tools={tools} isThinking={isThinking} />
@@ -202,9 +202,9 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
         {/* Message Bubble OR Edit Mode */}
         {isEditing ? (
             <div className="w-full bg-muted/30 p-4 rounded-xl border border-primary/20 shadow-sm animate-in fade-in zoom-in-95">
-                <textarea 
-                    value={editContent} 
-                    onChange={e => setEditContent(e.target.value)} 
+                <textarea
+                    value={editContent}
+                    onChange={e => setEditContent(e.target.value)}
                     className="w-full bg-transparent resize-none focus:outline-none min-h-[100px] text-sm leading-relaxed"
                 />
                 <div className="flex justify-end gap-2 mt-3">
@@ -224,7 +224,7 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
                   "prose prose-neutral dark:prose-invert max-w-none break-words leading-7",
                   "text-[15px] md:text-base" // Slightly larger font
               )}>
-                <ReactMarkdown 
+                <ReactMarkdown
                     remarkPlugins={[remarkGfm, remarkMath]}
                     rehypePlugins={[rehypeKatex]}
                     components={{
@@ -250,7 +250,7 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
                             const match = /language-(\w+)/.exec(className || '')
                             const isInline = !match && !String(children).includes('\n')
                             const content = String(children).replace(/\n$/, '')
-                            
+
                             // Check for Mermaid
                             if (match && match[1] === 'mermaid') {
                                 return (
@@ -259,7 +259,7 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
                                     </ErrorBoundary>
                                 )
                             }
-                            
+
                             // Check for JSON/CSV
                             if (match && (match[1] === 'json' || match[1] === 'csv')) {
                                 return (
@@ -271,7 +271,7 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
                                     </div>
                                 )
                             }
-                            
+
                             if (isInline) {
                                return (
                                     <code className="bg-black/10 dark:bg-black/30 px-1.5 py-0.5 rounded text-sm font-mono break-words whitespace-pre-wrap" {...props}>
@@ -314,7 +314,7 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
                     ))}
                   </div>
                 )}
-                
+
                 {/* Typing Indicator for AI if no content yet */}
                 {!isUser && !message.content && !hasTools && (
                    <span className="animate-pulse">...</span>
@@ -366,9 +366,9 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
                     </>
                  )}
                  {isUser && onEdit && (
-                    <Button 
-                        variant="ghost" 
-                        size="icon" 
+                    <Button
+                        variant="ghost"
+                        size="icon"
                         className="h-6 w-6 text-muted-foreground hover:text-foreground ml-auto"
                         onClick={() => setIsEditing(true)}
                     >

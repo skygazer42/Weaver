@@ -21,4 +21,3 @@ Guidelines:
 
 def get_default_agent_prompt() -> str:
     return DEFAULT_AGENT_PROMPT
-

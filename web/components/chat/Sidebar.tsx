@@ -24,25 +24,25 @@ interface SidebarProps {
   isLoading?: boolean
 }
 
-export function Sidebar({ 
-    isOpen, 
-    onToggle, 
-    onNewChat, 
-    onSelectChat, 
+export function Sidebar({
+    isOpen,
+    onToggle,
+    onNewChat,
+    onSelectChat,
     onDeleteChat,
     onTogglePin,
     onRenameChat,
     onClearHistory,
     onOpenSettings,
-    activeView, 
-    onViewChange, 
-    history, 
-    isLoading = false 
+    activeView,
+    onViewChange,
+    history,
+    isLoading = false
 }: SidebarProps) {
   const { t } = useI18n()
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [showClearConfirm, setShowClearConfirm] = useState(false)
-  
+
   const pinnedItems = useMemo(() => history.filter(s => s.isPinned), [history])
   const unpinnedItems = useMemo(() => history.filter(s => !s.isPinned), [history])
 
@@ -59,7 +59,7 @@ export function Sidebar({
         if (time >= today) key = 'Today'
         else if (time >= yesterday) key = 'Yesterday'
         else if (time >= sevenDaysAgo) key = 'Previous 7 Days'
-        
+
         if (!groups[key]) groups[key] = []
         groups[key].push(item)
     })
@@ -70,8 +70,8 @@ export function Sidebar({
 
   return (
     <>
-      <ConfirmDialog 
-        open={!!deleteId} 
+      <ConfirmDialog
+        open={!!deleteId}
         onOpenChange={(open) => !open && setDeleteId(null)}
         title="Delete Chat"
         description="Are you sure you want to delete this conversation? This action cannot be undone."
@@ -80,8 +80,8 @@ export function Sidebar({
         variant="destructive"
       />
 
-      <ConfirmDialog 
-        open={showClearConfirm} 
+      <ConfirmDialog
+        open={showClearConfirm}
         onOpenChange={setShowClearConfirm}
         title="Clear History"
         description="Are you sure you want to delete all chat history? This action cannot be undone."
@@ -91,7 +91,7 @@ export function Sidebar({
       />
 
       {/* Mobile Overlay */}
-      <div 
+      <div
         className={cn(
           "fixed inset-0 z-40 bg-background/80 backdrop-blur-sm md:hidden transition-opacity duration-500",
           isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
@@ -107,7 +107,7 @@ export function Sidebar({
         )}
       >
         <div className="flex h-full flex-col p-3 gap-2">
-          
+
           {/* Sidebar Header */}
           <div className="flex items-center justify-between px-2 mb-2 pt-1">
              <div className="flex items-center gap-2 select-none">
@@ -123,9 +123,9 @@ export function Sidebar({
 
           {/* Top Actions */}
           <div className="mb-2">
-             <Button 
+             <Button
                 className={cn(
-                    "w-full justify-start gap-2 h-10 shadow-sm border bg-background hover:bg-muted/50 transition-all font-medium text-sm", 
+                    "w-full justify-start gap-2 h-10 shadow-sm border bg-background hover:bg-muted/50 transition-all font-medium text-sm",
                     !isOpen && "px-2"
                 )}
                 variant="outline"
@@ -138,7 +138,7 @@ export function Sidebar({
 
           {/* Navigation Groups */}
           <div className="flex-1 overflow-y-auto space-y-6 py-2 pr-1 scrollbar-thin scrollbar-thumb-muted/50">
-            
+
             {/* Workspace */}
             <div className="space-y-1">
                <div className="px-3 text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-widest mb-1">
@@ -167,11 +167,11 @@ export function Sidebar({
                                   <Pin className="h-3 w-3 fill-primary" /> Pinned
                               </div>
                               {pinnedItems.map(item => (
-                                  <SidebarChatItem 
-                                    key={item.id} 
-                                    item={item} 
-                                    onSelect={onSelectChat} 
-                                    onDelete={setDeleteId} 
+                                  <SidebarChatItem
+                                    key={item.id}
+                                    item={item}
+                                    onSelect={onSelectChat}
+                                    onDelete={setDeleteId}
                                     onTogglePin={onTogglePin}
                                   />
                               ))}
@@ -182,18 +182,18 @@ export function Sidebar({
                       {groupOrder.map(dateLabel => {
                           const items = groupedHistory[dateLabel]
                           if (!items || items.length === 0) return null
-                          
+
                           return (
                               <div key={dateLabel} className="space-y-1">
                                   <div className="px-3 text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-widest mb-1">
                                       {dateLabel}
                                   </div>
                                   {items.map((item) => (
-                                      <SidebarChatItem 
-                                        key={item.id} 
-                                        item={item} 
-                                        onSelect={onSelectChat} 
-                                        onDelete={setDeleteId} 
+                                      <SidebarChatItem
+                                        key={item.id}
+                                        item={item}
+                                        onSelect={onSelectChat}
+                                        onDelete={setDeleteId}
                                         onTogglePin={onTogglePin}
                                       />
                                   ))}
@@ -211,20 +211,20 @@ export function Sidebar({
   )
 }
 
-function SidebarChatItem({ 
-    item, 
-    onSelect, 
-    onDelete, 
-    onTogglePin 
-}: { 
-    item: ChatSession, 
-    onSelect: (id: string) => void, 
+function SidebarChatItem({
+    item,
+    onSelect,
+    onDelete,
+    onTogglePin
+}: {
+    item: ChatSession,
+    onSelect: (id: string) => void,
     onDelete: (id: string) => void,
     onTogglePin: (id: string) => void
 }) {
     return (
         <div className="group relative">
-            <button 
+            <button
                 onClick={() => onSelect(item.id)}
                 className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm transition-all duration-200 text-muted-foreground hover:bg-muted/60 hover:text-foreground text-left pr-12"
             >
@@ -232,7 +232,7 @@ function SidebarChatItem({
                 <span className="truncate">{item.title}</span>
             </button>
             <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 flex items-center transition-all bg-gradient-to-l from-muted/60 pl-2">
-                <button 
+                <button
                     onClick={(e) => {
                         e.stopPropagation()
                         onTogglePin(item.id)
@@ -244,7 +244,7 @@ function SidebarChatItem({
                 >
                     {item.isPinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
                 </button>
-                <button 
+                <button
                     onClick={(e) => {
                         e.stopPropagation()
                         onDelete(item.id)
@@ -261,12 +261,12 @@ function SidebarChatItem({
 
 function SidebarItem({ icon: Icon, label, active, onClick }: { icon: any, label: string, active?: boolean, onClick?: () => void }) {
     return (
-        <button 
+        <button
             onClick={onClick}
             className={cn(
             "flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm transition-all duration-200 group",
-            active 
-              ? "bg-primary/10 text-primary font-medium" 
+            active
+              ? "bg-primary/10 text-primary font-medium"
               : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
         )}>
             <Icon className={cn("h-4 w-4 transition-colors", active ? "text-primary" : "text-muted-foreground group-hover:text-foreground")} />

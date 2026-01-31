@@ -172,4 +172,3 @@ def build_tool_agent(*, model: str, tools: List[BaseTool], temperature: float = 
         tools,
         middleware=_build_middlewares(),
     )
-

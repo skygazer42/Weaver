@@ -127,7 +127,7 @@ function ArtifactCard({ artifact, isFullscreen }: { artifact: Artifact, isFullsc
              </Button>
         )}
       </CardHeader>
-      
+
       <CardContent className={cn("p-0 text-xs", artifact.type === 'report' ? "p-3 bg-background" : "bg-zinc-950")}>
         {artifact.type === 'chart' && artifact.image ? (
           <div className="relative group/image">
@@ -144,7 +144,7 @@ function ArtifactCard({ artifact, isFullscreen }: { artifact: Artifact, isFullsc
           </div>
         ) : (
           <div className={cn("prose dark:prose-invert max-w-none leading-relaxed", isFullscreen ? "prose-base p-6" : "prose-xs p-3")}>
-            <ReactMarkdown 
+            <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
                     pre: ({children}) => <>{children}</>,

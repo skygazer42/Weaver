@@ -63,7 +63,7 @@ export function McpConfigDialog() {
       })
 
       if (!res.ok) throw new Error('Failed to save config')
-      
+
       const data = await res.json()
       setLoadedTools(data.loaded_tools || 0)
       toast.success(data.message || 'Configuration saved')
@@ -120,7 +120,7 @@ export function McpConfigDialog() {
               Define servers with transport, command, and args.
             </p>
           </div>
-          
+
           <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/30 p-2 rounded">
              {loading ? <RefreshCw className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3 text-green-500" />}
              <span>Loaded Tools: {loadedTools}</span>

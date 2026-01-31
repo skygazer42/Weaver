@@ -23,7 +23,7 @@ export function Library() {
 
   const [activeTab, setActiveTab] = useState<LibraryTab>('all')
   const [searchQuery, setSearchQuery] = useState('')
-  
+
   // Dialog States
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [deleteType, setDeleteType] = useState<'session' | 'artifact' | null>(null)
@@ -38,12 +38,12 @@ export function Library() {
 
   const filteredItems = useMemo(() => {
     let combined: any[] = []
-    
+
     if (activeTab === 'all' || activeTab === 'sessions' || activeTab === 'pinned') {
         const h = history.map(s => ({ ...s, libType: 'session' as const }))
         combined = [...combined, ...h]
     }
-    
+
     if (activeTab === 'all' || activeTab === 'artifacts') {
         const a = artifacts.map(art => ({ ...art, libType: 'artifact' as const }))
         combined = [...combined, ...a]
@@ -81,7 +81,7 @@ export function Library() {
   return (
     <div className="flex-1 h-full overflow-hidden flex flex-col bg-background">
       <div className="max-w-6xl mx-auto w-full h-full flex flex-col p-6 md:p-10 gap-8">
-        
+
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
@@ -103,14 +103,14 @@ export function Library() {
         {/* Controls */}
         <div className="space-y-4">
           <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
-            <FilterGroup 
-              options={filterOptions} 
-              value={activeTab} 
-              onChange={(v) => setActiveTab(v as LibraryTab)} 
+            <FilterGroup
+              options={filterOptions}
+              value={activeTab}
+              onChange={(v) => setActiveTab(v as LibraryTab)}
             />
-            <SearchInput 
-              onSearch={setSearchQuery} 
-              placeholder="Search in library..." 
+            <SearchInput
+              onSearch={setSearchQuery}
+              placeholder="Search in library..."
               className="w-full md:w-80"
             />
           </div>
@@ -127,17 +127,17 @@ export function Library() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-10">
                 {filteredItems.map((item) => (
                   item.libType === 'session' ? (
-                    <SessionItem 
-                      key={item.id} 
-                      session={item} 
+                    <SessionItem
+                      key={item.id}
+                      session={item}
                       onSelect={(id) => router.push(`/?session=${id}`)}
                       onDelete={(id) => { setDeleteId(id); setDeleteType('session'); }}
                       onRename={(id) => setEditSession({ id, title: item.title })}
                       onTogglePin={togglePin}
                     />
                   ) : (
-                    <ArtifactItem 
-                      key={item.id} 
+                    <ArtifactItem
+                      key={item.id}
                       artifact={item}
                       onDelete={(id) => { setDeleteId(id); setDeleteType('artifact'); }}
                     />
@@ -160,8 +160,8 @@ export function Library() {
       </div>
 
       {/* Dialogs */}
-      <ConfirmDialog 
-        open={!!deleteId} 
+      <ConfirmDialog
+        open={!!deleteId}
         onOpenChange={(open) => !open && setDeleteId(null)}
         title="Delete Item"
         description="Are you sure you want to delete this? This action cannot be undone."
@@ -170,7 +170,7 @@ export function Library() {
       />
 
       {editSession && (
-        <EditDialog 
+        <EditDialog
           open={!!editSession}
           onOpenChange={(open) => !open && setEditSession(null)}
           title="Rename Session"

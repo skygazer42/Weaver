@@ -94,4 +94,3 @@ def prepare_e2b_env(e2b_domain: Optional[str] = None) -> None:
         if updated_no_proxy:
             changed.append("updated NO_PROXY for E2B domains")
         logger.info(f"[e2b_env] {'; '.join(changed)}")
-

@@ -70,10 +70,10 @@ export function Header({ sidebarOpen, onToggleSidebar, selectedModel, onModelCha
     <header className="flex h-16 items-center justify-between border-b px-4 bg-background/80 backdrop-blur-md sticky top-0 z-30 transition-all">
       <div className="flex items-center gap-3">
         {!sidebarOpen && (
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={onToggleSidebar} 
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onToggleSidebar}
               className="hidden md:flex hover:bg-muted/50 rounded-full"
             >
               <PanelLeft className="h-5 w-5 text-muted-foreground" />
@@ -103,7 +103,7 @@ export function Header({ sidebarOpen, onToggleSidebar, selectedModel, onModelCha
                        <span>{currentModelName}</span>
                        <ChevronDown className={cn("h-3.5 w-3.5 opacity-50 transition-transform", isModelOpen && "rotate-180")} />
                      </button>
-                     
+
                      {isModelOpen && (
                        <div className="absolute right-0 top-full mt-2 w-56 max-h-80 overflow-y-auto rounded-xl border bg-popover p-1 shadow-lg animate-in fade-in zoom-in-95 z-50">
                          {models.map((model) => (
@@ -126,7 +126,7 @@ export function Header({ sidebarOpen, onToggleSidebar, selectedModel, onModelCha
                      )}
                   </div>
 
-                  <Button 
+                  <Button
                     variant="ghost"           size="icon"
            onClick={toggleTheme}
            className="rounded-full hover:bg-muted/50"

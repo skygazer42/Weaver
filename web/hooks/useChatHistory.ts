@@ -21,7 +21,7 @@ export function useChatHistory() {
           isPinned: session.isPinned || false,
           tags: session.tags || []
         }))
-        
+
         // Sort: Pinned first, then by updatedAt desc
         const sorted = migratedHistory.sort((a, b) => {
           if (a.isPinned && !b.isPinned) return -1
@@ -60,7 +60,7 @@ export function useChatHistory() {
 
     setHistory(prev => {
       const existingIndex = sessionId ? prev.findIndex(s => s.id === sessionId) : -1
-      
+
       if (existingIndex !== -1) {
         // Update existing session
         const updatedHistory = [...prev]
@@ -81,7 +81,7 @@ export function useChatHistory() {
         sessionId = sessionId || timestamp.toString()
         const firstUserMsg = messages.find(m => m.role === 'user')
         const title = firstUserMsg ? firstUserMsg.content.slice(0, 40) : 'New Conversation'
-        
+
         const newSession: ChatSession = {
           id: sessionId,
           title,
@@ -99,7 +99,7 @@ export function useChatHistory() {
     if (sessionId) {
       StorageService.saveSessionMessages(sessionId, messages)
     }
-    
+
     return sessionId
   }
 

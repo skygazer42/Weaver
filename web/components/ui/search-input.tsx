@@ -10,19 +10,19 @@ interface SearchInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   debounceMs?: number
 }
 
-export function SearchInput({ 
-  className, 
-  onSearch, 
+export function SearchInput({
+  className,
+  onSearch,
   debounceMs = 300,
-  ...props 
+  ...props
 }: SearchInputProps) {
   const [value, setValue] = React.useState("")
-  
+
   React.useEffect(() => {
     const timer = setTimeout(() => {
       onSearch(value)
     }, debounceMs)
-    
+
     return () => clearTimeout(timer)
   }, [value, onSearch, debounceMs])
 

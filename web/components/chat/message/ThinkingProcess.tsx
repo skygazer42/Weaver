@@ -42,7 +42,7 @@ export function ThinkingProcess({ tools, isThinking }: ThinkingProcessProps) {
   return (
     <Card className="w-full max-w-md my-3 border-border/60 bg-card/40 backdrop-blur-sm shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md hover:border-border/80">
       {/* Header */}
-      <div 
+      <div
         className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors"
         onClick={() => setIsOpen(!isOpen)}
       >
@@ -62,9 +62,9 @@ export function ThinkingProcess({ tools, isThinking }: ThinkingProcessProps) {
                 </span>
             </div>
          </div>
-         <Button 
-            variant="ghost" 
-            size="icon" 
+         <Button
+            variant="ghost"
+            size="icon"
             className="h-8 w-8 text-muted-foreground hover:text-foreground rounded-full"
          >
             <ChevronDown className={cn("h-4 w-4 transition-transform duration-300", isOpen && "rotate-180")} />
@@ -76,7 +76,7 @@ export function ThinkingProcess({ tools, isThinking }: ThinkingProcessProps) {
           <div className="relative flex items-center justify-between mt-2">
               {/* Connecting Line */}
               <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-[2px] bg-muted z-0 rounded-full" />
-              <div 
+              <div
                   className="absolute left-0 top-1/2 -translate-y-1/2 h-[2px] bg-primary transition-all duration-700 ease-in-out z-0 rounded-full"
                   style={{ width: `${(activeStep / (steps.length - 1)) * 100}%` }}
               />
@@ -129,7 +129,7 @@ export function ThinkingProcess({ tools, isThinking }: ThinkingProcessProps) {
 
 function LogItem({ tool, index }: { tool: ToolInvocation, index: number }) {
   const isRunning = tool.state === 'running'
-  
+
   return (
     <div className="group flex gap-3 p-2.5 rounded-lg hover:bg-muted/40 border border-transparent hover:border-border/40 transition-all duration-200">
        <div className="flex flex-col items-center gap-1">
@@ -139,7 +139,7 @@ function LogItem({ tool, index }: { tool: ToolInvocation, index: number }) {
            )} />
            <div className="w-[1px] h-full bg-border/40 group-last:hidden" />
        </div>
-       
+
        <div className="flex-1 min-w-0">
            <div className="flex items-center justify-between mb-0.5">
                <div className="flex items-center gap-2">
@@ -162,11 +162,11 @@ function LogItem({ tool, index }: { tool: ToolInvocation, index: number }) {
                    {tool.state}
                </span>
            </div>
-           
+
            {(tool.args?.query || tool.args?.code) && (
                <div className="mt-1.5 p-2 rounded bg-muted/40 border border-border/40 font-mono text-[10px] text-muted-foreground overflow-x-auto whitespace-pre-wrap break-all">
-                   {tool.toolName === 'tavily_search' ? `Query: "${tool.args.query}"` : 
-                    tool.toolName === 'execute_python_code' ? tool.args.code?.slice(0, 100) + (tool.args.code?.length > 100 ? '...' : '') : 
+                   {tool.toolName === 'tavily_search' ? `Query: "${tool.args.query}"` :
+                    tool.toolName === 'execute_python_code' ? tool.args.code?.slice(0, 100) + (tool.args.code?.length > 100 ? '...' : '') :
                     JSON.stringify(tool.args)}
                </div>
            )}

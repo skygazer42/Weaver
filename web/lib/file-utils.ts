@@ -23,7 +23,7 @@ export const filesToImageAttachments = async (files: File[]): Promise<ImageAttac
         data: base64,
         // We don't need the huge data: URI for preview if we are just sending data
         // But for consistency with the type definition, we might keep it or leave it empty if the UI doesn't use it after send
-        preview: '' 
+        preview: ''
       })
     }
     reader.onerror = reject

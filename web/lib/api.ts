@@ -8,4 +8,3 @@ export function getApiBaseUrl(): string {
 export function getApiWsBaseUrl(): string {
   return getApiBaseUrl().replace(/^http/, 'ws')
 }
-

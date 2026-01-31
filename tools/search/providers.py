@@ -376,4 +376,3 @@ def firecrawl_search(query: str, max_results: int = 10) -> List[Dict[str, Any]]:
             )
 
     return results[: int(max_results or 10)]
-

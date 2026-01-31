@@ -155,4 +155,3 @@ class BrowserSessionManager:
 
 
 browser_sessions = BrowserSessionManager()
-

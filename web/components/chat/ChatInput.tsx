@@ -54,11 +54,11 @@ export function ChatInput({
       // This is a bit tricky if we want to avoid recreating URLs for existing files.
       // A simple approach: Clear all old previews and create new ones is robust but inefficient.
       // Better: Create previews only for new files.
-      
+
       // Cleanup function for removed files is handled by the revoke() call
-      
+
       const newPreviews: AttachmentPreview[] = []
-      
+
       attachments.forEach(file => {
           const existing = previews.find(p => p.file === file)
           if (existing) {
@@ -77,7 +77,7 @@ export function ChatInput({
       })
 
       setPreviews(newPreviews)
-      
+
       // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attachments])
 
@@ -326,11 +326,11 @@ export function ChatInput({
       { id: 'test', label: 'Write Tests', icon: TestTube, desc: 'Generate tests' },
       { id: 'clear', label: 'Clear Chat', icon: Trash2, desc: 'Reset conversation' },
   ]
-  
+
   return (
     <div className="relative z-20 mx-auto w-full max-w-5xl px-4 pb-6">
       <div className="flex flex-col gap-2">
-        
+
         {/* Command Menu */}
         {showCommandMenu && (
             <div className="absolute bottom-full left-4 mb-2 w-64 bg-popover border rounded-xl shadow-xl overflow-hidden animate-in slide-in-from-bottom-2 fade-in z-50">
@@ -433,7 +433,7 @@ export function ChatInput({
         </div>
 
         {/* Input Container */}
-        <div 
+        <div
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
@@ -457,17 +457,17 @@ export function ChatInput({
            )}
 
            <div className="absolute top-3 left-3 flex gap-1 z-10">
-               <input 
-                  type="file" 
-                  multiple 
-                  className="hidden" 
+               <input
+                  type="file"
+                  multiple
+                  className="hidden"
                   ref={fileInputRef}
                   onChange={handleFileSelect}
                />
-               <Button 
-                  type="button" 
-                  variant="ghost" 
-                  size="icon" 
+               <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
                   className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-full transition-colors"
                   onClick={() => fileInputRef.current?.click()}
                >
@@ -493,7 +493,7 @@ export function ChatInput({
                                   )}
                                   <span className="truncate flex-1">{item.file.name}</span>
                               </div>
-                              <button 
+                              <button
                                   onClick={() => removeAttachment(i)}
                                   className="absolute -top-1 -right-1 bg-background border rounded-full p-0.5 text-muted-foreground hover:text-destructive shadow-sm opacity-0 group-hover/attachment:opacity-100 transition-opacity"
                               >

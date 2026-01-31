@@ -46,7 +46,7 @@ export function useArtifacts() {
   }
 
   const updateArtifact = (id: string, updates: Partial<Artifact>) => {
-    setArtifacts(prev => prev.map(a => 
+    setArtifacts(prev => prev.map(a =>
       a.id === id ? { ...a, ...updates, updatedAt: Date.now() } : a
     ))
   }

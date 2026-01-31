@@ -40,7 +40,7 @@ export function EmptyState({ selectedMode, onModeSelect, onStarterClick }: Empty
 
   return (
     <div className="flex flex-col items-center justify-center h-full w-full max-w-4xl mx-auto p-6 animate-in fade-in zoom-in-95 duration-500">
-      
+
       {/* Hero Section */}
       <div className="flex flex-col items-center space-y-6 mb-12 text-center">
         <div className="relative group cursor-default">
@@ -49,7 +49,7 @@ export function EmptyState({ selectedMode, onModeSelect, onStarterClick }: Empty
               <img src="/logo.png" alt="Weaver" className="h-20 w-20 object-contain" />
             </div>
         </div>
-        
+
         <div className="space-y-2 max-w-lg">
             <h2 className="text-3xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-foreground to-foreground/70">
                 {t('emptyStateTitle')}

@@ -71,7 +71,7 @@ export function DataTableView({ data, type }: DataTableViewProps) {
             Download
         </Button>
       </div>
-      
+
       <ScrollArea className="w-full">
           <div className="w-full overflow-auto">
             <table className="w-full caption-bottom text-sm text-left">
@@ -105,19 +105,19 @@ export function DataTableView({ data, type }: DataTableViewProps) {
                   Page {page + 1} of {totalPages}
               </span>
               <div className="flex gap-1">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="h-7 px-2" 
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2"
                     disabled={page === 0}
                     onClick={() => setPage(p => p - 1)}
                   >
                       Prev
                   </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="h-7 px-2" 
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2"
                     disabled={page >= totalPages - 1}
                     onClick={() => setPage(p => p + 1)}
                   >

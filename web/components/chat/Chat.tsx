@@ -37,22 +37,22 @@ export function Chat() {
 
   const [input, setInput] = useState('')
   const [attachments, setAttachments] = useState<File[]>([])
-  
+
   const scrollRef = useRef<HTMLDivElement>(null)
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   const lastAtBottom = useRef<boolean | null>(null)
 
-  const { 
-    history, 
-    isHistoryLoading, 
-    saveToHistory, 
-    loadSession, 
-    deleteSession, 
+  const {
+    history,
+    isHistoryLoading,
+    saveToHistory,
+    loadSession,
+    deleteSession,
     clearHistory,
     togglePin,
     renameSession
   } = useChatHistory()
-  
+
   const {
     messages,
     setMessages,
@@ -101,17 +101,17 @@ export function Chat() {
     }
   }, [messages, currentSessionId, isLoading, saveToHistory])
 
-  // Auto-scroll logic handled by Virtuoso's followOutput, 
+  // Auto-scroll logic handled by Virtuoso's followOutput,
   // but we can add specific triggers if needed.
 
   const handleNewChat = () => {
       if (messages.length > 0) {
         saveToHistory(messages, currentSessionId || undefined)
       }
-      
+
       setCurrentView('dashboard') // Switch back to chat view
       setCurrentSessionId(null)
-      
+
       // Reset state
       setMessages([])
       setArtifacts([])
@@ -140,7 +140,7 @@ export function Chat() {
     if (messages.length > 0) {
         saveToHistory(messages, currentSessionId || undefined)
     }
-    
+
     // Load new session
     const loadedMessages = loadSession(id)
     if (loadedMessages) {
@@ -148,7 +148,7 @@ export function Chat() {
       setCurrentSessionId(id)
       setCurrentView('dashboard') // Ensure we are on the chat view
       // Reset other state
-      setArtifacts([]) 
+      setArtifacts([])
       setCurrentStatus('')
       setInput('')
       setThreadId(null)
@@ -174,7 +174,7 @@ export function Chat() {
     setMessages(newHistory)
     setInput('')
     setAttachments([])
-    
+
     // Auto-save logic: if it's the first message, it will trigger saveToHistory later
     // or we can call it here to get an ID.
     if (!currentSessionId && newHistory.length === 1) {
@@ -232,7 +232,7 @@ export function Chat() {
   const renderContent = () => {
       if (currentView === 'discover') return <Discover />
       if (currentView === 'library') return <Library />
-      
+
       // Default: Dashboard/Chat
       return (
         <div className="flex-1 flex flex-col min-h-0">
@@ -265,7 +265,7 @@ export function Chat() {
                                     <span className="font-medium animate-pulse">{currentStatus}</span>
                                 </div>
                             )}
-                            <div className="h-4" /> 
+                            <div className="h-4" />
                         </div>
                     )
                 }}
@@ -278,8 +278,8 @@ export function Chat() {
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background text-foreground font-sans selection:bg-primary/20">
       {/* Sidebar */}
-      <Sidebar 
-        isOpen={sidebarOpen} 
+      <Sidebar
+        isOpen={sidebarOpen}
         onToggle={() => setSidebarOpen(!sidebarOpen)}
         onNewChat={handleNewChat}
         onSelectChat={handleChatSelect}
@@ -297,7 +297,7 @@ export function Chat() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 relative">
         {/* Header */}
-        <Header 
+        <Header
           sidebarOpen={sidebarOpen}
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
           selectedModel={selectedModel}
@@ -309,9 +309,9 @@ export function Chat() {
         {/* Dynamic Content Area */}
         {renderContent()}
 
-        <SettingsDialog 
-            open={showSettings} 
-            onOpenChange={setShowSettings} 
+        <SettingsDialog
+            open={showSettings}
+            onOpenChange={setShowSettings}
             selectedModel={selectedModel}
             onModelChange={setSelectedModel}
         />
@@ -345,11 +345,11 @@ export function Chat() {
            </>
         )}
 
-        {/* Input Area - Always visible or only in dashboard? Usually always visible in chat apps, but maybe hidden in Library? 
+        {/* Input Area - Always visible or only in dashboard? Usually always visible in chat apps, but maybe hidden in Library?
             For now, let's keep it visible only in Dashboard/Chat view to avoid confusion.
         */}
         {currentView === 'dashboard' && (
-            <ChatInput 
+            <ChatInput
             input={input}
             setInput={setInput}
             attachments={attachments}

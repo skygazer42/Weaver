@@ -58,10 +58,10 @@ export function Discover() {
               </div>
               <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">{item.title}</h3>
               <p className="text-sm text-muted-foreground mt-2 leading-relaxed">{item.desc}</p>
-              
-              <Button 
-                size="icon" 
-                variant="secondary" 
+
+              <Button
+                size="icon"
+                variant="secondary"
                 className="absolute top-4 right-4 h-8 w-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                 onClick={(e) => {
                     e.stopPropagation()

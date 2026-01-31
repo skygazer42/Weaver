@@ -37,7 +37,7 @@ export function ArtifactItem({ artifact, onDelete, onDownload }: ArtifactItemPro
               {artifact.title}
             </h3>
           </div>
-          
+
           <div className="mt-4 flex items-center justify-between">
             <div className="flex items-center gap-3 text-xs text-muted-foreground">
               <div className="flex items-center gap-1">

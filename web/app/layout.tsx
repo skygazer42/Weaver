@@ -7,7 +7,7 @@ import { I18nProvider } from "@/lib/i18n/i18n-context"
 import { cn } from "@/lib/utils"
 import { Toaster } from "@/components/ui/sonner"
 
-const inter = Inter({ 
+const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
 })
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   title: "Weaver - Deep Research AI Agent",
   description: "AI-powered research assistant with deep search and code execution",
   icons: {
-    icon: '/favicon.ico', 
+    icon: '/favicon.ico',
   }
 }
 

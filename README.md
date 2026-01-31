@@ -71,7 +71,7 @@ graph TB
         Router --> |web| WebNode[网页搜索]
         Router --> |agent| AgentNode[工具调用]
         Router --> |deep| DeepNode[深度研究]
-        
+
         AgentNode --> ToolRegistry[工具注册表]
         DeepNode --> MultiEpoch[多轮研究引擎]
     end
@@ -82,11 +82,11 @@ graph TB
         ToolRegistry --> Desktop[桌面自动化]
         ToolRegistry --> Search[搜索与爬虫]
         ToolRegistry --> MCP[MCP 工具桥]
-        
+
         Sandbox --> CodeExec[代码执行]
         Sandbox --> FileOps[文件操作]
         Sandbox --> DocGen[文档生成]
-        
+
         Browser --> Playwright[Playwright]
         Browser --> CDP[Chrome DevTools]
     end
@@ -107,18 +107,18 @@ graph TB
 
     UI --> FastAPI
     FastAPI --> Router
-    
+
     AgentNode -.-> LLM
     WebNode -.-> TavilyAPI
     DeepNode -.-> TavilyAPI
-    
+
     Sandbox -.-> E2B
     Search -.-> TavilyAPI
-    
+
     FastAPI --> PG
     FastAPI --> Redis
     AgentNode --> Mem0
-    
+
     Browser --> FileStore
     FastAPI --> FileStore
 
@@ -132,24 +132,24 @@ graph TB
 ```mermaid
 graph LR
     A[用户查询] --> B{智能路由}
-    
+
     B -->|直接模式| C[LLM 直接回答]
     B -->|搜索模式| D[搜索计划]
     B -->|工具模式| E[Agent 节点]
     B -->|深度模式| F[深度研究]
-    
+
     D --> D1[并行搜索]
     D1 --> D2[内容聚合]
     D2 --> D3[报告生成]
     D3 --> D4{质量评估}
     D4 -->|通过| G[返回结果]
     D4 -->|需优化| D
-    
+
     E --> E1[工具选择]
     E1 --> E2[工具执行]
     E2 --> E3[结果处理]
     E3 --> G
-    
+
     F --> F1[查询分解]
     F1 --> F2[并行研究]
     F2 --> F3[内容摘要]
@@ -157,9 +157,9 @@ graph LR
     F4 -->|是| F1
     F4 -->|否| F5[综合报告]
     F5 --> G
-    
+
     C --> G
-    
+
     style B fill:#7B68EE,stroke:#4B0082,stroke-width:3px,color:#fff
     style G fill:#51CF66,stroke:#2F9E44,stroke-width:2px,color:#fff
 ```
@@ -240,7 +240,7 @@ graph LR
 ## 快速开始
 
 > **前置要求**：
-> - Python 3.11+ 
+> - Python 3.11+
 > - Node.js 18+
 > - Docker & Docker Compose（可选，用于 PostgreSQL）
 > - 至少 1 个 LLM API Key（OpenAI/DeepSeek/Claude 等）
@@ -398,7 +398,7 @@ plt.show()
   2. sb_browser_type: 在搜索框输入"LangGraph 教程"
   3. sb_browser_click: 点击"百度一下"按钮
   4. sb_browser_screenshot: 截取搜索结果页面
-  
+
 [返回截图]
 ```
 

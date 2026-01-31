@@ -47,4 +47,3 @@ def maybe_strip_tool_messages(messages: List[BaseMessage]) -> List[BaseMessage]:
     if not settings.strip_tool_messages:
         return messages
     return [m for m in messages if not isinstance(m, ToolMessage)]
-

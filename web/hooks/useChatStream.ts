@@ -14,7 +14,7 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
   const [artifacts, setArtifacts] = useState<Artifact[]>([])
   const [pendingInterrupt, setPendingInterrupt] = useState<any>(null)
   const [threadId, setThreadId] = useState<string | null>(null)
-  
+
   const abortControllerRef = useRef<AbortController | null>(null)
 
   const handleStop = useCallback(async () => {

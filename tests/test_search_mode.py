@@ -34,4 +34,3 @@ def test_normalize_search_mode_deep_requires_agent():
     assert mode["use_deep"] is False
     assert mode["use_agent"] is False
     assert mode["mode"] == "direct"
-

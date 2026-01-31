@@ -46,8 +46,8 @@ export function ConfirmDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {cancelText}
           </Button>
-          <Button 
-            variant={variant} 
+          <Button
+            variant={variant}
             onClick={() => {
                 onConfirm()
                 onOpenChange(false)

@@ -152,4 +152,3 @@ def delete_agent(agent_id: str, *, protected_ids: Optional[set[str]] = None, pat
         return False
     save_agents(kept, paths)
     return True
-

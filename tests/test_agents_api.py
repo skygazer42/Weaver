@@ -82,4 +82,3 @@ async def test_agents_crud(tmp_path, monkeypatch):
         # default protected
         resp7 = await ac.delete("/api/agents/default")
         assert resp7.status_code == 400
-

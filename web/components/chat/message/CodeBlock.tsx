@@ -33,7 +33,7 @@ export function CodeBlock({ language, value, defaultCollapsed = false }: CodeBlo
   return (
     <div className="relative w-full my-4 rounded-xl overflow-hidden border border-border/40 bg-[#282c34] shadow-sm group transition-all hover:shadow-md">
       {/* Header - Glassy MacOS Style */}
-      <div 
+      <div
         className="flex items-center justify-between px-4 py-2.5 bg-white/5 border-b border-white/10 backdrop-blur-sm select-none cursor-pointer hover:bg-white/10 transition-colors"
         onClick={toggleCollapse}
       >
