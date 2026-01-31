@@ -26,6 +26,9 @@ jobs:
       - name: Dependency sanity (pip check)
         run: python -m pip check
 
+      - name: Compile (compileall)
+        run: python -m compileall -q .
+
       - name: Secret scan
         run: python scripts/secret_scan.py
 
