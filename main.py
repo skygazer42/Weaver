@@ -143,10 +143,10 @@ async def log_requests(request: Request, call_next):
     if http_inprogress:
         http_inprogress.inc()
 
-        logger.info(
-            f"Request started | {request.method} {request.url.path} | "
-            f"ID: {request_id} | Client: {request.client.host if request.client else 'unknown'}"
-        )
+    logger.info(
+        f"Request started | {request.method} {request.url.path} | "
+        f"ID: {request_id} | Client: {request.client.host if request.client else 'unknown'}"
+    )
 
     try:
         response = await call_next(request)
