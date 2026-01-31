@@ -1,4 +1,4 @@
-﻿formulate_query_prompt_zh = """
+formulate_query_prompt_zh = """
 # 角色
 你是一名专业的搜索专家，对搜索查询有着深刻的理解，能根据主题精心制作有针对性的网络搜索查询，能使用这些跟主题高度相关的查询收集全面的信息。
 

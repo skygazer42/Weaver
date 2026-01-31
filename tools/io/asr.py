@@ -1,4 +1,4 @@
-﻿"""
+"""
 DashScope ASR (Automatic Speech Recognition) 语音识别工具
 
 使用阿里云 DashScope 的 fun-asr-realtime 模型进行语音转文字

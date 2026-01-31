@@ -1,4 +1,4 @@
-﻿"""
+"""
 Deep Agent prompt and helper for Weaver.
 
 Ported from Yuxi-Know's deep_agent to guide long-form research + critique

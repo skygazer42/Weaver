@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python
+#!/usr/bin/env python
 """CLI helper to call /api/research and stream events.
 Usage:
   python scripts/cli_research.py "your question" --host http://localhost:8000

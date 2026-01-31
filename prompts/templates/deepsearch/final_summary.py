@@ -1,4 +1,4 @@
-﻿final_summary_prompt_zh = """
+final_summary_prompt_zh = """
 # 任务
 需要你根据信息围绕主题进行**深度总结**。主题：`{topic}`
 
