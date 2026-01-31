@@ -4,7 +4,7 @@
 
 set -e
 
-echo "🚀 Starting Manus App in development mode..."
+echo "🚀 Starting Weaver App in development mode..."
 
 # Check if .env exists
 if [ ! -f .env ]; then

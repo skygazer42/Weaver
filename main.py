@@ -101,7 +101,7 @@ async def lifespan(app: FastAPI):
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="Manus Research Agent API",
+    title="Weaver Research Agent API",
     description="Deep  research AI agent with code execution capabilities",
     version="0.1.0",
     lifespan=lifespan,
@@ -533,7 +533,7 @@ def _serialize_interrupts(interrupts: Any) -> List[Any]:
 @app.get("/")
 async def root():
     """Health check endpoint."""
-    return {"status": "healthy", "service": "Manus Research Agent", "version": "0.1.0"}
+    return {"status": "healthy", "service": "Weaver Research Agent", "version": "0.1.0"}
 
 
 @app.get("/health")

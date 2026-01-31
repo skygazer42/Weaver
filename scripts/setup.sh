@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# Manus App Setup Script
+# Weaver App Setup Script
 
 set -e
 
-echo "🚀 Setting up Manus App..."
+echo "🚀 Setting up Weaver App..."
 
 # Check prerequisites
 echo "📋 Checking prerequisites..."
