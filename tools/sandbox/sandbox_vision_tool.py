@@ -73,12 +73,15 @@ class _SandboxVisionBaseTool(BaseTool):
     def _emit_tool_start(self, action: str, args: Dict[str, Any]) -> float:
         """Emit tool start event."""
         start_time = time.time()
-        self._emit_event("tool_start", {
-            "tool": self.name,
-            "action": action,
-            "args": args,
-            "thread_id": self.thread_id,
-        })
+        self._emit_event(
+            "tool_start",
+            {
+                "tool": self.name,
+                "action": action,
+                "args": args,
+                "thread_id": self.thread_id,
+            },
+        )
         return start_time
 
     def _emit_tool_result(
@@ -90,12 +93,15 @@ class _SandboxVisionBaseTool(BaseTool):
     ) -> None:
         """Emit tool result event."""
         duration_ms = (time.time() - start_time) * 1000
-        self._emit_event("tool_result", {
-            "tool": self.name,
-            "action": action,
-            "success": success,
-            "duration_ms": round(duration_ms, 2),
-        })
+        self._emit_event(
+            "tool_result",
+            {
+                "tool": self.name,
+                "action": action,
+                "success": success,
+                "duration_ms": round(duration_ms, 2),
+            },
+        )
 
     def _ensure_dependencies(self, sandbox, packages: List[str]) -> bool:
         """Ensure required packages are installed in sandbox."""
@@ -104,10 +110,7 @@ class _SandboxVisionBaseTool(BaseTool):
                 result = sandbox.commands.run(f"pip show {pkg}", timeout=30)
                 if result.exit_code != 0:
                     logger.info(f"[sandbox_vision] Installing {pkg}...")
-                    install_result = sandbox.commands.run(
-                        f"pip install {pkg}",
-                        timeout=120
-                    )
+                    install_result = sandbox.commands.run(f"pip install {pkg}", timeout=120)
                     if install_result.exit_code != 0:
                         return False
             return True
@@ -118,10 +121,10 @@ class _SandboxVisionBaseTool(BaseTool):
 
 class ExtractTextInput(BaseModel):
     """Input for extract_text (OCR)."""
+
     image_path: str = Field(description="Path to the image file in sandbox")
     language: str = Field(
-        default="eng",
-        description="OCR language code (e.g., 'eng', 'chi_sim', 'jpn')"
+        default="eng", description="OCR language code (e.g., 'eng', 'chi_sim', 'jpn')"
     )
 
 
@@ -190,11 +193,7 @@ except Exception as e:
             except json.JSONDecodeError:
                 raise RuntimeError(f"OCR failed: {result.stderr}")
 
-            result = {
-                "success": True,
-                "path": image_path,
-                **output
-            }
+            result = {"success": True, "path": image_path, **output}
 
             self._emit_tool_result("extract_text", result, start_time, True)
             return result
@@ -206,6 +205,7 @@ except Exception as e:
 
 class GetImageInfoInput(BaseModel):
     """Input for get_image_info."""
+
     image_path: str = Field(description="Path to the image file in sandbox")
 
 
@@ -292,11 +292,7 @@ except Exception as e:
             except json.JSONDecodeError:
                 raise RuntimeError(f"Failed to get image info: {result.stderr}")
 
-            result = {
-                "success": True,
-                "path": image_path,
-                **output
-            }
+            result = {"success": True, "path": image_path, **output}
 
             self._emit_tool_result("get_image_info", result, start_time, True)
             return result
@@ -308,10 +304,15 @@ except Exception as e:
 
 class ResizeImageInput(BaseModel):
     """Input for resize_image."""
+
     image_path: str = Field(description="Path to the source image")
     output_path: str = Field(description="Path for the resized image")
-    width: Optional[int] = Field(default=None, description="Target width (maintains aspect ratio if height not set)")
-    height: Optional[int] = Field(default=None, description="Target height (maintains aspect ratio if width not set)")
+    width: Optional[int] = Field(
+        default=None, description="Target width (maintains aspect ratio if height not set)"
+    )
+    height: Optional[int] = Field(
+        default=None, description="Target height (maintains aspect ratio if width not set)"
+    )
     quality: int = Field(default=85, description="JPEG quality (1-100)")
 
 
@@ -333,11 +334,14 @@ class SandboxResizeImageTool(_SandboxVisionBaseTool):
         height: Optional[int] = None,
         quality: int = 85,
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("resize_image", {
-            "image_path": image_path,
-            "width": width,
-            "height": height,
-        })
+        start_time = self._emit_tool_start(
+            "resize_image",
+            {
+                "image_path": image_path,
+                "width": width,
+                "height": height,
+            },
+        )
 
         try:
             sandbox = self._get_sandbox()
@@ -414,7 +418,7 @@ except Exception as e:
                 "success": True,
                 "input_path": image_path,
                 "output_path": output_path,
-                **output
+                **output,
             }
 
             self._emit_tool_result("resize_image", result, start_time, True)
@@ -427,8 +431,11 @@ except Exception as e:
 
 class ConvertImageInput(BaseModel):
     """Input for convert_image."""
+
     image_path: str = Field(description="Path to the source image")
-    output_path: str = Field(description="Path for the converted image (format determined by extension)")
+    output_path: str = Field(
+        description="Path for the converted image (format determined by extension)"
+    )
     quality: int = Field(default=85, description="JPEG quality (1-100)")
 
 
@@ -448,10 +455,13 @@ class SandboxConvertImageTool(_SandboxVisionBaseTool):
         output_path: str,
         quality: int = 85,
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("convert_image", {
-            "image_path": image_path,
-            "output_path": output_path,
-        })
+        start_time = self._emit_tool_start(
+            "convert_image",
+            {
+                "image_path": image_path,
+                "output_path": output_path,
+            },
+        )
 
         try:
             sandbox = self._get_sandbox()
@@ -527,7 +537,7 @@ except Exception as e:
                 "success": True,
                 "input_path": image_path,
                 "output_path": output_path,
-                **output
+                **output,
             }
 
             self._emit_tool_result("convert_image", result, start_time, True)
@@ -540,6 +550,7 @@ except Exception as e:
 
 class CropImageInput(BaseModel):
     """Input for crop_image."""
+
     image_path: str = Field(description="Path to the source image")
     output_path: str = Field(description="Path for the cropped image")
     left: int = Field(description="Left coordinate of crop box")
@@ -567,10 +578,13 @@ class SandboxCropImageTool(_SandboxVisionBaseTool):
         right: int,
         bottom: int,
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("crop_image", {
-            "image_path": image_path,
-            "box": [left, top, right, bottom],
-        })
+        start_time = self._emit_tool_start(
+            "crop_image",
+            {
+                "image_path": image_path,
+                "box": [left, top, right, bottom],
+            },
+        )
 
         try:
             sandbox = self._get_sandbox()
@@ -627,7 +641,7 @@ except Exception as e:
                 "success": True,
                 "input_path": image_path,
                 "output_path": output_path,
-                **output
+                **output,
             }
 
             self._emit_tool_result("crop_image", result, start_time, True)
@@ -640,6 +654,7 @@ except Exception as e:
 
 class ReadQRCodeInput(BaseModel):
     """Input for read_qr_code."""
+
     image_path: str = Field(description="Path to the image containing QR code")
 
 
@@ -707,11 +722,7 @@ except Exception as e:
             except json.JSONDecodeError:
                 raise RuntimeError(f"Failed to read QR code: {result.stderr}")
 
-            result = {
-                "success": True,
-                "path": image_path,
-                **output
-            }
+            result = {"success": True, "path": image_path, **output}
 
             self._emit_tool_result("read_qr_code", result, start_time, True)
             return result
@@ -723,6 +734,7 @@ except Exception as e:
 
 class CompareImagesInput(BaseModel):
     """Input for compare_images."""
+
     image1_path: str = Field(description="Path to the first image")
     image2_path: str = Field(description="Path to the second image")
 
@@ -742,10 +754,13 @@ class SandboxCompareImagesTool(_SandboxVisionBaseTool):
         image1_path: str,
         image2_path: str,
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("compare_images", {
-            "image1_path": image1_path,
-            "image2_path": image2_path,
-        })
+        start_time = self._emit_tool_start(
+            "compare_images",
+            {
+                "image1_path": image1_path,
+                "image2_path": image2_path,
+            },
+        )
 
         try:
             sandbox = self._get_sandbox()
@@ -831,7 +846,7 @@ except Exception as e:
                 "success": True,
                 "image1_path": image1_path,
                 "image2_path": image2_path,
-                **output
+                **output,
             }
 
             self._emit_tool_result("compare_images", result, start_time, True)

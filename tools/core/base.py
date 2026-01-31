@@ -39,6 +39,7 @@ class ToolResult:
     - Rich metadata for debugging and logging
     - Serializable for storage and transmission
     """
+
     success: bool
     output: str
     metadata: Optional[Dict[str, Any]] = field(default_factory=dict)
@@ -107,11 +108,11 @@ class WeaverTool(ABC):
         """
         for name, method in inspect.getmembers(self, predicate=inspect.ismethod):
             # Skip private and magic methods
-            if name.startswith('_'):
+            if name.startswith("_"):
                 continue
 
             # Check if method has tool_schema attribute
-            if hasattr(method, '_tool_schema'):
+            if hasattr(method, "_tool_schema"):
                 schema = method._tool_schema
                 self._schemas[name] = schema
                 self._methods[name] = method
@@ -144,11 +145,7 @@ class WeaverTool(ABC):
 
     # Helper methods for creating responses
 
-    def success_response(
-        self,
-        data: Any,
-        metadata: Optional[Dict[str, Any]] = None
-    ) -> ToolResult:
+    def success_response(self, data: Any, metadata: Optional[Dict[str, Any]] = None) -> ToolResult:
         """
         Create a success ToolResult.
 
@@ -166,17 +163,10 @@ class WeaverTool(ABC):
         else:
             output = str(data)
 
-        return ToolResult(
-            success=True,
-            output=output,
-            metadata=metadata or {},
-            error=None
-        )
+        return ToolResult(success=True, output=output, metadata=metadata or {}, error=None)
 
     def fail_response(
-        self,
-        error_msg: str,
-        metadata: Optional[Dict[str, Any]] = None
+        self, error_msg: str, metadata: Optional[Dict[str, Any]] = None
     ) -> ToolResult:
         """
         Create a failure ToolResult.
@@ -189,17 +179,11 @@ class WeaverTool(ABC):
             ToolResult with success=False
         """
         return ToolResult(
-            success=False,
-            output=f"Error: {error_msg}",
-            metadata=metadata or {},
-            error=error_msg
+            success=False, output=f"Error: {error_msg}", metadata=metadata or {}, error=error_msg
         )
 
     def partial_response(
-        self,
-        data: Any,
-        warning: str,
-        metadata: Optional[Dict[str, Any]] = None
+        self, data: Any, warning: str, metadata: Optional[Dict[str, Any]] = None
     ) -> ToolResult:
         """
         Create a partial success ToolResult (succeeded but with warnings).
@@ -218,14 +202,9 @@ class WeaverTool(ABC):
             output = json.dumps(data, ensure_ascii=False, indent=2)
 
         merged_metadata = metadata or {}
-        merged_metadata['warning'] = warning
+        merged_metadata["warning"] = warning
 
-        return ToolResult(
-            success=True,
-            output=output,
-            metadata=merged_metadata,
-            error=None
-        )
+        return ToolResult(success=True, output=output, metadata=merged_metadata, error=None)
 
 
 def tool_schema(**schema: Any) -> Callable:
@@ -262,6 +241,7 @@ def tool_schema(**schema: Any) -> Callable:
     Returns:
         Decorated function with _tool_schema attribute
     """
+
     def decorator(func: Callable) -> Callable:
         # Attach schema to function
         func._tool_schema = schema  # type: ignore
@@ -271,6 +251,7 @@ def tool_schema(**schema: Any) -> Callable:
 
 
 # Utility functions
+
 
 def validate_tool_result(result: Any) -> ToolResult:
     """
@@ -294,31 +275,17 @@ def validate_tool_result(result: Any) -> ToolResult:
         else:
             # Treat as successful data
             return ToolResult(
-                success=True,
-                output=json.dumps(result, ensure_ascii=False),
-                metadata={}
+                success=True, output=json.dumps(result, ensure_ascii=False), metadata={}
             )
 
     if isinstance(result, list):
-        return ToolResult(
-            success=True,
-            output=json.dumps(result, ensure_ascii=False),
-            metadata={}
-        )
+        return ToolResult(success=True, output=json.dumps(result, ensure_ascii=False), metadata={})
 
     if isinstance(result, str):
-        return ToolResult(
-            success=True,
-            output=result,
-            metadata={}
-        )
+        return ToolResult(success=True, output=result, metadata={})
 
     # Fallback
-    return ToolResult(
-        success=True,
-        output=str(result),
-        metadata={}
-    )
+    return ToolResult(success=True, output=str(result), metadata={})
 
 
 def merge_tool_results(results: List[ToolResult]) -> ToolResult:
@@ -334,11 +301,7 @@ def merge_tool_results(results: List[ToolResult]) -> ToolResult:
         Merged ToolResult (success if all succeeded)
     """
     if not results:
-        return ToolResult(
-            success=False,
-            output="No results to merge",
-            error="Empty results list"
-        )
+        return ToolResult(success=False, output="No results to merge", error="Empty results list")
 
     all_success = all(r.success for r in results)
     outputs = [r.output for r in results if r.output]
@@ -353,7 +316,7 @@ def merge_tool_results(results: List[ToolResult]) -> ToolResult:
         success=all_success,
         output="\n\n---\n\n".join(outputs),
         metadata=merged_metadata,
-        error="; ".join(errors) if errors else None
+        error="; ".join(errors) if errors else None,
     )
 
 
@@ -374,33 +337,25 @@ if __name__ == "__main__":
             parameters={
                 "type": "object",
                 "properties": {
-                    "name": {
-                        "type": "string",
-                        "description": "User's name"
-                    },
+                    "name": {"type": "string", "description": "User's name"},
                     "language": {
                         "type": "string",
                         "enum": ["en", "zh", "es"],
                         "default": "en",
-                        "description": "Language for greeting"
-                    }
+                        "description": "Language for greeting",
+                    },
                 },
-                "required": ["name"]
-            }
+                "required": ["name"],
+            },
         )
         def greet(self, name: str, language: str = "en") -> ToolResult:
             """Greet the user."""
-            greetings = {
-                "en": f"Hello, {name}!",
-                "zh": f"你好, {name}!",
-                "es": f"¡Hola, {name}!"
-            }
+            greetings = {"en": f"Hello, {name}!", "zh": f"你好, {name}!", "es": f"¡Hola, {name}!"}
 
             greeting = greetings.get(language, greetings["en"])
 
             return self.success_response(
-                {"greeting": greeting, "name": name},
-                metadata={"language": language}
+                {"greeting": greeting, "name": name}, metadata={"language": language}
             )
 
         @tool_schema(
@@ -409,25 +364,20 @@ if __name__ == "__main__":
             parameters={
                 "type": "object",
                 "properties": {
-                    "expression": {
-                        "type": "string",
-                        "description": "Mathematical expression"
-                    }
+                    "expression": {"type": "string", "description": "Mathematical expression"}
                 },
-                "required": ["expression"]
-            }
+                "required": ["expression"],
+            },
         )
         def calculate(self, expression: str) -> ToolResult:
             """Calculate a mathematical expression."""
             try:
                 result = eval(expression)  # In production, use a safer evaluator
-                return self.success_response(
-                    {"expression": expression, "result": result}
-                )
+                return self.success_response({"expression": expression, "result": result})
             except Exception as e:
                 return self.fail_response(
                     f"Calculation failed: {str(e)}",
-                    metadata={"expression": expression, "error_type": type(e).__name__}
+                    metadata={"expression": expression, "error_type": type(e).__name__},
                 )
 
     # Test the example tool

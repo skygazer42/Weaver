@@ -24,7 +24,9 @@ def test_normalize_search_mode_deep_string():
 
 
 def test_normalize_search_mode_object_flags():
-    mode = _normalize_search_mode(SearchMode(useWebSearch=True, useAgent=False, useDeepSearch=False))
+    mode = _normalize_search_mode(
+        SearchMode(useWebSearch=True, useAgent=False, useDeepSearch=False)
+    )
     assert mode["mode"] == "web"
     assert mode["use_web"] is True
 

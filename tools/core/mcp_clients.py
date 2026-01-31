@@ -44,7 +44,9 @@ class MCPClientTool(BaseTool):
         if not self.session:
             return f"Error: not connected to MCP server {self.server_id}"
         emitter = get_emitter_sync(self.thread_id)
-        emitter.emit_sync(ToolEventType.TOOL_START, {"tool": self.name, "args": kwargs, "server": self.server_id})
+        emitter.emit_sync(
+            ToolEventType.TOOL_START, {"tool": self.name, "args": kwargs, "server": self.server_id}
+        )
         try:
             result = asyncio.get_event_loop().run_until_complete(
                 self.session.call_tool(self.original_name, kwargs)
@@ -60,7 +62,12 @@ class MCPClientTool(BaseTool):
             content = ", ".join([p for p in parts if p])
             emitter.emit_sync(
                 ToolEventType.TOOL_RESULT,
-                {"tool": self.name, "result": content or "No output", "server": self.server_id, "success": True},
+                {
+                    "tool": self.name,
+                    "result": content or "No output",
+                    "server": self.server_id,
+                    "success": True,
+                },
             )
             return content or "No output"
         except Exception as e:

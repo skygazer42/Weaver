@@ -366,26 +366,32 @@ class ScreenshotService:
                 reverse=True,
             )
 
-            for filepath in files[:limit * 2]:  # Extra buffer for filtering
+            for filepath in files[: limit * 2]:  # Extra buffer for filtering
                 if not filepath.is_file():
                     continue
 
                 filename = filepath.name
                 ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
-                mime_type = "image/png" if ext == "png" else ("image/jpeg" if ext in {"jpg", "jpeg"} else "application/octet-stream")
+                mime_type = (
+                    "image/png"
+                    if ext == "png"
+                    else ("image/jpeg" if ext in {"jpg", "jpeg"} else "application/octet-stream")
+                )
 
                 # Filter by thread_id if specified
                 if thread_id and thread_id not in filename:
                     continue
 
                 stat = filepath.stat()
-                results.append({
-                    "url": f"{self.base_url}/{filename}",
-                    "filename": filename,
-                    "mime_type": mime_type,
-                    "size_bytes": stat.st_size,
-                    "created_at": datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                })
+                results.append(
+                    {
+                        "url": f"{self.base_url}/{filename}",
+                        "filename": filename,
+                        "mime_type": mime_type,
+                        "size_bytes": stat.st_size,
+                        "created_at": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                    }
+                )
 
                 if len(results) >= limit:
                     break

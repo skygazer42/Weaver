@@ -46,7 +46,9 @@ def _extract_links(html: str, base_url: str, limit: int = 30) -> List[Dict[str, 
         return []
     links: List[Dict[str, str]] = []
     seen: set[str] = set()
-    for m in re.finditer(r"<a\s+[^>]*href=[\"']([^\"']+)[\"'][^>]*>(.*?)</a>", html, flags=re.I | re.S):
+    for m in re.finditer(
+        r"<a\s+[^>]*href=[\"']([^\"']+)[\"'][^>]*>(.*?)</a>", html, flags=re.I | re.S
+    ):
         href = (m.group(1) or "").strip()
         if not href or href.startswith("#"):
             continue
@@ -106,7 +108,9 @@ class BrowserSession:
         title = _extract_title(html)
         text = _strip_html(html)
         links = _extract_links(html, str(resp.url))
-        page = BrowserPage(url=str(resp.url), title=title, text=text, links=links, fetched_at=_utc_now_iso())
+        page = BrowserPage(
+            url=str(resp.url), title=title, text=text, links=links, fetched_at=_utc_now_iso()
+        )
 
         if self.current is not None:
             self.history.append(self.current)

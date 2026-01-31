@@ -5,7 +5,6 @@ These prompts are used when `search_mode` selects "agent" and we run a tool-call
 agent (similar to "GPTs"/Manus-style workflows).
 """
 
-
 DEFAULT_AGENT_PROMPT = """You are Weaver, an autonomous tool-using agent.
 
 You can use tools to search the web, browse pages, and execute Python code when helpful.

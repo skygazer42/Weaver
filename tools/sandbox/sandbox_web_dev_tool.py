@@ -79,7 +79,9 @@ def _build_scaffold_command(
 
 
 class ScaffoldWebProjectInput(BaseModel):
-    project_name: str = Field(description="Project name / folder name (letters, numbers, dash, underscore)")
+    project_name: str = Field(
+        description="Project name / folder name (letters, numbers, dash, underscore)"
+    )
     framework: Literal["nextjs", "react", "vite-react", "vite-vue", "vite-svelte"] = Field(
         description="Frontend framework template to use"
     )
@@ -122,7 +124,11 @@ class SandboxScaffoldWebProjectTool(_SandboxShellBaseTool):
     ) -> Dict[str, Any]:
         start_time = self._emit_tool_start(
             "scaffold_web_project",
-            {"project_name": project_name, "framework": framework, "package_manager": package_manager},
+            {
+                "project_name": project_name,
+                "framework": framework,
+                "package_manager": package_manager,
+            },
         )
 
         try:
@@ -138,7 +144,9 @@ class SandboxScaffoldWebProjectTool(_SandboxShellBaseTool):
                 sandbox.process.start(f"rm -rf {project_path}").wait()
 
             # Check existence
-            exists_proc = sandbox.process.start(f"test -d {project_path} && echo EXISTS || echo MISSING")
+            exists_proc = sandbox.process.start(
+                f"test -d {project_path} && echo EXISTS || echo MISSING"
+            )
             exists_proc.wait()
             if "EXISTS" in getattr(exists_proc, "stdout", ""):
                 return {
@@ -146,7 +154,9 @@ class SandboxScaffoldWebProjectTool(_SandboxShellBaseTool):
                     "error": f"Path {project_path} already exists. Set overwrite=true to recreate.",
                 }
 
-            scaffold_cmd = _build_scaffold_command(framework, safe_name, package_manager, typescript, extra_flags)
+            scaffold_cmd = _build_scaffold_command(
+                framework, safe_name, package_manager, typescript, extra_flags
+            )
             full_cmd = f"cd {self.workspace_path} && {scaffold_cmd}"
             proc = sandbox.process.start(full_cmd)
             proc.wait(timeout=600)
@@ -232,7 +242,12 @@ class SandboxDeployWebProjectTool(_SandboxShellBaseTool):
     ) -> Dict[str, Any]:
         start_time = self._emit_tool_start(
             "deploy_web_project",
-            {"project_path": project_path, "package_manager": package_manager, "port": port, "expose": expose},
+            {
+                "project_path": project_path,
+                "package_manager": package_manager,
+                "port": port,
+                "expose": expose,
+            },
         )
 
         try:
@@ -273,7 +288,10 @@ class SandboxDeployWebProjectTool(_SandboxShellBaseTool):
                 "yarn": f"yarn start --hostname 0.0.0.0 --port {port} || yarn dev --host --port {port}",
                 "pnpm": f"pnpm start --hostname 0.0.0.0 --port {port} || pnpm dev --host --port {port}",
                 "bun": f"bun start --hostname 0.0.0.0 --port {port} || bun dev --host --port {port}",
-            }.get(package_manager, f"npm run start -- --hostname 0.0.0.0 --port {port} || npm run dev -- --host --port {port}")
+            }.get(
+                package_manager,
+                f"npm run start -- --hostname 0.0.0.0 --port {port} || npm run dev -- --host --port {port}",
+            )
             start_cmd_final = start_command or default_start
 
             process_id = str(uuid.uuid4())[:8]

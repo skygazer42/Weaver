@@ -41,18 +41,14 @@ def run_deep_search_routing_check():
     payload1 = {
         "messages": [{"role": "user", "content": "研究人工智能的发展历史和未来趋势"}],
         "stream": False,
-        "search_mode": "deep"
+        "search_mode": "deep",
     }
 
     print(f"请求负载: {json.dumps(payload1, ensure_ascii=False, indent=2)}")
     print("\n发送请求...")
 
     try:
-        response = requests.post(
-            f"{BASE_URL}/api/chat",
-            json=payload1,
-            timeout=120
-        )
+        response = requests.post(f"{BASE_URL}/api/chat", json=payload1, timeout=120)
 
         print(f"响应状态码: {response.status_code}")
 
@@ -78,22 +74,14 @@ def run_deep_search_routing_check():
     payload2 = {
         "messages": [{"role": "user", "content": "比较不同编程语言的优缺点"}],
         "stream": False,
-        "search_mode": {
-            "useWebSearch": False,
-            "useAgent": True,
-            "useDeepSearch": True
-        }
+        "search_mode": {"useWebSearch": False, "useAgent": True, "useDeepSearch": True},
     }
 
     print(f"请求负载: {json.dumps(payload2, ensure_ascii=False, indent=2)}")
     print("\n发送请求...")
 
     try:
-        response = requests.post(
-            f"{BASE_URL}/api/chat",
-            json=payload2,
-            timeout=120
-        )
+        response = requests.post(f"{BASE_URL}/api/chat", json=payload2, timeout=120)
 
         print(f"响应状态码: {response.status_code}")
 
@@ -169,5 +157,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n\n测试失败: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)

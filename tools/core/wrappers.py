@@ -27,9 +27,7 @@ class EventedTool(BaseTool):
 
     def __init__(self, original: Any, thread_id: str = "default", **kwargs):
         name = getattr(original, "name", None) or getattr(original, "__name__", None)
-        description = getattr(original, "description", "") or getattr(
-            original, "__doc__", ""
-        )
+        description = getattr(original, "description", "") or getattr(original, "__doc__", "")
         # Preserve args schema when available (helps tool selection)
         args_schema = getattr(original, "args_schema", None)
         super().__init__(
@@ -102,7 +100,11 @@ class EventedTool(BaseTool):
         if isinstance(self.original, BaseTool):
             # If tool_input missing but kwargs provided, treat kwargs as the input payload
             payload = tool_input if tool_input is not None else (kwargs if kwargs else tool_input)
-            return self.original.run(payload, **kwargs) if payload is not None else self.original.run({})
+            return (
+                self.original.run(payload, **kwargs)
+                if payload is not None
+                else self.original.run({})
+            )
         # callable
         try:
             return self.original(tool_input, **kwargs)
@@ -116,10 +118,20 @@ class EventedTool(BaseTool):
         if isinstance(self.original, BaseTool):
             # If original supports arun, prefer it
             if hasattr(self.original, "arun"):
-                payload = tool_input if tool_input is not None else (kwargs if kwargs else tool_input)
-                return await self.original.arun(payload, **kwargs) if payload is not None else await self.original.arun({})
+                payload = (
+                    tool_input if tool_input is not None else (kwargs if kwargs else tool_input)
+                )
+                return (
+                    await self.original.arun(payload, **kwargs)
+                    if payload is not None
+                    else await self.original.arun({})
+                )
             payload = tool_input if tool_input is not None else (kwargs if kwargs else tool_input)
-            return self.original.run(payload, **kwargs) if payload is not None else self.original.run({})
+            return (
+                self.original.run(payload, **kwargs)
+                if payload is not None
+                else self.original.run({})
+            )
         try:
             result = self.original(tool_input, **kwargs)
         except TypeError:
@@ -132,16 +144,18 @@ class EventedTool(BaseTool):
         return result
 
 
-def wrap_tools_with_events(
-    tools: Iterable[Any], thread_id: str = "default"
-) -> List[Any]:
+def wrap_tools_with_events(tools: Iterable[Any], thread_id: str = "default") -> List[Any]:
     """Wrap a list of tools with EventedTool, skipping ones already evented."""
     wrapped: List[Any] = []
     for tool in tools:
         name = getattr(tool, "name", None) or getattr(tool, "__name__", None)
         # Many first-party tools already emit tool_* events (and expose a switch
         # like `emit_events`). Avoid double-emitting start/result/error.
-        if isinstance(tool, EventedTool) or hasattr(tool, "emit_events") or hasattr(tool, "_emit_event"):
+        if (
+            isinstance(tool, EventedTool)
+            or hasattr(tool, "emit_events")
+            or hasattr(tool, "_emit_event")
+        ):
             wrapped.append(tool)
         else:
             wrapped.append(EventedTool(tool, thread_id=thread_id))

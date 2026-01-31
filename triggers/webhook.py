@@ -87,10 +87,7 @@ class WebhookHandler:
         self.triggers[trigger.id] = trigger
         self.callbacks[trigger.id] = callback
 
-        logger.info(
-            f"[webhook] Registered webhook '{trigger.name}' "
-            f"at {trigger.endpoint_path}"
-        )
+        logger.info(f"[webhook] Registered webhook '{trigger.name}' at {trigger.endpoint_path}")
 
         return trigger.endpoint_path
 
@@ -202,7 +199,8 @@ class WebhookHandler:
 
         if trigger.extract_headers and headers:
             exec_params["headers"] = {
-                k: v for k, v in headers.items()
+                k: v
+                for k, v in headers.items()
                 if k.lower() in [h.lower() for h in trigger.extract_headers]
             }
 
@@ -268,6 +266,7 @@ class WebhookHandler:
     def generate_auth_token(self) -> str:
         """Generate a secure authentication token."""
         import secrets
+
         return secrets.token_urlsafe(32)
 
 

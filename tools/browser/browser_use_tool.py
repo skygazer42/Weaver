@@ -71,7 +71,8 @@ class BrowserUseTool(BaseTool):
 
         if self._browser is None:
             cfg_kwargs = {
-                "headless": getattr(settings, "enable_browser_use", False) is False and getattr(settings, "app_env", "dev") != "prod",
+                "headless": getattr(settings, "enable_browser_use", False) is False
+                and getattr(settings, "app_env", "dev") != "prod",
                 "disable_security": True,
             }
             browser_cfg = getattr(settings, "app_config_object", None)
@@ -79,10 +80,20 @@ class BrowserUseTool(BaseTool):
                 bc = browser_cfg.browser_config
                 if bc.proxy and bc.proxy.server:
                     from browser_use.browser.browser import ProxySettings
+
                     cfg_kwargs["proxy"] = ProxySettings(
-                        server=bc.proxy.server, username=bc.proxy.username, password=bc.proxy.password
+                        server=bc.proxy.server,
+                        username=bc.proxy.username,
+                        password=bc.proxy.password,
                     )
-                for attr in ("headless", "disable_security", "extra_chromium_args", "chrome_instance_path", "wss_url", "cdp_url"):
+                for attr in (
+                    "headless",
+                    "disable_security",
+                    "extra_chromium_args",
+                    "chrome_instance_path",
+                    "wss_url",
+                    "cdp_url",
+                ):
                     val = getattr(bc, attr, None)
                     if val is not None:
                         cfg_kwargs[attr] = val
@@ -93,12 +104,18 @@ class BrowserUseTool(BaseTool):
             context_cfg = None
             try:
                 from browser_use.browser.context import BrowserContextConfig
+
                 context_cfg = BrowserContextConfig()
             except Exception:
                 context_cfg = None
-            self._context = await self._browser.new_context(context_cfg) if context_cfg else await self._browser.new_context()
+            self._context = (
+                await self._browser.new_context(context_cfg)
+                if context_cfg
+                else await self._browser.new_context()
+            )
             try:
                 from browser_use.dom.service import DomService
+
                 self._dom_service = DomService(await self._context.get_current_page())
             except Exception:
                 self._dom_service = None
@@ -115,7 +132,9 @@ class BrowserUseTool(BaseTool):
     ) -> Optional[str]:
         try:
             now = time.monotonic()
-            if min_interval_ms > 0 and (now - self._last_screenshot_at) < (min_interval_ms / 1000.0):
+            if min_interval_ms > 0 and (now - self._last_screenshot_at) < (
+                min_interval_ms / 1000.0
+            ):
                 return None
             await page.bring_to_front()
             await page.wait_for_load_state()
@@ -203,7 +222,12 @@ class BrowserUseTool(BaseTool):
                     shot = await self._take_screenshot(page, action="navigate")
                     self._scroll_accum_px = 0
                     self._arrow_press_accum = 0
-                    return {"status": "ok", "url": page.url, "title": await page.title(), "screenshot": shot}
+                    return {
+                        "status": "ok",
+                        "url": page.url,
+                        "title": await page.title(),
+                        "screenshot": shot,
+                    }
 
                 if action == "go_back":
                     await ctx.go_back()
@@ -241,7 +265,11 @@ class BrowserUseTool(BaseTool):
                         amount = ctx.config.browser_window_size.get("height", 800)
                     await ctx.execute_javascript(f"window.scrollBy(0, {direction * amount});")
                     page = await ctx.get_current_page()
-                    viewport_h = (page.viewport_size or {}).get("height") if getattr(page, "viewport_size", None) else None
+                    viewport_h = (
+                        (page.viewport_size or {}).get("height")
+                        if getattr(page, "viewport_size", None)
+                        else None
+                    )
                     threshold = int((int(viewport_h) if viewport_h else 800) * 0.75)
                     self._scroll_accum_px += direction * int(amount)
                     shot = None
@@ -270,11 +298,15 @@ class BrowserUseTool(BaseTool):
                     if any(token in keys_upper for token in meaningful_keys):
                         self._arrow_press_accum = 0
                         self._scroll_accum_px = 0
-                        shot = await self._take_screenshot(page, action=f"keys:{keys}", min_interval_ms=700)
+                        shot = await self._take_screenshot(
+                            page, action=f"keys:{keys}", min_interval_ms=700
+                        )
                     elif any(token in keys_upper for token in arrow_keys):
                         self._arrow_press_accum += 1
                         if self._arrow_press_accum >= 3:
-                            shot = await self._take_screenshot(page, action=f"keys:{keys}", min_interval_ms=700)
+                            shot = await self._take_screenshot(
+                                page, action=f"keys:{keys}", min_interval_ms=700
+                            )
                             self._arrow_press_accum = 0
                     else:
                         self._arrow_press_accum = 0
@@ -337,8 +369,15 @@ class BrowserUseTool(BaseTool):
                 if action == "extract_content":
                     goal = kwargs.get("goal") or ""
                     content = await page.content()
-                    max_len = getattr(settings.app_config_object.browser_config, "max_content_length", 2000) if getattr(settings, "app_config_object", None) and getattr(settings.app_config_object, "browser_config", None) else 2000
-                    return {"status": "ok", "goal": goal, "content": content[: max_len]}
+                    max_len = (
+                        getattr(
+                            settings.app_config_object.browser_config, "max_content_length", 2000
+                        )
+                        if getattr(settings, "app_config_object", None)
+                        and getattr(settings.app_config_object, "browser_config", None)
+                        else 2000
+                    )
+                    return {"status": "ok", "goal": goal, "content": content[:max_len]}
 
                 raise ValueError(f"Unsupported action: {action}")
             except Exception as e:

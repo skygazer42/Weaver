@@ -43,6 +43,7 @@ class XMLToolCall:
         raw_xml: Original XML content (for debugging)
         call_id: Optional unique identifier for this call
     """
+
     function_name: str
     parameters: Dict[str, Any]
     raw_xml: str = ""
@@ -54,7 +55,7 @@ class XMLToolCall:
             "function_name": self.function_name,
             "parameters": self.parameters,
             "raw_xml": self.raw_xml,
-            "call_id": self.call_id
+            "call_id": self.call_id,
         }
 
     def to_openai_format(self) -> Dict[str, Any]:
@@ -67,10 +68,7 @@ class XMLToolCall:
         return {
             "id": self.call_id or f"call_{hash(self.raw_xml)}",
             "type": "function",
-            "function": {
-                "name": self.function_name,
-                "arguments": json.dumps(self.parameters)
-            }
+            "function": {"name": self.function_name, "arguments": json.dumps(self.parameters)},
         }
 
 
@@ -89,33 +87,24 @@ class XMLToolParser:
 
     # Layer 1: Extract <function_calls> blocks
     FUNCTION_CALLS_PATTERN = re.compile(
-        r'<function_calls>(.*?)</function_calls>',
-        re.DOTALL | re.IGNORECASE
+        r"<function_calls>(.*?)</function_calls>", re.DOTALL | re.IGNORECASE
     )
 
     # Layer 2: Extract <invoke> blocks
     INVOKE_PATTERN = re.compile(
-        r'<invoke\s+name=["\']([^"\']+)["\']>(.*?)</invoke>',
-        re.DOTALL | re.IGNORECASE
+        r'<invoke\s+name=["\']([^"\']+)["\']>(.*?)</invoke>', re.DOTALL | re.IGNORECASE
     )
 
     # Alternative invoke pattern (name as attribute or child element)
-    INVOKE_ALT_PATTERN = re.compile(
-        r'<invoke[^>]*>(.*?)</invoke>',
-        re.DOTALL | re.IGNORECASE
-    )
+    INVOKE_ALT_PATTERN = re.compile(r"<invoke[^>]*>(.*?)</invoke>", re.DOTALL | re.IGNORECASE)
 
     # Layer 3: Extract <parameter> blocks
     PARAMETER_PATTERN = re.compile(
-        r'<parameter\s+name=["\']([^"\']+)["\']>(.*?)</parameter>',
-        re.DOTALL | re.IGNORECASE
+        r'<parameter\s+name=["\']([^"\']+)["\']>(.*?)</parameter>', re.DOTALL | re.IGNORECASE
     )
 
     # Extract name from invoke content if not in attribute
-    NAME_PATTERN = re.compile(
-        r'<name>(.*?)</name>',
-        re.IGNORECASE
-    )
+    NAME_PATTERN = re.compile(r"<name>(.*?)</name>", re.IGNORECASE)
 
     def __init__(self):
         """Initialize the XML parser."""
@@ -161,15 +150,14 @@ class XMLToolParser:
                     tool_call = XMLToolCall(
                         function_name=function_name.strip(),
                         parameters=parameters,
-                        raw_xml=f'<invoke name="{function_name}">{invoke_content}</invoke>'
+                        raw_xml=f'<invoke name="{function_name}">{invoke_content}</invoke>',
                     )
 
                     tool_calls.append(tool_call)
                     self.parsed_calls += 1
 
                     logger.debug(
-                        f"Parsed XML tool call: {function_name} "
-                        f"with {len(parameters)} parameters"
+                        f"Parsed XML tool call: {function_name} with {len(parameters)} parameters"
                     )
 
         except Exception as e:
@@ -200,7 +188,7 @@ class XMLToolParser:
             return ""
 
         # 1. Try parsing as JSON (objects/arrays)
-        if value.startswith(('{', '[')):
+        if value.startswith(("{", "[")):
             try:
                 return json.loads(value)
             except json.JSONDecodeError:
@@ -208,17 +196,17 @@ class XMLToolParser:
                 pass
 
         # 2. Boolean values
-        if value.lower() in ('true', 'false'):
-            return value.lower() == 'true'
+        if value.lower() in ("true", "false"):
+            return value.lower() == "true"
 
         # 3. Null/None values
-        if value.lower() in ('null', 'none'):
+        if value.lower() in ("null", "none"):
             return None
 
         # 4. Try parsing as number
         try:
             # Check for float
-            if '.' in value or 'e' in value.lower():
+            if "." in value or "e" in value.lower():
                 return float(value)
             # Integer
             return int(value)
@@ -229,9 +217,7 @@ class XMLToolParser:
         return value
 
     def parse_streaming_content(
-        self,
-        accumulated_content: str,
-        previous_calls: List[XMLToolCall]
+        self, accumulated_content: str, previous_calls: List[XMLToolCall]
     ) -> List[XMLToolCall]:
         """
         Parse tool calls from streaming content.
@@ -267,10 +253,7 @@ class XMLToolParser:
         """
         return bool(self.FUNCTION_CALLS_PATTERN.search(content))
 
-    def extract_thinking_and_calls(
-        self,
-        content: str
-    ) -> tuple[Optional[str], List[XMLToolCall]]:
+    def extract_thinking_and_calls(self, content: str) -> tuple[Optional[str], List[XMLToolCall]]:
         """
         Extract both thinking/reasoning text and tool calls.
 
@@ -287,7 +270,7 @@ class XMLToolParser:
         thinking = None
         match = self.FUNCTION_CALLS_PATTERN.search(content)
         if match:
-            thinking = content[:match.start()].strip()
+            thinking = content[: match.start()].strip()
 
         return thinking, tool_calls
 
@@ -323,13 +306,11 @@ class XMLToolParser:
         Returns:
             Dictionary with parsing stats
         """
-        return {
-            "parsed_calls": self.parsed_calls,
-            "parse_errors": self.parse_errors
-        }
+        return {"parsed_calls": self.parsed_calls, "parse_errors": self.parse_errors}
 
 
 # Utility functions
+
 
 def convert_xml_to_openai_format(xml_calls: List[XMLToolCall]) -> List[Dict[str, Any]]:
     """
@@ -347,8 +328,7 @@ def convert_xml_to_openai_format(xml_calls: List[XMLToolCall]) -> List[Dict[str,
 
 
 def extract_tool_calls_from_response(
-    response_content: str,
-    format_type: str = "auto"
+    response_content: str, format_type: str = "auto"
 ) -> tuple[Optional[str], List[XMLToolCall]]:
     """
     Extract tool calls from LLM response content.

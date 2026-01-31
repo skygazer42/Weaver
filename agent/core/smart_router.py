@@ -29,22 +29,15 @@ class RouteDecision(BaseModel):
     route: RouteType = Field(
         description="The execution route: 'direct' for simple answers, 'agent' for tool-calling tasks, 'web' for quick web search, 'deep' for comprehensive research, 'clarify' for ambiguous queries"
     )
-    reasoning: str = Field(
-        description="Brief explanation of why this route was chosen"
-    )
+    reasoning: str = Field(description="Brief explanation of why this route was chosen")
     confidence: float = Field(
-        default=0.8,
-        ge=0.0,
-        le=1.0,
-        description="Confidence level of this routing decision (0-1)"
+        default=0.8, ge=0.0, le=1.0, description="Confidence level of this routing decision (0-1)"
     )
     suggested_queries: List[str] = Field(
-        default_factory=list,
-        description="For 'deep' or 'web' routes, suggested search queries"
+        default_factory=list, description="For 'deep' or 'web' routes, suggested search queries"
     )
     clarification_question: str = Field(
-        default="",
-        description="For 'clarify' route, the question to ask the user"
+        default="", description="For 'clarify' route, the question to ask the user"
     )
 
 
@@ -136,12 +129,14 @@ class SmartRouter:
                 "timeout": settings.openai_timeout or 30,
             }
             if settings.use_azure:
-                params.update({
-                    "azure_endpoint": settings.azure_endpoint,
-                    "azure_deployment": self.model,
-                    "api_version": settings.azure_api_version,
-                    "api_key": settings.azure_api_key or settings.openai_api_key,
-                })
+                params.update(
+                    {
+                        "azure_endpoint": settings.azure_endpoint,
+                        "azure_deployment": self.model,
+                        "api_version": settings.azure_api_version,
+                        "api_key": settings.azure_api_key or settings.openai_api_key,
+                    }
+                )
             elif settings.openai_base_url:
                 params["base_url"] = settings.openai_base_url
 
@@ -188,7 +183,9 @@ class SmartRouter:
                 config=config,
             )
 
-            logger.info(f"[smart_router] route={response.route} confidence={response.confidence:.2f}")
+            logger.info(
+                f"[smart_router] route={response.route} confidence={response.confidence:.2f}"
+            )
             return response
 
         except Exception as e:
@@ -209,38 +206,97 @@ class SmartRouter:
         tools_needed = []
 
         # Code execution indicators
-        if any(kw in query_lower for kw in [
-            "python", "code", "script", "program", "execute", "run",
-            "calculate", "compute", "analyze data", "plot", "chart", "graph"
-        ]):
+        if any(
+            kw in query_lower
+            for kw in [
+                "python",
+                "code",
+                "script",
+                "program",
+                "execute",
+                "run",
+                "calculate",
+                "compute",
+                "analyze data",
+                "plot",
+                "chart",
+                "graph",
+            ]
+        ):
             tools_needed.append("python")
 
         # Browser indicators
-        if any(kw in query_lower for kw in [
-            "browse", "website", "webpage", "click", "navigate", "open url",
-            "login", "fill form", "screenshot", "scrape"
-        ]):
+        if any(
+            kw in query_lower
+            for kw in [
+                "browse",
+                "website",
+                "webpage",
+                "click",
+                "navigate",
+                "open url",
+                "login",
+                "fill form",
+                "screenshot",
+                "scrape",
+            ]
+        ):
             tools_needed.append("browser")
 
         # Search indicators
-        if any(kw in query_lower for kw in [
-            "search", "find", "look up", "latest", "current", "recent",
-            "news", "weather", "price", "today"
-        ]):
+        if any(
+            kw in query_lower
+            for kw in [
+                "search",
+                "find",
+                "look up",
+                "latest",
+                "current",
+                "recent",
+                "news",
+                "weather",
+                "price",
+                "today",
+            ]
+        ):
             tools_needed.append("web_search")
 
         # File indicators
-        if any(kw in query_lower for kw in [
-            "file", "create", "write", "read", "save", "download", "upload",
-            "document", "pdf", "excel", "csv"
-        ]):
+        if any(
+            kw in query_lower
+            for kw in [
+                "file",
+                "create",
+                "write",
+                "read",
+                "save",
+                "download",
+                "upload",
+                "document",
+                "pdf",
+                "excel",
+                "csv",
+            ]
+        ):
             tools_needed.append("files")
 
         # Shell/command indicators
-        if any(kw in query_lower for kw in [
-            "command", "terminal", "shell", "install", "package", "npm", "pip",
-            "git", "docker", "build", "deploy"
-        ]):
+        if any(
+            kw in query_lower
+            for kw in [
+                "command",
+                "terminal",
+                "shell",
+                "install",
+                "package",
+                "npm",
+                "pip",
+                "git",
+                "docker",
+                "build",
+                "deploy",
+            ]
+        ):
             tools_needed.append("shell")
 
         return tools_needed

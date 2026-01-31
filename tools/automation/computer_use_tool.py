@@ -37,22 +37,86 @@ logger = logging.getLogger(__name__)
 # Supported keyboard keys
 KEYBOARD_KEYS = [
     # Letters
-    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
-    'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+    "a",
+    "b",
+    "c",
+    "d",
+    "e",
+    "f",
+    "g",
+    "h",
+    "i",
+    "j",
+    "k",
+    "l",
+    "m",
+    "n",
+    "o",
+    "p",
+    "q",
+    "r",
+    "s",
+    "t",
+    "u",
+    "v",
+    "w",
+    "x",
+    "y",
+    "z",
     # Numbers
-    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+    "0",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
     # Special keys
-    'space', 'enter', 'tab', 'escape', 'backspace', 'delete',
-    'shift', 'ctrl', 'alt', 'win', 'command',
+    "space",
+    "enter",
+    "tab",
+    "escape",
+    "backspace",
+    "delete",
+    "shift",
+    "ctrl",
+    "alt",
+    "win",
+    "command",
     # Arrow keys
-    'left', 'right', 'up', 'down',
+    "left",
+    "right",
+    "up",
+    "down",
     # Navigation
-    'home', 'end', 'pageup', 'pagedown', 'insert',
+    "home",
+    "end",
+    "pageup",
+    "pagedown",
+    "insert",
     # Function keys
-    'f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'f10', 'f11', 'f12',
+    "f1",
+    "f2",
+    "f3",
+    "f4",
+    "f5",
+    "f6",
+    "f7",
+    "f8",
+    "f9",
+    "f10",
+    "f11",
+    "f12",
     # Lock keys
-    'capslock', 'numlock', 'scrolllock', 'printscreen',
+    "capslock",
+    "numlock",
+    "scrolllock",
+    "printscreen",
 ]
+
 
 def _pyautogui():
     import pyautogui
@@ -60,6 +124,7 @@ def _pyautogui():
     pyautogui.FAILSAFE = True  # Move mouse to corner to abort
     pyautogui.PAUSE = 0.1  # Small pause between actions
     return pyautogui
+
 
 PYAUTOGUI_AVAILABLE = importlib.util.find_spec("pyautogui") is not None
 
@@ -102,12 +167,15 @@ class _ComputerUseTool(BaseTool):
     def _emit_tool_start(self, action: str, args: Dict[str, Any]) -> float:
         """Emit tool start event."""
         start_time = time.time()
-        self._emit_event("tool_start", {
-            "tool": self.name,
-            "action": action,
-            "args": args,
-            "thread_id": self.thread_id,
-        })
+        self._emit_event(
+            "tool_start",
+            {
+                "tool": self.name,
+                "action": action,
+                "args": args,
+                "thread_id": self.thread_id,
+            },
+        )
         return start_time
 
     def _emit_tool_result(
@@ -119,12 +187,15 @@ class _ComputerUseTool(BaseTool):
     ) -> None:
         """Emit tool result event."""
         duration_ms = (time.time() - start_time) * 1000
-        self._emit_event("tool_result", {
-            "tool": self.name,
-            "action": action,
-            "success": success,
-            "duration_ms": round(duration_ms, 2),
-        })
+        self._emit_event(
+            "tool_result",
+            {
+                "tool": self.name,
+                "action": action,
+                "success": success,
+                "duration_ms": round(duration_ms, 2),
+            },
+        )
 
     def _take_screenshot(self, action: str) -> Dict[str, Any]:
         """Take a screenshot and optionally save it."""
@@ -162,13 +233,16 @@ class _ComputerUseTool(BaseTool):
                             result["mime_type"] = save_result.get("mime_type")
 
                             # Emit screenshot event
-                            self._emit_event("tool_screenshot", {
-                                "tool": self.name,
-                                "action": action,
-                                "url": save_result["url"],
-                                "filename": save_result.get("filename"),
-                                "mime_type": save_result.get("mime_type"),
-                            })
+                            self._emit_event(
+                                "tool_screenshot",
+                                {
+                                    "tool": self.name,
+                                    "action": action,
+                                    "url": save_result["url"],
+                                    "filename": save_result.get("filename"),
+                                    "mime_type": save_result.get("mime_type"),
+                                },
+                            )
                     except Exception as e:
                         logger.warning(f"[computer_use] Failed to save screenshot: {e}")
 
@@ -187,6 +261,7 @@ class _ComputerUseTool(BaseTool):
 
 class MoveMouseInput(BaseModel):
     """Input for moving mouse."""
+
     x: int = Field(description="X coordinate (pixels from left)")
     y: int = Field(description="Y coordinate (pixels from top)")
 
@@ -230,6 +305,7 @@ class MoveMouseTool(_ComputerUseTool):
 
 class ClickInput(BaseModel):
     """Input for clicking."""
+
     x: int = Field(description="X coordinate")
     y: int = Field(description="Y coordinate")
     button: str = Field(default="left", description="Mouse button: left, right, or middle")
@@ -240,7 +316,9 @@ class ClickTool(_ComputerUseTool):
     """Click at specified coordinates."""
 
     name: str = "computer_click"
-    description: str = "Click the mouse at specified coordinates. Supports left/right click and double-click."
+    description: str = (
+        "Click the mouse at specified coordinates. Supports left/right click and double-click."
+    )
     args_schema: type[BaseModel] = ClickInput
 
     def _run(
@@ -253,9 +331,9 @@ class ClickTool(_ComputerUseTool):
         if not PYAUTOGUI_AVAILABLE:
             return {"success": False, "error": "pyautogui not installed"}
 
-        start_time = self._emit_tool_start("click", {
-            "x": x, "y": y, "button": button, "clicks": clicks
-        })
+        start_time = self._emit_tool_start(
+            "click", {"x": x, "y": y, "button": button, "clicks": clicks}
+        )
 
         try:
             # Validate
@@ -288,6 +366,7 @@ class ClickTool(_ComputerUseTool):
 
 class TypeTextInput(BaseModel):
     """Input for typing text."""
+
     text: str = Field(description="Text to type")
     interval: float = Field(default=0.02, description="Interval between keystrokes in seconds")
 
@@ -296,16 +375,18 @@ class TypeTextTool(_ComputerUseTool):
     """Type text using the keyboard."""
 
     name: str = "computer_type"
-    description: str = "Type text using the keyboard. Use this to enter text into focused input fields."
+    description: str = (
+        "Type text using the keyboard. Use this to enter text into focused input fields."
+    )
     args_schema: type[BaseModel] = TypeTextInput
 
     def _run(self, text: str, interval: float = 0.02) -> Dict[str, Any]:
         if not PYAUTOGUI_AVAILABLE:
             return {"success": False, "error": "pyautogui not installed"}
 
-        start_time = self._emit_tool_start("type", {
-            "text": text[:50] + "..." if len(text) > 50 else text
-        })
+        start_time = self._emit_tool_start(
+            "type", {"text": text[:50] + "..." if len(text) > 50 else text}
+        )
 
         try:
             # Type text
@@ -333,6 +414,7 @@ class TypeTextTool(_ComputerUseTool):
 
 class PressKeyInput(BaseModel):
     """Input for pressing keys."""
+
     keys: str = Field(
         description="Key or key combination to press. Examples: 'enter', 'ctrl+c', 'alt+tab', 'shift+a'"
     )
@@ -390,6 +472,7 @@ class PressKeyTool(_ComputerUseTool):
 
 class ScrollInput(BaseModel):
     """Input for scrolling."""
+
     direction: str = Field(description="Scroll direction: 'up' or 'down'")
     amount: int = Field(default=3, description="Number of scroll clicks")
 
@@ -405,9 +488,7 @@ class ScrollTool(_ComputerUseTool):
         if not PYAUTOGUI_AVAILABLE:
             return {"success": False, "error": "pyautogui not installed"}
 
-        start_time = self._emit_tool_start("scroll", {
-            "direction": direction, "amount": amount
-        })
+        start_time = self._emit_tool_start("scroll", {"direction": direction, "amount": amount})
 
         try:
             # Determine scroll amount (positive = up, negative = down)
@@ -440,6 +521,7 @@ class ScrollTool(_ComputerUseTool):
 
 class ScreenshotInput(BaseModel):
     """Input for taking screenshot."""
+
     pass
 
 
@@ -478,6 +560,7 @@ class ScreenshotTool(_ComputerUseTool):
 
 class GetScreenInfoInput(BaseModel):
     """Input for getting screen info."""
+
     pass
 
 
@@ -514,6 +597,7 @@ class GetScreenInfoTool(_ComputerUseTool):
 
 class DragInput(BaseModel):
     """Input for dragging."""
+
     start_x: int = Field(description="Starting X coordinate")
     start_y: int = Field(description="Starting Y coordinate")
     end_x: int = Field(description="Ending X coordinate")
@@ -539,10 +623,13 @@ class DragTool(_ComputerUseTool):
         if not PYAUTOGUI_AVAILABLE:
             return {"success": False, "error": "pyautogui not installed"}
 
-        start_time = self._emit_tool_start("drag", {
-            "start": {"x": start_x, "y": start_y},
-            "end": {"x": end_x, "y": end_y},
-        })
+        start_time = self._emit_tool_start(
+            "drag",
+            {
+                "start": {"x": start_x, "y": start_y},
+                "end": {"x": end_x, "y": end_y},
+            },
+        )
 
         try:
             # Move to start, then drag to end
@@ -595,18 +682,27 @@ def build_computer_use_tools(
     """
     if not PYAUTOGUI_AVAILABLE:
         logger.warning(
-            "[computer_use] pyautogui not installed. "
-            "Install with: pip install pyautogui pillow"
+            "[computer_use] pyautogui not installed. Install with: pip install pyautogui pillow"
         )
         return []
 
     return [
-        MoveMouseTool(thread_id=thread_id, emit_events=emit_events, save_screenshots=save_screenshots),
+        MoveMouseTool(
+            thread_id=thread_id, emit_events=emit_events, save_screenshots=save_screenshots
+        ),
         ClickTool(thread_id=thread_id, emit_events=emit_events, save_screenshots=save_screenshots),
-        TypeTextTool(thread_id=thread_id, emit_events=emit_events, save_screenshots=save_screenshots),
-        PressKeyTool(thread_id=thread_id, emit_events=emit_events, save_screenshots=save_screenshots),
+        TypeTextTool(
+            thread_id=thread_id, emit_events=emit_events, save_screenshots=save_screenshots
+        ),
+        PressKeyTool(
+            thread_id=thread_id, emit_events=emit_events, save_screenshots=save_screenshots
+        ),
         ScrollTool(thread_id=thread_id, emit_events=emit_events, save_screenshots=save_screenshots),
-        ScreenshotTool(thread_id=thread_id, emit_events=emit_events, save_screenshots=save_screenshots),
-        GetScreenInfoTool(thread_id=thread_id, emit_events=emit_events, save_screenshots=save_screenshots),
+        ScreenshotTool(
+            thread_id=thread_id, emit_events=emit_events, save_screenshots=save_screenshots
+        ),
+        GetScreenInfoTool(
+            thread_id=thread_id, emit_events=emit_events, save_screenshots=save_screenshots
+        ),
         DragTool(thread_id=thread_id, emit_events=emit_events, save_screenshots=save_screenshots),
     ]

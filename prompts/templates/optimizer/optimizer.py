@@ -93,7 +93,7 @@ class PromptOptimizer:
             model=config.optimizer_model,
             temperature=0.3,
             api_base_url=resolved_base_url,
-            api_key=resolved_api_key
+            api_key=resolved_api_key,
         )
 
         # 优化器 LLM
@@ -103,12 +103,14 @@ class PromptOptimizer:
             "timeout": resolved_timeout,
         }
         if settings.use_azure and not resolved_base_url:
-            optimizer_params.update({
-                "azure_endpoint": settings.azure_endpoint or None,
-                "azure_deployment": config.optimizer_model,
-                "api_version": settings.azure_api_version or None,
-                "api_key": settings.azure_api_key or resolved_api_key,
-            })
+            optimizer_params.update(
+                {
+                    "azure_endpoint": settings.azure_endpoint or None,
+                    "azure_deployment": config.optimizer_model,
+                    "api_version": settings.azure_api_version or None,
+                    "api_key": settings.azure_api_key or resolved_api_key,
+                }
+            )
         else:
             if resolved_base_url:
                 optimizer_params["base_url"] = resolved_base_url
@@ -125,12 +127,14 @@ class PromptOptimizer:
             "timeout": resolved_timeout,
         }
         if settings.use_azure and not resolved_base_url:
-            target_params.update({
-                "azure_endpoint": settings.azure_endpoint or None,
-                "azure_deployment": config.target_model,
-                "api_version": settings.azure_api_version or None,
-                "api_key": settings.azure_api_key or resolved_api_key,
-            })
+            target_params.update(
+                {
+                    "azure_endpoint": settings.azure_endpoint or None,
+                    "azure_deployment": config.target_model,
+                    "api_version": settings.azure_api_version or None,
+                    "api_key": settings.azure_api_key or resolved_api_key,
+                }
+            )
         else:
             if resolved_base_url:
                 target_params["base_url"] = resolved_base_url
@@ -154,7 +158,7 @@ class PromptOptimizer:
     async def optimize(
         self,
         test_data: List[Dict],
-        progress_callback: Optional[Callable[[int, int, float], None]] = None
+        progress_callback: Optional[Callable[[int, int, float], None]] = None,
     ) -> Dict[str, Any]:
         """
         执行优化循环
@@ -183,9 +187,9 @@ class PromptOptimizer:
         no_improvement_count = 0
 
         for epoch in range(self.config.epochs):
-            logger.info(f"\n{'='*50}")
+            logger.info(f"\n{'=' * 50}")
             logger.info(f"Epoch {epoch + 1}/{self.config.epochs}")
-            logger.info(f"{'='*50}")
+            logger.info(f"{'=' * 50}")
 
             # Step 1: 预测
             logger.info("Step 1: Running predictions...")
@@ -214,7 +218,9 @@ class PromptOptimizer:
 
             # Step 3: 检查停止条件
             if accuracy >= self.config.accuracy_threshold:
-                logger.info(f"  ✓ Reached accuracy threshold ({self.config.accuracy_threshold:.0%})")
+                logger.info(
+                    f"  ✓ Reached accuracy threshold ({self.config.accuracy_threshold:.0%})"
+                )
                 break
 
             if no_improvement_count >= self.config.no_improvement_rounds:
@@ -228,14 +234,16 @@ class PromptOptimizer:
             logger.info(f"Step 3: Analyzing {len(incorrect_samples)} incorrect samples...")
 
             if len(incorrect_samples) < self.config.min_error_samples:
-                logger.info(f"  Too few error samples ({len(incorrect_samples)}), skipping optimization")
+                logger.info(
+                    f"  Too few error samples ({len(incorrect_samples)}), skipping optimization"
+                )
                 continue
 
             # Step 5: 分析错误
             analysis = await self.analyzer.analyze(
                 self.current_prompt,
-                correct_samples[:self.config.error_sample_count],
-                incorrect_samples[:self.config.error_sample_count]
+                correct_samples[: self.config.error_sample_count],
+                incorrect_samples[: self.config.error_sample_count],
             )
 
             logger.info(f"  Error patterns: {len(analysis.get('error_patterns', []))}")
@@ -254,18 +262,20 @@ class PromptOptimizer:
             logger.info(f"  New prompt length: {len(new_prompt)} chars")
 
             # 记录日志
-            self.optimization_log.append({
-                "epoch": epoch + 1,
-                "accuracy": accuracy,
-                "correct_count": len(correct_samples),
-                "incorrect_count": len(incorrect_samples),
-                "analysis_summary": {
-                    "error_patterns": analysis.get("error_patterns", [])[:3],
-                    "priority_fix": analysis.get("priority_fix", "")
-                },
-                "prompt_length": len(self.current_prompt),
-                "timestamp": datetime.now().isoformat()
-            })
+            self.optimization_log.append(
+                {
+                    "epoch": epoch + 1,
+                    "accuracy": accuracy,
+                    "correct_count": len(correct_samples),
+                    "incorrect_count": len(incorrect_samples),
+                    "analysis_summary": {
+                        "error_patterns": analysis.get("error_patterns", [])[:3],
+                        "priority_fix": analysis.get("priority_fix", ""),
+                    },
+                    "prompt_length": len(self.current_prompt),
+                    "timestamp": datetime.now().isoformat(),
+                }
+            )
 
             # 保存检查点
             if self.config.save_intermediate:
@@ -280,17 +290,17 @@ class PromptOptimizer:
             "accuracy_history": self.accuracy_history,
             "optimization_log": self.optimization_log,
             "config": self.config.to_dict(),
-            "completed_at": datetime.now().isoformat()
+            "completed_at": datetime.now().isoformat(),
         }
 
         self._save_final_result(result)
 
-        logger.info(f"\n{'='*60}")
+        logger.info(f"\n{'=' * 60}")
         logger.info(f"Optimization Complete!")
         logger.info(f"Best accuracy: {self.best_accuracy:.2%}")
         logger.info(f"Accuracy history: {[f'{a:.1%}' for a in self.accuracy_history]}")
         logger.info(f"Results saved to: {self.output_dir}")
-        logger.info(f"{'='*60}")
+        logger.info(f"{'=' * 60}")
 
         return result
 
@@ -315,25 +325,15 @@ class PromptOptimizer:
                 response = await self.target_llm.ainvoke(full_prompt)
                 output = response.content if hasattr(response, "content") else str(response)
 
-                return {
-                    **item,
-                    "output": output,
-                    "prompt_used": full_prompt[:500]
-                }
+                return {**item, "output": output, "prompt_used": full_prompt[:500]}
 
             except Exception as e:
                 logger.error(f"Prediction error: {e}")
-                return {
-                    **item,
-                    "output": "",
-                    "error": str(e)
-                }
+                return {**item, "output": "", "error": str(e)}
 
         # 使用并发控制批量处理
         results = await controller.batch_process(
-            data,
-            predict_one,
-            batch_size=min(self.config.sample_size, len(data))
+            data, predict_one, batch_size=min(self.config.sample_size, len(data))
         )
 
         # 过滤异常
@@ -348,22 +348,16 @@ class PromptOptimizer:
                 prompt.format_messages(
                     current_prompt=self.current_prompt,
                     error_patterns=json.dumps(
-                        analysis.get("error_patterns", []),
-                        ensure_ascii=False,
-                        indent=2
+                        analysis.get("error_patterns", []), ensure_ascii=False, indent=2
                     ),
                     prompt_issues=json.dumps(
-                        analysis.get("prompt_issues", []),
-                        ensure_ascii=False,
-                        indent=2
+                        analysis.get("prompt_issues", []), ensure_ascii=False, indent=2
                     ),
                     improvement_suggestions=json.dumps(
-                        analysis.get("improvement_suggestions", []),
-                        ensure_ascii=False,
-                        indent=2
+                        analysis.get("improvement_suggestions", []), ensure_ascii=False, indent=2
                     ),
                     priority_fix=analysis.get("priority_fix", ""),
-                    accuracy_history=str([f"{a:.1%}" for a in self.accuracy_history])
+                    accuracy_history=str([f"{a:.1%}" for a in self.accuracy_history]),
                 )
             )
 
@@ -389,7 +383,7 @@ class PromptOptimizer:
             "best_prompt": self.best_prompt,
             "best_accuracy": self.best_accuracy,
             "accuracy_history": self.accuracy_history,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
         path = self.output_dir / f"checkpoint_epoch_{epoch + 1}.json"
@@ -431,7 +425,7 @@ async def run_optimization(
     init_prompt: str,
     test_data: List[Dict],
     eval_function: Callable,
-    **config_kwargs
+    **config_kwargs,
 ) -> Dict[str, Any]:
     """
     便捷函数：运行一次 Prompt 优化
@@ -447,10 +441,7 @@ async def run_optimization(
         优化结果
     """
     config = OptimizationConfig(
-        task_name=task_name,
-        init_prompt=init_prompt,
-        eval_function=eval_function,
-        **config_kwargs
+        task_name=task_name, init_prompt=init_prompt, eval_function=eval_function, **config_kwargs
     )
 
     optimizer = PromptOptimizer(config)

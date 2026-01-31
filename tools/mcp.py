@@ -57,7 +57,9 @@ async def init_mcp_tools(
     return clients.tools
 
 
-async def reload_mcp_tools(servers_config: Dict[str, Any], enabled: Optional[bool] = None) -> List[BaseTool]:
+async def reload_mcp_tools(
+    servers_config: Dict[str, Any], enabled: Optional[bool] = None
+) -> List[BaseTool]:
     await close_mcp_tools()
     return await init_mcp_tools(servers_override=servers_config, enabled=enabled)
 

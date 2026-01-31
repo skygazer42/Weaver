@@ -39,17 +39,21 @@ PresentationStyle = Literal["business", "educational", "technical", "creative", 
 
 class SlideOutline(BaseModel):
     """Structure for a single slide outline."""
+
     slide_number: int = Field(description="Slide number (1-based)")
     title: str = Field(description="Slide title")
     layout: str = Field(description="Slide layout type")
     content: List[str] = Field(description="Bullet points or content items")
     speaker_notes: str = Field(default="", description="Speaker notes for this slide")
     has_image: bool = Field(default=False, description="Whether this slide should have an image")
-    image_suggestion: str = Field(default="", description="Suggested image description if has_image is True")
+    image_suggestion: str = Field(
+        default="", description="Suggested image description if has_image is True"
+    )
 
 
 class PresentationOutline(BaseModel):
     """Complete presentation outline structure."""
+
     title: str = Field(description="Presentation title")
     subtitle: str = Field(default="", description="Presentation subtitle")
     author: str = Field(default="", description="Author name")
@@ -126,12 +130,15 @@ class _PresentationOutlineBaseTool(BaseTool):
     def _emit_tool_start(self, action: str, args: Dict[str, Any]) -> float:
         """Emit tool start event."""
         start_time = time.time()
-        self._emit_event("tool_start", {
-            "tool": self.name,
-            "action": action,
-            "args": args,
-            "thread_id": self.thread_id,
-        })
+        self._emit_event(
+            "tool_start",
+            {
+                "tool": self.name,
+                "action": action,
+                "args": args,
+                "thread_id": self.thread_id,
+            },
+        )
         return start_time
 
     def _emit_tool_result(
@@ -143,12 +150,15 @@ class _PresentationOutlineBaseTool(BaseTool):
     ) -> None:
         """Emit tool result event."""
         duration_ms = (time.time() - start_time) * 1000
-        self._emit_event("tool_result", {
-            "tool": self.name,
-            "action": action,
-            "success": success,
-            "duration_ms": round(duration_ms, 2),
-        })
+        self._emit_event(
+            "tool_result",
+            {
+                "tool": self.name,
+                "action": action,
+                "success": success,
+                "duration_ms": round(duration_ms, 2),
+            },
+        )
 
     def _get_llm(self) -> ChatOpenAI:
         """Get LLM for outline generation."""
@@ -166,33 +176,19 @@ class _PresentationOutlineBaseTool(BaseTool):
 
 class GenerateOutlineInput(BaseModel):
     """Input for generate_outline."""
+
     topic: str = Field(description="The presentation topic or title")
     num_slides: int = Field(
-        default=10,
-        ge=3,
-        le=30,
-        description="Approximate number of slides (3-30)"
+        default=10, ge=3, le=30, description="Approximate number of slides (3-30)"
     )
     style: PresentationStyle = Field(
         default="business",
-        description="Presentation style: business, educational, technical, creative, minimal"
+        description="Presentation style: business, educational, technical, creative, minimal",
     )
-    target_audience: str = Field(
-        default="general",
-        description="Target audience description"
-    )
-    duration_minutes: int = Field(
-        default=15,
-        description="Target presentation duration in minutes"
-    )
-    include_images: bool = Field(
-        default=True,
-        description="Whether to suggest images for slides"
-    )
-    additional_context: str = Field(
-        default="",
-        description="Additional context or requirements"
-    )
+    target_audience: str = Field(default="general", description="Target audience description")
+    duration_minutes: int = Field(default=15, description="Target presentation duration in minutes")
+    include_images: bool = Field(default=True, description="Whether to suggest images for slides")
+    additional_context: str = Field(default="", description="Additional context or requirements")
 
 
 class GenerateOutlineTool(_PresentationOutlineBaseTool):
@@ -216,11 +212,14 @@ class GenerateOutlineTool(_PresentationOutlineBaseTool):
         include_images: bool = True,
         additional_context: str = "",
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("generate_outline", {
-            "topic": topic,
-            "num_slides": num_slides,
-            "style": style,
-        })
+        start_time = self._emit_tool_start(
+            "generate_outline",
+            {
+                "topic": topic,
+                "num_slides": num_slides,
+                "style": style,
+            },
+        )
 
         try:
             llm = self._get_llm()
@@ -266,6 +265,7 @@ Generate a complete JSON outline following the PresentationOutline schema.
 
 class OutlineToSlidesInput(BaseModel):
     """Input for outline_to_slides."""
+
     outline: Dict[str, Any] = Field(description="The presentation outline (from generate_outline)")
     file_path: str = Field(description="Output path for the PPTX file")
 
@@ -284,6 +284,7 @@ class OutlineToSlidesTool(_PresentationOutlineBaseTool):
         """Get the E2B sandbox instance."""
         try:
             from tools.sandbox.sandbox_browser_session import sandbox_browser_sessions
+
             session = sandbox_browser_sessions.get(self.thread_id)
             if session and hasattr(session, "_handles") and session._handles:
                 return session._handles.sandbox
@@ -296,10 +297,13 @@ class OutlineToSlidesTool(_PresentationOutlineBaseTool):
         outline: Dict[str, Any],
         file_path: str,
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("outline_to_slides", {
-            "file_path": file_path,
-            "slide_count": len(outline.get("slides", [])),
-        })
+        start_time = self._emit_tool_start(
+            "outline_to_slides",
+            {
+                "file_path": file_path,
+                "slide_count": len(outline.get("slides", [])),
+            },
+        )
 
         try:
             sandbox = self._get_sandbox()
@@ -414,6 +418,7 @@ print(f"SUCCESS: Created {{len(prs.slides)}} slides")
 
 class RefineOutlineInput(BaseModel):
     """Input for refine_outline."""
+
     outline: Dict[str, Any] = Field(description="The current presentation outline")
     feedback: str = Field(description="Feedback or changes to apply")
 
@@ -433,9 +438,12 @@ class RefineOutlineTool(_PresentationOutlineBaseTool):
         outline: Dict[str, Any],
         feedback: str,
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("refine_outline", {
-            "feedback": feedback[:100] + "..." if len(feedback) > 100 else feedback,
-        })
+        start_time = self._emit_tool_start(
+            "refine_outline",
+            {
+                "feedback": feedback[:100] + "..." if len(feedback) > 100 else feedback,
+            },
+        )
 
         try:
             llm = self._get_llm()
@@ -476,6 +484,7 @@ Please modify the outline according to the feedback and return the complete upda
 
 class ExpandSlideInput(BaseModel):
     """Input for expand_slide."""
+
     topic: str = Field(description="The slide topic to expand")
     context: str = Field(default="", description="Context from surrounding slides")
     style: PresentationStyle = Field(default="business", description="Presentation style")
@@ -518,7 +527,9 @@ Return as a SlideOutline JSON object.
 """
 
             messages = [
-                SystemMessage(content="You are an expert at creating presentation slide content. Generate clear, impactful content."),
+                SystemMessage(
+                    content="You are an expert at creating presentation slide content. Generate clear, impactful content."
+                ),
                 HumanMessage(content=user_prompt),
             ]
 

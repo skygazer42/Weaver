@@ -43,10 +43,6 @@ async def init_mcp_tools(
         _TOOLS = []
         return []
 
-
-
-
-
     _CONFIG = servers
     _CLIENT = MultiServerMCPClient(servers)
     _TOOLS = await _CLIENT.get_tools()
@@ -59,7 +55,9 @@ async def init_mcp_tools(
     return _TOOLS
 
 
-async def reload_mcp_tools(servers_config: Dict[str, Any], enabled: Optional[bool] = None) -> List[BaseTool]:
+async def reload_mcp_tools(
+    servers_config: Dict[str, Any], enabled: Optional[bool] = None
+) -> List[BaseTool]:
     """Close existing and reload with new config."""
     await close_mcp_tools()
     return await init_mcp_tools(servers_override=servers_config, enabled=enabled)

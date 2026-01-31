@@ -2,7 +2,7 @@ from agent.workflows.deepsearch_optimized import _parse_list_output
 
 
 def test_parse_list_output_parses_simple_python_list():
-    assert _parse_list_output("[\"a\", \"b\"]") == ["a", "b"]
+    assert _parse_list_output('["a", "b"]') == ["a", "b"]
 
 
 def test_parse_list_output_does_not_execute_python_expressions():

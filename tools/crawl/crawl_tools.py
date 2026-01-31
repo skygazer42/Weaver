@@ -29,7 +29,10 @@ class CrawlUrlTool(BaseTool):
 
     def _run(self, url: str, timeout: int = 10, max_chars: int = 4000) -> Dict[str, Any]:
         res = _crawl_url(url, timeout=int(timeout))
-        return {"url": res.get("url", url), "content": _trim(res.get("content", ""), int(max_chars))}
+        return {
+            "url": res.get("url", url),
+            "content": _trim(res.get("content", ""), int(max_chars)),
+        }
 
 
 class CrawlUrlsInput(BaseModel):
@@ -43,15 +46,19 @@ class CrawlUrlsTool(BaseTool):
     description: str = "Fetch multiple webpages (sequentially) and return extracted plain text."
     args_schema: type[BaseModel] = CrawlUrlsInput
 
-    def _run(self, urls: List[str], timeout: int = 10, max_chars_per_url: int = 2000) -> List[Dict[str, Any]]:
+    def _run(
+        self, urls: List[str], timeout: int = 10, max_chars_per_url: int = 2000
+    ) -> List[Dict[str, Any]]:
         urls = [u for u in (urls or []) if isinstance(u, str) and u.strip()]
         results = _crawl_urls(urls, timeout=int(timeout))
         trimmed: List[Dict[str, Any]] = []
         for r in results:
-            trimmed.append({
-                "url": r.get("url", ""),
-                "content": _trim(r.get("content", ""), int(max_chars_per_url)),
-            })
+            trimmed.append(
+                {
+                    "url": r.get("url", ""),
+                    "content": _trim(r.get("content", ""), int(max_chars_per_url)),
+                }
+            )
         return trimmed
 
 

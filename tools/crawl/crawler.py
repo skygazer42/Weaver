@@ -32,10 +32,13 @@ from common.config import settings
 _CRAWLER_HEADLESS = str(getattr(settings, "crawler_headless", "") or "").strip().lower()
 if not _CRAWLER_HEADLESS:
     import os
+
     _CRAWLER_HEADLESS = os.getenv("CRAWLER_HEADLESS", "true").strip().lower()
+
 
 def _is_headless() -> bool:
     return _CRAWLER_HEADLESS not in ("false", "0", "no", "off")
+
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +55,7 @@ DEFAULT_UA = (
 # ============================================================================
 # Optimized Playwright-based Implementation
 # ============================================================================
+
 
 class CrawlerOptimized:
     """
@@ -207,7 +211,9 @@ class CrawlerOptimized:
         if not valid_urls:
             return []
 
-        logger.info(f"[crawler] Crawling {len(valid_urls)} URLs (max_concurrent={self.max_concurrent})...")
+        logger.info(
+            f"[crawler] Crawling {len(valid_urls)} URLs (max_concurrent={self.max_concurrent})..."
+        )
 
         tasks = [self.crawl_single_url(url) for url in valid_urls]
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -216,16 +222,16 @@ class CrawlerOptimized:
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 logger.error(f"[crawler] Task {i} failed with exception: {result}")
-                formatted_results.append({
-                    "url": valid_urls[i] if i < len(valid_urls) else "unknown",
-                    "content": f"Exception: {result}",
-                })
+                formatted_results.append(
+                    {
+                        "url": valid_urls[i] if i < len(valid_urls) else "unknown",
+                        "content": f"Exception: {result}",
+                    }
+                )
             else:
                 formatted_results.append(result)
 
-        success_count = sum(
-            1 for r in formatted_results if "failed" not in r["content"].lower()
-        )
+        success_count = sum(1 for r in formatted_results if "failed" not in r["content"].lower())
         logger.info(f"[crawler] Completed: {success_count}/{len(valid_urls)} successful")
 
         return formatted_results
@@ -281,6 +287,7 @@ async def close_global_crawler() -> None:
 # Legacy urllib-based Implementation (Fallback)
 # ============================================================================
 
+
 def _strip_html(html: str) -> str:
     """Very small HTML → text helper to keep dependencies zero."""
     if not html:
@@ -330,6 +337,7 @@ def _crawl_urls_legacy(urls: List[str], timeout: int = 10) -> List[Dict[str, str
 # Smart Entry Point with Automatic Selection
 # ============================================================================
 
+
 def _should_use_optimized() -> bool:
     """
     Check if we should use the optimized Playwright crawler.
@@ -337,12 +345,14 @@ def _should_use_optimized() -> bool:
     如需强制，可改代码放开，但需自行承担稳定性风险。
     """
     import platform
+
     if platform.system().lower().startswith("win"):
         return False
 
     env_val = ""
     try:
         import os
+
         env_val = os.getenv("USE_OPTIMIZED_CRAWLER", "")
     except Exception:
         env_val = ""
@@ -396,9 +406,11 @@ def crawl_urls(urls: List[str], timeout: int = 10) -> List[Dict[str, str]]:
 
 def _run_async_crawl(urls: List[str]) -> List[Dict[str, str]]:
     """Helper to run async crawl in a safe event loop (handles running loop + Windows)."""
+
     def _run_new_loop(target_urls: List[str]) -> List[Dict[str, str]]:
         try:
             import platform
+
             if platform.system().lower().startswith("win"):
                 # Playwright relies on subprocess support, which requires a Proactor event loop on Windows.
                 # Using WindowsSelectorEventLoopPolicy causes `NotImplementedError` when Playwright starts.
@@ -414,6 +426,7 @@ def _run_async_crawl(urls: List[str]) -> List[Dict[str, str]]:
 
     if loop and loop.is_running():
         import concurrent.futures
+
         with concurrent.futures.ThreadPoolExecutor() as executor:
             future = executor.submit(_run_new_loop, urls)
             return future.result()

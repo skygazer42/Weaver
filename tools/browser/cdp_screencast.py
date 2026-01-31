@@ -119,17 +119,22 @@ class CDPScreencast:
             self.cdp_session.on("Page.screencastFrame", self._handle_frame)
 
             # Start screencast
-            await self.cdp_session.send("Page.startScreencast", {
-                "format": format,
-                "quality": quality,
-                "maxWidth": max_width,
-                "maxHeight": max_height,
-                "everyNthFrame": 1,  # Get every frame, we'll rate limit ourselves
-            })
+            await self.cdp_session.send(
+                "Page.startScreencast",
+                {
+                    "format": format,
+                    "quality": quality,
+                    "maxWidth": max_width,
+                    "maxHeight": max_height,
+                    "everyNthFrame": 1,  # Get every frame, we'll rate limit ourselves
+                },
+            )
 
             self._running = True
-            logger.info(f"[CDP] Screencast started for thread {self.thread_id} "
-                       f"(quality={quality}, max_fps={max_fps})")
+            logger.info(
+                f"[CDP] Screencast started for thread {self.thread_id} "
+                f"(quality={quality}, max_fps={max_fps})"
+            )
             return True
 
         except Exception as e:
@@ -150,9 +155,9 @@ class CDPScreencast:
             # Acknowledge the frame immediately to prevent blocking
             if self.cdp_session and session_id:
                 try:
-                    await self.cdp_session.send("Page.screencastFrameAck", {
-                        "sessionId": session_id
-                    })
+                    await self.cdp_session.send(
+                        "Page.screencastFrameAck", {"sessionId": session_id}
+                    )
                 except Exception:
                     pass  # Ignore ack errors
 
@@ -196,8 +201,10 @@ class CDPScreencast:
                 except Exception:
                     pass
 
-            logger.info(f"[CDP] Screencast stopped for thread {self.thread_id} "
-                       f"(frames={self._frame_count}, avg_fps={self.fps:.1f})")
+            logger.info(
+                f"[CDP] Screencast stopped for thread {self.thread_id} "
+                f"(frames={self._frame_count}, avg_fps={self.fps:.1f})"
+            )
 
         except Exception as e:
             logger.error(f"[CDP] Error stopping screencast: {e}")
@@ -216,19 +223,25 @@ class CDPScreencast:
                 # Create temporary CDP session
                 cdp = await self.page.context.new_cdp_session(self.page)
                 try:
-                    result = await cdp.send("Page.captureScreenshot", {
-                        "format": "jpeg",
-                        "quality": 80,
-                    })
+                    result = await cdp.send(
+                        "Page.captureScreenshot",
+                        {
+                            "format": "jpeg",
+                            "quality": 80,
+                        },
+                    )
                     return result.get("data")
                 finally:
                     await cdp.detach()
             else:
                 # Use existing session
-                result = await self.cdp_session.send("Page.captureScreenshot", {
-                    "format": "jpeg",
-                    "quality": 80,
-                })
+                result = await self.cdp_session.send(
+                    "Page.captureScreenshot",
+                    {
+                        "format": "jpeg",
+                        "quality": 80,
+                    },
+                )
                 return result.get("data")
 
         except Exception as e:

@@ -49,7 +49,7 @@ class ResponseHandler:
     def __init__(
         self,
         tool_registry: Optional[Dict[str, Callable]] = None,
-        config: Optional[AgentProcessorConfig] = None
+        config: Optional[AgentProcessorConfig] = None,
     ):
         """
         Initialize response handler.
@@ -68,23 +68,16 @@ class ResponseHandler:
             decider = ContinuationDecider(
                 max_iterations=config.max_auto_continues,
                 continue_on_tool_calls=True,
-                stop_on_tool_failure=not config.continue_on_tool_failure
+                stop_on_tool_failure=not config.continue_on_tool_failure,
             )
-            injector = ToolResultInjector(
-                strategy=config.result_injection_strategy
-            )
-            self.continuation_handler = ContinuationHandler(
-                decider=decider,
-                injector=injector
-            )
+            injector = ToolResultInjector(strategy=config.result_injection_strategy)
+            self.continuation_handler = ContinuationHandler(decider=decider, injector=injector)
             logger.info("Auto-continuation enabled")
 
         logger.info(f"ResponseHandler initialized with config: {self.config.summary()}")
 
     async def process_streaming_response(
-        self,
-        response_stream: AsyncGenerator,
-        session_id: str = "default"
+        self, response_stream: AsyncGenerator, session_id: str = "default"
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         Process streaming LLM response with tool call detection and execution.
@@ -113,15 +106,14 @@ class ResponseHandler:
                         "type": "text_delta",
                         "content": content,
                         "session_id": session_id,
-                        "timestamp": datetime.now().isoformat()
+                        "timestamp": datetime.now().isoformat(),
                     }
 
                     # Check for XML tool calls if enabled
                     if self.config.xml_tool_calling and "<function_calls>" in accumulated_content:
                         # Try to parse XML calls
                         new_calls = self.xml_parser.parse_streaming_content(
-                            accumulated_content,
-                            detected_xml_calls
+                            accumulated_content, detected_xml_calls
                         )
 
                         for call in new_calls:
@@ -134,7 +126,7 @@ class ResponseHandler:
                                 "function_name": call.function_name,
                                 "parameters": call.parameters,
                                 "session_id": session_id,
-                                "timestamp": datetime.now().isoformat()
+                                "timestamp": datetime.now().isoformat(),
                             }
 
                             logger.info(
@@ -154,7 +146,7 @@ class ResponseHandler:
                             "parameters": call.get("function", {}).get("arguments"),
                             "call_id": call.get("id"),
                             "session_id": session_id,
-                            "timestamp": datetime.now().isoformat()
+                            "timestamp": datetime.now().isoformat(),
                         }
 
             # Response complete - execute tools if any were detected
@@ -177,7 +169,7 @@ class ResponseHandler:
                         "error": result.error,
                         "metadata": result.metadata,
                         "session_id": session_id,
-                        "timestamp": datetime.now().isoformat()
+                        "timestamp": datetime.now().isoformat(),
                     }
 
             # Yield completion event
@@ -185,7 +177,7 @@ class ResponseHandler:
                 "type": "response_complete",
                 "total_tool_calls": len(detected_xml_calls),
                 "session_id": session_id,
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now().isoformat(),
             }
 
         except Exception as e:
@@ -194,13 +186,11 @@ class ResponseHandler:
                 "type": "error",
                 "error": str(e),
                 "session_id": session_id,
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now().isoformat(),
             }
 
     async def _execute_tools_sequential(
-        self,
-        tool_calls: List[XMLToolCall],
-        session_id: str
+        self, tool_calls: List[XMLToolCall], session_id: str
     ) -> List[ToolResult]:
         """
         Execute tool calls sequentially (one after another).
@@ -216,8 +206,7 @@ class ResponseHandler:
 
         for i, call in enumerate(tool_calls, 1):
             logger.info(
-                f"[{session_id}] Executing tool {i}/{len(tool_calls)}: "
-                f"{call.function_name}"
+                f"[{session_id}] Executing tool {i}/{len(tool_calls)}: {call.function_name}"
             )
 
             result = await self._execute_single_tool(call, session_id)
@@ -225,24 +214,22 @@ class ResponseHandler:
 
             # Check if we should continue on failure
             if not result.success and not self.config.continue_on_tool_failure:
-                logger.warning(
-                    f"[{session_id}] Tool execution failed, halting further executions"
-                )
+                logger.warning(f"[{session_id}] Tool execution failed, halting further executions")
                 # Fill remaining with error results
                 for remaining_call in tool_calls[i:]:
-                    results.append(ToolResult(
-                        success=False,
-                        output="Skipped due to previous tool failure",
-                        error="Previous tool failed"
-                    ))
+                    results.append(
+                        ToolResult(
+                            success=False,
+                            output="Skipped due to previous tool failure",
+                            error="Previous tool failed",
+                        )
+                    )
                 break
 
         return results
 
     async def _execute_tools_parallel(
-        self,
-        tool_calls: List[XMLToolCall],
-        session_id: str
+        self, tool_calls: List[XMLToolCall], session_id: str
     ) -> List[ToolResult]:
         """
         Execute tool calls in parallel (concurrently).
@@ -256,10 +243,7 @@ class ResponseHandler:
         """
         logger.info(f"[{session_id}] Executing {len(tool_calls)} tools in parallel")
 
-        tasks = [
-            self._execute_single_tool(call, session_id)
-            for call in tool_calls
-        ]
+        tasks = [self._execute_single_tool(call, session_id) for call in tool_calls]
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -268,21 +252,19 @@ class ResponseHandler:
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 logger.error(f"[{session_id}] Tool {i} raised exception: {result}")
-                processed_results.append(ToolResult(
-                    success=False,
-                    output=f"Tool execution error: {str(result)}",
-                    error=str(result)
-                ))
+                processed_results.append(
+                    ToolResult(
+                        success=False,
+                        output=f"Tool execution error: {str(result)}",
+                        error=str(result),
+                    )
+                )
             else:
                 processed_results.append(result)
 
         return processed_results
 
-    async def _execute_single_tool(
-        self,
-        tool_call: XMLToolCall,
-        session_id: str
-    ) -> ToolResult:
+    async def _execute_single_tool(self, tool_call: XMLToolCall, session_id: str) -> ToolResult:
         """
         Execute a single tool call.
 
@@ -304,33 +286,19 @@ class ResponseHandler:
                 success=False,
                 output=error_msg,
                 error=error_msg,
-                metadata={"error_type": "ToolNotFoundError"}
+                metadata={"error_type": "ToolNotFoundError"},
             )
 
         tool_func = self.tool_registry[function_name]
 
         # Execute with retry logic if configured
         if self.config.retry_on_tool_error:
-            return await self._execute_with_retry(
-                tool_func,
-                parameters,
-                function_name,
-                session_id
-            )
+            return await self._execute_with_retry(tool_func, parameters, function_name, session_id)
         else:
-            return await self._execute_tool_once(
-                tool_func,
-                parameters,
-                function_name,
-                session_id
-            )
+            return await self._execute_tool_once(tool_func, parameters, function_name, session_id)
 
     async def _execute_with_retry(
-        self,
-        tool_func: Callable,
-        parameters: Dict[str, Any],
-        function_name: str,
-        session_id: str
+        self, tool_func: Callable, parameters: Dict[str, Any], function_name: str, session_id: str
     ) -> ToolResult:
         """
         Execute tool with retry logic.
@@ -349,10 +317,7 @@ class ResponseHandler:
         for attempt in range(self.config.max_retries):
             try:
                 result = await self._execute_tool_once(
-                    tool_func,
-                    parameters,
-                    function_name,
-                    session_id
+                    tool_func, parameters, function_name, session_id
                 )
 
                 if result.success:
@@ -367,7 +332,7 @@ class ResponseHandler:
 
                 # Wait before retry (exponential backoff)
                 if attempt < self.config.max_retries - 1:
-                    wait_time = self.config.retry_backoff_factor ** attempt
+                    wait_time = self.config.retry_backoff_factor**attempt
                     logger.warning(
                         f"[{session_id}] Tool {function_name} failed (attempt {attempt + 1}), "
                         f"retrying in {wait_time}s..."
@@ -377,12 +342,11 @@ class ResponseHandler:
             except Exception as e:
                 last_error = str(e)
                 logger.error(
-                    f"[{session_id}] Tool {function_name} exception "
-                    f"(attempt {attempt + 1}): {e}"
+                    f"[{session_id}] Tool {function_name} exception (attempt {attempt + 1}): {e}"
                 )
 
                 if attempt < self.config.max_retries - 1:
-                    wait_time = self.config.retry_backoff_factor ** attempt
+                    wait_time = self.config.retry_backoff_factor**attempt
                     await asyncio.sleep(wait_time)
 
         # All retries exhausted
@@ -390,15 +354,11 @@ class ResponseHandler:
             success=False,
             output=f"Tool failed after {self.config.max_retries} attempts: {last_error}",
             error=last_error,
-            metadata={"retry_count": self.config.max_retries}
+            metadata={"retry_count": self.config.max_retries},
         )
 
     async def _execute_tool_once(
-        self,
-        tool_func: Callable,
-        parameters: Dict[str, Any],
-        function_name: str,
-        session_id: str
+        self, tool_func: Callable, parameters: Dict[str, Any], function_name: str, session_id: str
     ) -> ToolResult:
         """
         Execute tool function once.
@@ -419,31 +379,24 @@ class ResponseHandler:
             else:
                 # Run sync function in executor
                 result = await asyncio.get_event_loop().run_in_executor(
-                    None,
-                    lambda: tool_func(**parameters)
+                    None, lambda: tool_func(**parameters)
                 )
 
             # Ensure result is ToolResult
             if not isinstance(result, ToolResult):
                 result = validate_tool_result(result)
 
-            logger.info(
-                f"[{session_id}] Tool {function_name} executed: "
-                f"success={result.success}"
-            )
+            logger.info(f"[{session_id}] Tool {function_name} executed: success={result.success}")
 
             return result
 
         except Exception as e:
-            logger.error(
-                f"[{session_id}] Tool {function_name} execution error: {e}",
-                exc_info=True
-            )
+            logger.error(f"[{session_id}] Tool {function_name} execution error: {e}", exc_info=True)
             return ToolResult(
                 success=False,
                 output=f"Tool execution error: {str(e)}",
                 error=str(e),
-                metadata={"error_type": type(e).__name__}
+                metadata={"error_type": type(e).__name__},
             )
 
     def _extract_content(self, chunk: Any) -> str:
@@ -508,10 +461,7 @@ class ResponseHandler:
         return tool_calls
 
     async def process_with_auto_continue(
-        self,
-        messages: List[Dict[str, Any]],
-        llm_callable: Callable,
-        session_id: str = "default"
+        self, messages: List[Dict[str, Any]], llm_callable: Callable, session_id: str = "default"
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         Process LLM responses with automatic continuation support.
@@ -534,8 +484,7 @@ class ResponseHandler:
 
         if not self.continuation_handler:
             logger.warning(
-                f"[{session_id}] Auto-continuation not enabled, "
-                f"falling back to single response"
+                f"[{session_id}] Auto-continuation not enabled, falling back to single response"
             )
             # Just call LLM once without continuation
             response = await llm_callable(messages)
@@ -543,7 +492,7 @@ class ResponseHandler:
                 "type": "response_complete",
                 "response": response,
                 "session_id": session_id,
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now().isoformat(),
             }
             return
 
@@ -553,7 +502,7 @@ class ResponseHandler:
         yield {
             "type": "continuation_started",
             "session_id": session_id,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
         logger.info(f"[{session_id}] Starting auto-continuation loop")
@@ -568,7 +517,7 @@ class ResponseHandler:
                 "type": "continuation_iteration",
                 "iteration": iteration,
                 "session_id": session_id,
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now().isoformat(),
             }
 
             logger.info(f"[{session_id}] Iteration {iteration}: Calling LLM")
@@ -586,7 +535,7 @@ class ResponseHandler:
                     "iteration": iteration,
                     "content": response_content,
                     "session_id": session_id,
-                    "timestamp": datetime.now().isoformat()
+                    "timestamp": datetime.now().isoformat(),
                 }
 
             except Exception as e:
@@ -596,7 +545,7 @@ class ResponseHandler:
                     "error": str(e),
                     "iteration": iteration,
                     "session_id": session_id,
-                    "timestamp": datetime.now().isoformat()
+                    "timestamp": datetime.now().isoformat(),
                 }
                 break
 
@@ -606,9 +555,7 @@ class ResponseHandler:
             if state:
                 state.add_finish_reason(finish_reason)
 
-            logger.info(
-                f"[{session_id}] Iteration {iteration}: finish_reason={finish_reason}"
-            )
+            logger.info(f"[{session_id}] Iteration {iteration}: finish_reason={finish_reason}")
 
             # Parse XML tool calls if enabled
             xml_calls = []
@@ -623,8 +570,7 @@ class ResponseHandler:
             all_tool_calls = xml_calls + native_calls
 
             logger.info(
-                f"[{session_id}] Iteration {iteration}: "
-                f"detected {len(all_tool_calls)} tool calls"
+                f"[{session_id}] Iteration {iteration}: detected {len(all_tool_calls)} tool calls"
             )
 
             # Check if we should continue
@@ -633,7 +579,7 @@ class ResponseHandler:
                     state=state,
                     finish_reason=finish_reason,
                     has_tool_calls=len(all_tool_calls) > 0,
-                    tool_results=None
+                    tool_results=None,
                 )
 
                 if not should_continue:
@@ -643,7 +589,7 @@ class ResponseHandler:
                         "reason": stop_reason,
                         "iteration": iteration,
                         "session_id": session_id,
-                        "timestamp": datetime.now().isoformat()
+                        "timestamp": datetime.now().isoformat(),
                     }
                     break
 
@@ -653,13 +599,9 @@ class ResponseHandler:
 
                 # Execute based on strategy
                 if self.config.tool_execution_strategy == "parallel":
-                    tool_results = await self._execute_tools_parallel(
-                        all_tool_calls, session_id
-                    )
+                    tool_results = await self._execute_tools_parallel(all_tool_calls, session_id)
                 else:
-                    tool_results = await self._execute_tools_sequential(
-                        all_tool_calls, session_id
-                    )
+                    tool_results = await self._execute_tools_sequential(all_tool_calls, session_id)
 
                 # Record in state
                 if state:
@@ -667,7 +609,7 @@ class ResponseHandler:
 
                 # Yield tool results
                 for call, result in zip(all_tool_calls, tool_results):
-                    function_name = getattr(call, 'function_name', 'unknown')
+                    function_name = getattr(call, "function_name", "unknown")
                     yield {
                         "type": "tool_result",
                         "iteration": iteration,
@@ -676,15 +618,13 @@ class ResponseHandler:
                         "output": result.output,
                         "error": result.error,
                         "session_id": session_id,
-                        "timestamp": datetime.now().isoformat()
+                        "timestamp": datetime.now().isoformat(),
                     }
 
                 # Inject results back into conversation
                 if self.continuation_handler:
                     messages = self.continuation_handler.injector.inject_results(
-                        messages=messages,
-                        tool_calls=all_tool_calls,
-                        tool_results=tool_results
+                        messages=messages, tool_calls=all_tool_calls, tool_results=tool_results
                     )
 
                 yield {
@@ -692,7 +632,7 @@ class ResponseHandler:
                     "iteration": iteration,
                     "count": len(tool_results),
                     "session_id": session_id,
-                    "timestamp": datetime.now().isoformat()
+                    "timestamp": datetime.now().isoformat(),
                 }
 
             else:
@@ -712,7 +652,7 @@ class ResponseHandler:
             "stop_reason": state.stop_reason if state else "max_iterations",
             "session_id": session_id,
             "timestamp": datetime.now().isoformat(),
-            "state": state.to_dict() if state else {}
+            "state": state.to_dict() if state else {},
         }
 
         logger.info(
@@ -724,21 +664,21 @@ class ResponseHandler:
     def _extract_response_content(self, response: Any) -> str:
         """Extract text content from LLM response."""
         # OpenAI format
-        if hasattr(response, 'choices') and response.choices:
+        if hasattr(response, "choices") and response.choices:
             message = response.choices[0].message
-            if hasattr(message, 'content'):
+            if hasattr(message, "content"):
                 return message.content or ""
 
         # Dict format
         if isinstance(response, dict):
-            if 'choices' in response and response['choices']:
-                message = response['choices'][0].get('message', {})
-                return message.get('content', '')
-            if 'content' in response:
-                return response['content']
+            if "choices" in response and response["choices"]:
+                message = response["choices"][0].get("message", {})
+                return message.get("content", "")
+            if "content" in response:
+                return response["content"]
 
         # Direct content
-        if hasattr(response, 'content'):
+        if hasattr(response, "content"):
             return response.content
 
         return ""
@@ -746,16 +686,16 @@ class ResponseHandler:
     def _extract_finish_reason_from_response(self, response: Any) -> Optional[str]:
         """Extract finish_reason from response."""
         # OpenAI format
-        if hasattr(response, 'choices') and response.choices:
+        if hasattr(response, "choices") and response.choices:
             return response.choices[0].finish_reason
 
         # Dict format
         if isinstance(response, dict):
-            if 'choices' in response and response['choices']:
-                return response['choices'][0].get('finish_reason')
+            if "choices" in response and response["choices"]:
+                return response["choices"][0].get("finish_reason")
 
         # Anthropic format
-        if hasattr(response, 'stop_reason'):
+        if hasattr(response, "stop_reason"):
             return response.stop_reason
 
         return None
@@ -765,17 +705,17 @@ class ResponseHandler:
         tool_calls = []
 
         # OpenAI format
-        if hasattr(response, 'choices') and response.choices:
+        if hasattr(response, "choices") and response.choices:
             message = response.choices[0].message
-            if hasattr(message, 'tool_calls') and message.tool_calls:
+            if hasattr(message, "tool_calls") and message.tool_calls:
                 tool_calls.extend(message.tool_calls)
 
         # Dict format
         if isinstance(response, dict):
-            if 'choices' in response and response['choices']:
-                message = response['choices'][0].get('message', {})
-                if 'tool_calls' in message:
-                    tool_calls.extend(message['tool_calls'])
+            if "choices" in response and response["choices"]:
+                message = response["choices"][0].get("message", {})
+                if "tool_calls" in message:
+                    tool_calls.extend(message["tool_calls"])
 
         return tool_calls
 
@@ -792,11 +732,10 @@ if __name__ == "__main__":
         await asyncio.sleep(0.1)  # Simulate API call
         return ToolResult(
             success=True,
-            output=json.dumps({
-                "query": query,
-                "results": [f"Result {i}" for i in range(max_results)]
-            }),
-            metadata={"source": "mock"}
+            output=json.dumps(
+                {"query": query, "results": [f"Result {i}" for i in range(max_results)]}
+            ),
+            metadata={"source": "mock"},
         )
 
     async def mock_calculate(expression: str) -> ToolResult:
@@ -804,26 +743,16 @@ if __name__ == "__main__":
         try:
             result = eval(expression)
             return ToolResult(
-                success=True,
-                output=json.dumps({"expression": expression, "result": result})
+                success=True, output=json.dumps({"expression": expression, "result": result})
             )
         except Exception as e:
-            return ToolResult(
-                success=False,
-                output=f"Calculation error: {e}",
-                error=str(e)
-            )
+            return ToolResult(success=False, output=f"Calculation error: {e}", error=str(e))
 
-    tool_registry = {
-        "search_web": mock_search,
-        "calculate": mock_calculate
-    }
+    tool_registry = {"search_web": mock_search, "calculate": mock_calculate}
 
     # Create handler
     config = AgentProcessorConfig(
-        xml_tool_calling=True,
-        execute_tools=True,
-        tool_execution_strategy="sequential"
+        xml_tool_calling=True, execute_tools=True, tool_execution_strategy="sequential"
     )
 
     handler = ResponseHandler(tool_registry=tool_registry, config=config)
@@ -837,8 +766,8 @@ if __name__ == "__main__":
             '<invoke name="search_web">\n',
             '<parameter name="query">Python async</parameter>\n',
             '<parameter name="max_results">3</parameter>\n',
-            '</invoke>\n',
-            '</function_calls>\n'
+            "</invoke>\n",
+            "</function_calls>\n",
         ]
 
         for part in parts:

@@ -74,12 +74,15 @@ class _SandboxShellBaseTool(BaseTool):
     def _emit_tool_start(self, action: str, args: Dict[str, Any]) -> float:
         """Emit tool start event."""
         start_time = time.time()
-        self._emit_event("tool_start", {
-            "tool": self.name,
-            "action": action,
-            "args": args,
-            "thread_id": self.thread_id,
-        })
+        self._emit_event(
+            "tool_start",
+            {
+                "tool": self.name,
+                "action": action,
+                "args": args,
+                "thread_id": self.thread_id,
+            },
+        )
         return start_time
 
     def _emit_tool_result(
@@ -91,12 +94,15 @@ class _SandboxShellBaseTool(BaseTool):
     ) -> None:
         """Emit tool result event."""
         duration_ms = (time.time() - start_time) * 1000
-        self._emit_event("tool_result", {
-            "tool": self.name,
-            "action": action,
-            "success": success,
-            "duration_ms": round(duration_ms, 2),
-        })
+        self._emit_event(
+            "tool_result",
+            {
+                "tool": self.name,
+                "action": action,
+                "success": success,
+                "duration_ms": round(duration_ms, 2),
+            },
+        )
 
     def _get_processes(self) -> Dict[str, Any]:
         """Get processes for this thread."""
@@ -107,19 +113,13 @@ class _SandboxShellBaseTool(BaseTool):
 
 class ExecuteCommandInput(BaseModel):
     """Input for execute_command."""
+
     command: str = Field(description="Shell command to execute")
     folder: Optional[str] = Field(
-        default=None,
-        description="Subdirectory of /workspace to run command in"
+        default=None, description="Subdirectory of /workspace to run command in"
     )
-    timeout: int = Field(
-        default=60,
-        description="Timeout in seconds (for blocking mode)"
-    )
-    background: bool = Field(
-        default=False,
-        description="Run command in background (non-blocking)"
-    )
+    timeout: int = Field(default=60, description="Timeout in seconds (for blocking mode)")
+    background: bool = Field(default=False, description="Run command in background (non-blocking)")
 
 
 class SandboxExecuteCommandTool(_SandboxShellBaseTool):
@@ -140,11 +140,14 @@ class SandboxExecuteCommandTool(_SandboxShellBaseTool):
         timeout: int = 60,
         background: bool = False,
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("execute_command", {
-            "command": command[:100] + "..." if len(command) > 100 else command,
-            "folder": folder,
-            "background": background,
-        })
+        start_time = self._emit_tool_start(
+            "execute_command",
+            {
+                "command": command[:100] + "..." if len(command) > 100 else command,
+                "folder": folder,
+                "background": background,
+            },
+        )
 
         try:
             sandbox = self._get_sandbox()
@@ -238,6 +241,7 @@ class SandboxExecuteCommandTool(_SandboxShellBaseTool):
 
 class CheckOutputInput(BaseModel):
     """Input for check_output."""
+
     process_id: str = Field(description="Process ID from execute_command")
     tail_lines: int = Field(default=50, description="Number of lines to return from end")
 
@@ -247,8 +251,7 @@ class SandboxCheckOutputTool(_SandboxShellBaseTool):
 
     name: str = "sandbox_check_output"
     description: str = (
-        "Check the output of a background command. "
-        "Use the process_id from execute_command."
+        "Check the output of a background command. Use the process_id from execute_command."
     )
     args_schema: type[BaseModel] = CheckOutputInput
 
@@ -310,6 +313,7 @@ class SandboxCheckOutputTool(_SandboxShellBaseTool):
 
 class KillProcessInput(BaseModel):
     """Input for kill_process."""
+
     process_id: str = Field(description="Process ID to kill")
 
 
@@ -374,13 +378,17 @@ class SandboxListProcessesTool(_SandboxShellBaseTool):
 
             process_list = []
             for pid, info in processes.items():
-                process_list.append({
-                    "process_id": pid,
-                    "command": info["command"][:50] + "..." if len(info["command"]) > 50 else info["command"],
-                    "status": info.get("status", "unknown"),
-                    "cwd": info["cwd"],
-                    "running_time": round(time.time() - info["started_at"], 1),
-                })
+                process_list.append(
+                    {
+                        "process_id": pid,
+                        "command": info["command"][:50] + "..."
+                        if len(info["command"]) > 50
+                        else info["command"],
+                        "status": info.get("status", "unknown"),
+                        "cwd": info["cwd"],
+                        "running_time": round(time.time() - info["started_at"], 1),
+                    }
+                )
 
             result = {
                 "success": True,
@@ -398,15 +406,12 @@ class SandboxListProcessesTool(_SandboxShellBaseTool):
 
 class InstallPackageInput(BaseModel):
     """Input for install_package."""
+
     packages: str = Field(description="Package name(s) to install (space-separated)")
     package_manager: str = Field(
-        default="auto",
-        description="Package manager: 'npm', 'pip', 'apt', or 'auto' to detect"
+        default="auto", description="Package manager: 'npm', 'pip', 'apt', or 'auto' to detect"
     )
-    folder: Optional[str] = Field(
-        default=None,
-        description="Subdirectory for npm/pip install"
-    )
+    folder: Optional[str] = Field(default=None, description="Subdirectory for npm/pip install")
 
 
 class SandboxInstallPackageTool(_SandboxShellBaseTool):
@@ -414,8 +419,7 @@ class SandboxInstallPackageTool(_SandboxShellBaseTool):
 
     name: str = "sandbox_install_package"
     description: str = (
-        "Install packages using npm, pip, or apt. "
-        "Use 'auto' to detect based on package names."
+        "Install packages using npm, pip, or apt. Use 'auto' to detect based on package names."
     )
     args_schema: type[BaseModel] = InstallPackageInput
 
@@ -425,10 +429,13 @@ class SandboxInstallPackageTool(_SandboxShellBaseTool):
         package_manager: str = "auto",
         folder: Optional[str] = None,
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("install_package", {
-            "packages": packages,
-            "package_manager": package_manager,
-        })
+        start_time = self._emit_tool_start(
+            "install_package",
+            {
+                "packages": packages,
+                "package_manager": package_manager,
+            },
+        )
 
         try:
             sandbox = self._get_sandbox()
@@ -441,7 +448,9 @@ class SandboxInstallPackageTool(_SandboxShellBaseTool):
                 pkg_lower = packages.lower()
                 if any(p in pkg_lower for p in ["react", "vue", "next", "express", "lodash", "@"]):
                     package_manager = "npm"
-                elif any(p in pkg_lower for p in ["pandas", "numpy", "flask", "django", "requests"]):
+                elif any(
+                    p in pkg_lower for p in ["pandas", "numpy", "flask", "django", "requests"]
+                ):
                     package_manager = "pip"
                 else:
                     package_manager = "apt"
@@ -490,6 +499,7 @@ class SandboxInstallPackageTool(_SandboxShellBaseTool):
 
 class ExposePortInput(BaseModel):
     """Input for expose_port."""
+
     port: int = Field(description="Port number to expose")
 
 
@@ -498,8 +508,7 @@ class SandboxExposePortTool(_SandboxShellBaseTool):
 
     name: str = "sandbox_expose_port"
     description: str = (
-        "Expose a port from the sandbox to get a public URL. "
-        "Use this after starting a dev server."
+        "Expose a port from the sandbox to get a public URL. Use this after starting a dev server."
     )
     args_schema: type[BaseModel] = ExposePortInput
 

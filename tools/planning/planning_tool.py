@@ -21,12 +21,14 @@ def plan_steps(goal: str, max_steps: int = 5) -> List[str]:
     }
 
     if settings.use_azure:
-        params.update({
-            "azure_endpoint": settings.azure_endpoint or None,
-            "azure_deployment": params["model"],
-            "api_version": settings.azure_api_version or None,
-            "api_key": settings.azure_api_key or settings.openai_api_key,
-        })
+        params.update(
+            {
+                "azure_endpoint": settings.azure_endpoint or None,
+                "azure_deployment": params["model"],
+                "api_version": settings.azure_api_version or None,
+                "api_key": settings.azure_api_key or settings.openai_api_key,
+            }
+        )
     elif settings.openai_base_url:
         params["base_url"] = settings.openai_base_url
 
@@ -39,7 +41,10 @@ def plan_steps(goal: str, max_steps: int = 5) -> List[str]:
     llm = ChatOpenAI(**params)
     messages = [
         {"role": "system", "content": PLANNING_SYSTEM_PROMPT.strip()},
-        {"role": "user", "content": f"Goal: {goal}\nReturn up to {max_steps} steps as a numbered list."},
+        {
+            "role": "user",
+            "content": f"Goal: {goal}\nReturn up to {max_steps} steps as a numbered list.",
+        },
     ]
     resp = llm.invoke(messages)
     content = getattr(resp, "content", "") or ""

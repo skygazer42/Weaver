@@ -3,6 +3,7 @@
 Usage:
   python scripts/cli_research.py "your question" --host http://localhost:8000
 """
+
 import argparse
 import json
 import sys

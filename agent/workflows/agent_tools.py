@@ -128,6 +128,7 @@ def build_agent_tools(config: RunnableConfig) -> List[BaseTool]:
         # Use fallback search if multiple engines configured
         if len(settings.search_engines_list) > 1:
             from tools import fallback_search
+
             tools.append(fallback_search)
         else:
             tools.append(tavily_search)
@@ -237,6 +238,7 @@ def build_agent_tools(config: RunnableConfig) -> List[BaseTool]:
     # Daytona remote sandbox tools (only when mode=daytona)
     if settings.sandbox_mode == "daytona" and _enabled(profile, "sandbox_daytona", default=True):
         from tools.sandbox import daytona_create, daytona_stop
+
         tools.append(daytona_create)
         tools.append(daytona_stop)
 
@@ -260,9 +262,13 @@ def build_agent_tools(config: RunnableConfig) -> List[BaseTool]:
     # Optional whitelist/blacklist on agent_profile
     whitelist = profile.get("tool_whitelist") or []
     blacklist = profile.get("tool_blacklist") or []
-    collection = ToolCollection().add_tools(tool_list).filter(
-        whitelist=whitelist or None,
-        blacklist=blacklist or None,
+    collection = (
+        ToolCollection()
+        .add_tools(tool_list)
+        .filter(
+            whitelist=whitelist or None,
+            blacklist=blacklist or None,
+        )
     )
     tool_list = collection.to_list()
 

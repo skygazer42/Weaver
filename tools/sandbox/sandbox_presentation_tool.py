@@ -33,15 +33,15 @@ logger = logging.getLogger(__name__)
 
 # Slide layout types
 SLIDE_LAYOUTS = {
-    "title": 0,           # Title slide
-    "title_content": 1,   # Title and Content
-    "section": 2,         # Section Header
-    "two_content": 3,     # Two Content
-    "comparison": 4,      # Comparison
-    "title_only": 5,      # Title Only
-    "blank": 6,           # Blank
-    "content_caption": 7, # Content with Caption
-    "picture_caption": 8, # Picture with Caption
+    "title": 0,  # Title slide
+    "title_content": 1,  # Title and Content
+    "section": 2,  # Section Header
+    "two_content": 3,  # Two Content
+    "comparison": 4,  # Comparison
+    "title_only": 5,  # Title Only
+    "blank": 6,  # Blank
+    "content_caption": 7,  # Content with Caption
+    "picture_caption": 8,  # Picture with Caption
 }
 
 
@@ -87,12 +87,15 @@ class _SandboxPresentationBaseTool(BaseTool):
     def _emit_tool_start(self, action: str, args: Dict[str, Any]) -> float:
         """Emit tool start event."""
         start_time = time.time()
-        self._emit_event("tool_start", {
-            "tool": self.name,
-            "action": action,
-            "args": args,
-            "thread_id": self.thread_id,
-        })
+        self._emit_event(
+            "tool_start",
+            {
+                "tool": self.name,
+                "action": action,
+                "args": args,
+                "thread_id": self.thread_id,
+            },
+        )
         return start_time
 
     def _emit_tool_result(
@@ -104,12 +107,15 @@ class _SandboxPresentationBaseTool(BaseTool):
     ) -> None:
         """Emit tool result event."""
         duration_ms = (time.time() - start_time) * 1000
-        self._emit_event("tool_result", {
-            "tool": self.name,
-            "action": action,
-            "success": success,
-            "duration_ms": round(duration_ms, 2),
-        })
+        self._emit_event(
+            "tool_result",
+            {
+                "tool": self.name,
+                "action": action,
+                "success": success,
+                "duration_ms": round(duration_ms, 2),
+            },
+        )
 
     def _ensure_pptx(self, sandbox) -> bool:
         """Ensure python-pptx is installed in sandbox."""
@@ -117,10 +123,7 @@ class _SandboxPresentationBaseTool(BaseTool):
             result = sandbox.commands.run("pip show python-pptx", timeout=30)
             if result.exit_code != 0:
                 logger.info("[sandbox_presentation] Installing python-pptx...")
-                install_result = sandbox.commands.run(
-                    "pip install python-pptx Pillow",
-                    timeout=120
-                )
+                install_result = sandbox.commands.run("pip install python-pptx Pillow", timeout=120)
                 return install_result.exit_code == 0
             return True
         except Exception as e:
@@ -130,17 +133,12 @@ class _SandboxPresentationBaseTool(BaseTool):
 
 class CreatePresentationInput(BaseModel):
     """Input for create_presentation."""
+
     file_path: str = Field(
         description="Path for the presentation file (e.g., 'presentations/demo.pptx')"
     )
-    title: str = Field(
-        default="",
-        description="Title for the first slide"
-    )
-    subtitle: str = Field(
-        default="",
-        description="Subtitle for the first slide"
-    )
+    title: str = Field(default="", description="Title for the first slide")
+    subtitle: str = Field(default="", description="Subtitle for the first slide")
 
 
 class SandboxCreatePresentationTool(_SandboxPresentationBaseTool):
@@ -224,13 +222,16 @@ print(f"Slides: {{len(prs.slides)}}")
 
 class AddSlideInput(BaseModel):
     """Input for add_slide."""
+
     file_path: str = Field(description="Path to the presentation file")
     layout: str = Field(
         default="title_content",
-        description="Slide layout: 'title', 'title_content', 'section', 'two_content', 'comparison', 'title_only', 'blank'"
+        description="Slide layout: 'title', 'title_content', 'section', 'two_content', 'comparison', 'title_only', 'blank'",
     )
     title: str = Field(default="", description="Slide title")
-    content: Optional[str] = Field(default=None, description="Main content text (supports bullet points with newlines)")
+    content: Optional[str] = Field(
+        default=None, description="Main content text (supports bullet points with newlines)"
+    )
     notes: Optional[str] = Field(default=None, description="Speaker notes")
 
 
@@ -253,10 +254,13 @@ class SandboxAddSlideTool(_SandboxPresentationBaseTool):
         content: Optional[str] = None,
         notes: Optional[str] = None,
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("add_slide", {
-            "file_path": file_path,
-            "layout": layout,
-        })
+        start_time = self._emit_tool_start(
+            "add_slide",
+            {
+                "file_path": file_path,
+                "layout": layout,
+            },
+        )
 
         try:
             sandbox = self._get_sandbox()
@@ -344,6 +348,7 @@ print(f"Total slides: {{len(prs.slides)}}")
 
 class AddImageToSlideInput(BaseModel):
     """Input for add_image_to_slide."""
+
     file_path: str = Field(description="Path to the presentation file")
     slide_number: int = Field(description="Slide number (1-based)")
     image_path: str = Field(description="Path to the image file in sandbox")
@@ -374,11 +379,14 @@ class SandboxAddImageToSlideTool(_SandboxPresentationBaseTool):
         width: Optional[float] = None,
         height: Optional[float] = None,
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("add_image_to_slide", {
-            "file_path": file_path,
-            "slide_number": slide_number,
-            "image_path": image_path,
-        })
+        start_time = self._emit_tool_start(
+            "add_image_to_slide",
+            {
+                "file_path": file_path,
+                "slide_number": slide_number,
+                "image_path": image_path,
+            },
+        )
 
         try:
             sandbox = self._get_sandbox()
@@ -436,6 +444,7 @@ print("SUCCESS")
 
 class AddTableToSlideInput(BaseModel):
     """Input for add_table_to_slide."""
+
     file_path: str = Field(description="Path to the presentation file")
     slide_number: int = Field(description="Slide number (1-based)")
     data: List[List[str]] = Field(description="2D array of table data (first row as headers)")
@@ -465,11 +474,14 @@ class SandboxAddTableToSlideTool(_SandboxPresentationBaseTool):
         width: float = 8.0,
         height: float = 3.0,
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("add_table_to_slide", {
-            "file_path": file_path,
-            "slide_number": slide_number,
-            "rows": len(data),
-        })
+        start_time = self._emit_tool_start(
+            "add_table_to_slide",
+            {
+                "file_path": file_path,
+                "slide_number": slide_number,
+                "rows": len(data),
+            },
+        )
 
         try:
             sandbox = self._get_sandbox()
@@ -542,6 +554,7 @@ print("SUCCESS")
 
 class AddShapeToSlideInput(BaseModel):
     """Input for add_shape_to_slide."""
+
     file_path: str = Field(description="Path to the presentation file")
     slide_number: int = Field(description="Slide number (1-based)")
     shape_type: str = Field(
@@ -577,11 +590,14 @@ class SandboxAddShapeToSlideTool(_SandboxPresentationBaseTool):
         text: Optional[str] = None,
         fill_color: Optional[str] = None,
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("add_shape_to_slide", {
-            "file_path": file_path,
-            "slide_number": slide_number,
-            "shape_type": shape_type,
-        })
+        start_time = self._emit_tool_start(
+            "add_shape_to_slide",
+            {
+                "file_path": file_path,
+                "slide_number": slide_number,
+                "shape_type": shape_type,
+            },
+        )
 
         try:
             sandbox = self._get_sandbox()
@@ -664,6 +680,7 @@ print("SUCCESS")
 
 class GetPresentationInfoInput(BaseModel):
     """Input for get_presentation_info."""
+
     file_path: str = Field(description="Path to the presentation file")
 
 
@@ -672,8 +689,7 @@ class SandboxGetPresentationInfoTool(_SandboxPresentationBaseTool):
 
     name: str = "sandbox_get_presentation_info"
     description: str = (
-        "Get information about a presentation including slide count, "
-        "slide titles, and dimensions."
+        "Get information about a presentation including slide count, slide titles, and dimensions."
     )
     args_schema: type[BaseModel] = GetPresentationInfoInput
 
@@ -718,11 +734,7 @@ print(json.dumps(info))
             except Exception:
                 raise RuntimeError(f"Failed to parse presentation info: {result.stderr}")
 
-            result = {
-                "success": True,
-                "path": file_path,
-                **info
-            }
+            result = {"success": True, "path": file_path, **info}
 
             self._emit_tool_result("get_presentation_info", result, start_time, True)
             return result
@@ -734,6 +746,7 @@ print(json.dumps(info))
 
 class UpdateSlideInput(BaseModel):
     """Input for update_slide."""
+
     file_path: str = Field(description="Path to the presentation file")
     slide_number: int = Field(description="Slide number (1-based)")
     title: Optional[str] = Field(default=None, description="New title (None to keep existing)")
@@ -757,10 +770,13 @@ class SandboxUpdateSlideTool(_SandboxPresentationBaseTool):
         title: Optional[str] = None,
         content: Optional[str] = None,
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("update_slide", {
-            "file_path": file_path,
-            "slide_number": slide_number,
-        })
+        start_time = self._emit_tool_start(
+            "update_slide",
+            {
+                "file_path": file_path,
+                "slide_number": slide_number,
+            },
+        )
 
         try:
             sandbox = self._get_sandbox()
@@ -827,6 +843,7 @@ print("SUCCESS")
 
 class DeleteSlideInput(BaseModel):
     """Input for delete_slide."""
+
     file_path: str = Field(description="Path to the presentation file")
     slide_number: int = Field(description="Slide number to delete (1-based)")
 
@@ -843,10 +860,13 @@ class SandboxDeleteSlideTool(_SandboxPresentationBaseTool):
         file_path: str,
         slide_number: int,
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("delete_slide", {
-            "file_path": file_path,
-            "slide_number": slide_number,
-        })
+        start_time = self._emit_tool_start(
+            "delete_slide",
+            {
+                "file_path": file_path,
+                "slide_number": slide_number,
+            },
+        )
 
         try:
             sandbox = self._get_sandbox()

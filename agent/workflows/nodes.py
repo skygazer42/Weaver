@@ -59,7 +59,7 @@ def handle_cancellation(state: AgentState, error: Exception) -> Dict[str, Any]:
         "is_cancelled": True,
         "is_complete": True,
         "errors": [f"Cancelled: {str(error)}"],
-        "final_report": "任务已被用户取消。"
+        "final_report": "任务已被用户取消。",
     }
 
 
@@ -80,12 +80,14 @@ def _chat_model(
 
     if settings.use_azure:
         # azure_deployment maps to deployment name; reuse model name by default
-        params.update({
-            "azure_endpoint": settings.azure_endpoint or None,
-            "azure_deployment": model,
-            "api_version": settings.azure_api_version or None,
-            "api_key": settings.azure_api_key or settings.openai_api_key,
-        })
+        params.update(
+            {
+                "azure_endpoint": settings.azure_endpoint or None,
+                "azure_deployment": model,
+                "api_version": settings.azure_api_version or None,
+                "api_key": settings.azure_api_key or settings.openai_api_key,
+            }
+        )
     elif settings.openai_base_url:
         params["base_url"] = settings.openai_base_url
 
@@ -134,10 +136,7 @@ def initialize_enhanced_tools() -> None:
         # Discover tools from tools directory
         logger.info("Discovering tools from 'tools' directory...")
         discovered = registry.discover_from_directory(
-            directory="tools",
-            pattern="*.py",
-            recursive=False,
-            tags=["weaver", "auto_discovered"]
+            directory="tools", pattern="*.py", recursive=False, tags=["weaver", "auto_discovered"]
         )
 
         logger.info(f"Discovered and registered {len(discovered)} tools")
@@ -146,7 +145,9 @@ def initialize_enhanced_tools() -> None:
         all_tools = registry.list_names()
         logger.info(f"Total tools in registry: {len(all_tools)}")
         if all_tools:
-            logger.info(f"Available tools: {', '.join(all_tools[:10])}{'...' if len(all_tools) > 10 else ''}")
+            logger.info(
+                f"Available tools: {', '.join(all_tools[:10])}{'...' if len(all_tools) > 10 else ''}"
+            )
 
     except Exception as e:
         logger.error(f"Failed to initialize enhanced tools: {e}", exc_info=True)
@@ -176,7 +177,9 @@ def _selected_reasoning_model(config: RunnableConfig, fallback: str) -> str:
     return fallback
 
 
-def _extract_tool_call_fields(tool_call: Any) -> Tuple[Optional[str], Dict[str, Any], Optional[str]]:
+def _extract_tool_call_fields(
+    tool_call: Any,
+) -> Tuple[Optional[str], Dict[str, Any], Optional[str]]:
     """
     Normalize tool call objects across LangChain 0.x/1.x.
     Returns (name, args_dict, tool_call_id).
@@ -237,15 +240,19 @@ def _normalize_images(images: Optional[List[Dict[str, Any]]]) -> List[Dict[str, 
         else:
             data_url = f"data:{mime};base64,{raw_data}"
 
-        normalized.append({
-            "url": data_url,
-            "name": img.get("name", ""),
-            "mime": mime,
-        })
+        normalized.append(
+            {
+                "url": data_url,
+                "name": img.get("name", ""),
+                "mime": mime,
+            }
+        )
     return normalized
 
 
-def _build_user_content(text: str, images: Optional[List[Dict[str, Any]]]) -> Union[str, List[Dict[str, Any]]]:
+def _build_user_content(
+    text: str, images: Optional[List[Dict[str, Any]]]
+) -> Union[str, List[Dict[str, Any]]]:
     """
     Build multimodal content for HumanMessage.
     Returns plain text if no images, otherwise a mixed list with text + image_url parts.
@@ -261,10 +268,7 @@ def _build_user_content(text: str, images: Optional[List[Dict[str, Any]]]) -> Un
         parts.append({"type": "text", "text": "See attached images and respond accordingly."})
 
     for img in normalized_images:
-        parts.append({
-            "type": "image_url",
-            "image_url": {"url": img["url"]}
-        })
+        parts.append({"type": "image_url", "image_url": {"url": img["url"]}})
 
     if not parts:
         return ""
@@ -297,12 +301,14 @@ def perform_parallel_search(state: QueryState, config: RunnableConfig) -> Dict[s
         if cached_results is not None:
             logger.info(f"[search] Cache hit for: {query[:50]}")
             return {
-                "scraped_content": [{
-                    "query": query,
-                    "results": cached_results,
-                    "timestamp": datetime.now().isoformat(),
-                    "cached": True,
-                }]
+                "scraped_content": [
+                    {
+                        "query": query,
+                        "results": cached_results,
+                        "timestamp": datetime.now().isoformat(),
+                        "cached": True,
+                    }
+                ]
             }
 
         enforce_tool_call_limit(state, settings.tool_call_limit)
@@ -406,7 +412,9 @@ def route_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
 
     # Low confidence fallback: route to clarify
     if not override_mode and confidence < confidence_threshold:
-        logger.info(f"Low confidence ({confidence:.2f} < {confidence_threshold}), routing to clarify")
+        logger.info(
+            f"Low confidence ({confidence:.2f} < {confidence_threshold}), routing to clarify"
+        )
         route = "clarify"
         result["route"] = "clarify"
         result["needs_clarification"] = True
@@ -431,21 +439,30 @@ def clarify_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     llm = _chat_model(_selected_reasoning_model(config, settings.reasoning_model), temperature=0.3)
 
     class ClarifyResponse(BaseModel):
-        need_clarification: bool = Field(description="Whether the user request is ambiguous or incomplete.")
+        need_clarification: bool = Field(
+            description="Whether the user request is ambiguous or incomplete."
+        )
         question: str = Field(default="", description="A concise clarifying question.")
-        verification: str = Field(default="", description="A brief confirmation to proceed when clear.")
+        verification: str = Field(
+            default="", description="A brief confirmation to proceed when clear."
+        )
 
-    system_msg = SystemMessage(content=(
-        "You are a safety check that decides if the user's request needs clarification before research.\n"
-        "If the ask is ambiguous, missing key details, or multi-intent, set need_clarification=true and propose ONE concise question.\n"
-        "Otherwise, set need_clarification=false and provide a short confirmation to proceed."
-    ))
-    human_msg = HumanMessage(content=_build_user_content(state.get("input", ""), state.get("images")))
+    system_msg = SystemMessage(
+        content=(
+            "You are a safety check that decides if the user's request needs clarification before research.\n"
+            "If the ask is ambiguous, missing key details, or multi-intent, set need_clarification=true and propose ONE concise question.\n"
+            "Otherwise, set need_clarification=false and provide a short confirmation to proceed."
+        )
+    )
+    human_msg = HumanMessage(
+        content=_build_user_content(state.get("input", ""), state.get("images"))
+    )
 
     try:
-        response = llm.with_structured_output(ClarifyResponse).with_retry(stop_after_attempt=2).invoke(
-            [system_msg, human_msg],
-            config=config
+        response = (
+            llm.with_structured_output(ClarifyResponse)
+            .with_retry(stop_after_attempt=2)
+            .invoke([system_msg, human_msg], config=config)
         )
         _log_usage(response, "clarify")
     except Exception as e:
@@ -462,14 +479,11 @@ def clarify_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
             "needs_clarification": True,
             "final_report": question,
             "messages": [AIMessage(content=question)],
-            "is_complete": True
+            "is_complete": True,
         }
 
     logger.info("No clarification needed; proceeding to planning.")
-    return {
-        "needs_clarification": False,
-        "messages": [AIMessage(content=verification)]
-    }
+    return {"needs_clarification": False, "messages": [AIMessage(content=verification)]}
 
 
 def direct_answer_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
@@ -479,17 +493,17 @@ def direct_answer_node(state: AgentState, config: RunnableConfig) -> Dict[str, A
     llm = _chat_model(_selected_model(config, settings.primary_model), temperature=0.7)
     messages = [
         SystemMessage(content="You are a helpful assistant. Answer succinctly and accurately."),
-        HumanMessage(content=_build_user_content(state["input"], state.get("images")))
+        HumanMessage(content=_build_user_content(state["input"], state.get("images"))),
     ]
     response = llm.invoke(messages, config=config)
     _log_usage(response, "direct_answer")
-    logger.info(f"[timing] direct_answer {(time.time()-t0):.3f}s")
+    logger.info(f"[timing] direct_answer {(time.time() - t0):.3f}s")
     content = response.content if hasattr(response, "content") else str(response)
     return {
         "draft_report": content,
         "final_report": content,
         "messages": [AIMessage(content=content)],
-        "is_complete": False
+        "is_complete": False,
     }
 
 
@@ -510,11 +524,11 @@ def initiate_research(state: AgentState) -> List[Send]:
     if duplicates:
         logger.info(f"Removed {len(duplicates)} duplicate queries from plan")
 
-    logger.info(f"Initiating parallel research for {len(unique_queries)} queries (original: {len(plan)})")
+    logger.info(
+        f"Initiating parallel research for {len(unique_queries)} queries (original: {len(plan)})"
+    )
 
-    return [
-        Send("perform_parallel_search", {"query": q}) for q in unique_queries
-    ]
+    return [Send("perform_parallel_search", {"query": q}) for q in unique_queries]
 
 
 def planner_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
@@ -532,26 +546,31 @@ def planner_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
         check_cancellation(state)
 
         # Use reasoning model for planning
-        llm = _chat_model(_selected_reasoning_model(config, settings.reasoning_model), temperature=1)
+        llm = _chat_model(
+            _selected_reasoning_model(config, settings.reasoning_model), temperature=1
+        )
         t0 = time.time()
 
         class PlanResponse(BaseModel):
             queries: List[str] = Field(description="3-7 targeted search queries")
             reasoning: str = Field(description="Brief explanation of the research strategy")
 
-        system_msg = SystemMessage(content="You are an expert research planner. Return JSON with 3-7 targeted search queries and a brief reasoning.")
+        system_msg = SystemMessage(
+            content="You are an expert research planner. Return JSON with 3-7 targeted search queries and a brief reasoning."
+        )
         human_msg = HumanMessage(content=_build_user_content(state["input"], state.get("images")))
 
-        response = llm.with_structured_output(PlanResponse).with_retry(stop_after_attempt=2).invoke(
-            [system_msg, human_msg],
-            config=config
+        response = (
+            llm.with_structured_output(PlanResponse)
+            .with_retry(stop_after_attempt=2)
+            .invoke([system_msg, human_msg], config=config)
         )
 
         # LLM 调用后检查取消状态
         check_cancellation(state)
 
         _log_usage(response, "planner")
-        logger.info(f"[timing] planner {(time.time()-t0):.3f}s")
+        logger.info(f"[timing] planner {(time.time() - t0):.3f}s")
         plan_data = response.dict()
 
         raw_queries = plan_data.get("queries", [state["input"]])
@@ -579,8 +598,11 @@ def planner_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
             "research_plan": queries,
             "current_step": 0,
             "messages": [
-                AIMessage(content=f"Research Plan:\n{reasoning}\n\nQueries:\n" + "\n".join(f"{i+1}. {q}" for i, q in enumerate(queries)))
-            ]
+                AIMessage(
+                    content=f"Research Plan:\n{reasoning}\n\nQueries:\n"
+                    + "\n".join(f"{i + 1}. {q}" for i, q in enumerate(queries))
+                )
+            ],
         }
 
     except asyncio.CancelledError as e:
@@ -591,7 +613,9 @@ def planner_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
             "research_plan": [state["input"]],
             "current_step": 0,
             "errors": [f"Planning error: {str(e)}"],
-            "messages": [AIMessage(content=f"Using fallback plan: direct search for '{state['input']}'")]
+            "messages": [
+                AIMessage(content=f"Using fallback plan: direct search for '{state['input']}'")
+            ],
         }
 
 
@@ -638,11 +662,16 @@ def refine_plan_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any
     # Priority 2: Fall back to LLM generation if no queries from evaluator
     if not new_queries:
         logger.info("No evaluator suggestions, generating via LLM")
-        llm = _chat_model(_selected_reasoning_model(config, settings.reasoning_model), temperature=0.8)
+        llm = _chat_model(
+            _selected_reasoning_model(config, settings.reasoning_model), temperature=0.8
+        )
         t0 = time.time()
 
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are a research strategist. Generate up to 3 follow-up search queries to close the gaps called out in feedback.
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                (
+                    "system",
+                    """You are a research strategist. Generate up to 3 follow-up search queries to close the gaps called out in feedback.
 
 Rules:
 - Target missing evidence, data, or counterpoints.
@@ -650,9 +679,14 @@ Rules:
 - Keep queries concise and specific.
 
 Return ONLY a JSON object:
-{"queries": ["q1", "q2", ...]}"""),
-            ("human", "Question: {question}\nFeedback: {feedback}\nExisting queries: {existing}")
-        ])
+{"queries": ["q1", "q2", ...]}""",
+                ),
+                (
+                    "human",
+                    "Question: {question}\nFeedback: {feedback}\nExisting queries: {existing}",
+                ),
+            ]
+        )
 
         try:
             response = llm.invoke(
@@ -664,7 +698,7 @@ Return ONLY a JSON object:
                 config=config,
             )
             _log_usage(response, "refine_plan")
-            logger.info(f"[timing] refine_plan LLM {(time.time()-t0):.3f}s")
+            logger.info(f"[timing] refine_plan LLM {(time.time() - t0):.3f}s")
             content = response.content if hasattr(response, "content") else str(response)
             start = content.find("{")
             end = content.rfind("}") + 1
@@ -698,7 +732,11 @@ Return ONLY a JSON object:
     return {
         "research_plan": merged_plan,
         "revision_count": revision_count,
-        "messages": [AIMessage(content="Added follow-up queries:\n" + "\n".join(f"- {q}" for q in new_queries))]
+        "messages": [
+            AIMessage(
+                content="Added follow-up queries:\n" + "\n".join(f"- {q}" for q in new_queries)
+            )
+        ],
     }
 
 
@@ -708,7 +746,7 @@ def web_search_plan_node(state: AgentState, config: RunnableConfig) -> Dict[str,
     return {
         "research_plan": [state["input"]],
         "current_step": 0,
-        "messages": [AIMessage(content=f"Web search plan: direct search for '{state['input']}'")]
+        "messages": [AIMessage(content=f"Web search plan: direct search for '{state['input']}'")],
     }
 
 
@@ -739,15 +777,17 @@ def agent_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
         tools = build_agent_tools(config)
 
         # Log enabled tools for debugging
-        tool_names = [getattr(t, 'name', t.__class__.__name__) for t in tools]
+        tool_names = [getattr(t, "name", t.__class__.__name__) for t in tools]
         logger.info(f"Agent loaded {len(tools)} tools: {tool_names}")
 
-        if ENHANCED_TOOLS_AVAILABLE and hasattr(settings, 'agent_use_enhanced_registry'):
+        if ENHANCED_TOOLS_AVAILABLE and hasattr(settings, "agent_use_enhanced_registry"):
             try:
                 registry = get_global_registry()
                 if registry.list_names():
                     # Convert registry tools to LangChain format for compatibility
-                    logger.info(f"Using enhanced tool registry with {len(registry.list_names())} tools")
+                    logger.info(
+                        f"Using enhanced tool registry with {len(registry.list_names())} tools"
+                    )
             except Exception as e:
                 logger.warning(f"Failed to use enhanced registry: {e}")
 
@@ -774,7 +814,7 @@ def agent_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
             browser_hint = build_browser_context_hint(thread_id)
 
         # Add XML tool calling instruction if enabled
-        if ENHANCED_TOOLS_AVAILABLE and getattr(settings, 'agent_xml_tool_calling', False):
+        if ENHANCED_TOOLS_AVAILABLE and getattr(settings, "agent_xml_tool_calling", False):
             xml_instruction = """\n\nXML Tool Calling Format (optional):
 You can also use XML format for tool calls:
 <function_calls>
@@ -805,10 +845,12 @@ You can also use XML format for tool calls:
         if browser_hint:
             messages.append(SystemMessage(content=browser_hint))
 
-        messages.append(HumanMessage(content=_build_user_content(state.get("input", ""), state.get("images"))))
+        messages.append(
+            HumanMessage(content=_build_user_content(state.get("input", ""), state.get("images")))
+        )
 
         response = agent.invoke({"messages": messages}, config=config)
-        logger.info(f"[timing] agent {(time.time()-t0):.3f}s")
+        logger.info(f"[timing] agent {(time.time() - t0):.3f}s")
 
         text = ""
         if isinstance(response, dict) and response.get("messages"):
@@ -818,7 +860,9 @@ You can also use XML format for tool calls:
             text = getattr(response, "content", None) or str(response)
 
         # Stuck detection: if last two AI messages repeat, inject hint
-        if detect_stuck(response.get("messages", []) if isinstance(response, dict) else [], threshold=1):
+        if detect_stuck(
+            response.get("messages", []) if isinstance(response, dict) else [], threshold=1
+        ):
             result_messages = response.get("messages", []) if isinstance(response, dict) else []
             result_messages = inject_stuck_hint(result_messages)
             response = {"messages": result_messages}
@@ -826,9 +870,10 @@ You can also use XML format for tool calls:
 
         # Enhanced: Detect XML tool calls in response if enabled
         continuation_needed = False
-        if ENHANCED_TOOLS_AVAILABLE and getattr(settings, 'agent_xml_tool_calling', False):
+        if ENHANCED_TOOLS_AVAILABLE and getattr(settings, "agent_xml_tool_calling", False):
             try:
                 from agent.parsers.xml_parser import XMLToolParser
+
                 parser = XMLToolParser()
                 xml_calls = parser.parse_content(text)
                 if xml_calls:
@@ -915,6 +960,7 @@ def writer_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
 
         # Use enhanced writer prompt
         from agent.prompts.system_prompts import get_writer_prompt
+
         writer_system_prompt = get_writer_prompt()
 
         messages: List[Any] = [
@@ -922,10 +968,14 @@ def writer_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
             HumanMessage(content=_build_user_content(state["input"], state.get("images"))),
         ]
         if research_context:
-            messages.append(HumanMessage(content=f"Research context:\n{research_context}\n\nSources:\n{sources_table}"))
+            messages.append(
+                HumanMessage(
+                    content=f"Research context:\n{research_context}\n\nSources:\n{sources_table}"
+                )
+            )
 
         response = agent.invoke({"messages": messages}, config=config)
-        logger.info(f"[timing] writer {(time.time()-t0):.3f}s")
+        logger.info(f"[timing] writer {(time.time() - t0):.3f}s")
 
         report = ""
         if isinstance(response, dict) and response.get("messages"):
@@ -939,7 +989,7 @@ def writer_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
             "final_report": report,
             "is_complete": False,
             "messages": [AIMessage(content=report)],
-            "code_results": code_results
+            "code_results": code_results,
         }
 
     except asyncio.CancelledError as e:
@@ -950,7 +1000,7 @@ def writer_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
             "final_report": "Error generating report",
             "is_complete": True,
             "errors": [f"Writing error: {str(e)}"],
-            "messages": [AIMessage(content=f"Failed to generate report: {str(e)}")]
+            "messages": [AIMessage(content=f"Failed to generate report: {str(e)}")],
         }
 
 
@@ -989,43 +1039,37 @@ def evaluator_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
 
     class EvalDimensions(BaseModel):
         coverage: float = Field(
-            ge=0.0, le=1.0,
-            description="How well the report addresses all aspects of the question (0-1)"
+            ge=0.0,
+            le=1.0,
+            description="How well the report addresses all aspects of the question (0-1)",
         )
         accuracy: float = Field(
-            ge=0.0, le=1.0,
-            description="How well claims are supported by cited sources (0-1)"
+            ge=0.0, le=1.0, description="How well claims are supported by cited sources (0-1)"
         )
         freshness: float = Field(
-            ge=0.0, le=1.0,
-            description="How current and up-to-date the information is (0-1)"
+            ge=0.0, le=1.0, description="How current and up-to-date the information is (0-1)"
         )
         coherence: float = Field(
-            ge=0.0, le=1.0,
-            description="How well-structured and logical the report is (0-1)"
+            ge=0.0, le=1.0, description="How well-structured and logical the report is (0-1)"
         )
 
     class EvalResponse(BaseModel):
-        verdict: str = Field(
-            description='Evaluation verdict: "pass", "revise", or "incomplete"'
-        )
-        dimensions: EvalDimensions = Field(
-            description="Scores for each evaluation dimension"
-        )
-        feedback: str = Field(
-            description="Concise, actionable feedback for improvement"
-        )
+        verdict: str = Field(description='Evaluation verdict: "pass", "revise", or "incomplete"')
+        dimensions: EvalDimensions = Field(description="Scores for each evaluation dimension")
+        feedback: str = Field(description="Concise, actionable feedback for improvement")
         missing_topics: List[str] = Field(
             default_factory=list,
-            description="Topics or aspects that should be covered but are missing"
+            description="Topics or aspects that should be covered but are missing",
         )
         suggested_queries: List[str] = Field(
-            default_factory=list,
-            description="Search queries that would help fill gaps"
+            default_factory=list, description="Search queries that would help fill gaps"
         )
 
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are a strict report evaluator. Assess the report across multiple dimensions.
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                """You are a strict report evaluator. Assess the report across multiple dimensions.
 
 ## Evaluation Criteria:
 
@@ -1058,19 +1102,20 @@ def evaluator_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
 - "revise": Any dimension 0.5-0.7 or minor gaps
 - "incomplete": Any dimension < 0.5 or major missing topics
 
-Provide specific, actionable feedback and search queries to address gaps."""),
-        ("human", "Question:\n{question}\n\nReport:\n{report}")
-    ])
+Provide specific, actionable feedback and search queries to address gaps.""",
+            ),
+            ("human", "Question:\n{question}\n\nReport:\n{report}"),
+        ]
+    )
 
     report = state.get("draft_report") or state.get("final_report", "")
 
     try:
         response = llm.with_structured_output(EvalResponse).invoke(
-            prompt.format_messages(report=report, question=state["input"]),
-            config=config
+            prompt.format_messages(report=report, question=state["input"]), config=config
         )
         _log_usage(response, "evaluator")
-        logger.info(f"[timing] evaluator {(time.time()-t0):.3f}s")
+        logger.info(f"[timing] evaluator {(time.time() - t0):.3f}s")
 
         # Extract structured data
         verdict = (response.verdict or "pass").lower().strip()
@@ -1130,17 +1175,25 @@ def revise_report_node(state: AgentState, config: RunnableConfig) -> Dict[str, A
     """Revise the report based on evaluator feedback."""
     logger.info("Executing revise report node")
     llm = _chat_model(_selected_model(config, settings.primary_model), temperature=0.5)
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are a helpful editor. Revise the report using the feedback.
-Keep the structure clear and improve factual accuracy and clarity."""),
-        ("human", "Question:\n{question}\n\nFeedback:\n{feedback}\n\nCurrent report:\n{report}")
-    ])
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                """You are a helpful editor. Revise the report using the feedback.
+Keep the structure clear and improve factual accuracy and clarity.""",
+            ),
+            (
+                "human",
+                "Question:\n{question}\n\nFeedback:\n{feedback}\n\nCurrent report:\n{report}",
+            ),
+        ]
+    )
 
     report = state.get("draft_report") or state.get("final_report", "")
     feedback = state.get("evaluation", "")
     response = llm.invoke(
         prompt.format_messages(question=state["input"], feedback=feedback, report=report),
-        config=config
+        config=config,
     )
     content = response.content if hasattr(response, "content") else str(response)
 
@@ -1150,7 +1203,7 @@ Keep the structure clear and improve factual accuracy and clarity."""),
         "final_report": content,
         "revision_count": revision_count,
         "messages": [AIMessage(content=content)],
-        "is_complete": False
+        "is_complete": False,
     }
 
 
@@ -1167,13 +1220,15 @@ def human_review_node(state: AgentState, config: RunnableConfig) -> Dict[str, An
         return {
             "final_report": report,
             "is_complete": True,
-            "messages": [AIMessage(content=report)]
+            "messages": [AIMessage(content=report)],
         }
 
-    updated = interrupt({
-        "instruction": "Review and edit the report if needed. Return the updated content or approve as-is.",
-        "content": report,
-    })
+    updated = interrupt(
+        {
+            "instruction": "Review and edit the report if needed. Return the updated content or approve as-is.",
+            "content": report,
+        }
+    )
 
     if isinstance(updated, dict):
         if updated.get("content"):
@@ -1181,8 +1236,4 @@ def human_review_node(state: AgentState, config: RunnableConfig) -> Dict[str, An
     elif isinstance(updated, str) and updated.strip():
         report = updated
 
-    return {
-        "final_report": report,
-        "is_complete": True,
-        "messages": [AIMessage(content=report)]
-    }
+    return {"final_report": report, "is_complete": True, "messages": [AIMessage(content=report)]}

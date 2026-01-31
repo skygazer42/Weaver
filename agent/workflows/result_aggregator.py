@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SearchResult:
     """Normalized search result with metadata."""
+
     query: str
     title: str
     url: str
@@ -53,8 +54,8 @@ class SearchResult:
     def content_fingerprint(self) -> str:
         """Generate content fingerprint for similarity detection."""
         # Normalize content: lowercase, remove punctuation, collapse whitespace
-        text = re.sub(r'[^\w\s]', '', self.content.lower())
-        text = re.sub(r'\s+', ' ', text).strip()
+        text = re.sub(r"[^\w\s]", "", self.content.lower())
+        text = re.sub(r"\s+", " ", text).strip()
         # Take first 500 chars for fingerprinting
         return hashlib.md5(text[:500].encode()).hexdigest()[:16]
 
@@ -62,6 +63,7 @@ class SearchResult:
 @dataclass
 class AggregatedResults:
     """Aggregated and tiered search results."""
+
     tier_1: List[SearchResult] = field(default_factory=list)  # High relevance
     tier_2: List[SearchResult] = field(default_factory=list)  # Medium relevance
     tier_3: List[SearchResult] = field(default_factory=list)  # Low relevance / backup
@@ -107,7 +109,7 @@ class AggregatedResults:
         if self.tier_2:
             blocks.append("## Supporting Sources (Medium Relevance)")
             for res in self.tier_2[:max_tier_2]:
-                content_preview = res.content[:max_content_length // 2]
+                content_preview = res.content[: max_content_length // 2]
                 if len(res.content) > max_content_length // 2:
                     content_preview += "..."
                 blocks.append(f"[{res.tag}] **{res.title}** ({res.domain})")
@@ -208,9 +210,7 @@ class ResultAggregator:
             duplicates_removed=duplicates_removed,
         )
 
-    def _normalize_results(
-        self, scraped_content: List[Dict[str, Any]]
-    ) -> List[SearchResult]:
+    def _normalize_results(self, scraped_content: List[Dict[str, Any]]) -> List[SearchResult]:
         """Convert raw scraped content to normalized SearchResult objects."""
         results: List[SearchResult] = []
 
@@ -219,28 +219,27 @@ class ResultAggregator:
             timestamp = item.get("timestamp", "")
             raw_results = item.get("results") or []
 
-            for ridx, res in enumerate(raw_results[:self.max_results_per_query]):
+            for ridx, res in enumerate(raw_results[: self.max_results_per_query]):
                 title = (res.get("title") or "Untitled").strip()
                 url = (res.get("url") or "").strip()
                 content = (
-                    res.get("content") or
-                    res.get("summary") or
-                    res.get("snippet") or
-                    ""
+                    res.get("content") or res.get("summary") or res.get("snippet") or ""
                 ).strip()
 
                 if not url or not content:
                     continue
 
-                results.append(SearchResult(
-                    query=query,
-                    title=title,
-                    url=url,
-                    content=content,
-                    timestamp=timestamp,
-                    source_idx=idx,
-                    result_idx=ridx,
-                ))
+                results.append(
+                    SearchResult(
+                        query=query,
+                        title=title,
+                        url=url,
+                        content=content,
+                        timestamp=timestamp,
+                        source_idx=idx,
+                        result_idx=ridx,
+                    )
+                )
 
         return results
 
@@ -257,9 +256,7 @@ class ResultAggregator:
                     seen[url_hash] = res
         return list(seen.values())
 
-    def _dedupe_by_similarity(
-        self, results: List[SearchResult]
-    ) -> List[SearchResult]:
+    def _dedupe_by_similarity(self, results: List[SearchResult]) -> List[SearchResult]:
         """Remove near-duplicates based on content similarity."""
         if len(results) <= 1:
             return results
@@ -337,10 +334,21 @@ class ResultAggregator:
             score += query_match * 0.2
 
             # Domain authority bonus (simple heuristic)
-            if any(d in res.domain for d in [
-                "wikipedia", "github", "stackoverflow", "arxiv", "nature",
-                "science", ".gov", ".edu", "ieee", "acm"
-            ]):
+            if any(
+                d in res.domain
+                for d in [
+                    "wikipedia",
+                    "github",
+                    "stackoverflow",
+                    "arxiv",
+                    "nature",
+                    "science",
+                    ".gov",
+                    ".edu",
+                    "ieee",
+                    "acm",
+                ]
+            ):
                 score += 0.1
 
             res.score = min(score, 1.0)
@@ -350,17 +358,79 @@ class ResultAggregator:
     def _tokenize(self, text: str) -> List[str]:
         """Simple tokenization for matching."""
         # Remove punctuation and split
-        text = re.sub(r'[^\w\s]', ' ', text.lower())
+        text = re.sub(r"[^\w\s]", " ", text.lower())
         tokens = text.split()
         # Filter short tokens and stopwords
-        stopwords = {"the", "a", "an", "is", "are", "was", "were", "be", "been",
-                     "being", "have", "has", "had", "do", "does", "did", "will",
-                     "would", "could", "should", "may", "might", "must", "shall",
-                     "can", "need", "dare", "ought", "used", "to", "of", "in",
-                     "for", "on", "with", "at", "by", "from", "as", "into",
-                     "through", "during", "before", "after", "above", "below",
-                     "between", "under", "again", "further", "then", "once",
-                     "and", "but", "or", "nor", "so", "yet", "both", "either",
-                     "neither", "not", "only", "own", "same", "than", "too",
-                     "very", "just", "also"}
+        stopwords = {
+            "the",
+            "a",
+            "an",
+            "is",
+            "are",
+            "was",
+            "were",
+            "be",
+            "been",
+            "being",
+            "have",
+            "has",
+            "had",
+            "do",
+            "does",
+            "did",
+            "will",
+            "would",
+            "could",
+            "should",
+            "may",
+            "might",
+            "must",
+            "shall",
+            "can",
+            "need",
+            "dare",
+            "ought",
+            "used",
+            "to",
+            "of",
+            "in",
+            "for",
+            "on",
+            "with",
+            "at",
+            "by",
+            "from",
+            "as",
+            "into",
+            "through",
+            "during",
+            "before",
+            "after",
+            "above",
+            "below",
+            "between",
+            "under",
+            "again",
+            "further",
+            "then",
+            "once",
+            "and",
+            "but",
+            "or",
+            "nor",
+            "so",
+            "yet",
+            "both",
+            "either",
+            "neither",
+            "not",
+            "only",
+            "own",
+            "same",
+            "than",
+            "too",
+            "very",
+            "just",
+            "also",
+        }
         return [t for t in tokens if len(t) > 2 and t not in stopwords]

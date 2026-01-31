@@ -82,7 +82,9 @@ class _BrowserTool(BaseTool):
                         )
                     except TypeError:
                         # Backwards-compat: older Playwright builds may not support animations/caret options.
-                        png_bytes = page.screenshot(full_page=bool(full_page), type="jpeg", quality=85)
+                        png_bytes = page.screenshot(
+                            full_page=bool(full_page), type="jpeg", quality=85
+                        )
                 finally:
                     browser.close()
         except Exception as e:
@@ -147,7 +149,10 @@ class BrowserSearchTool(_BrowserTool):
 
     def _run(self, query: str, engine: str = "duckduckgo", max_links: int = 10) -> Dict[str, Any]:
         self._progress("search", f"{engine} {query}")
-        self._emit(ToolEventType.TOOL_START, {"tool": self.name, "args": {"query": query, "engine": engine}})
+        self._emit(
+            ToolEventType.TOOL_START,
+            {"tool": self.name, "args": {"query": query, "engine": engine}},
+        )
         page = self._session().search(query=query, engine=engine)
         q = " ".join((query or "").split())
         self._maybe_emit_screenshot(page_url=page.url, action=f"search:{engine} {_trim(q, 40)}")
@@ -208,7 +213,9 @@ class BrowserClickTool(_BrowserTool):
             raise ValueError(f"index out of range (1-{len(links)})")
         url = links[idx].get("url") or ""
         self._progress("click", f"{index} -> {url}")
-        self._emit(ToolEventType.TOOL_START, {"tool": self.name, "args": {"index": index, "url": url}})
+        self._emit(
+            ToolEventType.TOOL_START, {"tool": self.name, "args": {"index": index, "url": url}}
+        )
         page = session.navigate(url=url)
         try:
             from urllib.parse import urlparse
@@ -216,7 +223,9 @@ class BrowserClickTool(_BrowserTool):
             host = urlparse(page.url or "").netloc
         except Exception:
             host = ""
-        self._maybe_emit_screenshot(page_url=page.url, action=f"open#{index}:{host}" if host else f"open#{index}")
+        self._maybe_emit_screenshot(
+            page_url=page.url, action=f"open#{index}:{host}" if host else f"open#{index}"
+        )
         return {
             "clicked": links[idx],
             "url": page.url,
@@ -277,7 +286,11 @@ class BrowserListLinksTool(_BrowserTool):
         if not session.current:
             raise ValueError("No current page. Use browser_search or browser_navigate first.")
         self._emit(ToolEventType.TOOL_START, {"tool": self.name})
-        return {"url": session.current.url, "title": session.current.title, "links": session.current.links[: int(max_links)]}
+        return {
+            "url": session.current.url,
+            "title": session.current.title,
+            "links": session.current.links[: int(max_links)],
+        }
 
 
 class BrowserResetTool(_BrowserTool):
@@ -304,7 +317,9 @@ class BrowserScreenshotTool(_BrowserTool):
     )
     args_schema: type[BaseModel] = BrowserScreenshotInput
 
-    def _run(self, url: Optional[str] = None, full_page: bool = True, wait_ms: int = 1500) -> Dict[str, Any]:
+    def _run(
+        self, url: Optional[str] = None, full_page: bool = True, wait_ms: int = 1500
+    ) -> Dict[str, Any]:
         target = (url or "").strip()
         if not target:
             session = self._session()
@@ -328,7 +343,9 @@ class BrowserScreenshotTool(_BrowserTool):
                 if wait_ms:
                     page.wait_for_timeout(int(wait_ms))
                 try:
-                    png_bytes = page.screenshot(full_page=bool(full_page), animations="disabled", caret="hide")
+                    png_bytes = page.screenshot(
+                        full_page=bool(full_page), animations="disabled", caret="hide"
+                    )
                 except TypeError:
                     png_bytes = page.screenshot(full_page=bool(full_page))
             finally:

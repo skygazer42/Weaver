@@ -12,7 +12,7 @@ from typing import Any, Awaitable, Callable, List, Optional, TypeVar
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class ConcurrencyController:
@@ -40,7 +40,9 @@ class ConcurrencyController:
         self._last_call_time: float = 0
         self._rate_lock = asyncio.Lock()
 
-        logger.info(f"ConcurrencyController initialized: max_concurrency={max_concurrency}, rate_limit={rate_limit}s")
+        logger.info(
+            f"ConcurrencyController initialized: max_concurrency={max_concurrency}, rate_limit={rate_limit}s"
+        )
 
     @property
     def semaphore(self) -> asyncio.Semaphore:
@@ -80,9 +82,7 @@ class ConcurrencyController:
             return await coro
 
     async def gather_with_limit(
-        self,
-        tasks: List[Awaitable[T]],
-        return_exceptions: bool = True
+        self, tasks: List[Awaitable[T]], return_exceptions: bool = True
     ) -> List[T]:
         """
         批量任务带并发限制执行
@@ -94,6 +94,7 @@ class ConcurrencyController:
         Returns:
             结果列表（与输入顺序对应）
         """
+
         async def limited_task(task: Awaitable[T]) -> T:
             async with self.semaphore:
                 await self._apply_rate_limit()
@@ -102,8 +103,7 @@ class ConcurrencyController:
         logger.info(f"Executing {len(tasks)} tasks with concurrency limit {self.max_concurrency}")
 
         results = await asyncio.gather(
-            *[limited_task(t) for t in tasks],
-            return_exceptions=return_exceptions
+            *[limited_task(t) for t in tasks], return_exceptions=return_exceptions
         )
 
         # 统计成功/失败
@@ -117,7 +117,7 @@ class ConcurrencyController:
         items: List[Any],
         processor: Callable[[Any], Awaitable[T]],
         batch_size: Optional[int] = None,
-        on_batch_complete: Optional[Callable[[int, int], None]] = None
+        on_batch_complete: Optional[Callable[[int, int], None]] = None,
     ) -> List[T]:
         """
         分批处理列表项
@@ -138,10 +138,12 @@ class ConcurrencyController:
         logger.info(f"Batch processing {total} items, batch_size={batch_size}")
 
         for i in range(0, total, batch_size):
-            batch = items[i:i + batch_size]
+            batch = items[i : i + batch_size]
             batch_num = i // batch_size + 1
 
-            logger.debug(f"Processing batch {batch_num}, items {i+1}-{min(i+batch_size, total)}")
+            logger.debug(
+                f"Processing batch {batch_num}, items {i + 1}-{min(i + batch_size, total)}"
+            )
 
             batch_tasks = [processor(item) for item in batch]
             batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
@@ -154,9 +156,7 @@ class ConcurrencyController:
         return results
 
     async def map_with_limit(
-        self,
-        func: Callable[[Any], Awaitable[T]],
-        items: List[Any]
+        self, func: Callable[[Any], Awaitable[T]], items: List[Any]
     ) -> List[T]:
         """
         并发 map 操作
@@ -181,11 +181,7 @@ class RateLimiter:
     使用令牌桶算法控制 API 调用频率
     """
 
-    def __init__(
-        self,
-        calls_per_second: float = 1.0,
-        burst: int = 1
-    ):
+    def __init__(self, calls_per_second: float = 1.0, burst: int = 1):
         self.calls_per_second = calls_per_second
         self.burst = burst
         self.tokens = burst
@@ -220,11 +216,14 @@ def with_concurrency_limit(controller: ConcurrencyController):
         async def fetch_data(url):
             ...
     """
+
     def decorator(func: Callable[..., Awaitable[T]]) -> Callable[..., Awaitable[T]]:
         @wraps(func)
         async def wrapper(*args, **kwargs) -> T:
             return await controller.run_with_limit(func(*args, **kwargs))
+
         return wrapper
+
     return decorator
 
 
@@ -237,9 +236,10 @@ def get_concurrency_controller() -> ConcurrencyController:
     global _default_controller
     if _default_controller is None:
         from .config import settings
+
         _default_controller = ConcurrencyController(
-            max_concurrency=getattr(settings, 'max_concurrency', 5),
-            rate_limit=getattr(settings, 'api_rate_limit', 0.5)
+            max_concurrency=getattr(settings, "max_concurrency", 5),
+            rate_limit=getattr(settings, "api_rate_limit", 0.5),
         )
     return _default_controller
 

@@ -27,11 +27,7 @@ class TestToolResult:
 
     def test_create_success_result(self):
         """Test creating a successful ToolResult."""
-        result = ToolResult(
-            success=True,
-            output="Test output",
-            metadata={"key": "value"}
-        )
+        result = ToolResult(success=True, output="Test output", metadata={"key": "value"})
 
         assert result.success is True
         assert result.output == "Test output"
@@ -44,7 +40,7 @@ class TestToolResult:
             success=False,
             output="Error occurred",
             error="Something went wrong",
-            metadata={"error_code": 500}
+            metadata={"error_code": 500},
         )
 
         assert result.success is False
@@ -53,11 +49,7 @@ class TestToolResult:
 
     def test_to_dict(self):
         """Test ToolResult serialization to dict."""
-        result = ToolResult(
-            success=True,
-            output="test",
-            metadata={"a": 1}
-        )
+        result = ToolResult(success=True, output="test", metadata={"a": 1})
 
         data = result.to_dict()
 
@@ -68,11 +60,7 @@ class TestToolResult:
 
     def test_to_json(self):
         """Test ToolResult serialization to JSON."""
-        result = ToolResult(
-            success=True,
-            output="test",
-            metadata={"count": 5}
-        )
+        result = ToolResult(success=True, output="test", metadata={"count": 5})
 
         json_str = result.to_json()
 
@@ -83,12 +71,7 @@ class TestToolResult:
 
     def test_from_dict(self):
         """Test ToolResult deserialization from dict."""
-        data = {
-            "success": False,
-            "output": "Failed",
-            "metadata": {},
-            "error": "Test error"
-        }
+        data = {"success": False, "output": "Failed", "metadata": {}, "error": "Test error"}
 
         result = ToolResult.from_dict(data)
 
@@ -100,7 +83,7 @@ class TestToolResult:
         """Test string representation."""
         result = ToolResult(
             success=True,
-            output="x" * 150  # Long output
+            output="x" * 150,  # Long output
         )
 
         str_repr = str(result)
@@ -119,12 +102,7 @@ class TestWeaverTool:
             @tool_schema(
                 name="test_method",
                 description="A test method",
-                parameters={
-                    "type": "object",
-                    "properties": {
-                        "arg": {"type": "string"}
-                    }
-                }
+                parameters={"type": "object", "properties": {"arg": {"type": "string"}}},
             )
             def test_method(self, arg: str) -> ToolResult:
                 return self.success_response(f"Got: {arg}")
@@ -204,10 +182,7 @@ class TestWeaverTool:
             pass
 
         tool = TestTool()
-        result = tool.success_response(
-            {"key": "value", "count": 5},
-            metadata={"source": "test"}
-        )
+        result = tool.success_response({"key": "value", "count": 5}, metadata={"source": "test"})
 
         assert result.success is True
         assert "key" in result.output
@@ -233,10 +208,7 @@ class TestWeaverTool:
             pass
 
         tool = TestTool()
-        result = tool.fail_response(
-            "Something failed",
-            metadata={"error_code": 404}
-        )
+        result = tool.fail_response("Something failed", metadata={"error_code": 404})
 
         assert result.success is False
         assert result.error == "Something failed"
@@ -253,7 +225,7 @@ class TestWeaverTool:
         result = tool.partial_response(
             {"data": [1, 2, 3]},
             "Only partial data available",
-            metadata={"expected": 10, "found": 3}
+            metadata={"expected": 10, "found": 3},
         )
 
         assert result.success is True
@@ -271,7 +243,7 @@ class TestToolSchemaDecorator:
         def test_func():
             pass
 
-        assert hasattr(test_func, '_tool_schema')
+        assert hasattr(test_func, "_tool_schema")
         assert test_func._tool_schema["name"] == "test"
         assert test_func._tool_schema["description"] == "Test function"
 
@@ -284,19 +256,11 @@ class TestToolSchemaDecorator:
             parameters={
                 "type": "object",
                 "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "Search query"
-                    },
-                    "limit": {
-                        "type": "integer",
-                        "default": 10,
-                        "minimum": 1,
-                        "maximum": 100
-                    }
+                    "query": {"type": "string", "description": "Search query"},
+                    "limit": {"type": "integer", "default": 10, "minimum": 1, "maximum": 100},
                 },
-                "required": ["query"]
-            }
+                "required": ["query"],
+            },
         )
         def complex_func():
             pass
@@ -349,7 +313,7 @@ class TestUtilityFunctions:
         results = [
             ToolResult(success=True, output="Result 1", metadata={"a": 1}),
             ToolResult(success=True, output="Result 2", metadata={"b": 2}),
-            ToolResult(success=True, output="Result 3", metadata={"c": 3})
+            ToolResult(success=True, output="Result 3", metadata={"c": 3}),
         ]
 
         merged = merge_tool_results(results)
@@ -367,7 +331,7 @@ class TestUtilityFunctions:
         results = [
             ToolResult(success=True, output="OK", metadata={}),
             ToolResult(success=False, output="Failed", error="Error 1"),
-            ToolResult(success=False, output="Failed", error="Error 2")
+            ToolResult(success=False, output="Failed", error="Error 2"),
         ]
 
         merged = merge_tool_results(results)
@@ -396,19 +360,15 @@ class TestIntegration:
                 description="Add two numbers",
                 parameters={
                     "type": "object",
-                    "properties": {
-                        "a": {"type": "number"},
-                        "b": {"type": "number"}
-                    },
-                    "required": ["a", "b"]
-                }
+                    "properties": {"a": {"type": "number"}, "b": {"type": "number"}},
+                    "required": ["a", "b"],
+                },
             )
             def add(self, a: float, b: float) -> ToolResult:
                 try:
                     result = a + b
                     return self.success_response(
-                        {"result": result, "operation": "addition"},
-                        metadata={"a": a, "b": b}
+                        {"result": result, "operation": "addition"}, metadata={"a": a, "b": b}
                     )
                 except Exception as e:
                     return self.fail_response(str(e))
@@ -441,12 +401,9 @@ class TestIntegration:
                 description="Divide two numbers",
                 parameters={
                     "type": "object",
-                    "properties": {
-                        "a": {"type": "number"},
-                        "b": {"type": "number"}
-                    },
-                    "required": ["a", "b"]
-                }
+                    "properties": {"a": {"type": "number"}, "b": {"type": "number"}},
+                    "required": ["a", "b"],
+                },
             )
             def divide(self, a: float, b: float) -> ToolResult:
                 try:
@@ -454,8 +411,7 @@ class TestIntegration:
                     return self.success_response({"result": result})
                 except ZeroDivisionError:
                     return self.fail_response(
-                        "Division by zero",
-                        metadata={"error_type": "ZeroDivisionError"}
+                        "Division by zero", metadata={"error_type": "ZeroDivisionError"}
                     )
 
         tool = FaultyTool()

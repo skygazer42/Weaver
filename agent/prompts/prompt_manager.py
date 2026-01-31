@@ -83,7 +83,7 @@ class PromptManager:
         if not path.exists():
             raise FileNotFoundError(f"Prompt file not found: {file_path}")
 
-        content = path.read_text(encoding='utf-8')
+        content = path.read_text(encoding="utf-8")
         self.set_custom_prompt(prompt_type, content)
         logger.info(f"Loaded custom {prompt_type} prompt from {file_path}")
 
@@ -106,14 +106,17 @@ class PromptManager:
         # Return based on style
         if self.prompt_style == "simple":
             from agent.prompts.agent_prompts import get_default_agent_prompt
+
             return get_default_agent_prompt()
 
         elif self.prompt_style == "enhanced":
             from agent.prompts.system_prompts import get_agent_prompt
+
             return get_agent_prompt(mode="agent", context=context)
 
         # Default to enhanced
         from agent.prompts.system_prompts import get_agent_prompt
+
         return get_agent_prompt(mode="agent", context=context)
 
     def get_writer_prompt(self) -> str:
@@ -133,10 +136,12 @@ class PromptManager:
 
         elif self.prompt_style == "enhanced":
             from agent.prompts.system_prompts import get_writer_prompt
+
             return get_writer_prompt()
 
         # Default to enhanced
         from agent.prompts.system_prompts import get_writer_prompt
+
         return get_writer_prompt()
 
     def get_planner_prompt(self) -> str:
@@ -174,6 +179,7 @@ class PromptManager:
         # Only available in enhanced mode
         if self.prompt_style == "enhanced":
             from agent.prompts.system_prompts import get_deep_research_prompt
+
             return get_deep_research_prompt()
 
         # Fallback to agent prompt
@@ -212,7 +218,7 @@ def get_prompt_manager() -> PromptManager:
     global _default_prompt_manager
 
     if _default_prompt_manager is None:
-        style = getattr(settings, 'prompt_style', 'enhanced')
+        style = getattr(settings, "prompt_style", "enhanced")
         _default_prompt_manager = PromptManager(prompt_style=style)
         logger.info(f"Initialized PromptManager with style: {style}")
 
@@ -241,6 +247,7 @@ def reset_prompt_manager():
 # ============================================================================
 # Convenience Functions (for backward compatibility)
 # ============================================================================
+
 
 def get_agent_system_prompt(context: Optional[Dict[str, Any]] = None) -> str:
     """

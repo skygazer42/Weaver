@@ -53,7 +53,7 @@ class TTSService:
         voice: str = DEFAULT_VOICE,
         model: str = DEFAULT_MODEL,
         max_retries: int = 3,
-        retry_delay: float = 1.0
+        retry_delay: float = 1.0,
     ) -> Dict[str, Any]:
         """Run TTS and return a base64-encoded MP3 payload."""
         if not text or not text.strip():
@@ -65,7 +65,9 @@ class TTSService:
             logger.warning("Text truncated to %s characters", max_length)
 
         if voice not in AVAILABLE_VOICES:
-            logger.warning("Requested voice '%s' not in AVAILABLE_VOICES; proceeding anyway.", voice)
+            logger.warning(
+                "Requested voice '%s' not in AVAILABLE_VOICES; proceeding anyway.", voice
+            )
 
         audio_data = None
         last_error: Optional[Exception] = None
@@ -94,7 +96,7 @@ class TTSService:
             "format": "mp3",
             "voice": voice,
             "text_length": len(text),
-            "error": None
+            "error": None,
         }
 
     def get_available_voices(self) -> Dict[str, str]:
@@ -105,8 +107,12 @@ class TTSService:
         """Log a warning if the installed dashscope SDK is older than recommended."""
         try:
             current = metadata.version("dashscope")
-            if tuple(int(x) for x in current.split(".")[:3]) < tuple(int(x) for x in min_version.split(".")):
-                logger.warning("dashscope %s detected; TTS works best with >= %s", current, min_version)
+            if tuple(int(x) for x in current.split(".")[:3]) < tuple(
+                int(x) for x in min_version.split(".")
+            ):
+                logger.warning(
+                    "dashscope %s detected; TTS works best with >= %s", current, min_version
+                )
         except Exception:
             # Version introspection is best-effort only
             pass

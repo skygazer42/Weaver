@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 class TaskStatus(Enum):
     """任务状态枚举"""
+
     PENDING = "pending"
     RUNNING = "running"
     PAUSED = "paused"
@@ -34,6 +35,7 @@ class TaskStatus(Enum):
 
 class CancellationCheckpoint(Enum):
     """预定义的取消检查点"""
+
     BEFORE_LLM_CALL = "before_llm_call"
     AFTER_LLM_CALL = "after_llm_call"
     BEFORE_TOOL_CALL = "before_tool_call"
@@ -54,6 +56,7 @@ class CancellationToken:
 
     用于在长时间运行的任务中检查取消状态
     """
+
     task_id: str
     _cancelled: bool = field(default=False, repr=False)
     _event: asyncio.Event = field(default_factory=asyncio.Event, repr=False)
@@ -62,7 +65,9 @@ class CancellationToken:
     status: TaskStatus = field(default=TaskStatus.PENDING)
     metadata: Dict[str, Any] = field(default_factory=dict)
     # 清理回调
-    _cleanup_callbacks: List[Callable[[], Awaitable[None]]] = field(default_factory=list, repr=False)
+    _cleanup_callbacks: List[Callable[[], Awaitable[None]]] = field(
+        default_factory=list, repr=False
+    )
     # 检查点记录
     checkpoints: List[Dict[str, Any]] = field(default_factory=list)
     # 当前检查点
@@ -97,14 +102,18 @@ class CancellationToken:
         Args:
             checkpoint: 可选的检查点标识
         """
-        checkpoint_name = checkpoint.value if isinstance(checkpoint, CancellationCheckpoint) else checkpoint
+        checkpoint_name = (
+            checkpoint.value if isinstance(checkpoint, CancellationCheckpoint) else checkpoint
+        )
 
         if checkpoint_name:
             self.current_checkpoint = checkpoint_name
-            self.checkpoints.append({
-                "checkpoint": checkpoint_name,
-                "timestamp": datetime.now().isoformat(),
-            })
+            self.checkpoints.append(
+                {
+                    "checkpoint": checkpoint_name,
+                    "timestamp": datetime.now().isoformat(),
+                }
+            )
 
         if self._cancelled:
             raise asyncio.CancelledError(
@@ -176,7 +185,7 @@ class CancellationToken:
             "cancelled_at": self.cancelled_at.isoformat() if self.cancelled_at else None,
             "current_checkpoint": self.current_checkpoint,
             "checkpoint_count": len(self.checkpoints),
-            "metadata": self.metadata
+            "metadata": self.metadata,
         }
 
 
@@ -206,9 +215,7 @@ class CancellationManager:
         self._global_cancel_callbacks.append(callback)
 
     async def create_token(
-        self,
-        task_id: str,
-        metadata: Optional[Dict[str, Any]] = None
+        self, task_id: str, metadata: Optional[Dict[str, Any]] = None
     ) -> CancellationToken:
         """
         创建新的取消令牌
@@ -229,18 +236,13 @@ class CancellationManager:
                     await old_token.run_cleanup()
                 logger.debug(f"Replaced existing token for task {task_id}")
 
-            token = CancellationToken(
-                task_id=task_id,
-                metadata=metadata or {}
-            )
+            token = CancellationToken(task_id=task_id, metadata=metadata or {})
             self._tokens[task_id] = token
             logger.debug(f"Created cancellation token for task {task_id}")
             return token
 
     def create_token_sync(
-        self,
-        task_id: str,
-        metadata: Optional[Dict[str, Any]] = None
+        self, task_id: str, metadata: Optional[Dict[str, Any]] = None
     ) -> CancellationToken:
         """
         同步创建取消令牌（用于非异步上下文）
@@ -259,10 +261,7 @@ class CancellationManager:
                 old_token.cancel("Replaced by new task")
             logger.debug(f"Replaced existing token for task {task_id}")
 
-        token = CancellationToken(
-            task_id=task_id,
-            metadata=metadata or {}
-        )
+        token = CancellationToken(task_id=task_id, metadata=metadata or {})
         self._tokens[task_id] = token
         logger.debug(f"Created cancellation token for task {task_id}")
         return token
@@ -381,6 +380,7 @@ class CancellationManager:
         Args:
             interval_seconds: 清理间隔（秒）
         """
+
         async def cleanup_loop():
             while True:
                 await asyncio.sleep(interval_seconds)
@@ -446,7 +446,9 @@ def check_cancellation(task_id: str, checkpoint: Union[str, CancellationCheckpoi
         token.check(checkpoint)
 
 
-def check_state_cancellation(state: Dict[str, Any], checkpoint: Union[str, CancellationCheckpoint] = ""):
+def check_state_cancellation(
+    state: Dict[str, Any], checkpoint: Union[str, CancellationCheckpoint] = ""
+):
     """
     便捷函数：从 state 中检查取消状态
 
@@ -476,18 +478,19 @@ def cancellable(func: Callable) -> Callable:
             # state 需要包含 cancel_token_id
             ...
     """
+
     async def wrapper(*args, **kwargs):
         # 尝试从参数中获取 task_id
         task_id = None
 
         # 检查 kwargs
-        task_id = kwargs.get('task_id') or kwargs.get('cancel_token_id')
+        task_id = kwargs.get("task_id") or kwargs.get("cancel_token_id")
 
         # 检查第一个参数（通常是 state）
         if not task_id and args:
             first_arg = args[0]
             if isinstance(first_arg, dict):
-                task_id = first_arg.get('cancel_token_id') or first_arg.get('task_id')
+                task_id = first_arg.get("cancel_token_id") or first_arg.get("task_id")
 
         # 执行前检查
         if task_id:
@@ -527,7 +530,7 @@ class CancellableContext:
         self.auto_cleanup = auto_cleanup
         self.token: Optional[CancellationToken] = None
 
-    async def __aenter__(self) -> 'CancellableContext':
+    async def __aenter__(self) -> "CancellableContext":
         self.token = await cancellation_manager.create_token(self.task_id)
         self.token.mark_running()
         return self

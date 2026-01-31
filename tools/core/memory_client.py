@@ -71,6 +71,7 @@ def _get_mem_client():
     # Backward-compatible fallback for older mem0 versions.
     try:
         from mem0 import Memory  # type: ignore
+
         _mem_client = Memory(api_key=settings.mem0_api_key or None)
         return _mem_client
     except Exception as e:
@@ -131,13 +132,17 @@ def add_memory_entry(content: str, user_id: Optional[str] = None) -> bool:
     return True
 
 
-def store_interaction(user_input: str, assistant_output: str, user_id: Optional[str] = None) -> bool:
+def store_interaction(
+    user_input: str, assistant_output: str, user_id: Optional[str] = None
+) -> bool:
     """Store a combined interaction for better recall."""
     combined = f"User: {user_input}\nAssistant: {assistant_output}"
     return add_memory_entry(combined, user_id=user_id)
 
 
-def fetch_memories(query: str = "*", user_id: Optional[str] = None, limit: Optional[int] = None) -> List[str]:
+def fetch_memories(
+    query: str = "*", user_id: Optional[str] = None, limit: Optional[int] = None
+) -> List[str]:
     """Retrieve memories (most recent first)."""
     user = _normalize_user_id(user_id)
     k = limit or settings.memory_top_k
@@ -186,7 +191,11 @@ def fetch_memories(query: str = "*", user_id: Optional[str] = None, limit: Optio
                             break
                     else:
                         # Sometimes the payload nests under "memory" or "data".
-                        nested = item.get("memory") if isinstance(item.get("memory"), dict) else item.get("data")
+                        nested = (
+                            item.get("memory")
+                            if isinstance(item.get("memory"), dict)
+                            else item.get("data")
+                        )
                         if isinstance(nested, dict):
                             for key in ("content", "text"):
                                 val = nested.get(key)

@@ -107,6 +107,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
 # Prometheus metrics (optional, made idempotent to survive double imports under reload)
 def _get_or_create_counter(name: str, *args, **kwargs):
     existing = REGISTRY._names_to_collectors.get(name)  # type: ignore[attr-defined]
@@ -123,7 +124,9 @@ def _get_or_create_gauge(name: str, *args, **kwargs):
 
 
 http_requests_total = (
-    _get_or_create_counter("weaver_http_requests_total", "Total HTTP requests", ["method", "path", "status"])
+    _get_or_create_counter(
+        "weaver_http_requests_total", "Total HTTP requests", ["method", "path", "status"]
+    )
     if settings.enable_prometheus
     else None
 )
@@ -132,6 +135,7 @@ http_inprogress = (
     if settings.enable_prometheus
     else None
 )
+
 
 # Request logging middleware
 @app.middleware("http")
@@ -166,7 +170,7 @@ async def log_requests(request: Request, call_next):
         logger.error(
             f"? Request failed | {request.method} {request.url.path} | "
             f"ID: {request_id} | Duration: {duration:.3f}s | Error: {str(e)}",
-            exc_info=True
+            exc_info=True,
         )
         if http_requests_total:
             http_requests_total.labels(request.method, request.url.path, 500).inc()
@@ -174,6 +178,7 @@ async def log_requests(request: Request, call_next):
     finally:
         if http_inprogress:
             http_inprogress.dec()
+
 
 # Configure CORS
 app.add_middleware(
@@ -192,6 +197,7 @@ else:
     # Fallback to in-memory checkpointer for short-term memory
     checkpointer = MemorySaver()
 
+
 def _init_store():
     backend = settings.memory_store_backend.lower().strip()
     url = settings.memory_store_url.strip()
@@ -199,6 +205,7 @@ def _init_store():
         if not url:
             raise ValueError("memory_store_url is required when memory_store_backend=postgres")
         from langgraph.store.postgres import PostgresStore
+
         store_obj = PostgresStore.from_conn_string(url)
         store_obj.setup()
         logger.info("Initialized PostgresStore for long-term memory")
@@ -207,6 +214,7 @@ def _init_store():
         if not url:
             raise ValueError("memory_store_url is required when memory_store_backend=redis")
         from langgraph.store.redis import RedisStore
+
         store_obj = RedisStore.from_conn_string(url)
         store_obj.setup()
         logger.info("Initialized RedisStore for long-term memory")
@@ -214,6 +222,7 @@ def _init_store():
 
     logger.info("Using in-memory store (disabled persistent store)")
     return None
+
 
 # Long-term memory store (configurable via .env)
 store = _init_store()
@@ -405,6 +414,7 @@ async def shutdown_event():
     # Best-effort stop all Daytona sandboxes
     try:
         from tools.sandbox.daytona_client import daytona_stop_all
+
         daytona_stop_all(thread_id=mcp_thread_id)
     except Exception as e:
         logger.warning(f"Error stopping Daytona sandboxes: {e}")
@@ -444,7 +454,9 @@ class ChatRequest(BaseModel):
     messages: List[Message]
     stream: bool = True
     model: Optional[str] = None
-    search_mode: Optional[SearchMode | Dict[str, Any] | str] = None  # {"useWebSearch": bool, "useAgent": bool, "useDeepSearch": bool}
+    search_mode: Optional[SearchMode | Dict[str, Any] | str] = (
+        None  # {"useWebSearch": bool, "useAgent": bool, "useDeepSearch": bool}
+    )
     agent_id: Optional[str] = None  # optional GPTs-like agent profile id (data/agents.json)
     user_id: Optional[str] = None
     images: Optional[List[ImagePayload]] = None  # Base64 images for multimodal input
@@ -495,6 +507,7 @@ class SupportChatResponse(BaseModel):
 
 class CancelRequest(BaseModel):
     """鍙栨秷浠诲姟璇锋眰"""
+
     reason: Optional[str] = "User requested cancellation"
 
 
@@ -519,11 +532,7 @@ def _serialize_interrupts(interrupts: Any) -> List[Any]:
 @app.get("/")
 async def root():
     """Health check endpoint."""
-    return {
-        "status": "healthy",
-        "service": "Manus Research Agent",
-        "version": "0.1.0"
-    }
+    return {"status": "healthy", "service": "Manus Research Agent", "version": "0.1.0"}
 
 
 @app.get("/health")
@@ -532,11 +541,12 @@ async def health():
     return {
         "status": "healthy",
         "database": "connected" if checkpointer else "not configured",
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
     }
 
 
 # ==================== 鍙栨秷浠诲姟 API ====================
+
 
 @app.post("/api/chat/cancel/{thread_id}")
 async def cancel_chat(thread_id: str, request: CancelRequest = None):
@@ -564,13 +574,13 @@ async def cancel_chat(thread_id: str, request: CancelRequest = None):
             "status": "cancelled",
             "thread_id": thread_id,
             "reason": reason,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
     else:
         return {
             "status": "not_found",
             "thread_id": thread_id,
-            "message": "Task not found or already completed"
+            "message": "Task not found or already completed",
         }
 
 
@@ -591,7 +601,7 @@ async def cancel_all_chats():
     return {
         "status": "all_cancelled",
         "cancelled_count": cancelled_count,
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
     }
 
 
@@ -604,7 +614,7 @@ async def get_active_tasks():
         "active_tasks": active_tasks,
         "stats": cancellation_manager.get_stats(),
         "stream_count": len(active_streams),
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
     }
 
 
@@ -617,10 +627,7 @@ async def format_stream_event(event_type: str, data: Any) -> str:
 
     Format: {type}:{json_data}\n
     """
-    payload = {
-        "type": event_type,
-        "data": data
-    }
+    payload = {"type": event_type, "data": data}
     return f"0:{json.dumps(payload)}\n"
 
 
@@ -635,7 +642,9 @@ def _normalize_search_mode(search_mode: SearchMode | Dict[str, Any] | str | None
         use_web = bool(search_mode.get("useWebSearch", search_mode.get("use_web", False)))
         use_agent = bool(search_mode.get("useAgent", search_mode.get("use_agent", False)))
         use_deep = bool(search_mode.get("useDeepSearch", search_mode.get("use_deep", False)))
-        use_deep_prompt = bool(search_mode.get("useDeepPrompt", search_mode.get("use_deep_prompt", use_deep)))
+        use_deep_prompt = bool(
+            search_mode.get("useDeepPrompt", search_mode.get("use_deep_prompt", use_deep))
+        )
 
         # If booleans were not provided but a mode string exists, derive flags from it
         if not (use_web or use_agent or use_deep) and isinstance(search_mode.get("mode"), str):
@@ -700,11 +709,7 @@ def _normalize_images_payload(images: Optional[List[ImagePayload]]) -> List[Dict
         data = img.data
         if data.startswith("data:") and "," in data:
             data = data.split(",", 1)[1]
-        normalized.append({
-            "name": img.name or "",
-            "mime": img.mime or "",
-            "data": data
-        })
+        normalized.append({"name": img.name or "", "mime": img.mime or "", "data": data})
     return normalized
 
 
@@ -745,14 +750,22 @@ async def support_chat(request: SupportChatRequest):
     """Simple customer support chat backed by Mem0 memory."""
     try:
         state = {
-            "messages": [SystemMessage(content="You are a helpful support assistant."), HumanMessage(content=request.message)],
+            "messages": [
+                SystemMessage(content="You are a helpful support assistant."),
+                HumanMessage(content=request.message),
+            ],
             "user_id": request.user_id or "default_user",
         }
         config = {"configurable": {"thread_id": request.user_id or "support_default"}}
         # Inject stored memories if present
         store_memories = _store_search(request.message, user_id=state["user_id"])
         if store_memories:
-            state["messages"].insert(0, SystemMessage(content="Stored memories:\n" + "\n".join(f"- {m}" for m in store_memories)))
+            state["messages"].insert(
+                0,
+                SystemMessage(
+                    content="Stored memories:\n" + "\n".join(f"- {m}" for m in store_memories)
+                ),
+            )
 
         result = support_graph.invoke(state, config=config)
         messages = result.get("messages", [])
@@ -764,10 +777,7 @@ async def support_chat(request: SupportChatRequest):
         if not reply:
             reply = "No response generated."
         _store_add(request.message, reply, user_id=state["user_id"])
-        return SupportChatResponse(
-            content=reply,
-            timestamp=datetime.now().isoformat()
-        )
+        return SupportChatResponse(content=reply, timestamp=datetime.now().isoformat())
     except Exception as e:
         logger.error(f"Support chat error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -780,7 +790,7 @@ async def stream_agent_events(
     search_mode: Dict[str, Any] | None = None,
     agent_id: str | None = None,
     images: Optional[List[Dict[str, Any]]] = None,
-    user_id: Optional[str] = None
+    user_id: Optional[str] = None,
 ):
     """
     Stream agent execution events in real-time.
@@ -822,8 +832,7 @@ async def stream_agent_events(
 
     # 鍒涘缓鍙栨秷浠ょ墝
     cancel_token = await cancellation_manager.create_token(
-        thread_id,
-        metadata={"model": model, "input_preview": input_text[:100]}
+        thread_id, metadata={"model": model, "input_preview": input_text[:100]}
     )
 
     # Set up event emitter for tool visualization
@@ -868,7 +877,7 @@ async def stream_agent_events(
             "errors": [],
             # 鍙栨秷鎺у埗瀛楁
             "cancel_token_id": thread_id,
-            "is_cancelled": False
+            "is_cancelled": False,
         }
 
         # Load long-term memories (store) and Mem0 (optional) and inject deep prompt if needed
@@ -901,23 +910,19 @@ async def stream_agent_events(
                 "allow_interrupts": bool(checkpointer),
                 "tool_approval": settings.tool_approval or False,
                 "human_review": settings.human_review or False,
-                "max_revisions": settings.max_revisions
+                "max_revisions": settings.max_revisions,
             },
-            "recursion_limit": 50
+            "recursion_limit": 50,
         }
 
         # Send initial status
-        yield await format_stream_event("status", {
-            "text": "Initializing research agent...",
-            "step": "init",
-            "thread_id": thread_id
-        })
+        yield await format_stream_event(
+            "status",
+            {"text": "Initializing research agent...", "step": "init", "thread_id": thread_id},
+        )
 
         # Stream graph execution
-        async for event in research_graph.astream_events(
-            initial_state,
-            config=config
-        ):
+        async for event in research_graph.astream_events(initial_state, config=config):
             # First, drain any pending tool events from the queue
             while not event_queue.empty():
                 try:
@@ -939,10 +944,9 @@ async def stream_agent_events(
             # Check cancellation status
             if cancel_token.is_cancelled:
                 logger.info(f"Stream cancelled for thread {thread_id}")
-                yield await format_stream_event("cancelled", {
-                    "message": "Task was cancelled by user",
-                    "thread_id": thread_id
-                })
+                yield await format_stream_event(
+                    "cancelled", {"message": "Task was cancelled by user", "thread_id": thread_id}
+                )
                 return
 
             event_type = event.get("event")
@@ -956,34 +960,30 @@ async def stream_agent_events(
                 metrics.mark_event(event_type, node_name)
                 if "clarify" in node_name:
                     logger.debug(f"  Clarify node started | Thread: {thread_id}")
-                    yield await format_stream_event("status", {
-                        "text": "Checking if clarification is needed...",
-                        "step": "clarifying"
-                    })
+                    yield await format_stream_event(
+                        "status",
+                        {"text": "Checking if clarification is needed...", "step": "clarifying"},
+                    )
                 elif "planner" in node_name:
                     logger.debug(f"  Planning node started | Thread: {thread_id}")
-                    yield await format_stream_event("status", {
-                        "text": "Creating research plan...",
-                        "step": "planning"
-                    })
+                    yield await format_stream_event(
+                        "status", {"text": "Creating research plan...", "step": "planning"}
+                    )
                 elif "perform_parallel_search" in node_name or "search" in node_name:
                     logger.debug(f"  Search node started | Thread: {thread_id}")
-                    yield await format_stream_event("status", {
-                        "text": "Conducting research...",
-                        "step": "researching"
-                    })
+                    yield await format_stream_event(
+                        "status", {"text": "Conducting research...", "step": "researching"}
+                    )
                 elif "writer" in node_name:
                     logger.debug(f"  Writer node started | Thread: {thread_id}")
-                    yield await format_stream_event("status", {
-                        "text": "Synthesizing findings...",
-                        "step": "writing"
-                    })
+                    yield await format_stream_event(
+                        "status", {"text": "Synthesizing findings...", "step": "writing"}
+                    )
                 elif node_name == "agent":
                     logger.debug(f"  Agent node started | Thread: {thread_id}")
-                    yield await format_stream_event("status", {
-                        "text": "Running agent (tool-calling)...",
-                        "step": "agent"
-                    })
+                    yield await format_stream_event(
+                        "status", {"text": "Running agent (tool-calling)...", "step": "agent"}
+                    )
 
             elif event_type in {"on_chain_end", "on_node_end", "on_graph_end"}:
                 output = data_dict.get("output", {}) if isinstance(data_dict, dict) else {}
@@ -995,35 +995,34 @@ async def stream_agent_events(
                     interrupts = output.get("__interrupt__")
                     if interrupts:
                         was_interrupted = True
-                        yield await format_stream_event("interrupt", {
-                            "thread_id": thread_id,
-                            "prompts": _serialize_interrupts(interrupts)
-                        })
+                        yield await format_stream_event(
+                            "interrupt",
+                            {"thread_id": thread_id, "prompts": _serialize_interrupts(interrupts)},
+                        )
                         return
 
                     messages = output.get("messages", [])
                     if messages:
                         for msg in messages:
-                            content = msg.content if hasattr(msg, 'content') else str(msg)
-                            yield await format_stream_event("message", {
-                                "content": content
-                            })
+                            content = msg.content if hasattr(msg, "content") else str(msg)
+                            yield await format_stream_event("message", {"content": content})
 
                     # Check for completion and final report artifact
                     if output.get("is_complete"):
                         final_report = output.get("final_report", "")
                         if final_report:
-                            yield await format_stream_event("completion", {
-                                "content": final_report
-                            })
+                            yield await format_stream_event("completion", {"content": final_report})
 
                             # Also emit as artifact
-                            yield await format_stream_event("artifact", {
-                                "id": f"report_{datetime.now().timestamp()}",
-                                "type": "report",
-                                "title": "Research Report",
-                                "content": final_report
-                            })
+                            yield await format_stream_event(
+                                "artifact",
+                                {
+                                    "id": f"report_{datetime.now().timestamp()}",
+                                    "type": "report",
+                                    "title": "Research Report",
+                                    "content": final_report,
+                                },
+                            )
                             # Store memory for future sessions
                             # Store memory (long-term)
                             add_memory_entry(final_report)
@@ -1038,62 +1037,65 @@ async def stream_agent_events(
 
                 if "search" in tool_name.lower():
                     query = tool_input.get("query", "unknown")
-                    yield await format_stream_event("tool", {
-                        "name": "search",
-                        "status": "running",
-                        "query": query
-                    })
+                    yield await format_stream_event(
+                        "tool", {"name": "search", "status": "running", "query": query}
+                    )
                 elif "code" in tool_name.lower():
-                    yield await format_stream_event("tool", {
-                        "name": "code_execution",
-                        "status": "running"
-                    })
+                    yield await format_stream_event(
+                        "tool", {"name": "code_execution", "status": "running"}
+                    )
 
             elif event_type == "on_tool_end":
                 tool_name = data_dict.get("name", "unknown")
                 output = data_dict.get("output", {})
 
-                yield await format_stream_event("tool", {
-                    "name": tool_name,
-                    "status": "completed"
-                })
+                yield await format_stream_event("tool", {"name": tool_name, "status": "completed"})
 
                 # Check for artifacts from code execution
                 if tool_name == "execute_python_code" and isinstance(output, dict):
                     image_data = output.get("image")
 
                     if image_data:
-                        yield await format_stream_event("artifact", {
-                            "id": f"art_{datetime.now().timestamp()}",
-                            "type": "chart",
-                            "title": "Generated Visualization",
-                            "content": "Chart generated from Python code",
-                            "image": image_data
-                        })
+                        yield await format_stream_event(
+                            "artifact",
+                            {
+                                "id": f"art_{datetime.now().timestamp()}",
+                                "type": "chart",
+                                "title": "Generated Visualization",
+                                "content": "Chart generated from Python code",
+                                "image": image_data,
+                            },
+                        )
                 # Browser screenshots (optional Playwright)
                 if tool_name == "browser_screenshot" and isinstance(output, dict):
                     image_data = output.get("image")
                     url = output.get("url", "")
                     if image_data:
-                        yield await format_stream_event("artifact", {
-                            "id": f"art_{datetime.now().timestamp()}",
-                            "type": "chart",
-                            "title": "Browser Screenshot",
-                            "content": url or "Screenshot",
-                            "image": image_data
-                        })
+                        yield await format_stream_event(
+                            "artifact",
+                            {
+                                "id": f"art_{datetime.now().timestamp()}",
+                                "type": "chart",
+                                "title": "Browser Screenshot",
+                                "content": url or "Screenshot",
+                                "image": image_data,
+                            },
+                        )
                 # Sandbox browser tools (E2B + Playwright CDP)
                 if tool_name.startswith("sb_browser_") and isinstance(output, dict):
                     image_data = output.get("image")
                     url = output.get("url", "")
                     if isinstance(image_data, str) and image_data.strip():
-                        yield await format_stream_event("artifact", {
-                            "id": f"art_{datetime.now().timestamp()}",
-                            "type": "chart",
-                            "title": f"Sandbox Browser ({tool_name})",
-                            "content": url or tool_name,
-                            "image": image_data
-                        })
+                        yield await format_stream_event(
+                            "artifact",
+                            {
+                                "id": f"art_{datetime.now().timestamp()}",
+                                "type": "chart",
+                                "title": f"Sandbox Browser ({tool_name})",
+                                "content": url or tool_name,
+                                "image": image_data,
+                            },
+                        )
 
             elif event_type in {"on_chat_model_stream", "on_llm_stream"}:
                 # Stream LLM tokens
@@ -1115,23 +1117,24 @@ async def stream_agent_events(
             f"вњ?Agent stream completed | Thread: {thread_id} | "
             f"Events: {event_count} | Duration: {duration:.2f}s"
         )
-        yield await format_stream_event("done", {
-            "timestamp": datetime.now().isoformat(),
-            "metrics": metrics_registry.get(thread_id).to_dict() if metrics_registry.get(thread_id) else {}
-        })
+        yield await format_stream_event(
+            "done",
+            {
+                "timestamp": datetime.now().isoformat(),
+                "metrics": metrics_registry.get(thread_id).to_dict()
+                if metrics_registry.get(thread_id)
+                else {},
+            },
+        )
 
     except asyncio.CancelledError:
         duration = time.time() - start_time
         metrics_registry.finish(thread_id, cancelled=True)
-        logger.info(
-            f"? Agent stream cancelled | Thread: {thread_id} | "
-            f"Duration: {duration:.2f}s"
+        logger.info(f"? Agent stream cancelled | Thread: {thread_id} | Duration: {duration:.2f}s")
+        yield await format_stream_event(
+            "cancelled",
+            {"message": "Task was cancelled", "thread_id": thread_id, "duration": duration},
         )
-        yield await format_stream_event("cancelled", {
-            "message": "Task was cancelled",
-            "thread_id": thread_id,
-            "duration": duration
-        })
 
     except Exception as e:
         duration = time.time() - start_time
@@ -1140,11 +1143,9 @@ async def stream_agent_events(
         logger.error(
             f"? Agent stream error | Thread: {thread_id} | "
             f"Duration: {duration:.2f}s | Error: {str(e)}",
-            exc_info=True
+            exc_info=True,
         )
-        yield await format_stream_event("error", {
-            "message": str(e)
-        })
+        yield await format_stream_event("error", {"message": str(e)})
 
     finally:
         # Cleanup event emitter listener
@@ -1173,6 +1174,7 @@ async def stream_agent_events(
                 sandbox_browser_sessions.reset(thread_id)
             except Exception:
                 pass
+
 
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
@@ -1218,18 +1220,17 @@ async def chat(request: ChatRequest):
                     search_mode=mode_info,
                     agent_id=request.agent_id,
                     images=_normalize_images_payload(request.images),
-                    user_id=user_id
+                    user_id=user_id,
                 ),
                 media_type="text/event-stream",
                 headers={
                     "Cache-Control": "no-cache",
                     "Connection": "keep-alive",
                     "X-Accel-Buffering": "no",
-                    "X-Thread-ID": thread_id  # ?????????
-                }
+                    "X-Thread-ID": thread_id,  # ?????????
+                },
             )
         else:
-
             # Non-streaming response (fallback)
             initial_state: AgentState = {
                 "input": last_message,
@@ -1251,7 +1252,7 @@ async def chat(request: ChatRequest):
                 "revision_count": 0,
                 "max_revisions": settings.max_revisions,
                 "is_complete": False,
-                "errors": []
+                "errors": [],
             }
 
             messages: list[Any] = []
@@ -1278,7 +1279,9 @@ async def chat(request: ChatRequest):
                     "thread_id": "default",
                     "model": model,
                     "search_mode": mode_info,
-                    "agent_profile": agent_profile.model_dump(mode="json") if agent_profile else None,
+                    "agent_profile": agent_profile.model_dump(mode="json")
+                    if agent_profile
+                    else None,
                     "user_id": user_id,
                     "allow_interrupts": bool(checkpointer),
                     "tool_approval": settings.tool_approval or False,
@@ -1288,7 +1291,9 @@ async def chat(request: ChatRequest):
                 "recursion_limit": 50,
             }
             thread_id = thread_id or f"thread_{uuid.uuid4().hex}"
-            metrics = metrics_registry.start(thread_id, model=model, route=mode_info.get("mode", "direct"))
+            metrics = metrics_registry.start(
+                thread_id, model=model, route=mode_info.get("mode", "direct")
+            )
             result = await research_graph.ainvoke(initial_state, config=config)
             final_report = result.get("final_report", "No response generated")
             add_memory_entry(final_report)
@@ -1299,7 +1304,7 @@ async def chat(request: ChatRequest):
             return ChatResponse(
                 id=f"msg_{datetime.now().timestamp()}",
                 content=final_report,
-                timestamp=datetime.now().isoformat()
+                timestamp=datetime.now().isoformat(),
             )
 
     except Exception as e:
@@ -1307,7 +1312,7 @@ async def chat(request: ChatRequest):
             f"鉁?Chat error | Thread: {thread_id or 'N/A'} | "
             f"Model: {model if 'model' in locals() else (request.model if 'request' in locals() else 'N/A')} | "
             f"Error: {str(e)}",
-            exc_info=True
+            exc_info=True,
         )
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1353,7 +1358,7 @@ async def resume_interrupt(request: ResumeRequest):
     return ChatResponse(
         id=f"msg_{datetime.now().timestamp()}",
         content=final_report,
-        timestamp=datetime.now().isoformat()
+        timestamp=datetime.now().isoformat(),
     )
 
 
@@ -1368,6 +1373,7 @@ async def get_mcp_config():
 
 
 # ==================== Agents (GPTs-like profiles) ====================
+
 
 @app.get("/api/agents")
 async def list_agents():
@@ -1465,8 +1471,6 @@ async def update_mcp_config(payload: MCPConfigPayload):
     }
 
 
-
-
 @app.get("/api/runs")
 async def list_runs():
     """List in-memory run metrics (per thread)."""
@@ -1482,13 +1486,11 @@ async def get_run_metrics(thread_id: str):
     return metrics.to_dict()
 
 
-
 @app.get("/metrics")
 async def metrics():
     """Prometheus metrics endpoint."""
     data = generate_latest()
     return StreamingResponse(iter([data]), media_type=CONTENT_TYPE_LATEST)
-
 
 
 @app.get("/api/memory/status")
@@ -1503,10 +1505,13 @@ async def memory_status():
         "mem0_enabled": settings.enable_memory,
     }
 
+
 # ==================== ASR 璇煶璇嗗埆 API ====================
+
 
 class ASRRequest(BaseModel):
     """ASR request with base64 audio data."""
+
     audio_data: str  # Base64 encoded audio
     format: str = "wav"
     sample_rate: int = 16000
@@ -1522,7 +1527,7 @@ async def recognize_speech(request: ASRRequest):
         if not asr_service.enabled:
             raise HTTPException(
                 status_code=503,
-                detail="ASR service not available. Please configure DASHSCOPE_API_KEY."
+                detail="ASR service not available. Please configure DASHSCOPE_API_KEY.",
             )
 
         # 瑙ｇ爜 Base64 闊抽鏁版嵁
@@ -1536,21 +1541,13 @@ async def recognize_speech(request: ASRRequest):
             audio_data=audio_bytes,
             format=request.format,
             sample_rate=request.sample_rate,
-            language_hints=request.language_hints or ['zh', 'en']
+            language_hints=request.language_hints or ["zh", "en"],
         )
 
         if result["success"]:
-            return {
-                "success": True,
-                "text": result["text"],
-                "metrics": result.get("metrics", {})
-            }
+            return {"success": True, "text": result["text"], "metrics": result.get("metrics", {})}
         else:
-            return {
-                "success": False,
-                "text": "",
-                "error": result.get("error", "Unknown error")
-            }
+            return {"success": False, "text": "", "error": result.get("error", "Unknown error")}
 
     except HTTPException:
         raise
@@ -1560,10 +1557,7 @@ async def recognize_speech(request: ASRRequest):
 
 
 @app.post("/api/asr/upload")
-async def recognize_speech_upload(
-    file: UploadFile = File(...),
-    sample_rate: int = 16000
-):
+async def recognize_speech_upload(file: UploadFile = File(...), sample_rate: int = 16000):
     """ASR upload endpoint receiving audio file."""
     try:
         asr_service = get_asr_service()
@@ -1571,7 +1565,7 @@ async def recognize_speech_upload(
         if not asr_service.enabled:
             raise HTTPException(
                 status_code=503,
-                detail="ASR service not available. Please configure DASHSCOPE_API_KEY."
+                detail="ASR service not available. Please configure DASHSCOPE_API_KEY.",
             )
 
         # 璇诲彇鏂囦欢鍐呭
@@ -1586,21 +1580,13 @@ async def recognize_speech_upload(
             audio_data=audio_bytes,
             format=format_ext,
             sample_rate=sample_rate,
-            language_hints=['zh', 'en']
+            language_hints=["zh", "en"],
         )
 
         if result["success"]:
-            return {
-                "success": True,
-                "text": result["text"],
-                "metrics": result.get("metrics", {})
-            }
+            return {"success": True, "text": result["text"], "metrics": result.get("metrics", {})}
         else:
-            return {
-                "success": False,
-                "text": "",
-                "error": result.get("error", "Unknown error")
-            }
+            return {"success": False, "text": "", "error": result.get("error", "Unknown error")}
 
     except HTTPException:
         raise
@@ -1613,16 +1599,15 @@ async def recognize_speech_upload(
 async def get_asr_status():
     """Get ASR service status."""
     asr_service = get_asr_service()
-    return {
-        "enabled": asr_service.enabled,
-        "api_key_configured": bool(settings.dashscope_api_key)
-    }
+    return {"enabled": asr_service.enabled, "api_key_configured": bool(settings.dashscope_api_key)}
 
 
 # ==================== TTS 鏂囧瓧杞闊?API ====================
 
+
 class TTSRequest(BaseModel):
     """TTS request payload."""
+
     text: str
     voice: str = "longxiaochun"  # 榛樿濂冲０
 
@@ -1636,26 +1621,20 @@ async def synthesize_speech(request: TTSRequest):
         if not tts_service.enabled:
             raise HTTPException(
                 status_code=503,
-                detail="TTS service not available. Please configure DASHSCOPE_API_KEY."
+                detail="TTS service not available. Please configure DASHSCOPE_API_KEY.",
             )
 
-        result = tts_service.synthesize(
-            text=request.text,
-            voice=request.voice
-        )
+        result = tts_service.synthesize(text=request.text, voice=request.voice)
 
         if result["success"]:
             return {
                 "success": True,
                 "audio": result["audio"],
                 "format": result["format"],
-                "voice": result["voice"]
+                "voice": result["voice"],
             }
         else:
-            return {
-                "success": False,
-                "error": result.get("error", "Unknown error")
-            }
+            return {"success": False, "error": result.get("error", "Unknown error")}
 
     except HTTPException:
         raise
@@ -1667,20 +1646,14 @@ async def synthesize_speech(request: TTSRequest):
 @app.get("/api/tts/voices")
 async def get_tts_voices():
     """Get available TTS voices."""
-    return {
-        "voices": AVAILABLE_VOICES,
-        "default": "longxiaochun"
-    }
+    return {"voices": AVAILABLE_VOICES, "default": "longxiaochun"}
 
 
 @app.get("/api/tts/status")
 async def get_tts_status():
     """Get TTS service status."""
     tts_service = get_tts_service()
-    return {
-        "enabled": tts_service.enabled,
-        "api_key_configured": bool(settings.dashscope_api_key)
-    }
+    return {"enabled": tts_service.enabled, "api_key_configured": bool(settings.dashscope_api_key)}
 
 
 @app.post("/api/research")
@@ -1690,10 +1663,7 @@ async def research(query: str):
 
     Returns streaming response with research progress.
     """
-    return StreamingResponse(
-        stream_agent_events(query),
-        media_type="text/event-stream"
-    )
+    return StreamingResponse(stream_agent_events(query), media_type="text/event-stream")
 
 
 # ==================== Screenshot API ====================
@@ -1721,9 +1691,7 @@ async def get_screenshot(filename: str):
         media_type = "image/jpeg"
 
     return FileResponse(
-        filepath,
-        media_type=media_type,
-        headers={"Cache-Control": "public, max-age=3600"}
+        filepath, media_type=media_type, headers={"Cache-Control": "public, max-age=3600"}
     )
 
 
@@ -1739,11 +1707,7 @@ async def list_screenshots(thread_id: Optional[str] = None, limit: int = 50):
     service = get_screenshot_service()
     screenshots = service.list_screenshots(thread_id=thread_id, limit=limit)
 
-    return {
-        "screenshots": screenshots,
-        "count": len(screenshots),
-        "thread_id": thread_id
-    }
+    return {"screenshots": screenshots, "count": len(screenshots), "thread_id": thread_id}
 
 
 @app.post("/api/screenshots/cleanup")
@@ -1755,11 +1719,12 @@ async def cleanup_screenshots():
     return {
         "status": "completed",
         "deleted_count": deleted_count,
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
     }
 
 
 # ==================== Tool Events SSE Endpoint ====================
+
 
 @app.get("/api/events/{thread_id}")
 async def stream_tool_events(thread_id: str, request: Request, last_event_id: Optional[str] = None):
@@ -1779,9 +1744,12 @@ async def stream_tool_events(thread_id: str, request: Request, last_event_id: Op
             console.log(data.type, data.data);
         };
     """
+
     async def event_generator():
         cursor = last_event_id or request.headers.get("last-event-id")
-        async for event_sse in event_stream_generator(thread_id, timeout=300.0, last_event_id=cursor):
+        async for event_sse in event_stream_generator(
+            thread_id, timeout=300.0, last_event_id=cursor
+        ):
             yield event_sse
 
     return StreamingResponse(
@@ -1791,7 +1759,7 @@ async def stream_tool_events(thread_id: str, request: Request, last_event_id: Op
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
-        }
+        },
     )
 
 
@@ -1861,6 +1829,7 @@ async def trigger_browser_screenshot(thread_id: str):
     """
     # Try sandbox browser first
     try:
+
         def _capture():
             session = sandbox_browser_sessions.get(thread_id)
             page = session.get_page()
@@ -1882,7 +1851,9 @@ async def trigger_browser_screenshot(thread_id: str):
                 raise
             # Session got closed (common after some sites); reset and retry once.
             try:
-                await sandbox_browser_sessions.run_async(thread_id, lambda: sandbox_browser_sessions.get(thread_id).close())
+                await sandbox_browser_sessions.run_async(
+                    thread_id, lambda: sandbox_browser_sessions.get(thread_id).close()
+                )
             except Exception:
                 pass
             png_bytes, page_url = await sandbox_browser_sessions.run_async(thread_id, _capture)
@@ -1898,14 +1869,17 @@ async def trigger_browser_screenshot(thread_id: str):
 
         # Emit screenshot event
         emitter = await get_emitter(thread_id)
-        await emitter.emit("tool_screenshot", {
-            "tool": "manual",
-            "action": "manual",
-            "url": save_result.get("url"),
-            "filename": save_result.get("filename"),
-            "mime_type": save_result.get("mime_type"),
-            "page_url": page_url,
-        })
+        await emitter.emit(
+            "tool_screenshot",
+            {
+                "tool": "manual",
+                "action": "manual",
+                "url": save_result.get("url"),
+                "filename": save_result.get("filename"),
+                "mime_type": save_result.get("mime_type"),
+                "page_url": page_url,
+            },
+        )
 
         return {
             "success": True,
@@ -1945,7 +1919,9 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
             session = sandbox_browser_sessions.get(thread_id)
             page = session.get_page()
             try:
-                jpg_bytes = page.screenshot(type="jpeg", quality=q, full_page=False, animations="disabled", caret="hide")
+                jpg_bytes = page.screenshot(
+                    type="jpeg", quality=q, full_page=False, animations="disabled", caret="hide"
+                )
             except TypeError:
                 jpg_bytes = page.screenshot(type="jpeg", quality=q, full_page=False)
             metadata: Dict[str, Any] = {}
@@ -1966,7 +1942,9 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
                 raise
             # Session got closed; reset and retry once.
             try:
-                await sandbox_browser_sessions.run_async(thread_id, lambda: sandbox_browser_sessions.get(thread_id).close())
+                await sandbox_browser_sessions.run_async(
+                    thread_id, lambda: sandbox_browser_sessions.get(thread_id).close()
+                )
             except Exception:
                 pass
             jpg_bytes, metadata = await sandbox_browser_sessions.run_async(thread_id, _capture)
@@ -1981,27 +1959,33 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
         while streaming:
             try:
                 frame = await capture_frame(quality=quality)
-                await websocket.send_json({
-                    "type": "frame",
-                    "data": frame["data"],
-                    "timestamp": time.time(),
-                    "metadata": frame.get("metadata") or {},
-                })
+                await websocket.send_json(
+                    {
+                        "type": "frame",
+                        "data": frame["data"],
+                        "timestamp": time.time(),
+                        "metadata": frame.get("metadata") or {},
+                    }
+                )
             except Exception as e:
                 streaming = False
-                await websocket.send_json({
-                    "type": "error",
-                    "message": f"Capture failed: {e}",
-                })
+                await websocket.send_json(
+                    {
+                        "type": "error",
+                        "message": f"Capture failed: {e}",
+                    }
+                )
                 break
             await asyncio.sleep(interval)
 
     try:
-        await websocket.send_json({
-            "type": "status",
-            "message": "Connected to browser stream",
-            "thread_id": thread_id,
-        })
+        await websocket.send_json(
+            {
+                "type": "status",
+                "message": "Connected to browser stream",
+                "thread_id": thread_id,
+            }
+        )
 
         while True:
             try:
@@ -2010,57 +1994,71 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
 
                 if action == "start":
                     if streaming:
-                        await websocket.send_json({
-                            "type": "status",
-                            "message": "Screencast already running",
-                        })
+                        await websocket.send_json(
+                            {
+                                "type": "status",
+                                "message": "Screencast already running",
+                            }
+                        )
                         continue
 
                     quality = data.get("quality", 70)
                     max_fps = data.get("max_fps", 5)
 
                     streaming = True
-                    stream_task = asyncio.create_task(stream_frames(quality=int(quality or 70), max_fps=int(max_fps or 5)))
-                    await websocket.send_json({
-                        "type": "status",
-                        "message": "Screencast started",
-                        "quality": quality,
-                        "max_fps": max_fps,
-                    })
+                    stream_task = asyncio.create_task(
+                        stream_frames(quality=int(quality or 70), max_fps=int(max_fps or 5))
+                    )
+                    await websocket.send_json(
+                        {
+                            "type": "status",
+                            "message": "Screencast started",
+                            "quality": quality,
+                            "max_fps": max_fps,
+                        }
+                    )
 
                 elif action == "stop":
                     streaming = False
                     if stream_task:
                         stream_task.cancel()
                         stream_task = None
-                    await websocket.send_json({
-                        "type": "status",
-                        "message": "Screencast stopped",
-                    })
+                    await websocket.send_json(
+                        {
+                            "type": "status",
+                            "message": "Screencast stopped",
+                        }
+                    )
 
                 elif action == "capture":
                     try:
                         frame = await capture_frame(quality=int(data.get("quality", 70) or 70))
-                        await websocket.send_json({
-                            "type": "frame",
-                            "data": frame["data"],
-                            "timestamp": time.time(),
-                            "metadata": frame.get("metadata") or {},
-                        })
+                        await websocket.send_json(
+                            {
+                                "type": "frame",
+                                "data": frame["data"],
+                                "timestamp": time.time(),
+                                "metadata": frame.get("metadata") or {},
+                            }
+                        )
                     except Exception as e:
-                        await websocket.send_json({
-                            "type": "error",
-                            "message": f"Capture failed: {e}",
-                        })
+                        await websocket.send_json(
+                            {
+                                "type": "error",
+                                "message": f"Capture failed: {e}",
+                            }
+                        )
 
             except WebSocketDisconnect:
                 break
             except Exception as e:
                 logger.error(f"WebSocket error: {e}")
-                await websocket.send_json({
-                    "type": "error",
-                    "message": str(e),
-                })
+                await websocket.send_json(
+                    {
+                        "type": "error",
+                        "message": str(e),
+                    }
+                )
 
     finally:
         streaming = False
@@ -2070,6 +2068,7 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
 
 
 # ==================== Trigger System Endpoints ====================
+
 
 class CreateScheduledTriggerRequest(BaseModel):
     name: str
@@ -2156,6 +2155,7 @@ async def create_webhook_trigger(request: CreateWebhookTriggerRequest):
     # Generate auth token if authentication is required
     if trigger.require_auth:
         from triggers.webhook import get_webhook_handler
+
         trigger.auth_token = get_webhook_handler().generate_auth_token()
 
     manager = get_trigger_manager()
@@ -2323,10 +2323,5 @@ async def handle_webhook(
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=settings.debug,
-        log_level="info"
-    )
+
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=settings.debug, log_level="info")

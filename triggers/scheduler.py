@@ -296,10 +296,7 @@ class TriggerScheduler:
         if trigger.id in self.tasks:
             return
 
-        task = asyncio.create_task(
-            self._trigger_loop(trigger),
-            name=f"trigger_{trigger.id}"
-        )
+        task = asyncio.create_task(self._trigger_loop(trigger), name=f"trigger_{trigger.id}")
         self.tasks[trigger.id] = task
 
     async def _trigger_loop(self, trigger: ScheduledTrigger) -> None:
@@ -338,8 +335,7 @@ class TriggerScheduler:
 
                 # Calculate next run
                 current_trigger.next_run_at = get_next_run_time(
-                    current_trigger.schedule,
-                    after=datetime.now()
+                    current_trigger.schedule, after=datetime.now()
                 )
 
             except asyncio.CancelledError:

@@ -19,8 +19,10 @@ def retry_call(fn: Callable, *, attempts: int, backoff: float, **kwargs) -> Any:
             return fn(**kwargs)
         except Exception as e:
             last_exc = e
-            wait = backoff * (2 ** i)
-            logger.warning(f"Tool call failed (attempt {i+1}/{attempts}): {e}; retrying in {wait:.1f}s")
+            wait = backoff * (2**i)
+            logger.warning(
+                f"Tool call failed (attempt {i + 1}/{attempts}): {e}; retrying in {wait:.1f}s"
+            )
             time.sleep(wait)
     if last_exc:
         raise last_exc

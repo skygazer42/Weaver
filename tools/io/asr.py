@@ -42,6 +42,7 @@ def _is_url(path: str) -> bool:
     except Exception:
         return False
 
+
 class ASRService:
     """语音识别服务"""
 
@@ -54,8 +55,9 @@ class ASRService:
         """
         self.api_key = api_key or os.getenv("DASHSCOPE_API_KEY", "")
 
-        if self.api_key :
+        if self.api_key:
             import dashscope
+
             dashscope.api_key = self.api_key
             self.enabled = True
         else:
@@ -66,7 +68,7 @@ class ASRService:
         file_path: str,
         format: str = "wav",
         sample_rate: int = 16000,
-        language_hints: Optional[list] = None
+        language_hints: Optional[list] = None,
     ) -> Dict[str, Any]:
         """
         识别音频文件
@@ -81,44 +83,29 @@ class ASRService:
             识别结果字典
         """
         if not self.enabled:
-            return {
-                "success": False,
-                "error": "ASR service not available",
-                "text": ""
-            }
+            return {"success": False, "error": "ASR service not available", "text": ""}
 
         try:
-            language_hints = language_hints or ['zh', 'en']
+            language_hints = language_hints or ["zh", "en"]
 
             # Remote files use transcription API; local files fall back to streaming recognition.
             if _is_url(file_path):
                 transcribe_resp = Transcription.call(
-                    model="fun-asr",
-                    file_urls=[file_path],
-                    api_key=self.api_key
+                    model="fun-asr", file_urls=[file_path], api_key=self.api_key
                 )
                 if transcribe_resp.status_code == HTTPStatus.OK and transcribe_resp.output:
                     text = self._extract_transcription_text(transcribe_resp.output)
-                    return {
-                        "success": True,
-                        "text": text,
-                        "metrics": None,
-                        "error": None
-                    }
+                    return {"success": True, "text": text, "metrics": None, "error": None}
                 error_msg = f"ASR failed: {transcribe_resp.message}"
                 logger.error(error_msg)
-                return {
-                    "success": False,
-                    "text": "",
-                    "error": error_msg
-                }
+                return {"success": False, "text": "", "error": error_msg}
 
             callback = _NoOpCallback()
             recognition = Recognition(
-                model='fun-asr-realtime-2025-11-07',
+                model="fun-asr-realtime-2025-11-07",
                 callback=callback,
                 format=format,
-                sample_rate=sample_rate
+                sample_rate=sample_rate,
             )
 
             result = recognition.call(file_path)
@@ -134,36 +121,23 @@ class ASRService:
 
                 logger.info(f"ASR success: {text[:50]}... | metrics: {metrics}")
 
-                return {
-                    "success": True,
-                    "text": text,
-                    "metrics": metrics,
-                    "error": None
-                }
+                return {"success": True, "text": text, "metrics": metrics, "error": None}
 
             error_msg = f"ASR failed: {result.message}"
             logger.error(error_msg)
-            return {
-                "success": False,
-                "text": "",
-                "error": error_msg
-            }
+            return {"success": False, "text": "", "error": error_msg}
 
         except Exception as e:
             error_msg = f"ASR exception: {str(e)}"
             logger.error(error_msg, exc_info=True)
-            return {
-                "success": False,
-                "text": "",
-                "error": error_msg
-            }
+            return {"success": False, "text": "", "error": error_msg}
 
     def recognize_bytes(
         self,
         audio_data: bytes,
         format: str = "wav",
         sample_rate: int = 16000,
-        language_hints: Optional[list] = None
+        language_hints: Optional[list] = None,
     ) -> Dict[str, Any]:
         """
         识别音频字节数据
@@ -178,11 +152,7 @@ class ASRService:
             识别结果字典
         """
         if not self.enabled:
-            return {
-                "success": False,
-                "error": "ASR service not available",
-                "text": ""
-            }
+            return {"success": False, "error": "ASR service not available", "text": ""}
 
         # 将字节数据写入临时文件
         suffix = f".{format}"
@@ -193,10 +163,7 @@ class ASRService:
 
             # 调用文件识别
             result = self.recognize_file(
-                tmp_path,
-                format=format,
-                sample_rate=sample_rate,
-                language_hints=language_hints
+                tmp_path, format=format, sample_rate=sample_rate, language_hints=language_hints
             )
 
             return result
@@ -240,7 +207,9 @@ class ASRService:
             if "result" in output and isinstance(output["result"], dict):
                 return str(output["result"].get("text", ""))
             if "sentences" in output and isinstance(output["sentences"], list):
-                return " ".join(str(s.get("text", "")) for s in output["sentences"] if isinstance(s, dict))
+                return " ".join(
+                    str(s.get("text", "")) for s in output["sentences"] if isinstance(s, dict)
+                )
         return str(output)
 
 

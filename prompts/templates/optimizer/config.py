@@ -10,10 +10,11 @@ from typing import Any, Callable, Dict, List, Optional
 
 class TaskType(Enum):
     """任务类型枚举"""
-    PLANNER = "planner"       # 研究规划任务
-    WRITER = "writer"         # 报告写作任务
-    EVALUATOR = "evaluator"   # 评估任务
-    CUSTOM = "custom"         # 自定义任务
+
+    PLANNER = "planner"  # 研究规划任务
+    WRITER = "writer"  # 报告写作任务
+    EVALUATOR = "evaluator"  # 评估任务
+    CUSTOM = "custom"  # 自定义任务
 
 
 @dataclass
@@ -61,7 +62,7 @@ class OptimizationConfig:
 
     # 停止条件
     accuracy_threshold: float = 0.95  # 达到此准确率提前停止
-    no_improvement_rounds: int = 2    # 连续无提升轮数则停止
+    no_improvement_rounds: int = 2  # 连续无提升轮数则停止
 
     # API 配置
     api_base_url: Optional[str] = None
@@ -77,11 +78,7 @@ class OptimizationConfig:
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
     @classmethod
-    def for_planner(
-        cls,
-        init_prompt: Optional[str] = None,
-        **kwargs
-    ) -> "OptimizationConfig":
+    def for_planner(cls, init_prompt: Optional[str] = None, **kwargs) -> "OptimizationConfig":
         """
         创建 planner 任务配置
 
@@ -108,15 +105,11 @@ class OptimizationConfig:
             task_type=TaskType.PLANNER,
             init_prompt=init_prompt or default_prompt,
             eval_function=eval_planner_quality,
-            **kwargs
+            **kwargs,
         )
 
     @classmethod
-    def for_writer(
-        cls,
-        init_prompt: Optional[str] = None,
-        **kwargs
-    ) -> "OptimizationConfig":
+    def for_writer(cls, init_prompt: Optional[str] = None, **kwargs) -> "OptimizationConfig":
         """
         创建 writer 任务配置
         """
@@ -142,7 +135,7 @@ class OptimizationConfig:
             task_type=TaskType.WRITER,
             init_prompt=init_prompt or default_prompt,
             eval_function=eval_writer_quality,
-            **kwargs
+            **kwargs,
         )
 
     def validate(self) -> List[str]:

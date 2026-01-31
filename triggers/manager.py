@@ -279,11 +279,14 @@ class TriggerManager:
                     continue
 
             # Fire the trigger
-            await self._on_trigger_fired(trigger, {
-                "event_type": event_type,
-                "event_data": event_data,
-                "source": source,
-            })
+            await self._on_trigger_fired(
+                trigger,
+                {
+                    "event_type": event_type,
+                    "event_data": event_data,
+                    "source": source,
+                },
+            )
 
     def get_executions(
         self,
@@ -322,7 +325,7 @@ class TriggerManager:
 
         # Trim execution history
         if len(self.executions) > self.config.execution_history_limit:
-            self.executions = self.executions[-self.config.execution_history_limit:]
+            self.executions = self.executions[-self.config.execution_history_limit :]
 
         # Call the execution callback
         if self.execution_callback:
@@ -357,8 +360,7 @@ class TriggerManager:
         """Unregister an event trigger."""
         if trigger.event_type in self.event_triggers:
             self.event_triggers[trigger.event_type] = [
-                t for t in self.event_triggers[trigger.event_type]
-                if t.id != trigger.id
+                t for t in self.event_triggers[trigger.event_type] if t.id != trigger.id
             ]
 
     def _match_filters(self, data: Dict[str, Any], filters: Dict[str, Any]) -> bool:

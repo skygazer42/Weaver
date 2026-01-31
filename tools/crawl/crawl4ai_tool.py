@@ -9,6 +9,7 @@ def crawl4ai(urls: List[str], max_depth: int = 1, max_pages: int = 20) -> List[D
     Crawl web pages using crawl4ai (if installed). Returns list of page dicts.
     """
     from crawl4ai import crawl
+
     results = []
     for url in urls:
         try:

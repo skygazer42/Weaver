@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ExtractedLink:
     """Represents an extracted link."""
+
     text: str
     url: str
     title: Optional[str] = None
@@ -40,6 +41,7 @@ class ExtractedLink:
 @dataclass
 class ExtractedForm:
     """Represents an extracted form."""
+
     action: str
     method: str
     inputs: List[Dict[str, str]] = field(default_factory=list)
@@ -48,6 +50,7 @@ class ExtractedForm:
 @dataclass
 class ExtractedContent:
     """Structured content extracted from a webpage."""
+
     url: str
     title: str
     description: Optional[str] = None
@@ -349,9 +352,7 @@ async def extract_page_content(page: Any) -> ExtractedContent:
             headings=[h["text"] for h in result.get("headings", [])],
             links=[
                 ExtractedLink(
-                    text=link.get("text", ""),
-                    url=link.get("url", ""),
-                    title=link.get("title")
+                    text=link.get("text", ""), url=link.get("url", ""), title=link.get("title")
                 )
                 for link in result.get("links", [])
             ],
@@ -360,15 +361,17 @@ async def extract_page_content(page: Any) -> ExtractedContent:
                 ExtractedForm(
                     action=form.get("action", ""),
                     method=form.get("method", "GET"),
-                    inputs=form.get("inputs", [])
+                    inputs=form.get("inputs", []),
                 )
                 for form in result.get("forms", [])
             ],
-            metadata=metadata
+            metadata=metadata,
         )
 
-        logger.debug(f"Extracted content from {content.url}: "
-                    f"{len(content.text)} chars, {len(content.links)} links")
+        logger.debug(
+            f"Extracted content from {content.url}: "
+            f"{len(content.text)} chars, {len(content.links)} links"
+        )
 
         return content
 
@@ -376,10 +379,7 @@ async def extract_page_content(page: Any) -> ExtractedContent:
         logger.error(f"Failed to extract page content: {e}")
         # Return minimal content on error
         return ExtractedContent(
-            url=page.url if hasattr(page, 'url') else "",
-            title="",
-            text="",
-            markdown=""
+            url=page.url if hasattr(page, "url") else "", title="", text="", markdown=""
         )
 
 
@@ -411,9 +411,7 @@ def extract_page_content_sync(page: Any) -> ExtractedContent:
             headings=[h["text"] for h in result.get("headings", [])],
             links=[
                 ExtractedLink(
-                    text=link.get("text", ""),
-                    url=link.get("url", ""),
-                    title=link.get("title")
+                    text=link.get("text", ""), url=link.get("url", ""), title=link.get("title")
                 )
                 for link in result.get("links", [])
             ],
@@ -422,11 +420,11 @@ def extract_page_content_sync(page: Any) -> ExtractedContent:
                 ExtractedForm(
                     action=form.get("action", ""),
                     method=form.get("method", "GET"),
-                    inputs=form.get("inputs", [])
+                    inputs=form.get("inputs", []),
                 )
                 for form in result.get("forms", [])
             ],
-            metadata=metadata
+            metadata=metadata,
         )
 
         return content
@@ -434,10 +432,7 @@ def extract_page_content_sync(page: Any) -> ExtractedContent:
     except Exception as e:
         logger.error(f"Failed to extract page content: {e}")
         return ExtractedContent(
-            url=page.url if hasattr(page, 'url') else "",
-            title="",
-            text="",
-            markdown=""
+            url=page.url if hasattr(page, "url") else "", title="", text="", markdown=""
         )
 
 
@@ -452,15 +447,15 @@ def clean_markdown(markdown: str) -> str:
         Cleaned markdown
     """
     # Remove excessive whitespace
-    markdown = re.sub(r'\n{3,}', '\n\n', markdown)
+    markdown = re.sub(r"\n{3,}", "\n\n", markdown)
 
     # Remove empty links
-    markdown = re.sub(r'\[\s*\]\([^)]*\)', '', markdown)
+    markdown = re.sub(r"\[\s*\]\([^)]*\)", "", markdown)
 
     # Remove empty headers
-    markdown = re.sub(r'^#{1,6}\s*$', '', markdown, flags=re.MULTILINE)
+    markdown = re.sub(r"^#{1,6}\s*$", "", markdown, flags=re.MULTILINE)
 
     # Normalize list items
-    markdown = re.sub(r'^(\s*)-\s+', r'\1- ', markdown, flags=re.MULTILINE)
+    markdown = re.sub(r"^(\s*)-\s+", r"\1- ", markdown, flags=re.MULTILINE)
 
     return markdown.strip()

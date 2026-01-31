@@ -131,7 +131,9 @@ class AgentProcessorConfig:
 
     # ==================== Result Injection Strategy ====================
 
-    result_injection_strategy: Literal["user_message", "assistant_message", "tool_message"] = "tool_message"
+    result_injection_strategy: Literal["user_message", "assistant_message", "tool_message"] = (
+        "tool_message"
+    )
     """
     How to inject tool results back into conversation:
     - user_message: As a user message (Claude style)
@@ -220,32 +222,25 @@ class AgentProcessorConfig:
             "xml_tool_calling": self.xml_tool_calling,
             "native_tool_calling": self.native_tool_calling,
             "prefer_xml_over_native": self.prefer_xml_over_native,
-
             # Execution
             "execute_tools": self.execute_tools,
             "tool_execution_strategy": self.tool_execution_strategy,
             "max_tool_calls_per_turn": self.max_tool_calls_per_turn,
-
             # Auto-continue
             "enable_auto_continue": self.enable_auto_continue,
             "max_auto_continues": self.max_auto_continues,
-
             # Streaming
             "stream_tool_results": self.stream_tool_results,
             "stream_thinking": self.stream_thinking,
-
             # Context
             "max_context_tokens": self.max_context_tokens,
-
             # Error handling
             "retry_on_tool_error": self.retry_on_tool_error,
             "max_retries": self.max_retries,
-
             # Result injection
             "result_injection_strategy": self.result_injection_strategy,
-
             # Metadata
-            "metadata": self.metadata
+            "metadata": self.metadata,
         }
 
     @classmethod
@@ -257,15 +252,17 @@ class AgentProcessorConfig:
         """
         return cls(
             # Read from settings if available, otherwise use defaults
-            xml_tool_calling=getattr(settings, 'agent_xml_tool_calling', True),
-            native_tool_calling=getattr(settings, 'agent_native_tool_calling', True),
-            execute_tools=getattr(settings, 'agent_execute_tools', True),
-            enable_auto_continue=getattr(settings, 'agent_auto_continue', False),
-            max_auto_continues=getattr(settings, 'agent_max_auto_continues', 25),
-            tool_execution_strategy=getattr(settings, 'agent_tool_execution_strategy', 'sequential'),
-            max_tool_calls_per_turn=getattr(settings, 'tool_call_limit', 10),
-            retry_on_tool_error=getattr(settings, 'tool_retry', False),
-            max_retries=getattr(settings, 'tool_retry_max_attempts', 3),
+            xml_tool_calling=getattr(settings, "agent_xml_tool_calling", True),
+            native_tool_calling=getattr(settings, "agent_native_tool_calling", True),
+            execute_tools=getattr(settings, "agent_execute_tools", True),
+            enable_auto_continue=getattr(settings, "agent_auto_continue", False),
+            max_auto_continues=getattr(settings, "agent_max_auto_continues", 25),
+            tool_execution_strategy=getattr(
+                settings, "agent_tool_execution_strategy", "sequential"
+            ),
+            max_tool_calls_per_turn=getattr(settings, "tool_call_limit", 10),
+            retry_on_tool_error=getattr(settings, "tool_retry", False),
+            max_retries=getattr(settings, "tool_retry_max_attempts", 3),
         )
 
     @classmethod
@@ -284,7 +281,7 @@ class AgentProcessorConfig:
             tool_execution_strategy="sequential",
             enable_auto_continue=True,
             stream_thinking=True,
-            result_injection_strategy="user_message"
+            result_injection_strategy="user_message",
         )
 
     @classmethod
@@ -301,7 +298,7 @@ class AgentProcessorConfig:
             native_tool_calling=True,
             tool_execution_strategy="parallel",
             enable_auto_continue=True,
-            result_injection_strategy="tool_message"
+            result_injection_strategy="tool_message",
         )
 
     @classmethod
@@ -322,7 +319,7 @@ class AgentProcessorConfig:
             log_tool_calls=True,
             log_auto_continues=True,
             include_raw_xml_in_events=True,
-            retry_on_tool_error=False  # Fail fast for debugging
+            retry_on_tool_error=False,  # Fail fast for debugging
         )
 
 
@@ -361,7 +358,9 @@ if __name__ == "__main__":
     print("\n4. Development Configuration:")
     config4 = AgentProcessorConfig.for_development()
     print(f"   {config4.summary()}")
-    print(f"   Logging: tool_calls={config4.log_tool_calls}, auto_continues={config4.log_auto_continues}")
+    print(
+        f"   Logging: tool_calls={config4.log_tool_calls}, auto_continues={config4.log_auto_continues}"
+    )
     print(f"   Include raw XML: {config4.include_raw_xml_in_events}")
 
     # Test 5: Custom configuration
@@ -372,7 +371,7 @@ if __name__ == "__main__":
         enable_auto_continue=True,
         max_auto_continues=10,
         tool_execution_strategy="parallel",
-        max_tool_calls_per_turn=5
+        max_tool_calls_per_turn=5,
     )
     print(f"   {config5.summary()}")
     print(f"   Max auto-continues: {config5.max_auto_continues}")

@@ -34,9 +34,14 @@ def _daytona_cfg():
     url = getattr(settings, "daytona_server_url", "https://app.daytona.io/api")
     target = getattr(settings, "daytona_target", "us")
     image = getattr(settings, "daytona_image_name", "whitezxj/sandbox:0.1.0")
-    entrypoint = getattr(settings, "daytona_entrypoint", "/usr/bin/supervisord -n -c /etc/supervisor/conf.d/supervisord.conf")
+    entrypoint = getattr(
+        settings,
+        "daytona_entrypoint",
+        "/usr/bin/supervisord -n -c /etc/supervisor/conf.d/supervisord.conf",
+    )
     vnc_pwd = getattr(settings, "daytona_vnc_password", "123456")
     return key, url, target, image, entrypoint, vnc_pwd
+
 
 # Track active sandbox ids (best-effort), grouped by thread_id for lifecycle cleanup
 _ACTIVE_SANDBOX_IDS = set()
@@ -50,7 +55,11 @@ def daytona_create(thread_id: str = "default") -> Dict[str, str]:
     """
     key, base_url, target, image, entrypoint, vnc_pwd = _daytona_cfg()
 
-    _emit(thread_id, ToolEventType.TOOL_START, {"tool": "daytona_create", "args": {"target": target, "image": image}})
+    _emit(
+        thread_id,
+        ToolEventType.TOOL_START,
+        {"tool": "daytona_create", "args": {"target": target, "image": image}},
+    )
 
     if not key:
         msg = "Daytona API key not configured; returning placeholder sandbox."
@@ -83,7 +92,11 @@ def daytona_create(thread_id: str = "default") -> Dict[str, str]:
         }
         _ACTIVE_SANDBOX_IDS.add(sandbox_id)
         _ACTIVE_BY_THREAD.setdefault(thread_id, set()).add(sandbox_id)
-        _emit(thread_id, ToolEventType.TOOL_RESULT, {"tool": "daytona_create", "result": payload, "success": True})
+        _emit(
+            thread_id,
+            ToolEventType.TOOL_RESULT,
+            {"tool": "daytona_create", "result": payload, "success": True},
+        )
         return payload
     except Exception as e:
         msg = f"Daytona create failed: {e}"
@@ -95,7 +108,11 @@ def daytona_create(thread_id: str = "default") -> Dict[str, str]:
 def daytona_stop(sandbox_id: str, thread_id: str = "default") -> Dict[str, str]:
     """Stop a Daytona sandbox by id."""
     key, base_url, *_ = _daytona_cfg()
-    _emit(thread_id, ToolEventType.TOOL_START, {"tool": "daytona_stop", "args": {"sandbox_id": sandbox_id}})
+    _emit(
+        thread_id,
+        ToolEventType.TOOL_START,
+        {"tool": "daytona_stop", "args": {"sandbox_id": sandbox_id}},
+    )
     if not key:
         msg = "Daytona API key not configured; nothing to stop."
         _emit(thread_id, ToolEventType.TOOL_ERROR, {"tool": "daytona_stop", "error": msg})
@@ -112,7 +129,11 @@ def daytona_stop(sandbox_id: str, thread_id: str = "default") -> Dict[str, str]:
             _ACTIVE_SANDBOX_IDS.discard(sandbox_id)
             for tids in _ACTIVE_BY_THREAD.values():
                 tids.discard(sandbox_id)
-            _emit(thread_id, ToolEventType.TOOL_RESULT, {"tool": "daytona_stop", "result": payload, "success": True})
+            _emit(
+                thread_id,
+                ToolEventType.TOOL_RESULT,
+                {"tool": "daytona_stop", "result": payload, "success": True},
+            )
             return payload
         msg = f"Stop failed: {resp.status_code} {resp.text}"
         _emit(thread_id, ToolEventType.TOOL_ERROR, {"tool": "daytona_stop", "error": msg})

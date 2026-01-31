@@ -75,7 +75,7 @@ def clean_path(path: str, workspace: str = "/workspace") -> str:
 
     # Remove workspace prefix if present
     if path.startswith(workspace):
-        path = path[len(workspace):]
+        path = path[len(workspace) :]
 
     # Remove leading slashes
     path = path.lstrip("/")
@@ -134,12 +134,15 @@ class _SandboxFilesBaseTool(BaseTool):
     def _emit_tool_start(self, action: str, args: Dict[str, Any]) -> float:
         """Emit tool start event."""
         start_time = time.time()
-        self._emit_event("tool_start", {
-            "tool": self.name,
-            "action": action,
-            "args": args,
-            "thread_id": self.thread_id,
-        })
+        self._emit_event(
+            "tool_start",
+            {
+                "tool": self.name,
+                "action": action,
+                "args": args,
+                "thread_id": self.thread_id,
+            },
+        )
         return start_time
 
     def _emit_tool_result(
@@ -151,16 +154,20 @@ class _SandboxFilesBaseTool(BaseTool):
     ) -> None:
         """Emit tool result event."""
         duration_ms = (time.time() - start_time) * 1000
-        self._emit_event("tool_result", {
-            "tool": self.name,
-            "action": action,
-            "success": success,
-            "duration_ms": round(duration_ms, 2),
-        })
+        self._emit_event(
+            "tool_result",
+            {
+                "tool": self.name,
+                "action": action,
+                "success": success,
+                "duration_ms": round(duration_ms, 2),
+            },
+        )
 
 
 class CreateFileInput(BaseModel):
     """Input for create_file."""
+
     file_path: str = Field(description="Path relative to /workspace (e.g., 'src/main.py')")
     file_contents: str = Field(description="Content to write to the file")
     permissions: str = Field(default="644", description="File permissions in octal (e.g., '644')")
@@ -236,6 +243,7 @@ class SandboxCreateFileTool(_SandboxFilesBaseTool):
 
 class ReadFileInput(BaseModel):
     """Input for read_file."""
+
     file_path: str = Field(description="Path relative to /workspace")
     max_lines: Optional[int] = Field(default=None, description="Maximum lines to read")
 
@@ -245,8 +253,7 @@ class SandboxReadFileTool(_SandboxFilesBaseTool):
 
     name: str = "sandbox_read_file"
     description: str = (
-        "Read the contents of a file from the sandbox. "
-        "Path must be relative to /workspace."
+        "Read the contents of a file from the sandbox. Path must be relative to /workspace."
     )
     args_schema: type[BaseModel] = ReadFileInput
 
@@ -292,6 +299,7 @@ class SandboxReadFileTool(_SandboxFilesBaseTool):
 
 class UpdateFileInput(BaseModel):
     """Input for update_file (full rewrite)."""
+
     file_path: str = Field(description="Path relative to /workspace")
     file_contents: str = Field(description="New content for the file")
 
@@ -351,6 +359,7 @@ class SandboxUpdateFileTool(_SandboxFilesBaseTool):
 
 class StrReplaceInput(BaseModel):
     """Input for str_replace."""
+
     file_path: str = Field(description="Path relative to /workspace")
     old_str: str = Field(description="Text to be replaced (must appear exactly once)")
     new_str: str = Field(description="Replacement text")
@@ -372,11 +381,14 @@ class SandboxStrReplaceTool(_SandboxFilesBaseTool):
         old_str: str,
         new_str: str,
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("str_replace", {
-            "file_path": file_path,
-            "old_str_len": len(old_str),
-            "new_str_len": len(new_str),
-        })
+        start_time = self._emit_tool_start(
+            "str_replace",
+            {
+                "file_path": file_path,
+                "old_str_len": len(old_str),
+                "new_str_len": len(new_str),
+            },
+        )
 
         try:
             sandbox = self._get_sandbox()
@@ -436,6 +448,7 @@ class SandboxStrReplaceTool(_SandboxFilesBaseTool):
 
 class DeleteFileInput(BaseModel):
     """Input for delete_file."""
+
     file_path: str = Field(description="Path relative to /workspace")
 
 
@@ -481,6 +494,7 @@ class SandboxDeleteFileTool(_SandboxFilesBaseTool):
 
 class ListFilesInput(BaseModel):
     """Input for list_files."""
+
     path: str = Field(default="", description="Path relative to /workspace (default: root)")
     recursive: bool = Field(default=False, description="List files recursively")
     max_depth: int = Field(default=3, description="Maximum depth for recursive listing")
@@ -529,18 +543,22 @@ class SandboxListFilesTool(_SandboxFilesBaseTool):
                             continue
 
                         if entry.is_dir:
-                            dirs.append({
-                                "path": rel_path,
-                                "type": "directory",
-                            })
+                            dirs.append(
+                                {
+                                    "path": rel_path,
+                                    "type": "directory",
+                                }
+                            )
                             if recursive and depth < max_depth:
                                 list_dir(entry.path, depth + 1)
                         else:
-                            files.append({
-                                "path": rel_path,
-                                "type": "file",
-                                "size": getattr(entry, "size", 0),
-                            })
+                            files.append(
+                                {
+                                    "path": rel_path,
+                                    "type": "file",
+                                    "size": getattr(entry, "size", 0),
+                                }
+                            )
                 except Exception as e:
                     logger.warning(f"[sandbox_files] Failed to list {dir_path}: {e}")
 
@@ -565,6 +583,7 @@ class SandboxListFilesTool(_SandboxFilesBaseTool):
 
 class UploadFileInput(BaseModel):
     """Input for upload_file."""
+
     file_path: str = Field(description="Destination path relative to /workspace")
     content_base64: str = Field(description="Base64 encoded file content")
 
@@ -628,6 +647,7 @@ class SandboxUploadFileTool(_SandboxFilesBaseTool):
 
 class DownloadFileInput(BaseModel):
     """Input for download_file."""
+
     file_path: str = Field(description="Path relative to /workspace")
 
 

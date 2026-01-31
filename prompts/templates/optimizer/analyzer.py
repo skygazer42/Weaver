@@ -15,6 +15,7 @@ from common.config import settings
 
 logger = logging.getLogger(__name__)
 
+
 def _build_llm(
     *,
     model: str,
@@ -129,7 +130,7 @@ Prompt: {current_prompt}
         model: str = "gpt-4o",
         temperature: float = 0.3,
         api_base_url: Optional[str] = None,
-        api_key: Optional[str] = None
+        api_key: Optional[str] = None,
     ):
         self.llm = _build_llm(
             model=model,
@@ -144,7 +145,7 @@ Prompt: {current_prompt}
         current_prompt: str,
         correct_samples: List[Dict],
         incorrect_samples: List[Dict],
-        max_samples: int = 5
+        max_samples: int = 5,
     ) -> Dict[str, Any]:
         """
         分析错误样本，返回改进建议
@@ -165,7 +166,7 @@ Prompt: {current_prompt}
                 "prompt_issues": [],
                 "improvement_suggestions": [],
                 "priority_fix": "No issues detected",
-                "confidence": 1.0
+                "confidence": 1.0,
             }
 
         prompt = ChatPromptTemplate.from_template(self.ANALYSIS_PROMPT)
@@ -181,7 +182,7 @@ Prompt: {current_prompt}
                     current_prompt=current_prompt[:2000],  # 限制长度
                     correct_samples=correct_text,
                     incorrect_samples=incorrect_text,
-                    score_details=score_details
+                    score_details=score_details,
                 )
             )
 
@@ -190,7 +191,9 @@ Prompt: {current_prompt}
             # 解析 JSON
             result = self._parse_json_response(content)
 
-            logger.info(f"Analysis complete: {len(result.get('error_patterns', []))} patterns found")
+            logger.info(
+                f"Analysis complete: {len(result.get('error_patterns', []))} patterns found"
+            )
             return result
 
         except Exception as e:
@@ -200,14 +203,11 @@ Prompt: {current_prompt}
                 "prompt_issues": [],
                 "improvement_suggestions": [],
                 "priority_fix": "Unable to analyze",
-                "confidence": 0.0
+                "confidence": 0.0,
             }
 
     async def quick_analyze(
-        self,
-        current_prompt: str,
-        incorrect_samples: List[Dict],
-        max_samples: int = 3
+        self, current_prompt: str, incorrect_samples: List[Dict], max_samples: int = 3
     ) -> Dict[str, str]:
         """
         快速分析，只返回主要问题和建议
@@ -223,14 +223,16 @@ Prompt: {current_prompt}
             response = await self.llm.ainvoke(
                 prompt.format_messages(
                     current_prompt=current_prompt[:1000],
-                    incorrect_samples=self._format_samples(incorrect_samples[:max_samples], "error")
+                    incorrect_samples=self._format_samples(
+                        incorrect_samples[:max_samples], "error"
+                    ),
                 )
             )
 
             result = self._parse_json_response(response.content)
             return {
                 "main_issue": result.get("main_issue", "Unknown"),
-                "suggestion": result.get("suggestion", "Review prompt")
+                "suggestion": result.get("suggestion", "Review prompt"),
             }
 
         except Exception as e:
@@ -242,7 +244,7 @@ Prompt: {current_prompt}
         current_prompt: str,
         correct_samples: List[Dict],
         incorrect_samples: List[Dict],
-        max_samples: int = 5
+        max_samples: int = 5,
     ) -> Dict[str, Any]:
         """
         同步版本的分析方法
@@ -259,11 +261,7 @@ Prompt: {current_prompt}
             self.analyze(current_prompt, correct_samples, incorrect_samples, max_samples)
         )
 
-    def _format_samples(
-        self,
-        samples: List[Dict],
-        sample_type: str = "sample"
-    ) -> str:
+    def _format_samples(self, samples: List[Dict], sample_type: str = "sample") -> str:
         """格式化样本为文本"""
         if not samples:
             return f"无{sample_type}样本"
@@ -274,10 +272,10 @@ Prompt: {current_prompt}
             lines.append(f"**输入**: {str(s.get('input', ''))[:300]}")
             lines.append(f"**输出**: {str(s.get('output', ''))[:500]}")
 
-            if 'expected' in s:
+            if "expected" in s:
                 lines.append(f"**预期**: {str(s.get('expected', ''))[:300]}")
 
-            if 'total_score' in s:
+            if "total_score" in s:
                 lines.append(f"**得分**: {s.get('total_score', 0):.2f}")
 
             lines.append("")
@@ -311,7 +309,8 @@ Prompt: {current_prompt}
         try:
             # 查找 ```json ... ```
             import re
-            json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', content, re.DOTALL)
+
+            json_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", content, re.DOTALL)
             if json_match:
                 return json.loads(json_match.group(1))
 
@@ -331,7 +330,7 @@ Prompt: {current_prompt}
             "prompt_issues": [content[:500]],
             "improvement_suggestions": [],
             "priority_fix": "Parse error",
-            "confidence": 0.0
+            "confidence": 0.0,
         }
 
 
@@ -346,11 +345,7 @@ class ComparativeAnalyzer:
         self.llm = _build_llm(model=model, temperature=0.2)
 
     async def compare_prompts(
-        self,
-        prompt_a: str,
-        prompt_b: str,
-        results_a: List[Dict],
-        results_b: List[Dict]
+        self, prompt_a: str, prompt_b: str, results_a: List[Dict], results_b: List[Dict]
     ) -> Dict[str, Any]:
         """
         对比两个 Prompt 的效果
@@ -359,26 +354,34 @@ class ComparativeAnalyzer:
             对比分析结果
         """
         # 计算统计数据
-        accuracy_a = sum(1 for r in results_a if r.get("is_correct")) / len(results_a) if results_a else 0
-        accuracy_b = sum(1 for r in results_b if r.get("is_correct")) / len(results_b) if results_b else 0
+        accuracy_a = (
+            sum(1 for r in results_a if r.get("is_correct")) / len(results_a) if results_a else 0
+        )
+        accuracy_b = (
+            sum(1 for r in results_b if r.get("is_correct")) / len(results_b) if results_b else 0
+        )
 
-        avg_score_a = sum(r.get("total_score", 0) for r in results_a) / len(results_a) if results_a else 0
-        avg_score_b = sum(r.get("total_score", 0) for r in results_b) / len(results_b) if results_b else 0
+        avg_score_a = (
+            sum(r.get("total_score", 0) for r in results_a) / len(results_a) if results_a else 0
+        )
+        avg_score_b = (
+            sum(r.get("total_score", 0) for r in results_b) / len(results_b) if results_b else 0
+        )
 
         return {
             "prompt_a": {
                 "accuracy": accuracy_a,
                 "avg_score": avg_score_a,
-                "sample_count": len(results_a)
+                "sample_count": len(results_a),
             },
             "prompt_b": {
                 "accuracy": accuracy_b,
                 "avg_score": avg_score_b,
-                "sample_count": len(results_b)
+                "sample_count": len(results_b),
             },
             "improvement": {
                 "accuracy_delta": accuracy_b - accuracy_a,
                 "score_delta": avg_score_b - avg_score_a,
-                "is_better": accuracy_b > accuracy_a
-            }
+                "is_better": accuracy_b > accuracy_a,
+            },
         }

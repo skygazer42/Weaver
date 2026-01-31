@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CacheEntry:
     """A cached search result entry."""
+
     query: str
     results: List[Dict[str, Any]]
     timestamp: float
@@ -147,10 +148,7 @@ class SearchCache:
     def cleanup_expired(self) -> int:
         """Remove all expired entries. Returns count of removed entries."""
         with self._lock:
-            expired_keys = [
-                k for k, v in self._cache.items()
-                if self._is_expired(v)
-            ]
+            expired_keys = [k for k, v in self._cache.items() if self._is_expired(v)]
             for k in expired_keys:
                 del self._cache[k]
             return len(expired_keys)

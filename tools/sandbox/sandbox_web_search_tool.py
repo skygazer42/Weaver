@@ -155,7 +155,10 @@ def _looks_like_antibot_challenge(page, engine_config: Optional[Dict[str, str]] 
             try:
                 if page.locator(sel).count() <= 0:
                     # Many challenges include a "protected"/"verification" marker.
-                    if any(p in haystack for p in ("protected", "verification", "verify", "captcha", "challenge")):
+                    if any(
+                        p in haystack
+                        for p in ("protected", "verification", "verify", "captcha", "challenge")
+                    ):
                         return True
             except Exception:
                 pass
@@ -170,12 +173,16 @@ def _tavily_to_results(tavily_results: Any, max_results: int) -> List[Dict[str, 
     for idx, item in enumerate(tavily_results[:max_results], 1):
         if not isinstance(item, dict):
             continue
-        fallback_results.append({
-            "position": idx,
-            "title": item.get("title", ""),
-            "url": item.get("url", ""),
-            "snippet": (item.get("summary") or item.get("snippet") or item.get("raw_excerpt") or "")[:500],
-        })
+        fallback_results.append(
+            {
+                "position": idx,
+                "title": item.get("title", ""),
+                "url": item.get("url", ""),
+                "snippet": (
+                    item.get("summary") or item.get("snippet") or item.get("raw_excerpt") or ""
+                )[:500],
+            }
+        )
     return fallback_results
 
 
@@ -220,7 +227,9 @@ def _normalize_api_results(results: Any, max_results: int) -> List[Dict[str, Any
     return normalized
 
 
-def _render_results_html(query: str, results: List[Dict[str, Any]], *, source: str = "tavily") -> str:
+def _render_results_html(
+    query: str, results: List[Dict[str, Any]], *, source: str = "tavily"
+) -> str:
     """Render a simple HTML page to visualize search results (avoids captcha pages)."""
     import html as _html
 
@@ -333,7 +342,9 @@ def _render_results_html(query: str, results: List[Dict[str, Any]], *, source: s
 """
 
 
-def _render_loading_html(query: str, *, source: str = "tavily", message: str = "Searching...") -> str:
+def _render_loading_html(
+    query: str, *, source: str = "tavily", message: str = "Searching..."
+) -> str:
     """Render an animated loading page so Live view shows progress while API tools run."""
     import html as _html
 
@@ -450,6 +461,7 @@ def _render_loading_html(query: str, *, source: str = "tavily", message: str = "
 @dataclass
 class SearchResult:
     """A single search result."""
+
     title: str
     url: str
     snippet: str
@@ -459,6 +471,7 @@ class SearchResult:
 @dataclass
 class SearchResults:
     """Collection of search results."""
+
     query: str
     engine: str
     results: List[SearchResult] = field(default_factory=list)
@@ -516,7 +529,9 @@ class _SandboxWebSearchBaseTool(BaseTool):
         """Take screenshot, save to disk, and return URL (base64 fallback)."""
         page = self._page()
         try:
-            png_bytes = page.screenshot(full_page=bool(full_page), animations="disabled", caret="hide")
+            png_bytes = page.screenshot(
+                full_page=bool(full_page), animations="disabled", caret="hide"
+            )
         except TypeError:
             png_bytes = page.screenshot(full_page=bool(full_page))
         result: Dict[str, Any] = {"mime_type": "image/png"}
@@ -566,12 +581,15 @@ class _SandboxWebSearchBaseTool(BaseTool):
     def _emit_tool_start(self, action: str, args: Dict[str, Any]) -> float:
         """Emit tool start event and return start time."""
         start_time = time.time()
-        self._emit_event("tool_start", {
-            "tool": self.name,
-            "action": action,
-            "args": args,
-            "thread_id": self.thread_id,
-        })
+        self._emit_event(
+            "tool_start",
+            {
+                "tool": self.name,
+                "action": action,
+                "args": args,
+                "thread_id": self.thread_id,
+            },
+        )
         return start_time
 
     def _emit_tool_result(
@@ -583,13 +601,16 @@ class _SandboxWebSearchBaseTool(BaseTool):
     ) -> None:
         """Emit tool result event."""
         duration_ms = (time.time() - start_time) * 1000
-        self._emit_event("tool_result", {
-            "tool": self.name,
-            "action": action,
-            "success": success,
-            "duration_ms": round(duration_ms, 2),
-            "result_keys": list(result.keys()),
-        })
+        self._emit_event(
+            "tool_result",
+            {
+                "tool": self.name,
+                "action": action,
+                "success": success,
+                "duration_ms": round(duration_ms, 2),
+                "result_keys": list(result.keys()),
+            },
+        )
 
     def _emit_screenshot(self, screenshot_data: Dict[str, Any], action: str) -> None:
         """Emit screenshot event (URL preferred, base64 fallback)."""
@@ -597,43 +618,44 @@ class _SandboxWebSearchBaseTool(BaseTool):
         image = screenshot_data.get("image")
         if not url and not image:
             return
-        self._emit_event("tool_screenshot", {
-            "tool": self.name,
-            "action": action,
-            "url": url,
-            "image": image if not url else None,  # keep stream light when URL exists
-            "filename": screenshot_data.get("screenshot_filename"),
-            "mime_type": screenshot_data.get("mime_type"),
-            "page_url": self._page_info().get("url"),
-        })
+        self._emit_event(
+            "tool_screenshot",
+            {
+                "tool": self.name,
+                "action": action,
+                "url": url,
+                "image": image if not url else None,  # keep stream light when URL exists
+                "filename": screenshot_data.get("screenshot_filename"),
+                "mime_type": screenshot_data.get("mime_type"),
+                "page_url": self._page_info().get("url"),
+            },
+        )
 
     def _emit_progress(self, message: str, progress: Optional[int] = None) -> None:
         """Emit progress event."""
-        self._emit_event("tool_progress", {
-            "tool": self.name,
-            "message": message,
-            "progress": progress,
-        })
+        self._emit_event(
+            "tool_progress",
+            {
+                "tool": self.name,
+                "message": message,
+                "progress": progress,
+            },
+        )
 
 
 class SandboxWebSearchInput(BaseModel):
     """Input schema for sandbox web search."""
+
     query: str = Field(min_length=1, description="Search query")
     engine: Literal["tavily", "google", "bing", "duckduckgo"] = Field(
         default="duckduckgo",
-        description="Browser engine to use when API search is unavailable/blocked"
+        description="Browser engine to use when API search is unavailable/blocked",
     )
     max_results: int = Field(
-        default=10,
-        ge=1,
-        le=30,
-        description="Maximum number of results to return"
+        default=10, ge=1, le=30, description="Maximum number of results to return"
     )
     wait_ms: int = Field(
-        default=2000,
-        ge=500,
-        le=10000,
-        description="Wait time for page load in milliseconds"
+        default=2000, ge=500, le=10000, description="Wait time for page load in milliseconds"
     )
 
 
@@ -665,12 +687,16 @@ class SandboxWebSearchTool(_SandboxWebSearchBaseTool):
         wait_ms: int = 2000,
     ) -> Dict[str, Any]:
         """Execute the search."""
+
         def _impl() -> Dict[str, Any]:
-            start_time = self._emit_tool_start("search", {
-                "query": query,
-                "engine": engine,
-                "max_results": max_results,
-            })
+            start_time = self._emit_tool_start(
+                "search",
+                {
+                    "query": query,
+                    "engine": engine,
+                    "max_results": max_results,
+                },
+            )
 
             # Prefer API-based search providers when available (configured via SEARCH_ENGINES in `.env`).
             try:
@@ -693,14 +719,18 @@ class SandboxWebSearchTool(_SandboxWebSearchBaseTool):
                     page = None
 
                 self._emit_progress("使用 API 搜索...", 10)
-                api_engine, api_results_raw = run_fallback_search(query=query, max_results=max_results)
+                api_engine, api_results_raw = run_fallback_search(
+                    query=query, max_results=max_results
+                )
                 api_results = _normalize_api_results(api_results_raw, max_results)
 
                 if api_results:
                     if page is None:
                         page = self._page()
 
-                    html_page = _render_results_html(query, api_results, source=api_engine or "search")
+                    html_page = _render_results_html(
+                        query, api_results, source=api_engine or "search"
+                    )
                     try:
                         page.set_content(html_page, wait_until="domcontentloaded")
                     except TypeError:
@@ -754,7 +784,9 @@ class SandboxWebSearchTool(_SandboxWebSearchBaseTool):
 
                     # Heuristic: detect captcha / anti-bot interstitials and fall back.
                     if _looks_like_antibot_challenge(page, engine_config):
-                        raise RuntimeError(f"Search engine returned an anti-bot challenge: {attempt_engine}")
+                        raise RuntimeError(
+                            f"Search engine returned an anti-bot challenge: {attempt_engine}"
+                        )
 
                     # Take screenshot of search results
                     self._emit_progress("正在截取搜索结果截图...", 50)
@@ -788,7 +820,9 @@ class SandboxWebSearchTool(_SandboxWebSearchBaseTool):
                 except Exception as e:
                     last_error = e
                     sandbox_error = str(e)
-                    logger.error(f"[sandbox_search] Search failed ({attempt_engine}): {sandbox_error}")
+                    logger.error(
+                        f"[sandbox_search] Search failed ({attempt_engine}): {sandbox_error}"
+                    )
 
                     # If the Playwright page/context was closed, close the session so future calls can recover.
                     if _looks_like_browser_closed_error(e):
@@ -809,7 +843,9 @@ class SandboxWebSearchTool(_SandboxWebSearchBaseTool):
             try:
                 from tools.search.fallback_search import run_fallback_search
 
-                api_engine, api_results_raw = run_fallback_search(query=query, max_results=max_results)
+                api_engine, api_results_raw = run_fallback_search(
+                    query=query, max_results=max_results
+                )
                 fallback_results = _normalize_api_results(api_results_raw, max_results)
 
                 response = {
@@ -828,7 +864,9 @@ class SandboxWebSearchTool(_SandboxWebSearchBaseTool):
                 try:
                     self._emit_progress("搜索被拦截，使用 API 结果渲染页面...", 60)
                     page = self._page()
-                    html_page = _render_results_html(query, fallback_results, source=api_engine or "search")
+                    html_page = _render_results_html(
+                        query, fallback_results, source=api_engine or "search"
+                    )
                     try:
                         page.set_content(html_page, wait_until="domcontentloaded")
                     except TypeError:
@@ -904,7 +942,7 @@ class SandboxWebSearchTool(_SandboxWebSearchBaseTool):
                         url = link_el.get_attribute("href", timeout=1000) or ""
                         # Clean up Google redirect URLs
                         if url.startswith("/url?"):
-                            match = re.search(r'[?&]q=([^&]+)', url)
+                            match = re.search(r"[?&]q=([^&]+)", url)
                             if match:
                                 url = match.group(1)
                     except Exception:
@@ -922,12 +960,14 @@ class SandboxWebSearchTool(_SandboxWebSearchBaseTool):
                     if not title and not url:
                         continue
 
-                    results.append({
-                        "position": i + 1,
-                        "title": title,
-                        "url": url,
-                        "snippet": snippet[:500] if snippet else "",
-                    })
+                    results.append(
+                        {
+                            "position": i + 1,
+                            "title": title,
+                            "url": url,
+                            "snippet": snippet[:500] if snippet else "",
+                        }
+                    )
 
                 except Exception as e:
                     logger.debug(f"[sandbox_search] Failed to parse result {i}: {e}")
@@ -941,16 +981,14 @@ class SandboxWebSearchTool(_SandboxWebSearchBaseTool):
 
 class SandboxSearchAndClickInput(BaseModel):
     """Input for search and click action."""
+
     query: str = Field(min_length=1, description="Search query")
     result_index: int = Field(
-        default=1,
-        ge=1,
-        le=10,
-        description="Which result to click (1-based index)"
+        default=1, ge=1, le=10, description="Which result to click (1-based index)"
     )
     engine: Literal["tavily", "google", "bing", "duckduckgo"] = Field(
         default="duckduckgo",
-        description="Browser engine to use when API search is unavailable/blocked"
+        description="Browser engine to use when API search is unavailable/blocked",
     )
     wait_ms: int = Field(default=3000, ge=500, le=15000)
 
@@ -994,11 +1032,14 @@ class SandboxSearchAndClickTool(_SandboxWebSearchBaseTool):
         wait_ms: int = 3000,
     ) -> Dict[str, Any]:
         """Execute search and click."""
-        start_time = self._emit_tool_start("search_and_click", {
-            "query": query,
-            "result_index": result_index,
-            "engine": engine,
-        })
+        start_time = self._emit_tool_start(
+            "search_and_click",
+            {
+                "query": query,
+                "result_index": result_index,
+                "engine": engine,
+            },
+        )
 
         # Prefer API-based search when available to avoid captcha pages.
         try:
@@ -1022,12 +1063,16 @@ class SandboxSearchAndClickTool(_SandboxWebSearchBaseTool):
                 page = None
 
             self._emit_progress("使用 API 搜索...", 10)
-            api_engine, api_results_raw = run_fallback_search(query=query, max_results=needed_results)
+            api_engine, api_results_raw = run_fallback_search(
+                query=query, max_results=needed_results
+            )
             api_results = _normalize_api_results(api_results_raw, needed_results)
 
             if api_results:
                 if result_index > len(api_results):
-                    raise ValueError(f"只找到 {len(api_results)} 个结果，无法点击第 {result_index} 个")
+                    raise ValueError(
+                        f"只找到 {len(api_results)} 个结果，无法点击第 {result_index} 个"
+                    )
 
                 clicked = api_results[result_index - 1] if api_results else {}
                 clicked_url = str(clicked.get("url") or "")
@@ -1040,7 +1085,9 @@ class SandboxSearchAndClickTool(_SandboxWebSearchBaseTool):
                 try:
                     if page is None:
                         page = self._page()
-                    html_page = _render_results_html(query, api_results, source=api_engine or "search")
+                    html_page = _render_results_html(
+                        query, api_results, source=api_engine or "search"
+                    )
                     try:
                         page.set_content(html_page, wait_until="domcontentloaded")
                     except TypeError:
@@ -1057,7 +1104,9 @@ class SandboxSearchAndClickTool(_SandboxWebSearchBaseTool):
                         page = self._page()
                         page.goto(clicked_url, wait_until="domcontentloaded", timeout=60000)
                         page.wait_for_timeout(int(wait_ms))
-                        dest_screenshot = self._screenshot_with_save("destination_page", full_page=False)
+                        dest_screenshot = self._screenshot_with_save(
+                            "destination_page", full_page=False
+                        )
                         self._emit_screenshot(dest_screenshot, "destination_page")
                 except Exception as e:
                     destination_error = str(e)
@@ -1085,7 +1134,9 @@ class SandboxSearchAndClickTool(_SandboxWebSearchBaseTool):
                 if destination_error:
                     response["destination_error"] = destination_error
 
-                self._emit_tool_result("search_and_click", response, start_time, success=bool(clicked_url))
+                self._emit_tool_result(
+                    "search_and_click", response, start_time, success=bool(clicked_url)
+                )
                 return response
         except Exception:
             # Best-effort: fall back to browser-based flow below.
@@ -1110,7 +1161,9 @@ class SandboxSearchAndClickTool(_SandboxWebSearchBaseTool):
 
                 # Heuristic: detect captcha / anti-bot interstitials and fall back.
                 if _looks_like_antibot_challenge(page, engine_config):
-                    raise RuntimeError(f"Search engine returned an anti-bot challenge: {attempt_engine}")
+                    raise RuntimeError(
+                        f"Search engine returned an anti-bot challenge: {attempt_engine}"
+                    )
 
                 # Screenshot search results
                 self._emit_progress("正在截取搜索结果...", 30)
@@ -1136,7 +1189,9 @@ class SandboxSearchAndClickTool(_SandboxWebSearchBaseTool):
                 clicked_title = ""
                 try:
                     title_selector = engine_config.get("title_selector", "h3")
-                    clicked_title = target_result.locator(title_selector).first.inner_text(timeout=1000)
+                    clicked_title = target_result.locator(title_selector).first.inner_text(
+                        timeout=1000
+                    )
                 except Exception:
                     pass
 
@@ -1198,21 +1253,27 @@ class SandboxSearchAndClickTool(_SandboxWebSearchBaseTool):
         try:
             from tools.search.search import tavily_search
 
-            tavily_results = tavily_search.invoke({"query": query, "max_results": max(10, int(result_index or 1))})
+            tavily_results = tavily_search.invoke(
+                {"query": query, "max_results": max(10, int(result_index or 1))}
+            )
             fallback_results: List[Dict[str, Any]] = []
             if isinstance(tavily_results, list):
                 for idx, item in enumerate(tavily_results[: max(10, int(result_index or 1))], 1):
                     if not isinstance(item, dict):
                         continue
-                    fallback_results.append({
-                        "position": idx,
-                        "title": item.get("title", ""),
-                        "url": item.get("url", ""),
-                        "snippet": (item.get("summary") or item.get("snippet") or "")[:500],
-                    })
+                    fallback_results.append(
+                        {
+                            "position": idx,
+                            "title": item.get("title", ""),
+                            "url": item.get("url", ""),
+                            "snippet": (item.get("summary") or item.get("snippet") or "")[:500],
+                        }
+                    )
 
             if result_index > len(fallback_results):
-                raise ValueError(f"只找到 {len(fallback_results)} 个结果，无法点击第 {result_index} 个")
+                raise ValueError(
+                    f"只找到 {len(fallback_results)} 个结果，无法点击第 {result_index} 个"
+                )
 
             clicked = fallback_results[result_index - 1] if fallback_results else {}
             clicked_url = str(clicked.get("url") or "")
@@ -1242,7 +1303,9 @@ class SandboxSearchAndClickTool(_SandboxWebSearchBaseTool):
                     page = self._page()
                     page.goto(clicked_url, wait_until="domcontentloaded", timeout=60000)
                     page.wait_for_timeout(int(wait_ms))
-                    dest_screenshot = self._screenshot_with_save("destination_page", full_page=False)
+                    dest_screenshot = self._screenshot_with_save(
+                        "destination_page", full_page=False
+                    )
                     self._emit_screenshot(dest_screenshot, "destination_page")
             except Exception as e:
                 destination_error = str(e)
@@ -1271,7 +1334,9 @@ class SandboxSearchAndClickTool(_SandboxWebSearchBaseTool):
                 response["destination_error"] = destination_error
 
             # Treat fallback as successful if we have at least a clicked URL; the agent can continue.
-            self._emit_tool_result("search_and_click", response, start_time, success=bool(clicked_url))
+            self._emit_tool_result(
+                "search_and_click", response, start_time, success=bool(clicked_url)
+            )
             return response
 
         except Exception as fallback_e:
@@ -1287,6 +1352,7 @@ class SandboxSearchAndClickTool(_SandboxWebSearchBaseTool):
 
 class SandboxExtractSearchResultsInput(BaseModel):
     """Input for extracting search results from current page."""
+
     max_results: int = Field(default=10, ge=1, le=30)
 
 
@@ -1396,27 +1462,36 @@ class SandboxExtractSearchResultsTool(_SandboxWebSearchBaseTool):
                     snippet = ""
 
                     try:
-                        title = element.locator(title_selector).first.inner_text(timeout=1000).strip()
+                        title = (
+                            element.locator(title_selector).first.inner_text(timeout=1000).strip()
+                        )
                     except Exception:
                         pass
 
                     try:
-                        url = element.locator(link_selector).first.get_attribute("href", timeout=1000) or ""
+                        url = (
+                            element.locator(link_selector).first.get_attribute("href", timeout=1000)
+                            or ""
+                        )
                     except Exception:
                         pass
 
                     try:
-                        snippet = element.locator(snippet_selector).first.inner_text(timeout=1000).strip()
+                        snippet = (
+                            element.locator(snippet_selector).first.inner_text(timeout=1000).strip()
+                        )
                     except Exception:
                         pass
 
                     if title or url:
-                        results.append({
-                            "position": i + 1,
-                            "title": title,
-                            "url": url,
-                            "snippet": snippet[:500] if snippet else "",
-                        })
+                        results.append(
+                            {
+                                "position": i + 1,
+                                "title": title,
+                                "url": url,
+                                "snippet": snippet[:500] if snippet else "",
+                            }
+                        )
                 except Exception:
                     continue
 
@@ -1453,12 +1528,14 @@ class SandboxExtractSearchResultsTool(_SandboxWebSearchBaseTool):
                         continue
 
                     seen_urls.add(url)
-                    results.append({
-                        "position": len(results) + 1,
-                        "title": text,
-                        "url": url,
-                        "snippet": "",
-                    })
+                    results.append(
+                        {
+                            "position": len(results) + 1,
+                            "title": text,
+                            "url": url,
+                            "snippet": "",
+                        }
+                    )
                 except Exception:
                     continue
 

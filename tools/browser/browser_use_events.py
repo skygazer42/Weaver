@@ -10,7 +10,9 @@ from agent.core.events import ToolEventType, get_emitter_sync
 def emit_progress(thread_id: str, tool: str, action: str, info: str):
     try:
         emitter = get_emitter_sync(thread_id)
-        emitter.emit_sync(ToolEventType.TOOL_PROGRESS, {"tool": tool, "action": action, "info": info})
+        emitter.emit_sync(
+            ToolEventType.TOOL_PROGRESS, {"tool": tool, "action": action, "info": info}
+        )
     except Exception:
         pass
 

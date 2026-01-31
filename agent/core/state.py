@@ -146,8 +146,8 @@ class AgentState(TypedDict):
 
     # ============ Cancellation & Error ============
     # Cancellation support
-    cancel_token_id: Optional[str]   # 取消令牌 ID
-    is_cancelled: bool               # 是否已取消
+    cancel_token_id: Optional[str]  # 取消令牌 ID
+    is_cancelled: bool  # 是否已取消
     # Error tracking
     errors: Annotated[List[str], operator.add]
     # Last error message
@@ -167,12 +167,14 @@ class AgentState(TypedDict):
 
 class ResearchPlan(TypedDict):
     """Structured research plan output."""
+
     queries: List[str]
     reasoning: str
 
 
 class SearchResult(TypedDict):
     """Search result structure."""
+
     query: str
     results: List[Dict[str, Any]]
     timestamp: str
@@ -180,6 +182,7 @@ class SearchResult(TypedDict):
 
 class CodeExecution(TypedDict):
     """Code execution result structure."""
+
     code: str
     output: str
     error: str | None
@@ -188,4 +191,5 @@ class CodeExecution(TypedDict):
 
 class QueryState(TypedDict):
     """State for a single parallel research query."""
+
     query: str

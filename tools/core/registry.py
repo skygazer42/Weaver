@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 
 # ==================== Tool Metadata ====================
 
+
 @dataclass
 class ToolMetadata:
     """
@@ -92,9 +93,7 @@ class ToolMetadata:
             self.average_duration_ms = duration_ms
         else:
             alpha = 0.2  # Weight for new value
-            self.average_duration_ms = (
-                alpha * duration_ms + (1 - alpha) * self.average_duration_ms
-            )
+            self.average_duration_ms = alpha * duration_ms + (1 - alpha) * self.average_duration_ms
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
@@ -117,7 +116,7 @@ class ToolMetadata:
             "average_duration_ms": self.average_duration_ms,
             "enabled": self.enabled,
             "deprecated": self.deprecated,
-            "deprecation_message": self.deprecation_message
+            "deprecation_message": self.deprecation_message,
         }
 
     @property
@@ -129,6 +128,7 @@ class ToolMetadata:
 
 
 # ==================== Tool Registry ====================
+
 
 class ToolRegistry:
     """
@@ -160,7 +160,7 @@ class ToolRegistry:
         parameters: Optional[Dict[str, Any]] = None,
         tags: Optional[List[str]] = None,
         version: str = "1.0.0",
-        override: bool = False
+        override: bool = False,
     ) -> ToolMetadata:
         """
         Register a tool.
@@ -187,9 +187,13 @@ class ToolRegistry:
 
         # Extract metadata
         tool_type = self._detect_tool_type(tool)
-        module_name = tool.__module__ if hasattr(tool, '__module__') else ""
-        class_name = tool.__qualname__.split('.')[0] if hasattr(tool, '__qualname__') and '.' in tool.__qualname__ else ""
-        function_name = tool.__name__ if hasattr(tool, '__name__') else name
+        module_name = tool.__module__ if hasattr(tool, "__module__") else ""
+        class_name = (
+            tool.__qualname__.split(".")[0]
+            if hasattr(tool, "__qualname__") and "." in tool.__qualname__
+            else ""
+        )
+        function_name = tool.__name__ if hasattr(tool, "__name__") else name
 
         # Auto-detect parameters if not provided
         if parameters is None:
@@ -209,7 +213,7 @@ class ToolRegistry:
             class_name=class_name,
             function_name=function_name,
             version=version,
-            tags=tags or []
+            tags=tags or [],
         )
 
         # Store in main registry
@@ -226,7 +230,7 @@ class ToolRegistry:
         self,
         tool_instance: Any,  # WeaverTool
         method_name: Optional[str] = None,
-        tags: Optional[List[str]] = None
+        tags: Optional[List[str]] = None,
     ) -> List[ToolMetadata]:
         """
         Register all methods from a WeaverTool instance.
@@ -256,12 +260,12 @@ class ToolRegistry:
             tool_method = getattr(tool_instance, method_name)
 
             metadata = self.register(
-                name=schema.get('name', method_name),
+                name=schema.get("name", method_name),
                 tool=tool_method,
-                description=schema.get('description', ''),
-                parameters=schema.get('parameters', {}),
-                tags=(tags or []) + ['weaver_tool'],
-                version=getattr(tool_instance, '__version__', '1.0.0')
+                description=schema.get("description", ""),
+                parameters=schema.get("parameters", {}),
+                tags=(tags or []) + ["weaver_tool"],
+                version=getattr(tool_instance, "__version__", "1.0.0"),
             )
 
             registered.append(metadata)
@@ -301,10 +305,7 @@ class ToolRegistry:
     # ==================== Discovery ====================
 
     def discover_from_module(
-        self,
-        module_name: str,
-        tags: Optional[List[str]] = None,
-        prefix: str = ""
+        self, module_name: str, tags: Optional[List[str]] = None, prefix: str = ""
     ) -> List[ToolMetadata]:
         """
         Discover and register tools from a module.
@@ -334,33 +335,29 @@ class ToolRegistry:
                 if issubclass(obj, WeaverTool) and obj is not WeaverTool:
                     try:
                         instance = obj()
-                        registered.extend(
-                            self.register_weaver_tool(instance, tags=tags)
-                        )
+                        registered.extend(self.register_weaver_tool(instance, tags=tags))
                     except Exception as e:
                         logger.error(f"Failed to instantiate {name}: {e}")
 
         # Scan for functions with @tool_schema
         for name, obj in inspect.getmembers(module, inspect.isfunction):
-            if hasattr(obj, '_tool_schema'):
+            if hasattr(obj, "_tool_schema"):
                 schema = obj._tool_schema
-                tool_name = prefix + schema.get('name', name)
+                tool_name = prefix + schema.get("name", name)
 
                 try:
                     metadata = self.register(
                         name=tool_name,
                         tool=obj,
-                        description=schema.get('description', ''),
-                        parameters=schema.get('parameters', {}),
-                        tags=(tags or []) + ['auto_discovered']
+                        description=schema.get("description", ""),
+                        parameters=schema.get("parameters", {}),
+                        tags=(tags or []) + ["auto_discovered"],
                     )
                     registered.append(metadata)
                 except ValueError:
                     logger.warning(f"Tool {tool_name} already registered, skipping")
 
-        logger.info(
-            f"Discovered {len(registered)} tools from module '{module_name}'"
-        )
+        logger.info(f"Discovered {len(registered)} tools from module '{module_name}'")
 
         return registered
 
@@ -369,7 +366,7 @@ class ToolRegistry:
         directory: str,
         pattern: str = "*.py",
         recursive: bool = True,
-        tags: Optional[List[str]] = None
+        tags: Optional[List[str]] = None,
     ) -> List[ToolMetadata]:
         """
         Discover tools from all Python files in a directory.
@@ -400,12 +397,12 @@ class ToolRegistry:
         # Discover from each module
         for file_path in files:
             # Skip __init__.py and test files
-            if file_path.name.startswith('__') or file_path.name.startswith('test_'):
+            if file_path.name.startswith("__") or file_path.name.startswith("test_"):
                 continue
 
             # Convert path to module name
             relative_path = file_path.relative_to(dir_path.parent)
-            module_name = str(relative_path.with_suffix('')).replace('/', '.').replace('\\', '.')
+            module_name = str(relative_path.with_suffix("")).replace("/", ".").replace("\\", ".")
 
             try:
                 discovered = self.discover_from_module(module_name, tags=tags)
@@ -485,16 +482,12 @@ class ToolRegistry:
         if not enabled_only:
             return list(self._tools.keys())
 
-        return [
-            name for name, (_, metadata) in self._tools.items()
-            if metadata.enabled
-        ]
+        return [name for name, (_, metadata) in self._tools.items() if metadata.enabled]
 
     def list_metadata(self, enabled_only: bool = False) -> List[ToolMetadata]:
         """Get metadata for all tools."""
         return [
-            metadata for _, metadata in self._tools.values()
-            if not enabled_only or metadata.enabled
+            metadata for _, metadata in self._tools.values() if not enabled_only or metadata.enabled
         ]
 
     # ==================== Statistics ====================
@@ -518,7 +511,7 @@ class ToolRegistry:
         most_used = sorted(
             [(name, m.call_count) for name, (_, m) in self._tools.items()],
             key=lambda x: x[1],
-            reverse=True
+            reverse=True,
         )[:10]
 
         # By type
@@ -535,14 +528,14 @@ class ToolRegistry:
             "overall_success_rate": total_successes / total_calls if total_calls > 0 else 0.0,
             "most_used": most_used,
             "by_type": by_type,
-            "tags": list(self._by_tag.keys())
+            "tags": list(self._by_tag.keys()),
         }
 
     def export_metadata(self, filepath: str):
         """Export all metadata to JSON file."""
         metadata_list = [m.to_dict() for _, (_, m) in self._tools.items()]
 
-        with open(filepath, 'w', encoding='utf-8') as f:
+        with open(filepath, "w", encoding="utf-8") as f:
             json.dump(metadata_list, f, indent=2)
 
         logger.info(f"Exported metadata for {len(metadata_list)} tools to {filepath}")
@@ -553,11 +546,11 @@ class ToolRegistry:
         """Detect tool type from callable."""
         if WeaverTool and isinstance(tool, WeaverTool):
             return "weaver"
-        elif hasattr(tool, '__self__') and WeaverTool and isinstance(tool.__self__, WeaverTool):
+        elif hasattr(tool, "__self__") and WeaverTool and isinstance(tool.__self__, WeaverTool):
             return "weaver"
         elif BaseTool and isinstance(tool, BaseTool):
             return "langchain"
-        elif hasattr(tool, '_tool_schema'):
+        elif hasattr(tool, "_tool_schema"):
             return "function"
         else:
             return "function"
@@ -569,7 +562,7 @@ class ToolRegistry:
             parameters = {}
 
             for name, param in sig.parameters.items():
-                if name == 'self':
+                if name == "self":
                     continue
 
                 param_info = {"type": "string"}  # Default
@@ -585,7 +578,7 @@ class ToolRegistry:
                         param_info["type"] = "number"
                     elif annotation == bool:
                         param_info["type"] = "boolean"
-                    elif hasattr(annotation, '__origin__'):
+                    elif hasattr(annotation, "__origin__"):
                         # Handle List, Dict, etc.
                         param_info["type"] = "object"
 
@@ -606,7 +599,7 @@ class ToolRegistry:
         doc = inspect.getdoc(tool)
         if doc:
             # Get first line
-            return doc.split('\n')[0].strip()
+            return doc.split("\n")[0].strip()
         return ""
 
     def _update_indexes(self, name: str, metadata: ToolMetadata):
@@ -686,14 +679,11 @@ def set_registered_tools(tools: List) -> None:
         try:
             if BaseTool and isinstance(tool, BaseTool):
                 registry.register(
-                    name=tool.name,
-                    tool=tool._run,
-                    description=tool.description,
-                    tags=['langchain']
+                    name=tool.name, tool=tool._run, description=tool.description, tags=["langchain"]
                 )
             else:
                 # Assume callable
-                name = getattr(tool, 'name', tool.__name__)
+                name = getattr(tool, "name", tool.__name__)
                 registry.register(name=name, tool=tool)
         except Exception as e:
             logger.warning(f"Failed to register tool in new registry: {e}")
@@ -726,11 +716,7 @@ if __name__ == "__main__":
         """Search the web for information."""
         return f"Results for: {query}"
 
-    metadata = registry.register(
-        name="search_web",
-        tool=mock_search,
-        tags=["search", "web"]
-    )
+    metadata = registry.register(name="search_web", tool=mock_search, tags=["search", "web"])
 
     print(f"  Registered: {metadata.name}")
     print(f"  Type: {metadata.tool_type}")

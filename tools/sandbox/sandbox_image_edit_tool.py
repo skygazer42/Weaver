@@ -33,14 +33,12 @@ logger = logging.getLogger(__name__)
 
 # Filter types
 FilterType = Literal[
-    "blur", "gaussian_blur", "sharpen", "edge_enhance",
-    "emboss", "contour", "detail", "smooth"
+    "blur", "gaussian_blur", "sharpen", "edge_enhance", "emboss", "contour", "detail", "smooth"
 ]
 
 # Effect types
 EffectType = Literal[
-    "grayscale", "sepia", "invert", "posterize",
-    "solarize", "auto_contrast", "equalize"
+    "grayscale", "sepia", "invert", "posterize", "solarize", "auto_contrast", "equalize"
 ]
 
 
@@ -86,12 +84,15 @@ class _ImageEditBaseTool(BaseTool):
     def _emit_tool_start(self, action: str, args: Dict[str, Any]) -> float:
         """Emit tool start event."""
         start_time = time.time()
-        self._emit_event("tool_start", {
-            "tool": self.name,
-            "action": action,
-            "args": args,
-            "thread_id": self.thread_id,
-        })
+        self._emit_event(
+            "tool_start",
+            {
+                "tool": self.name,
+                "action": action,
+                "args": args,
+                "thread_id": self.thread_id,
+            },
+        )
         return start_time
 
     def _emit_tool_result(
@@ -103,22 +104,22 @@ class _ImageEditBaseTool(BaseTool):
     ) -> None:
         """Emit tool result event."""
         duration_ms = (time.time() - start_time) * 1000
-        self._emit_event("tool_result", {
-            "tool": self.name,
-            "action": action,
-            "success": success,
-            "duration_ms": round(duration_ms, 2),
-        })
+        self._emit_event(
+            "tool_result",
+            {
+                "tool": self.name,
+                "action": action,
+                "success": success,
+                "duration_ms": round(duration_ms, 2),
+            },
+        )
 
     def _ensure_pillow(self, sandbox) -> bool:
         """Ensure Pillow is installed in sandbox."""
         try:
             result = sandbox.commands.run("pip show Pillow", timeout=30)
             if result.exit_code != 0:
-                install_result = sandbox.commands.run(
-                    "pip install Pillow numpy",
-                    timeout=120
-                )
+                install_result = sandbox.commands.run("pip install Pillow numpy", timeout=120)
                 return install_result.exit_code == 0
             return True
         except Exception as e:
@@ -128,14 +129,12 @@ class _ImageEditBaseTool(BaseTool):
 
 class ApplyFilterInput(BaseModel):
     """Input for apply_filter."""
+
     image_path: str = Field(description="Path to the source image")
     output_path: str = Field(description="Path for the output image")
     filter_type: FilterType = Field(description="Filter to apply")
     intensity: float = Field(
-        default=1.0,
-        ge=0.1,
-        le=3.0,
-        description="Filter intensity (0.1-3.0, default 1.0)"
+        default=1.0, ge=0.1, le=3.0, description="Filter intensity (0.1-3.0, default 1.0)"
     )
 
 
@@ -156,10 +155,13 @@ class ApplyFilterTool(_ImageEditBaseTool):
         filter_type: FilterType,
         intensity: float = 1.0,
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("apply_filter", {
-            "image_path": image_path,
-            "filter_type": filter_type,
-        })
+        start_time = self._emit_tool_start(
+            "apply_filter",
+            {
+                "image_path": image_path,
+                "filter_type": filter_type,
+            },
+        )
 
         try:
             sandbox = self._get_sandbox()
@@ -227,7 +229,7 @@ except Exception as e:
                 "input_path": image_path,
                 "output_path": output_path,
                 "filter": filter_type,
-                **output
+                **output,
             }
 
             self._emit_tool_result("apply_filter", result, start_time, True)
@@ -240,6 +242,7 @@ except Exception as e:
 
 class ApplyEffectInput(BaseModel):
     """Input for apply_effect."""
+
     image_path: str = Field(description="Path to the source image")
     output_path: str = Field(description="Path for the output image")
     effect_type: EffectType = Field(description="Effect to apply")
@@ -261,10 +264,13 @@ class ApplyEffectTool(_ImageEditBaseTool):
         output_path: str,
         effect_type: EffectType,
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("apply_effect", {
-            "image_path": image_path,
-            "effect_type": effect_type,
-        })
+        start_time = self._emit_tool_start(
+            "apply_effect",
+            {
+                "image_path": image_path,
+                "effect_type": effect_type,
+            },
+        )
 
         try:
             sandbox = self._get_sandbox()
@@ -351,7 +357,7 @@ except Exception as e:
                 "input_path": image_path,
                 "output_path": output_path,
                 "effect": effect_type,
-                **output
+                **output,
             }
 
             self._emit_tool_result("apply_effect", result, start_time, True)
@@ -364,11 +370,16 @@ except Exception as e:
 
 class AdjustImageInput(BaseModel):
     """Input for adjust_image."""
+
     image_path: str = Field(description="Path to the source image")
     output_path: str = Field(description="Path for the output image")
-    brightness: float = Field(default=1.0, ge=0.0, le=3.0, description="Brightness (1.0 = original)")
+    brightness: float = Field(
+        default=1.0, ge=0.0, le=3.0, description="Brightness (1.0 = original)"
+    )
     contrast: float = Field(default=1.0, ge=0.0, le=3.0, description="Contrast (1.0 = original)")
-    saturation: float = Field(default=1.0, ge=0.0, le=3.0, description="Saturation (1.0 = original)")
+    saturation: float = Field(
+        default=1.0, ge=0.0, le=3.0, description="Saturation (1.0 = original)"
+    )
     sharpness: float = Field(default=1.0, ge=0.0, le=3.0, description="Sharpness (1.0 = original)")
 
 
@@ -391,9 +402,12 @@ class AdjustImageTool(_ImageEditBaseTool):
         saturation: float = 1.0,
         sharpness: float = 1.0,
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("adjust_image", {
-            "image_path": image_path,
-        })
+        start_time = self._emit_tool_start(
+            "adjust_image",
+            {
+                "image_path": image_path,
+            },
+        )
 
         try:
             sandbox = self._get_sandbox()
@@ -463,7 +477,7 @@ except Exception as e:
                 "message": "Image adjusted",
                 "input_path": image_path,
                 "output_path": output_path,
-                **output
+                **output,
             }
 
             self._emit_tool_result("adjust_image", result, start_time, True)
@@ -476,9 +490,12 @@ except Exception as e:
 
 class RotateFlipInput(BaseModel):
     """Input for rotate_flip."""
+
     image_path: str = Field(description="Path to the source image")
     output_path: str = Field(description="Path for the output image")
-    rotate_degrees: int = Field(default=0, description="Rotation angle in degrees (0, 90, 180, 270)")
+    rotate_degrees: int = Field(
+        default=0, description="Rotation angle in degrees (0, 90, 180, 270)"
+    )
     flip_horizontal: bool = Field(default=False, description="Flip horizontally")
     flip_vertical: bool = Field(default=False, description="Flip vertically")
 
@@ -487,10 +504,7 @@ class RotateFlipTool(_ImageEditBaseTool):
     """Rotate or flip an image."""
 
     name: str = "rotate_flip_image"
-    description: str = (
-        "Rotate and/or flip an image. "
-        "Rotation supports 0, 90, 180, 270 degrees."
-    )
+    description: str = "Rotate and/or flip an image. Rotation supports 0, 90, 180, 270 degrees."
     args_schema: type[BaseModel] = RotateFlipInput
 
     def _run(
@@ -501,10 +515,13 @@ class RotateFlipTool(_ImageEditBaseTool):
         flip_horizontal: bool = False,
         flip_vertical: bool = False,
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("rotate_flip", {
-            "image_path": image_path,
-            "rotate": rotate_degrees,
-        })
+        start_time = self._emit_tool_start(
+            "rotate_flip",
+            {
+                "image_path": image_path,
+                "rotate": rotate_degrees,
+            },
+        )
 
         try:
             sandbox = self._get_sandbox()
@@ -567,7 +584,7 @@ except Exception as e:
                 "message": "Image transformed",
                 "input_path": image_path,
                 "output_path": output_path,
-                **output
+                **output,
             }
 
             self._emit_tool_result("rotate_flip", result, start_time, True)
@@ -580,12 +597,12 @@ except Exception as e:
 
 class AddWatermarkInput(BaseModel):
     """Input for add_watermark."""
+
     image_path: str = Field(description="Path to the source image")
     output_path: str = Field(description="Path for the output image")
     text: str = Field(description="Watermark text")
     position: Literal["center", "bottom-right", "bottom-left", "top-right", "top-left"] = Field(
-        default="bottom-right",
-        description="Watermark position"
+        default="bottom-right", description="Watermark position"
     )
     opacity: float = Field(default=0.5, ge=0.1, le=1.0, description="Watermark opacity (0.1-1.0)")
     font_size: int = Field(default=36, description="Font size")
@@ -612,10 +629,13 @@ class AddWatermarkTool(_ImageEditBaseTool):
         font_size: int = 36,
         color: str = "FFFFFF",
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("add_watermark", {
-            "image_path": image_path,
-            "position": position,
-        })
+        start_time = self._emit_tool_start(
+            "add_watermark",
+            {
+                "image_path": image_path,
+                "position": position,
+            },
+        )
 
         try:
             sandbox = self._get_sandbox()
@@ -726,7 +746,7 @@ except Exception as e:
                 "message": f"Watermark added at {position}",
                 "input_path": image_path,
                 "output_path": output_path,
-                **output
+                **output,
             }
 
             self._emit_tool_result("add_watermark", result, start_time, True)
@@ -739,6 +759,7 @@ except Exception as e:
 
 class OverlayImagesInput(BaseModel):
     """Input for overlay_images."""
+
     base_image_path: str = Field(description="Path to the base image")
     overlay_image_path: str = Field(description="Path to the overlay image")
     output_path: str = Field(description="Path for the output image")
@@ -746,8 +767,7 @@ class OverlayImagesInput(BaseModel):
     y: int = Field(default=0, description="Y position of overlay")
     opacity: float = Field(default=1.0, ge=0.0, le=1.0, description="Overlay opacity")
     resize_overlay: Optional[List[int]] = Field(
-        default=None,
-        description="Resize overlay to [width, height]"
+        default=None, description="Resize overlay to [width, height]"
     )
 
 
@@ -771,10 +791,13 @@ class OverlayImagesTool(_ImageEditBaseTool):
         opacity: float = 1.0,
         resize_overlay: Optional[List[int]] = None,
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("overlay_images", {
-            "base_image_path": base_image_path,
-            "overlay_image_path": overlay_image_path,
-        })
+        start_time = self._emit_tool_start(
+            "overlay_images",
+            {
+                "base_image_path": base_image_path,
+                "overlay_image_path": overlay_image_path,
+            },
+        )
 
         try:
             sandbox = self._get_sandbox()
@@ -850,7 +873,7 @@ except Exception as e:
                 "base_image": base_image_path,
                 "overlay_image": overlay_image_path,
                 "output_path": output_path,
-                **output
+                **output,
             }
 
             self._emit_tool_result("overlay_images", result, start_time, True)
@@ -863,6 +886,7 @@ except Exception as e:
 
 class CreateThumbnailInput(BaseModel):
     """Input for create_thumbnail."""
+
     image_path: str = Field(description="Path to the source image")
     output_path: str = Field(description="Path for the thumbnail")
     max_size: int = Field(default=128, description="Maximum width or height")
@@ -874,8 +898,7 @@ class CreateThumbnailTool(_ImageEditBaseTool):
 
     name: str = "create_thumbnail"
     description: str = (
-        "Create a thumbnail from an image. "
-        "Specify max size; aspect ratio is maintained by default."
+        "Create a thumbnail from an image. Specify max size; aspect ratio is maintained by default."
     )
     args_schema: type[BaseModel] = CreateThumbnailInput
 
@@ -886,10 +909,13 @@ class CreateThumbnailTool(_ImageEditBaseTool):
         max_size: int = 128,
         maintain_aspect: bool = True,
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("create_thumbnail", {
-            "image_path": image_path,
-            "max_size": max_size,
-        })
+        start_time = self._emit_tool_start(
+            "create_thumbnail",
+            {
+                "image_path": image_path,
+                "max_size": max_size,
+            },
+        )
 
         try:
             sandbox = self._get_sandbox()
@@ -942,7 +968,7 @@ except Exception as e:
                 "message": "Thumbnail created",
                 "input_path": image_path,
                 "output_path": output_path,
-                **output
+                **output,
             }
 
             self._emit_tool_result("create_thumbnail", result, start_time, True)

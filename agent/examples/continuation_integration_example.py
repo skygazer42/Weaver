@@ -28,20 +28,23 @@ from tools.core.base import ToolResult
 
 # ==================== Mock Tools ====================
 
+
 async def mock_search_web(query: str, max_results: int = 5) -> ToolResult:
     """Mock web search tool."""
     await asyncio.sleep(0.1)
 
     return ToolResult(
         success=True,
-        output=json.dumps({
-            "query": query,
-            "results": [
-                {"title": f"Result {i+1}", "url": f"https://example.com/{i+1}"}
-                for i in range(min(max_results, 3))
-            ]
-        }),
-        metadata={"source": "mock_search"}
+        output=json.dumps(
+            {
+                "query": query,
+                "results": [
+                    {"title": f"Result {i + 1}", "url": f"https://example.com/{i + 1}"}
+                    for i in range(min(max_results, 3))
+                ],
+            }
+        ),
+        metadata={"source": "mock_search"},
     )
 
 
@@ -51,12 +54,10 @@ async def mock_analyze_text(text: str) -> ToolResult:
 
     return ToolResult(
         success=True,
-        output=json.dumps({
-            "word_count": len(text.split()),
-            "char_count": len(text),
-            "sentiment": "positive"
-        }),
-        metadata={"analyzer": "mock"}
+        output=json.dumps(
+            {"word_count": len(text.split()), "char_count": len(text), "sentiment": "positive"}
+        ),
+        metadata={"analyzer": "mock"},
     )
 
 
@@ -66,16 +67,15 @@ async def mock_execute_code(code: str) -> ToolResult:
 
     return ToolResult(
         success=True,
-        output=json.dumps({
-            "stdout": f"Executed code:\n{code[:50]}...",
-            "stderr": "",
-            "exit_code": 0
-        }),
-        metadata={"runtime": "mock"}
+        output=json.dumps(
+            {"stdout": f"Executed code:\n{code[:50]}...", "stderr": "", "exit_code": 0}
+        ),
+        metadata={"runtime": "mock"},
     )
 
 
 # ==================== Mock LLM Responses ====================
+
 
 class MockLLMResponseGenerator:
     """
@@ -98,60 +98,67 @@ class MockLLMResponseGenerator:
         # First call: LLM asks to search
         if self.call_count == 1:
             return {
-                "choices": [{
-                    "message": {
-                        "role": "assistant",
-                        "content": """I'll search for information about Python async programming.
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": """I'll search for information about Python async programming.
 
 <function_calls>
 <invoke name="search_web">
 <parameter name="query">Python asyncio tutorial 2024</parameter>
 <parameter name="max_results">3</parameter>
 </invoke>
-</function_calls>"""
-                    },
-                    "finish_reason": "tool_calls"
-                }]
+</function_calls>""",
+                        },
+                        "finish_reason": "tool_calls",
+                    }
+                ]
             }
 
         # Second call: LLM has search results, asks to analyze
         elif self.call_count == 2:
             return {
-                "choices": [{
-                    "message": {
-                        "role": "assistant",
-                        "content": """Great! I found some search results. Let me analyze the first one.
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": """Great! I found some search results. Let me analyze the first one.
 
 <function_calls>
 <invoke name="analyze_text">
 <parameter name="text">Python asyncio tutorial - comprehensive guide to async programming</parameter>
 </invoke>
-</function_calls>"""
-                    },
-                    "finish_reason": "tool_calls"
-                }]
+</function_calls>""",
+                        },
+                        "finish_reason": "tool_calls",
+                    }
+                ]
             }
 
         # Third call: LLM has both results, provides final answer
         else:
             return {
-                "choices": [{
-                    "message": {
-                        "role": "assistant",
-                        "content": """Based on the search results and analysis, here's what I found:
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": """Based on the search results and analysis, here's what I found:
 
 1. Python asyncio is a powerful library for asynchronous programming
 2. The 2024 tutorials cover modern async/await syntax
 3. The sentiment analysis shows positive community reception
 
-This comprehensive guide should help you get started with Python async programming!"""
-                    },
-                    "finish_reason": "stop"
-                }]
+This comprehensive guide should help you get started with Python async programming!""",
+                        },
+                        "finish_reason": "stop",
+                    }
+                ]
             }
 
 
 # ==================== Example: Basic Auto-Continuation ====================
+
 
 async def example_basic_auto_continuation():
     """
@@ -161,15 +168,15 @@ async def example_basic_auto_continuation():
     tool calls without manual intervention.
     """
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("Example 1: Basic Auto-Continuation")
-    print("="*70)
+    print("=" * 70)
 
     # Setup tools
     tool_registry = {
         "search_web": mock_search_web,
         "analyze_text": mock_analyze_text,
-        "execute_code": mock_execute_code
+        "execute_code": mock_execute_code,
     }
 
     # Configure for auto-continuation
@@ -179,16 +186,14 @@ async def example_basic_auto_continuation():
         enable_auto_continue=True,
         max_auto_continues=5,
         tool_execution_strategy="sequential",
-        result_injection_strategy="user_message"
+        result_injection_strategy="user_message",
     )
 
     # Create handler
     handler = ResponseHandler(tool_registry=tool_registry, config=config)
 
     # Initial messages
-    messages = [
-        {"role": "user", "content": "Tell me about Python async programming"}
-    ]
+    messages = [{"role": "user", "content": "Tell me about Python async programming"}]
 
     # Mock LLM
     mock_llm = MockLLMResponseGenerator()
@@ -201,9 +206,7 @@ async def example_basic_auto_continuation():
     tool_call_count = 0
 
     async for event in handler.process_with_auto_continue(
-        messages=messages,
-        llm_callable=mock_llm,
-        session_id="example-1"
+        messages=messages, llm_callable=mock_llm, session_id="example-1"
     ):
         event_type = event.get("type")
 
@@ -221,7 +224,9 @@ async def example_basic_auto_continuation():
 
         elif event_type == "tool_result":
             tool_call_count += 1
-            print(f"  [TOOL] {event['function_name']}: {'SUCCESS' if event['success'] else 'FAILED'}")
+            print(
+                f"  [TOOL] {event['function_name']}: {'SUCCESS' if event['success'] else 'FAILED'}"
+            )
 
         elif event_type == "results_injected":
             print(f"  [INJECT] {event['count']} result(s) injected back into conversation")
@@ -241,6 +246,7 @@ async def example_basic_auto_continuation():
 
 # ==================== Example: Max Iterations Limit ====================
 
+
 async def example_max_iterations():
     """
     Demonstrates max iteration limit.
@@ -248,9 +254,9 @@ async def example_max_iterations():
     Shows how the continuation stops when max iterations reached.
     """
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("Example 2: Max Iterations Limit")
-    print("="*70)
+    print("=" * 70)
 
     # Create an LLM that always asks for tools
     class AlwaysToolsLLM:
@@ -260,18 +266,20 @@ async def example_max_iterations():
         async def __call__(self, messages):
             self.count += 1
             return {
-                "choices": [{
-                    "message": {
-                        "role": "assistant",
-                        "content": f"""Iteration {self.count}:
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": f"""Iteration {self.count}:
 <function_calls>
 <invoke name="search_web">
 <parameter name="query">test query {self.count}</parameter>
 </invoke>
-</function_calls>"""
-                    },
-                    "finish_reason": "tool_calls"
-                }]
+</function_calls>""",
+                        },
+                        "finish_reason": "tool_calls",
+                    }
+                ]
             }
 
     tool_registry = {"search_web": mock_search_web}
@@ -282,7 +290,7 @@ async def example_max_iterations():
         execute_tools=True,
         enable_auto_continue=True,
         max_auto_continues=3,  # Low limit
-        tool_execution_strategy="sequential"
+        tool_execution_strategy="sequential",
     )
 
     handler = ResponseHandler(tool_registry=tool_registry, config=config)
@@ -293,9 +301,7 @@ async def example_max_iterations():
     print(f"Starting loop...\n")
 
     async for event in handler.process_with_auto_continue(
-        messages=messages,
-        llm_callable=mock_llm,
-        session_id="example-2"
+        messages=messages, llm_callable=mock_llm, session_id="example-2"
     ):
         if event.get("type") == "continuation_iteration":
             print(f"  Iteration {event['iteration']}")
@@ -307,6 +313,7 @@ async def example_max_iterations():
 
 # ==================== Example: Parallel Tool Execution ====================
 
+
 async def example_parallel_execution():
     """
     Demonstrates parallel tool execution in auto-continuation.
@@ -314,9 +321,9 @@ async def example_parallel_execution():
     Shows how multiple tools can be executed concurrently.
     """
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("Example 3: Parallel Tool Execution")
-    print("="*70)
+    print("=" * 70)
 
     # LLM that calls multiple tools at once
     class MultiToolLLM:
@@ -327,10 +334,11 @@ async def example_parallel_execution():
             if not self.called:
                 self.called = True
                 return {
-                    "choices": [{
-                        "message": {
-                            "role": "assistant",
-                            "content": """I'll do multiple things in parallel:
+                    "choices": [
+                        {
+                            "message": {
+                                "role": "assistant",
+                                "content": """I'll do multiple things in parallel:
 
 <function_calls>
 <invoke name="search_web">
@@ -343,26 +351,29 @@ async def example_parallel_execution():
 <invoke name="execute_code">
 <parameter name="code">import asyncio\nprint('Hello')</parameter>
 </invoke>
-</function_calls>"""
-                        },
-                        "finish_reason": "tool_calls"
-                    }]
+</function_calls>""",
+                            },
+                            "finish_reason": "tool_calls",
+                        }
+                    ]
                 }
             else:
                 return {
-                    "choices": [{
-                        "message": {
-                            "role": "assistant",
-                            "content": "All tools completed successfully!"
-                        },
-                        "finish_reason": "stop"
-                    }]
+                    "choices": [
+                        {
+                            "message": {
+                                "role": "assistant",
+                                "content": "All tools completed successfully!",
+                            },
+                            "finish_reason": "stop",
+                        }
+                    ]
                 }
 
     tool_registry = {
         "search_web": mock_search_web,
         "analyze_text": mock_analyze_text,
-        "execute_code": mock_execute_code
+        "execute_code": mock_execute_code,
     }
 
     # Configure for parallel execution
@@ -371,7 +382,7 @@ async def example_parallel_execution():
         execute_tools=True,
         enable_auto_continue=True,
         max_auto_continues=5,
-        tool_execution_strategy="parallel"  # Parallel!
+        tool_execution_strategy="parallel",  # Parallel!
     )
 
     handler = ResponseHandler(tool_registry=tool_registry, config=config)
@@ -382,12 +393,11 @@ async def example_parallel_execution():
     print(f"Starting...\n")
 
     import time
+
     start_time = time.time()
 
     async for event in handler.process_with_auto_continue(
-        messages=messages,
-        llm_callable=mock_llm,
-        session_id="example-3"
+        messages=messages, llm_callable=mock_llm, session_id="example-3"
     ):
         if event.get("type") == "tool_result":
             elapsed = time.time() - start_time
@@ -401,12 +411,13 @@ async def example_parallel_execution():
 
 # ==================== Integration Summary ====================
 
+
 async def show_integration_summary():
     """Display integration summary and usage tips."""
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("Auto-Continuation Integration Summary")
-    print("="*70)
+    print("=" * 70)
 
     print("""
 [OK] Auto-Continuation Components:
@@ -500,12 +511,13 @@ async for event in handler.process_with_auto_continue(
 
 # ==================== Main ====================
 
+
 async def main():
     """Run all examples."""
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("Auto-Continuation Mechanism Examples")
-    print("="*70)
+    print("=" * 70)
 
     # Run examples
     await example_basic_auto_continuation()
@@ -513,9 +525,9 @@ async def main():
     await example_parallel_execution()
     await show_integration_summary()
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("[OK] All examples completed!")
-    print("="*70)
+    print("=" * 70)
     print("\nNext Steps:")
     print("1. Review the event handling patterns")
     print("2. Adapt the configuration to your use case")

@@ -71,10 +71,7 @@ def setup_logging():
     if settings.enable_json_logging:
         formatter = JSONFormatter()
     else:
-        formatter = logging.Formatter(
-            settings.log_format,
-            datefmt='%Y-%m-%d %H:%M:%S'
-        )
+        formatter = logging.Formatter(settings.log_format, datefmt="%Y-%m-%d %H:%M:%S")
 
     # Console handler
     console_handler = logging.StreamHandler()
@@ -92,7 +89,7 @@ def setup_logging():
             filename=settings.log_file,
             maxBytes=settings.log_max_bytes,
             backupCount=settings.log_backup_count,
-            encoding='utf-8'
+            encoding="utf-8",
         )
         file_handler.setLevel(log_level)
         file_handler.setFormatter(formatter)

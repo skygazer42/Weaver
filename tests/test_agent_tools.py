@@ -15,7 +15,9 @@ def _names(tools):
 
 
 def test_agent_tools_lightweight_browser_selected_by_default():
-    cfg = {"configurable": {"thread_id": "t1", "agent_profile": {"enabled_tools": {"browser": True}}}}
+    cfg = {
+        "configurable": {"thread_id": "t1", "agent_profile": {"enabled_tools": {"browser": True}}}
+    }
     names = _names(build_agent_tools(cfg))
     assert "browser_navigate" in names
     assert "sb_browser_navigate" not in names
@@ -26,7 +28,12 @@ def test_agent_tools_sandbox_browser_selected_when_enabled():
     original_key = settings.e2b_api_key
     settings.e2b_api_key = "e2b_test_key"
     try:
-        cfg = {"configurable": {"thread_id": "t2", "agent_profile": {"enabled_tools": {"sandbox_browser": True}}}}
+        cfg = {
+            "configurable": {
+                "thread_id": "t2",
+                "agent_profile": {"enabled_tools": {"sandbox_browser": True}},
+            }
+        }
         names = _names(build_agent_tools(cfg))
     finally:
         settings.e2b_api_key = original_key

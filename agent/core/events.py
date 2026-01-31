@@ -189,7 +189,9 @@ class EventEmitter:
         Returns:
             The emitted Event object
         """
-        normalized_type = event_type if isinstance(event_type, ToolEventType) else ToolEventType(event_type)
+        normalized_type = (
+            event_type if isinstance(event_type, ToolEventType) else ToolEventType(event_type)
+        )
 
         # Allocate seq + buffer under a lock so reconnects can resume by seq.
         with self._buffer_lock:
@@ -395,6 +397,7 @@ async def remove_emitter(thread_id: str) -> None:
     # Best-effort cleanup for thread-scoped resources (e.g., Daytona sandboxes)
     try:
         from tools.sandbox.daytona_client import daytona_stop_all
+
         daytona_stop_all(thread_id=thread_id)
     except Exception:
         pass

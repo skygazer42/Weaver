@@ -108,7 +108,9 @@ def serper_search(query: str, max_results: int = 10) -> List[Dict[str, Any]]:
     return results[: int(max_results or 10)]
 
 
-def serpapi_search(query: str, max_results: int = 10, *, engine: str = "google") -> List[Dict[str, Any]]:
+def serpapi_search(
+    query: str, max_results: int = 10, *, engine: str = "google"
+) -> List[Dict[str, Any]]:
     api_key = (getattr(settings, "serpapi_api_key", "") or "").strip()
     if not _is_valid_api_key(api_key):
         return []

@@ -37,12 +37,14 @@ def _summarize_content(raw_content: str) -> Optional[str]:
             "timeout": settings.openai_timeout or None,
         }
         if settings.use_azure:
-            params.update({
-                "azure_endpoint": settings.azure_endpoint or None,
-                "azure_deployment": settings.primary_model,
-                "api_version": settings.azure_api_version or None,
-                "api_key": settings.azure_api_key or settings.openai_api_key,
-            })
+            params.update(
+                {
+                    "azure_endpoint": settings.azure_endpoint or None,
+                    "azure_deployment": settings.primary_model,
+                    "api_version": settings.azure_api_version or None,
+                    "api_key": settings.azure_api_key or settings.openai_api_key,
+                }
+            )
         elif settings.openai_base_url:
             params["base_url"] = settings.openai_base_url
 
@@ -56,17 +58,17 @@ def _summarize_content(raw_content: str) -> Optional[str]:
             params["extra_body"] = merged_extra
 
         llm = ChatOpenAI(**params)
-        prompt = ChatPromptTemplate.from_messages([
-            (
-                "system",
-                "You are a concise analyst. Summarize the page into 3-5 bullet points. "
-                "Keep key facts, avoid filler, cite numbers if present."
-            ),
-            ("human", "{content}")
-        ])
-        response = llm.invoke(
-            prompt.format_messages(content=_trim_text(raw_content, 3500))
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                (
+                    "system",
+                    "You are a concise analyst. Summarize the page into 3-5 bullet points. "
+                    "Keep key facts, avoid filler, cite numbers if present.",
+                ),
+                ("human", "{content}"),
+            ]
         )
+        response = llm.invoke(prompt.format_messages(content=_trim_text(raw_content, 3500)))
         content = getattr(response, "content", None) or ""
         return textwrap.dedent(content).strip() or None
     except Exception as e:
@@ -115,9 +117,7 @@ def tavily_search(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
 
         # Sort results by score descending if score exists
         sorted_results = sorted(
-            response.get("results", []),
-            key=lambda r: r.get("score", 0),
-            reverse=True
+            response.get("results", []), key=lambda r: r.get("score", 0), reverse=True
         )
 
         for result in sorted_results:
@@ -129,14 +129,16 @@ def tavily_search(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
             raw_content = result.get("raw_content", "") or result.get("content", "")
             summary = _summarize_content(raw_content)
 
-            results.append({
-                "title": result.get("title", ""),
-                "url": url,
-                "summary": summary or _trim_text(result.get("content", ""), 600),
-                "snippet": _trim_text(result.get("content", ""), 600),
-                "raw_excerpt": _trim_text(raw_content, 1200),
-                "score": result.get("score", 0),
-            })
+            results.append(
+                {
+                    "title": result.get("title", ""),
+                    "url": url,
+                    "summary": summary or _trim_text(result.get("content", ""), 600),
+                    "snippet": _trim_text(result.get("content", ""), 600),
+                    "raw_excerpt": _trim_text(raw_content, 1200),
+                    "score": result.get("score", 0),
+                }
+            )
 
             if len(results) >= max_results:
                 break
@@ -150,7 +152,9 @@ def tavily_search(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
         return []
 
 
-def search_multiple_queries(queries: List[str], max_results_per_query: int = 5) -> List[Dict[str, Any]]:
+def search_multiple_queries(
+    queries: List[str], max_results_per_query: int = 5
+) -> List[Dict[str, Any]]:
     """
     Execute multiple search queries in parallel.
 

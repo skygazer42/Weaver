@@ -74,12 +74,15 @@ class _SandboxSheetsBaseTool(BaseTool):
     def _emit_tool_start(self, action: str, args: Dict[str, Any]) -> float:
         """Emit tool start event."""
         start_time = time.time()
-        self._emit_event("tool_start", {
-            "tool": self.name,
-            "action": action,
-            "args": args,
-            "thread_id": self.thread_id,
-        })
+        self._emit_event(
+            "tool_start",
+            {
+                "tool": self.name,
+                "action": action,
+                "args": args,
+                "thread_id": self.thread_id,
+            },
+        )
         return start_time
 
     def _emit_tool_result(
@@ -91,12 +94,15 @@ class _SandboxSheetsBaseTool(BaseTool):
     ) -> None:
         """Emit tool result event."""
         duration_ms = (time.time() - start_time) * 1000
-        self._emit_event("tool_result", {
-            "tool": self.name,
-            "action": action,
-            "success": success,
-            "duration_ms": round(duration_ms, 2),
-        })
+        self._emit_event(
+            "tool_result",
+            {
+                "tool": self.name,
+                "action": action,
+                "success": success,
+                "duration_ms": round(duration_ms, 2),
+            },
+        )
 
     def _ensure_openpyxl(self, sandbox) -> bool:
         """Ensure openpyxl is installed in sandbox."""
@@ -105,8 +111,7 @@ class _SandboxSheetsBaseTool(BaseTool):
             if result.exit_code != 0:
                 logger.info("[sandbox_sheets] Installing openpyxl...")
                 install_result = sandbox.commands.run(
-                    "pip install openpyxl xlsxwriter pandas",
-                    timeout=120
+                    "pip install openpyxl xlsxwriter pandas", timeout=120
                 )
                 return install_result.exit_code == 0
             return True
@@ -117,16 +122,13 @@ class _SandboxSheetsBaseTool(BaseTool):
 
 class CreateSpreadsheetInput(BaseModel):
     """Input for create_spreadsheet."""
+
     file_path: str = Field(
         description="Path for the spreadsheet file (e.g., 'reports/data.xlsx' or 'output.csv')"
     )
-    sheet_name: str = Field(
-        default="Sheet1",
-        description="Name of the initial sheet"
-    )
+    sheet_name: str = Field(default="Sheet1", description="Name of the initial sheet")
     headers: Optional[List[str]] = Field(
-        default=None,
-        description="Optional list of column headers"
+        default=None, description="Optional list of column headers"
     )
 
 
@@ -217,10 +219,9 @@ print("SUCCESS")
 
 class WriteDataInput(BaseModel):
     """Input for write_data."""
+
     file_path: str = Field(description="Path to the spreadsheet file")
-    data: List[List[Any]] = Field(
-        description="2D array of data to write (rows x columns)"
-    )
+    data: List[List[Any]] = Field(description="2D array of data to write (rows x columns)")
     start_row: int = Field(default=1, description="Starting row (1-based)")
     start_col: int = Field(default=1, description="Starting column (1-based)")
     sheet_name: Optional[str] = Field(default=None, description="Sheet name (for Excel)")
@@ -245,11 +246,14 @@ class SandboxWriteDataTool(_SandboxSheetsBaseTool):
         start_col: int = 1,
         sheet_name: Optional[str] = None,
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("write_data", {
-            "file_path": file_path,
-            "rows": len(data),
-            "cols": len(data[0]) if data else 0,
-        })
+        start_time = self._emit_tool_start(
+            "write_data",
+            {
+                "file_path": file_path,
+                "rows": len(data),
+                "cols": len(data[0]) if data else 0,
+            },
+        )
 
         try:
             sandbox = self._get_sandbox()
@@ -264,8 +268,7 @@ class SandboxWriteDataTool(_SandboxSheetsBaseTool):
                 lines = []
                 for row in data:
                     line = ",".join(
-                        f'"{str(cell)}"' if "," in str(cell) else str(cell)
-                        for cell in row
+                        f'"{str(cell)}"' if "," in str(cell) else str(cell) for cell in row
                     )
                     lines.append(line)
 
@@ -325,6 +328,7 @@ print("SUCCESS")
 
 class FormatCellsInput(BaseModel):
     """Input for format_cells."""
+
     file_path: str = Field(description="Path to the Excel file")
     start_row: int = Field(description="Starting row (1-based)")
     end_row: int = Field(description="Ending row (1-based)")
@@ -365,10 +369,13 @@ class SandboxFormatCellsTool(_SandboxSheetsBaseTool):
         border: bool = False,
         sheet_name: Optional[str] = None,
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("format_cells", {
-            "file_path": file_path,
-            "range": f"({start_row},{start_col}) to ({end_row},{end_col})",
-        })
+        start_time = self._emit_tool_start(
+            "format_cells",
+            {
+                "file_path": file_path,
+                "range": f"({start_row},{start_col}) to ({end_row},{end_col})",
+            },
+        )
 
         try:
             sandbox = self._get_sandbox()
@@ -442,13 +449,10 @@ print("SUCCESS")
 
 class CreateChartInput(BaseModel):
     """Input for create_chart."""
+
     file_path: str = Field(description="Path to the Excel file")
-    chart_type: str = Field(
-        description="Chart type: 'bar', 'line', 'pie', 'scatter', 'area'"
-    )
-    data_range: str = Field(
-        description="Data range in A1 notation (e.g., 'A1:D10')"
-    )
+    chart_type: str = Field(description="Chart type: 'bar', 'line', 'pie', 'scatter', 'area'")
+    data_range: str = Field(description="Data range in A1 notation (e.g., 'A1:D10')")
     title: str = Field(default="", description="Chart title")
     x_axis_title: str = Field(default="", description="X-axis title")
     y_axis_title: str = Field(default="", description="Y-axis title")
@@ -478,11 +482,14 @@ class SandboxCreateChartTool(_SandboxSheetsBaseTool):
         position: str = "E1",
         sheet_name: Optional[str] = None,
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("create_chart", {
-            "file_path": file_path,
-            "chart_type": chart_type,
-            "data_range": data_range,
-        })
+        start_time = self._emit_tool_start(
+            "create_chart",
+            {
+                "file_path": file_path,
+                "chart_type": chart_type,
+                "data_range": data_range,
+            },
+        )
 
         try:
             sandbox = self._get_sandbox()
@@ -561,6 +568,7 @@ print("SUCCESS")
 
 class AddSheetInput(BaseModel):
     """Input for add_sheet."""
+
     file_path: str = Field(description="Path to the Excel file")
     sheet_name: str = Field(description="Name for the new sheet")
     position: Optional[int] = Field(default=None, description="Position index (0-based)")
@@ -582,10 +590,13 @@ class SandboxAddSheetTool(_SandboxSheetsBaseTool):
         sheet_name: str,
         position: Optional[int] = None,
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("add_sheet", {
-            "file_path": file_path,
-            "sheet_name": sheet_name,
-        })
+        start_time = self._emit_tool_start(
+            "add_sheet",
+            {
+                "file_path": file_path,
+                "sheet_name": sheet_name,
+            },
+        )
 
         try:
             sandbox = self._get_sandbox()
@@ -644,6 +655,7 @@ print(f"Sheets: {{wb.sheetnames}}")
 
 class ReadSpreadsheetInput(BaseModel):
     """Input for read_spreadsheet."""
+
     file_path: str = Field(description="Path to the spreadsheet file")
     sheet_name: Optional[str] = Field(default=None, description="Sheet name (for Excel)")
     max_rows: int = Field(default=100, description="Maximum rows to read")
@@ -682,7 +694,7 @@ class SandboxReadSpreadsheetTool(_SandboxSheetsBaseTool):
                 content = sandbox.filesystem.read(full_path)
                 lines = content.strip().split("\n")
                 data = []
-                for line in lines[start_row-1:start_row-1+max_rows]:
+                for line in lines[start_row - 1 : start_row - 1 + max_rows]:
                     # Simple CSV parsing
                     row = []
                     in_quote = False
@@ -745,6 +757,7 @@ print(json.dumps({{"data": data, "sheets": wb.sheetnames}}))
 
 class AddFormulaInput(BaseModel):
     """Input for add_formula."""
+
     file_path: str = Field(description="Path to the Excel file")
     cell: str = Field(description="Cell reference (e.g., 'E1')")
     formula: str = Field(description="Excel formula (e.g., '=SUM(A1:A10)')")
@@ -769,11 +782,14 @@ class SandboxAddFormulaTool(_SandboxSheetsBaseTool):
         formula: str,
         sheet_name: Optional[str] = None,
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("add_formula", {
-            "file_path": file_path,
-            "cell": cell,
-            "formula": formula,
-        })
+        start_time = self._emit_tool_start(
+            "add_formula",
+            {
+                "file_path": file_path,
+                "cell": cell,
+                "formula": formula,
+            },
+        )
 
         try:
             sandbox = self._get_sandbox()
@@ -801,7 +817,7 @@ ws["{cell}"] = '{formula_escaped}'
 wb.save("{full_path}")
 print("SUCCESS")
 '''
-            result = sandbox.commands.run(f"python3 -c \"{python_code}\"", timeout=30)
+            result = sandbox.commands.run(f'python3 -c "{python_code}"', timeout=30)
             if "SUCCESS" not in result.stdout:
                 raise RuntimeError(f"Failed to add formula: {result.stderr}")
 

@@ -25,8 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 def create_pydantic_model_from_schema(
-    schema: Dict[str, Any],
-    model_name: str = "DynamicInput"
+    schema: Dict[str, Any], model_name: str = "DynamicInput"
 ) -> Type[BaseModel]:
     """
     Create a Pydantic model from a JSON schema.
@@ -62,28 +61,35 @@ def create_pydantic_model_from_schema(
             "number": float,
             "boolean": bool,
             "array": list,
-            "object": dict
+            "object": dict,
         }.get(prop_type, str)
 
         # Handle optional vs required
         if prop_name in required:
             if prop_default is not None:
-                fields[prop_name] = (python_type, Field(default=prop_default, description=prop_desc))
+                fields[prop_name] = (
+                    python_type,
+                    Field(default=prop_default, description=prop_desc),
+                )
             else:
                 fields[prop_name] = (python_type, Field(..., description=prop_desc))
         else:
             if prop_default is not None:
-                fields[prop_name] = (python_type, Field(default=prop_default, description=prop_desc))
+                fields[prop_name] = (
+                    python_type,
+                    Field(default=prop_default, description=prop_desc),
+                )
             else:
-                fields[prop_name] = (Optional[python_type], Field(default=None, description=prop_desc))
+                fields[prop_name] = (
+                    Optional[python_type],
+                    Field(default=None, description=prop_desc),
+                )
 
     return create_model(model_name, **fields)
 
 
 def weaver_tool_to_langchain(
-    weaver_tool: WeaverTool,
-    method_name: Optional[str] = None,
-    return_direct: bool = False
+    weaver_tool: WeaverTool, method_name: Optional[str] = None, return_direct: bool = False
 ) -> List[BaseTool]:
     """
     Convert WeaverTool instance to LangChain BaseTool(s).
@@ -142,8 +148,7 @@ def weaver_tool_to_langchain(
         # Create Pydantic input model
         try:
             InputModel = create_pydantic_model_from_schema(
-                parameters_schema,
-                model_name=f"{tool_name.replace('-', '_').title()}Input"
+                parameters_schema, model_name=f"{tool_name.replace('-', '_').title()}Input"
             )
         except Exception as e:
             logger.warning(f"Failed to create Pydantic model for {tool_name}: {e}")
@@ -157,7 +162,7 @@ def weaver_tool_to_langchain(
                 description=tool_desc,
                 func=create_wrapper(method),
                 args_schema=InputModel,
-                return_direct=return_direct
+                return_direct=return_direct,
             )
 
             langchain_tools.append(langchain_tool)
@@ -208,23 +213,20 @@ def wrap_langchain_tool_with_tool_result(langchain_tool: BaseTool) -> BaseTool:
                 success=False,
                 output=str(e),
                 error=str(e),
-                metadata={"error_type": type(e).__name__}
+                metadata={"error_type": type(e).__name__},
             )
             return tool_result.to_json()
 
     # Create new tool with wrapped function
     wrapped_tool = type(langchain_tool)(
-        name=langchain_tool.name,
-        description=langchain_tool.description,
-        func=wrapped_func
+        name=langchain_tool.name, description=langchain_tool.description, func=wrapped_func
     )
 
     return wrapped_tool
 
 
 def batch_convert_weaver_tools(
-    weaver_tools: List[WeaverTool],
-    return_direct: bool = False
+    weaver_tools: List[WeaverTool], return_direct: bool = False
 ) -> List[BaseTool]:
     """
     Convert multiple WeaverTool instances to LangChain tools in batch.
@@ -255,6 +257,7 @@ if __name__ == "__main__":
     # Import example tool
     import sys
     from pathlib import Path
+
     sys.path.insert(0, str(Path(__file__).parent.parent))
 
     from tools.examples.example_enhanced_tool import DataAnalysisTool, EnhancedSearchTool
@@ -277,11 +280,9 @@ if __name__ == "__main__":
 
     search_langchain = langchain_tools[0]  # search_web
     try:
-        result = search_langchain.invoke({
-            "query": "artificial intelligence",
-            "max_results": 3,
-            "search_type": "general"
-        })
+        result = search_langchain.invoke(
+            {"query": "artificial intelligence", "max_results": 3, "search_type": "general"}
+        )
         print(f"   Search result (first 200 chars):")
         print(f"   {result[:200]}...")
     except Exception as e:
@@ -291,10 +292,9 @@ if __name__ == "__main__":
     if len(langchain_tools) >= 4:
         analyze_langchain = langchain_tools[3]  # analyze_data
         try:
-            result = analyze_langchain.invoke({
-                "data": [1, 2, 3, 4, 5],
-                "operations": ["mean", "std"]
-            })
+            result = analyze_langchain.invoke(
+                {"data": [1, 2, 3, 4, 5], "operations": ["mean", "std"]}
+            )
             print(f"\n   Analysis result:")
             print(f"   {result}")
         except Exception as e:

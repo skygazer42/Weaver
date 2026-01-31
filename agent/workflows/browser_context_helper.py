@@ -22,7 +22,9 @@ def build_browser_context_hint(thread_id: str = "default") -> Optional[str]:
         return None
 
     links = page.links[:5] if getattr(page, "links", None) else []
-    links_text = "\n".join(f"- {l.get('text') or l.get('url')}" for l in links if isinstance(l, dict))
+    links_text = "\n".join(
+        f"- {l.get('text') or l.get('url')}" for l in links if isinstance(l, dict)
+    )
 
     hint = [
         "Browser context (for next step reasoning):",

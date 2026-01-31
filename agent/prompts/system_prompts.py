@@ -358,8 +358,12 @@ def get_agent_prompt(mode: str = "default", context: Dict = None) -> str:
     Defaults to deepsearch behavior pack if not specified.
     """
     context = context or {}
-    prompt_pack = context.get("prompt_pack") or getattr(settings, "prompt_pack", None) or "deepsearch"
-    prompt_variant = context.get("prompt_variant") or getattr(settings, "prompt_variant", None) or "full"
+    prompt_pack = (
+        context.get("prompt_pack") or getattr(settings, "prompt_pack", None) or "deepsearch"
+    )
+    prompt_variant = (
+        context.get("prompt_variant") or getattr(settings, "prompt_variant", None) or "full"
+    )
 
     if prompt_pack in ("deepsearch", "deepresearch"):
         return get_behavior_prompt(

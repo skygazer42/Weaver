@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 class AgentRunStatus(str, Enum):
     """Agent run status enumeration."""
+
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -37,6 +38,7 @@ class AgentRun:
 
     Tracks status, timing, metrics, and provides event streaming.
     """
+
     id: str
     thread_id: str
     status: AgentRunStatus = AgentRunStatus.PENDING

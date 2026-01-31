@@ -40,6 +40,7 @@ TASK_STORAGE_DIR = "data/tasks"
 
 class TaskStatus(str, Enum):
     """Task execution status."""
+
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -50,6 +51,7 @@ class TaskStatus(str, Enum):
 @dataclass
 class Section:
     """A section containing related tasks."""
+
     id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
     title: str = ""
     order: int = 0
@@ -58,6 +60,7 @@ class Section:
 @dataclass
 class Task:
     """A single task item."""
+
     id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
     content: str = ""
     status: TaskStatus = TaskStatus.PENDING
@@ -96,6 +99,7 @@ class TaskListManager:
 
         try:
             from agent.core.events import get_emitter_sync
+
             emitter = get_emitter_sync(self.thread_id)
             if emitter:
                 emitter.emit_sync(event_type, data)
@@ -109,14 +113,14 @@ class TaskListManager:
                 with open(self._storage_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
 
-                self.sections = [
-                    Section(**s) for s in data.get("sections", [])
-                ]
+                self.sections = [Section(**s) for s in data.get("sections", [])]
                 self.tasks = [
                     Task(**{**t, "status": TaskStatus(t.get("status", "pending"))})
                     for t in data.get("tasks", [])
                 ]
-                logger.debug(f"[task_list] Loaded {len(self.sections)} sections, {len(self.tasks)} tasks")
+                logger.debug(
+                    f"[task_list] Loaded {len(self.sections)} sections, {len(self.tasks)} tasks"
+                )
                 return True
         except Exception as e:
             logger.error(f"[task_list] Failed to load: {e}")
@@ -128,10 +132,7 @@ class TaskListManager:
             data = {
                 "thread_id": self.thread_id,
                 "sections": [asdict(s) for s in self.sections],
-                "tasks": [
-                    {**asdict(t), "status": t.status.value}
-                    for t in self.tasks
-                ],
+                "tasks": [{**asdict(t), "status": t.status.value} for t in self.tasks],
                 "updated_at": datetime.now().isoformat(),
             }
             with open(self._storage_path, "w", encoding="utf-8") as f:
@@ -151,10 +152,13 @@ class TaskListManager:
         self.sections.append(section)
         self.save()
 
-        self._emit_event("task_update", {
-            "action": "section_created",
-            "section": asdict(section),
-        })
+        self._emit_event(
+            "task_update",
+            {
+                "action": "section_created",
+                "section": asdict(section),
+            },
+        )
 
         return section
 
@@ -175,10 +179,13 @@ class TaskListManager:
         self.tasks.append(task)
         self.save()
 
-        self._emit_event("task_update", {
-            "action": "task_created",
-            "task": {**asdict(task), "status": task.status.value},
-        })
+        self._emit_event(
+            "task_update",
+            {
+                "action": "task_created",
+                "task": {**asdict(task), "status": task.status.value},
+            },
+        )
 
         return task
 
@@ -205,10 +212,13 @@ class TaskListManager:
 
                 self.save()
 
-                self._emit_event("task_update", {
-                    "action": "task_updated",
-                    "task": {**asdict(task), "status": task.status.value},
-                })
+                self._emit_event(
+                    "task_update",
+                    {
+                        "action": "task_updated",
+                        "task": {**asdict(task), "status": task.status.value},
+                    },
+                )
 
                 return task
         return None
@@ -229,10 +239,12 @@ class TaskListManager:
                 for t in self.tasks
                 if t.section_id == section.id
             ]
-            result.append({
-                "section": asdict(section),
-                "tasks": section_tasks,
-            })
+            result.append(
+                {
+                    "section": asdict(section),
+                    "tasks": section_tasks,
+                }
+            )
 
         # Tasks without section
         orphan_tasks = [
@@ -241,10 +253,12 @@ class TaskListManager:
             if not t.section_id or not any(s.id == t.section_id for s in self.sections)
         ]
         if orphan_tasks:
-            result.append({
-                "section": {"id": "default", "title": "Tasks", "order": -1},
-                "tasks": orphan_tasks,
-            })
+            result.append(
+                {
+                    "section": {"id": "default", "title": "Tasks", "order": -1},
+                    "tasks": orphan_tasks,
+                }
+            )
 
         return result
 
@@ -271,9 +285,12 @@ class TaskListManager:
         self.tasks = []
         self.save()
 
-        self._emit_event("task_update", {
-            "action": "cleared",
-        })
+        self._emit_event(
+            "task_update",
+            {
+                "action": "cleared",
+            },
+        )
 
 
 # Global task list managers by thread_id
@@ -296,6 +313,7 @@ def get_task_manager(thread_id: str) -> TaskListManager:
 
 class CreateTasksInput(BaseModel):
     """Input for creating tasks."""
+
     sections: List[Dict[str, Any]] = Field(
         description="List of sections with tasks. Each section has 'title' and 'tasks' (list of task content strings)."
     )
@@ -360,6 +378,7 @@ class CreateTasksTool(BaseTool):
 
 class ViewTasksInput(BaseModel):
     """Input for viewing tasks."""
+
     pass
 
 
@@ -381,6 +400,7 @@ class ViewTasksTool(BaseTool):
 
 class UpdateTaskInput(BaseModel):
     """Input for updating task status."""
+
     task_id: str = Field(description="ID of the task to update")
     status: str = Field(description="New status: pending, running, completed, failed, cancelled")
     progress: Optional[int] = Field(default=None, description="Progress percentage (0-100)")
@@ -433,6 +453,7 @@ class UpdateTaskTool(BaseTool):
 
 class GetNextTaskInput(BaseModel):
     """Input for getting next task."""
+
     pass
 
 

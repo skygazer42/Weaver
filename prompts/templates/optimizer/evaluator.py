@@ -102,13 +102,15 @@ def eval_planner_quality(results: List[Dict]) -> Tuple[float, List[Dict]]:
         if is_correct:
             correct += 1
 
-        annotated.append({
-            **item,
-            "generated_queries": generated,
-            "scores": scores,
-            "total_score": total_score,
-            "is_correct": is_correct
-        })
+        annotated.append(
+            {
+                **item,
+                "generated_queries": generated,
+                "scores": scores,
+                "total_score": total_score,
+                "is_correct": is_correct,
+            }
+        )
 
     accuracy = correct / len(results)
     logger.info(f"Planner evaluation: accuracy={accuracy:.2%}, total={len(results)}")
@@ -144,20 +146,19 @@ def eval_writer_quality(results: List[Dict]) -> Tuple[float, List[Dict]]:
         scores = {}
 
         # 1. 结构评分
-        has_headers = bool(re.search(r'^#{1,3}\s+.+', output, re.MULTILINE))
-        has_lists = bool(re.search(r'^[-*]\s+.+', output, re.MULTILINE)) or \
-                    bool(re.search(r'^\d+\.\s+.+', output, re.MULTILINE))
-        has_paragraphs = len(output.split('\n\n')) >= 2
+        has_headers = bool(re.search(r"^#{1,3}\s+.+", output, re.MULTILINE))
+        has_lists = bool(re.search(r"^[-*]\s+.+", output, re.MULTILINE)) or bool(
+            re.search(r"^\d+\.\s+.+", output, re.MULTILINE)
+        )
+        has_paragraphs = len(output.split("\n\n")) >= 2
 
         structure_score = (
-            (0.4 if has_headers else 0) +
-            (0.3 if has_lists else 0) +
-            (0.3 if has_paragraphs else 0)
+            (0.4 if has_headers else 0) + (0.3 if has_lists else 0) + (0.3 if has_paragraphs else 0)
         )
         scores["structure"] = structure_score
 
         # 2. 引用评分
-        citation_pattern = r'\[S\d+-\d+\]'
+        citation_pattern = r"\[S\d+-\d+\]"
         citations = re.findall(citation_pattern, output)
         if citations:
             unique_citations = len(set(citations))
@@ -179,7 +180,7 @@ def eval_writer_quality(results: List[Dict]) -> Tuple[float, List[Dict]]:
         # 4. 格式评分 (Markdown 语法)
         has_bold = "**" in output or "__" in output
         has_code = "`" in output
-        has_links = bool(re.search(r'\[.+\]\(.+\)', output))
+        has_links = bool(re.search(r"\[.+\]\(.+\)", output))
 
         format_features = sum([has_bold, has_code, has_links, has_headers])
         scores["format"] = min(1.0, format_features / 3)
@@ -193,14 +194,16 @@ def eval_writer_quality(results: List[Dict]) -> Tuple[float, List[Dict]]:
         if is_correct:
             correct += 1
 
-        annotated.append({
-            **item,
-            "scores": scores,
-            "total_score": total_score,
-            "is_correct": is_correct,
-            "word_count": word_count,
-            "citation_count": len(citations) if citations else 0
-        })
+        annotated.append(
+            {
+                **item,
+                "scores": scores,
+                "total_score": total_score,
+                "is_correct": is_correct,
+                "word_count": word_count,
+                "citation_count": len(citations) if citations else 0,
+            }
+        )
 
     accuracy = correct / len(results)
     logger.info(f"Writer evaluation: accuracy={accuracy:.2%}, total={len(results)}")
@@ -209,8 +212,7 @@ def eval_writer_quality(results: List[Dict]) -> Tuple[float, List[Dict]]:
 
 
 def eval_generic_quality(
-    results: List[Dict],
-    criteria: Dict[str, Dict[str, Any]] = None
+    results: List[Dict], criteria: Dict[str, Dict[str, Any]] = None
 ) -> Tuple[float, List[Dict]]:
     """
     通用质量评估函数
@@ -239,7 +241,7 @@ def eval_generic_quality(
         criteria = {
             "not_empty": {"type": "length", "min": 10, "weight": 0.3},
             "reasonable_length": {"type": "length", "min": 50, "max": 5000, "weight": 0.3},
-            "has_content": {"type": "contains", "values": ["。", ".", ",", "，"], "weight": 0.4}
+            "has_content": {"type": "contains", "values": ["。", ".", ",", "，"], "weight": 0.4},
         }
 
     correct = 0
@@ -295,22 +297,21 @@ def eval_generic_quality(
 
         # 计算加权总分
         total_weight = sum(c.get("weight", 1.0 / len(criteria)) for c in criteria.values())
-        total_score = sum(
-            scores[name] * criteria[name].get("weight", 1.0 / len(criteria))
-            for name in scores
-        ) / total_weight if total_weight > 0 else 0
+        total_score = (
+            sum(scores[name] * criteria[name].get("weight", 1.0 / len(criteria)) for name in scores)
+            / total_weight
+            if total_weight > 0
+            else 0
+        )
 
         is_correct = total_score >= 0.6
 
         if is_correct:
             correct += 1
 
-        annotated.append({
-            **item,
-            "scores": scores,
-            "total_score": total_score,
-            "is_correct": is_correct
-        })
+        annotated.append(
+            {**item, "scores": scores, "total_score": total_score, "is_correct": is_correct}
+        )
 
     accuracy = correct / len(results)
     return accuracy, annotated
@@ -354,9 +355,9 @@ def _parse_queries(output: str) -> List[str]:
     for line in output.split("\n"):
         line = line.strip()
         # 移除列表标记
-        line = re.sub(r'^[\d]+[.)]\s*', '', line)
-        line = re.sub(r'^[-*]\s*', '', line)
-        line = re.sub(r'^"(.+)"$', r'\1', line)
+        line = re.sub(r"^[\d]+[.)]\s*", "", line)
+        line = re.sub(r"^[-*]\s*", "", line)
+        line = re.sub(r'^"(.+)"$', r"\1", line)
         if line and len(line) > 5:
             queries.append(line)
 
@@ -371,30 +372,139 @@ def _extract_keywords(text: str) -> set:
     """
     # 简单的英文停用词
     stop_words = {
-        'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
-        'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
-        'should', 'may', 'might', 'must', 'shall', 'can', 'need', 'dare',
-        'ought', 'used', 'to', 'of', 'in', 'for', 'on', 'with', 'at', 'by',
-        'from', 'as', 'into', 'through', 'during', 'before', 'after', 'above',
-        'below', 'between', 'under', 'again', 'further', 'then', 'once', 'here',
-        'there', 'when', 'where', 'why', 'how', 'all', 'each', 'few', 'more',
-        'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'own',
-        'same', 'so', 'than', 'too', 'very', 'just', 'and', 'but', 'if', 'or',
-        'because', 'until', 'while', 'what', 'which', 'who', 'this', 'that',
-        'these', 'those', 'i', 'me', 'my', 'myself', 'we', 'our', 'ours'
+        "the",
+        "a",
+        "an",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "being",
+        "have",
+        "has",
+        "had",
+        "do",
+        "does",
+        "did",
+        "will",
+        "would",
+        "could",
+        "should",
+        "may",
+        "might",
+        "must",
+        "shall",
+        "can",
+        "need",
+        "dare",
+        "ought",
+        "used",
+        "to",
+        "of",
+        "in",
+        "for",
+        "on",
+        "with",
+        "at",
+        "by",
+        "from",
+        "as",
+        "into",
+        "through",
+        "during",
+        "before",
+        "after",
+        "above",
+        "below",
+        "between",
+        "under",
+        "again",
+        "further",
+        "then",
+        "once",
+        "here",
+        "there",
+        "when",
+        "where",
+        "why",
+        "how",
+        "all",
+        "each",
+        "few",
+        "more",
+        "most",
+        "other",
+        "some",
+        "such",
+        "no",
+        "nor",
+        "not",
+        "only",
+        "own",
+        "same",
+        "so",
+        "than",
+        "too",
+        "very",
+        "just",
+        "and",
+        "but",
+        "if",
+        "or",
+        "because",
+        "until",
+        "while",
+        "what",
+        "which",
+        "who",
+        "this",
+        "that",
+        "these",
+        "those",
+        "i",
+        "me",
+        "my",
+        "myself",
+        "we",
+        "our",
+        "ours",
     }
 
     # 中文停用词
     chinese_stop_words = {
-        '的', '了', '和', '是', '就', '都', '而', '及', '与', '着',
-        '或', '一个', '没有', '我们', '你们', '他们', '它们', '这个',
-        '那个', '什么', '怎么', '如何', '为什么', '哪里', '哪个'
+        "的",
+        "了",
+        "和",
+        "是",
+        "就",
+        "都",
+        "而",
+        "及",
+        "与",
+        "着",
+        "或",
+        "一个",
+        "没有",
+        "我们",
+        "你们",
+        "他们",
+        "它们",
+        "这个",
+        "那个",
+        "什么",
+        "怎么",
+        "如何",
+        "为什么",
+        "哪里",
+        "哪个",
     }
 
     stop_words.update(chinese_stop_words)
 
     # 分词并过滤
-    words = re.findall(r'\b\w+\b', text.lower())
+    words = re.findall(r"\b\w+\b", text.lower())
     keywords = {w for w in words if w not in stop_words and len(w) > 1}
 
     return keywords

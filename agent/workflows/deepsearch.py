@@ -116,12 +116,12 @@ def _format_results(results: List[Dict[str, Any]]) -> str:
             textwrap.dedent(
                 f"""\
                 [{idx}]
-                标题: {r.get('title') or 'N/A'}
-                日期: {r.get('published_date') or 'unknown'}
-                评分: {r.get('score', 0)}
-                链接: {r.get('url') or ''}
-                摘要: {r.get('summary') or r.get('snippet') or ''}
-                原文: { (r.get('raw_excerpt') or '')[:500] }
+                标题: {r.get("title") or "N/A"}
+                日期: {r.get("published_date") or "unknown"}
+                评分: {r.get("score", 0)}
+                链接: {r.get("url") or ""}
+                摘要: {r.get("summary") or r.get("snippet") or ""}
+                原文: {(r.get("raw_excerpt") or "")[:500]}
                 """
             ).strip()
         )
@@ -138,9 +138,7 @@ def _generate_queries(
     config: Dict[str, Any],
 ) -> List[str]:
     # Use user role to avoid providers that reject the newer "developer" role
-    prompt = ChatPromptTemplate.from_messages(
-        [("user", formulate_query_prompt)]
-    )
+    prompt = ChatPromptTemplate.from_messages([("user", formulate_query_prompt)])
     msg = prompt.format_messages(
         topic=topic,
         have_query=", ".join(have_query) or "[]",
@@ -240,7 +238,9 @@ def _summarize_new_knowledge(
         response = llm.invoke(msg, config=config)
     except BadRequestError as e:
         if "Model Not Exist" in str(e) and fallback_llm:
-            logger.warning(f"[deepsearch] critic model not found (summarize), fallback to primary: {e}")
+            logger.warning(
+                f"[deepsearch] critic model not found (summarize), fallback to primary: {e}"
+            )
             response = fallback_llm.invoke(msg, config=config)
         else:
             raise
@@ -406,9 +406,7 @@ def run_deepsearch(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, A
         chosen_urls = _pick_relevant_urls(
             critic_llm, fallback_llm, topic, summary_notes, combined_results, top_urls, config
         )
-        chosen_results = [
-            r for r in combined_results if r.get("url") in set(chosen_urls)
-        ]
+        chosen_results = [r for r in combined_results if r.get("url") in set(chosen_urls)]
         if not chosen_results:
             chosen_results = sorted(
                 combined_results, key=lambda r: r.get("score", 0), reverse=True

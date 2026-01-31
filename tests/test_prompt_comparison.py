@@ -36,16 +36,20 @@ def test_prompt_lengths():
 
     # Enhanced prompts
     enhanced_mgr = PromptManager(prompt_style="enhanced")
-    enhanced_agent = enhanced_mgr.get_agent_prompt(context={
-        "current_time": datetime.now(),
-        "enabled_tools": ["web_search", "execute_python_code", "crawl_url"]
-    })
+    enhanced_agent = enhanced_mgr.get_agent_prompt(
+        context={
+            "current_time": datetime.now(),
+            "enabled_tools": ["web_search", "execute_python_code", "crawl_url"],
+        }
+    )
     enhanced_writer = enhanced_mgr.get_writer_prompt()
 
     print(f"\n📈 Enhanced Prompts:")
-    print(f"  Agent:  {len(enhanced_agent):>6} chars (~{len(enhanced_agent)//4} tokens)")
-    print(f"  Writer: {len(enhanced_writer):>6} chars (~{len(enhanced_writer)//4} tokens)")
-    print(f"  Total:  {len(enhanced_agent) + len(enhanced_writer):>6} chars (~{(len(enhanced_agent) + len(enhanced_writer))//4} tokens)")
+    print(f"  Agent:  {len(enhanced_agent):>6} chars (~{len(enhanced_agent) // 4} tokens)")
+    print(f"  Writer: {len(enhanced_writer):>6} chars (~{len(enhanced_writer) // 4} tokens)")
+    print(
+        f"  Total:  {len(enhanced_agent) + len(enhanced_writer):>6} chars (~{(len(enhanced_agent) + len(enhanced_writer)) // 4} tokens)"
+    )
 
     # Comparison
     agent_increase = ((len(enhanced_agent) - len(simple_agent)) / len(simple_agent)) * 100
@@ -66,7 +70,9 @@ def test_prompt_lengths():
     print(f"\n💰 Cost per Call (GPT-4 input rates):")
     print(f"  Simple:   ${simple_cost:.6f}")
     print(f"  Enhanced: ${enhanced_cost:.6f}")
-    print(f"  Increase: ${enhanced_cost - simple_cost:.6f} (+{((enhanced_cost - simple_cost)/simple_cost)*100:.1f}%)")
+    print(
+        f"  Increase: ${enhanced_cost - simple_cost:.6f} (+{((enhanced_cost - simple_cost) / simple_cost) * 100:.1f}%)"
+    )
 
     print(f"\n💸 Cost for 1000 Calls:")
     print(f"  Simple:   ${simple_cost * 1000:.4f}")
@@ -82,10 +88,12 @@ def test_prompt_content():
 
     # Enhanced Agent Prompt
     enhanced_mgr = PromptManager(prompt_style="enhanced")
-    enhanced_agent = enhanced_mgr.get_agent_prompt(context={
-        "current_time": datetime.now(),
-        "enabled_tools": ["web_search", "execute_python_code"]
-    })
+    enhanced_agent = enhanced_mgr.get_agent_prompt(
+        context={
+            "current_time": datetime.now(),
+            "enabled_tools": ["web_search", "execute_python_code"],
+        }
+    )
 
     print("\n🎯 Enhanced Agent Prompt (first 500 chars):")
     print("-" * 80)
@@ -143,22 +151,14 @@ def test_context_injection():
 
     # Test with different contexts
     contexts = [
-        {
-            "name": "Basic",
-            "context": None
-        },
-        {
-            "name": "With Time",
-            "context": {
-                "current_time": datetime.now()
-            }
-        },
+        {"name": "Basic", "context": None},
+        {"name": "With Time", "context": {"current_time": datetime.now()}},
         {
             "name": "With Time + Tools",
             "context": {
                 "current_time": datetime.now(),
-                "enabled_tools": ["web_search", "execute_python_code", "crawl_url"]
-            }
+                "enabled_tools": ["web_search", "execute_python_code", "crawl_url"],
+            },
         },
     ]
 
@@ -227,6 +227,7 @@ def run_all_tests():
     except Exception as e:
         print(f"\n❌ TEST FAILED: {e}")
         import traceback
+
         traceback.print_exc()
 
 

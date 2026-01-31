@@ -26,7 +26,7 @@ async def test_chat_stream_smoke():
         payload = {
             "messages": [{"role": "user", "content": "Hello, just say hi."}],
             "stream": False,
-            "model": "gpt-4o-mini"
+            "model": "gpt-4o-mini",
         }
         resp = await ac.post("/api/chat", json=payload)
         assert resp.status_code == 200

@@ -22,6 +22,7 @@ from tools.core.base import ToolResult, WeaverTool, tool_schema
 
 try:
     from e2b_code_interpreter import Sandbox  # type: ignore
+
     E2B_AVAILABLE = True
 except Exception:  # pragma: no cover
     Sandbox = None  # type: ignore[assignment]
@@ -67,18 +68,18 @@ class CodeExecutorTool(WeaverTool):
             "properties": {
                 "code": {
                     "type": "string",
-                    "description": "Python code to execute. Can include imports, data processing, matplotlib plots, etc."
+                    "description": "Python code to execute. Can include imports, data processing, matplotlib plots, etc.",
                 },
                 "timeout": {
                     "type": "integer",
                     "description": "Execution timeout in seconds",
                     "default": 30,
                     "minimum": 1,
-                    "maximum": 300
-                }
+                    "maximum": 300,
+                },
             },
-            "required": ["code"]
-        }
+            "required": ["code"],
+        },
     )
     def execute(self, code: str, timeout: int = 30) -> ToolResult:
         """
@@ -94,20 +95,18 @@ class CodeExecutorTool(WeaverTool):
         if not E2B_AVAILABLE:
             return self.fail_response(
                 "E2B code interpreter not installed. Install with: pip install e2b-code-interpreter",
-                metadata={"error_type": "DependencyError"}
+                metadata={"error_type": "DependencyError"},
             )
 
         api_key = (self.api_key or "").strip()
         if not api_key or api_key in _E2B_PLACEHOLDER_KEYS:
             return self.fail_response(
-                "E2B API key not configured",
-                metadata={"config_required": "E2B_API_KEY"}
+                "E2B API key not configured", metadata={"config_required": "E2B_API_KEY"}
             )
 
         if not code or not code.strip():
             return self.fail_response(
-                "Empty code provided",
-                metadata={"error_type": "ValidationError"}
+                "Empty code provided", metadata={"error_type": "ValidationError"}
             )
 
         try:
@@ -125,18 +124,22 @@ class CodeExecutorTool(WeaverTool):
                 images = []
                 if execution.results:
                     for res in execution.results:
-                        if hasattr(res, 'png') and res.png:
-                            images.append({
-                                "format": "png",
-                                "data": res.png,  # Base64 encoded
-                                "type": "image"
-                            })
-                        elif hasattr(res, 'jpeg') and res.jpeg:
-                            images.append({
-                                "format": "jpeg",
-                                "data": res.jpeg,  # Base64 encoded
-                                "type": "image"
-                            })
+                        if hasattr(res, "png") and res.png:
+                            images.append(
+                                {
+                                    "format": "png",
+                                    "data": res.png,  # Base64 encoded
+                                    "type": "image",
+                                }
+                            )
+                        elif hasattr(res, "jpeg") and res.jpeg:
+                            images.append(
+                                {
+                                    "format": "jpeg",
+                                    "data": res.jpeg,  # Base64 encoded
+                                    "type": "image",
+                                }
+                            )
 
                 # Build result data
                 result_data = {
@@ -146,7 +149,7 @@ class CodeExecutorTool(WeaverTool):
                     "error": error,
                     "images": images,
                     "has_output": bool(stdout or stderr),
-                    "has_images": len(images) > 0
+                    "has_images": len(images) > 0,
                 }
 
                 # Determine output message
@@ -154,7 +157,9 @@ class CodeExecutorTool(WeaverTool):
                     if stdout:
                         output_msg = f"Code executed successfully.\n\nOutput:\n{stdout}"
                     elif images:
-                        output_msg = f"Code executed successfully. Generated {len(images)} image(s)."
+                        output_msg = (
+                            f"Code executed successfully. Generated {len(images)} image(s)."
+                        )
                     else:
                         output_msg = "Code executed successfully with no output."
 
@@ -164,12 +169,12 @@ class CodeExecutorTool(WeaverTool):
                     return self.success_response(
                         result_data,
                         metadata={
-                            "execution_time_ms": getattr(execution, 'execution_time', None),
+                            "execution_time_ms": getattr(execution, "execution_time", None),
                             "has_stdout": bool(stdout),
                             "has_stderr": bool(stderr),
                             "image_count": len(images),
-                            "sandbox_id": getattr(sandbox, 'id', None)
-                        }
+                            "sandbox_id": getattr(sandbox, "id", None),
+                        },
                     )
                 else:
                     error_msg = f"Code execution failed: {error}"
@@ -181,18 +186,15 @@ class CodeExecutorTool(WeaverTool):
                         metadata={
                             "error_type": "ExecutionError",
                             "stderr": stderr,
-                            "has_partial_output": bool(stdout)
-                        }
+                            "has_partial_output": bool(stdout),
+                        },
                     )
 
         except Exception as e:
             logger.error(f"Code execution error: {str(e)}")
             return self.fail_response(
                 f"Sandbox error: {str(e)}",
-                metadata={
-                    "error_type": type(e).__name__,
-                    "code_length": len(code)
-                }
+                metadata={"error_type": type(e).__name__, "code_length": len(code)},
             )
 
     @tool_schema(
@@ -203,32 +205,24 @@ class CodeExecutorTool(WeaverTool):
             "properties": {
                 "data": {
                     "type": "object",
-                    "description": "Data to visualize (dict or JSON object)"
+                    "description": "Data to visualize (dict or JSON object)",
                 },
                 "chart_type": {
                     "type": "string",
                     "enum": ["bar", "line", "pie", "scatter", "histogram"],
                     "description": "Type of chart to create",
-                    "default": "bar"
+                    "default": "bar",
                 },
                 "title": {
                     "type": "string",
                     "description": "Chart title",
-                    "default": "Data Visualization"
+                    "default": "Data Visualization",
                 },
-                "x_label": {
-                    "type": "string",
-                    "description": "X-axis label",
-                    "default": ""
-                },
-                "y_label": {
-                    "type": "string",
-                    "description": "Y-axis label",
-                    "default": ""
-                }
+                "x_label": {"type": "string", "description": "X-axis label", "default": ""},
+                "y_label": {"type": "string", "description": "Y-axis label", "default": ""},
             },
-            "required": ["data"]
-        }
+            "required": ["data"],
+        },
     )
     def visualize(
         self,
@@ -236,7 +230,7 @@ class CodeExecutorTool(WeaverTool):
         chart_type: str = "bar",
         title: str = "Data Visualization",
         x_label: str = "",
-        y_label: str = ""
+        y_label: str = "",
     ) -> ToolResult:
         """
         Create a data visualization.
@@ -371,7 +365,7 @@ plt.show()
         else:
             return self.fail_response(
                 f"Unsupported chart type: {chart_type}",
-                metadata={"supported_types": ["bar", "line", "pie", "scatter", "histogram"]}
+                metadata={"supported_types": ["bar", "line", "pie", "scatter", "histogram"]},
             )
 
         # Execute the generated code
@@ -410,7 +404,7 @@ def execute_python_code(code: str) -> Dict[str, Any]:
                 "stdout": result.output,
                 "stderr": "",
                 "error": None,
-                "image": None
+                "image": None,
             }
     else:
         return {
@@ -418,7 +412,7 @@ def execute_python_code(code: str) -> Dict[str, Any]:
             "stdout": "",
             "stderr": result.error or "",
             "error": result.error,
-            "image": None
+            "image": None,
         }
 
 
@@ -440,20 +434,14 @@ def create_visualization(data: Dict[str, Any], chart_type: str = "bar") -> Dict[
         try:
             return json.loads(result.output)
         except json.JSONDecodeError:
-            return {
-                "success": True,
-                "stdout": "",
-                "stderr": "",
-                "error": None,
-                "image": None
-            }
+            return {"success": True, "stdout": "", "stderr": "", "error": None, "image": None}
     else:
         return {
             "success": False,
             "stdout": "",
             "stderr": result.error or "",
             "error": result.error,
-            "image": None
+            "image": None,
         }
 
 

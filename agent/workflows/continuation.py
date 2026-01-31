@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 
 # ==================== Continuation State ====================
 
+
 @dataclass
 class ContinuationState:
     """
@@ -78,19 +79,19 @@ class ContinuationState:
                 self.failed_tool_calls += 1
 
             # Extract function name from different formats
-            if hasattr(call, 'function_name'):
+            if hasattr(call, "function_name"):
                 function_name = call.function_name
             elif isinstance(call, dict):
-                function_name = call.get('name', call.get('function', {}).get('name', 'unknown'))
+                function_name = call.get("name", call.get("function", {}).get("name", "unknown"))
             else:
-                function_name = 'unknown'
+                function_name = "unknown"
 
             # Record in history
             call_record = {
                 "iteration": self.iteration_count,
                 "function_name": function_name,
                 "success": result.success,
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now().isoformat(),
             }
             self.tool_call_history.append(call_record)
 
@@ -111,7 +112,7 @@ class ContinuationState:
             "finish_reasons": self.finish_reasons,
             "tool_call_history": self.tool_call_history,
             "started_at": self.started_at,
-            "last_iteration_at": self.last_iteration_at
+            "last_iteration_at": self.last_iteration_at,
         }
 
     def summary(self) -> str:
@@ -125,6 +126,7 @@ class ContinuationState:
 
 
 # ==================== Continuation Decision ====================
+
 
 class ContinuationDecider:
     """
@@ -148,7 +150,7 @@ class ContinuationDecider:
         max_iterations: int = 25,
         continue_on_tool_calls: bool = True,
         continue_on_length: bool = False,
-        stop_on_tool_failure: bool = False
+        stop_on_tool_failure: bool = False,
     ):
         """
         Initialize continuation decider.
@@ -169,7 +171,7 @@ class ContinuationDecider:
         state: ContinuationState,
         finish_reason: Optional[str],
         has_tool_calls: bool,
-        tool_results: Optional[List[ToolResult]] = None
+        tool_results: Optional[List[ToolResult]] = None,
     ) -> tuple[bool, Optional[str]]:
         """
         Determine if continuation should happen.
@@ -219,6 +221,7 @@ class ContinuationDecider:
 
 # ==================== Result Injector ====================
 
+
 class ToolResultInjector:
     """
     Injects tool results back into the conversation.
@@ -231,7 +234,7 @@ class ToolResultInjector:
 
     def __init__(
         self,
-        strategy: Literal["user_message", "assistant_message", "tool_message"] = "user_message"
+        strategy: Literal["user_message", "assistant_message", "tool_message"] = "user_message",
     ):
         """
         Initialize result injector.
@@ -246,7 +249,7 @@ class ToolResultInjector:
         messages: List[Dict[str, Any]],
         tool_calls: List[Any],
         tool_results: List[ToolResult],
-        format_type: Literal["xml", "native"] = "xml"
+        format_type: Literal["xml", "native"] = "xml",
     ) -> List[Dict[str, Any]]:
         """
         Inject tool results into message list.
@@ -274,10 +277,7 @@ class ToolResultInjector:
             raise ValueError(f"Unknown injection strategy: {self.strategy}")
 
     def _inject_as_user_message(
-        self,
-        messages: List[Dict[str, Any]],
-        tool_calls: List[Any],
-        tool_results: List[ToolResult]
+        self, messages: List[Dict[str, Any]], tool_calls: List[Any], tool_results: List[ToolResult]
     ) -> List[Dict[str, Any]]:
         """
         Inject results as user messages.
@@ -289,12 +289,12 @@ class ToolResultInjector:
         result_parts = []
         for call, result in zip(tool_calls, tool_results):
             # Extract function name from different formats
-            if hasattr(call, 'function_name'):
+            if hasattr(call, "function_name"):
                 function_name = call.function_name
             elif isinstance(call, dict):
-                function_name = call.get('name', call.get('function', {}).get('name', 'unknown'))
+                function_name = call.get("name", call.get("function", {}).get("name", "unknown"))
             else:
-                function_name = 'unknown'
+                function_name = "unknown"
 
             result_parts.append(f"<tool_result name='{function_name}'>")
 
@@ -311,18 +311,12 @@ class ToolResultInjector:
         result_content = "\n".join(result_parts)
 
         # Inject as user message
-        messages.append({
-            "role": "user",
-            "content": result_content
-        })
+        messages.append({"role": "user", "content": result_content})
 
         return messages
 
     def _inject_as_assistant_message(
-        self,
-        messages: List[Dict[str, Any]],
-        tool_calls: List[Any],
-        tool_results: List[ToolResult]
+        self, messages: List[Dict[str, Any]], tool_calls: List[Any], tool_results: List[ToolResult]
     ) -> List[Dict[str, Any]]:
         """
         Inject results as assistant messages.
@@ -333,30 +327,24 @@ class ToolResultInjector:
         result_parts = []
         for call, result in zip(tool_calls, tool_results):
             # Extract function name from different formats
-            if hasattr(call, 'function_name'):
+            if hasattr(call, "function_name"):
                 function_name = call.function_name
             elif isinstance(call, dict):
-                function_name = call.get('name', call.get('function', {}).get('name', 'unknown'))
+                function_name = call.get("name", call.get("function", {}).get("name", "unknown"))
             else:
-                function_name = 'unknown'
+                function_name = "unknown"
 
             if result.success:
                 result_parts.append(f"Tool '{function_name}' completed successfully.")
             else:
                 result_parts.append(f"Tool '{function_name}' failed: {result.error}")
 
-        messages.append({
-            "role": "assistant",
-            "content": "\n".join(result_parts)
-        })
+        messages.append({"role": "assistant", "content": "\n".join(result_parts)})
 
         return messages
 
     def _inject_as_tool_message(
-        self,
-        messages: List[Dict[str, Any]],
-        tool_calls: List[Any],
-        tool_results: List[ToolResult]
+        self, messages: List[Dict[str, Any]], tool_calls: List[Any], tool_results: List[ToolResult]
     ) -> List[Dict[str, Any]]:
         """
         Inject results as tool messages.
@@ -366,27 +354,30 @@ class ToolResultInjector:
 
         for call, result in zip(tool_calls, tool_results):
             # Extract function name and ID from different formats
-            if hasattr(call, 'function_name'):
+            if hasattr(call, "function_name"):
                 function_name = call.function_name
-                call_id = getattr(call, 'id', f"call_{function_name}")
+                call_id = getattr(call, "id", f"call_{function_name}")
             elif isinstance(call, dict):
-                function_name = call.get('name', call.get('function', {}).get('name', 'unknown'))
-                call_id = call.get('id', f"call_{function_name}")
+                function_name = call.get("name", call.get("function", {}).get("name", "unknown"))
+                call_id = call.get("id", f"call_{function_name}")
             else:
-                function_name = 'unknown'
-                call_id = 'call_unknown'
+                function_name = "unknown"
+                call_id = "call_unknown"
 
-            messages.append({
-                "role": "tool",
-                "tool_call_id": call_id,
-                "name": function_name,
-                "content": result.output if result.success else f"Error: {result.error}"
-            })
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": call_id,
+                    "name": function_name,
+                    "content": result.output if result.success else f"Error: {result.error}",
+                }
+            )
 
         return messages
 
 
 # ==================== Continuation Handler ====================
+
 
 class ContinuationHandler:
     """
@@ -402,7 +393,7 @@ class ContinuationHandler:
     def __init__(
         self,
         decider: Optional[ContinuationDecider] = None,
-        injector: Optional[ToolResultInjector] = None
+        injector: Optional[ToolResultInjector] = None,
     ):
         """
         Initialize continuation handler.
@@ -420,7 +411,7 @@ class ContinuationHandler:
         llm_callable: Callable,
         tool_executor: Callable,
         initial_response: Any,
-        session_id: str = "default"
+        session_id: str = "default",
     ) -> Dict[str, Any]:
         """
         Handle auto-continuation loop.
@@ -459,7 +450,7 @@ class ContinuationHandler:
                 state=state,
                 finish_reason=finish_reason,
                 has_tool_calls=len(tool_calls) > 0,
-                tool_results=None
+                tool_results=None,
             )
 
             if not should_continue:
@@ -481,9 +472,7 @@ class ContinuationHandler:
 
                 # Inject results back into conversation
                 messages = self.injector.inject_results(
-                    messages=messages,
-                    tool_calls=tool_calls,
-                    tool_results=tool_results
+                    messages=messages, tool_calls=tool_calls, tool_results=tool_results
                 )
 
             # Increment iteration
@@ -509,7 +498,7 @@ class ContinuationHandler:
             "continuation_state": state.to_dict(),
             "total_iterations": state.iteration_count,
             "stop_reason": state.stop_reason,
-            "messages": messages
+            "messages": messages,
         }
 
     def _extract_finish_reason(self, response: Any) -> Optional[str]:
@@ -520,18 +509,18 @@ class ContinuationHandler:
         """
 
         # OpenAI format
-        if hasattr(response, 'choices') and response.choices:
+        if hasattr(response, "choices") and response.choices:
             return response.choices[0].finish_reason
 
         # Dict format
         if isinstance(response, dict):
-            if 'choices' in response and response['choices']:
-                return response['choices'][0].get('finish_reason')
-            if 'finish_reason' in response:
-                return response['finish_reason']
+            if "choices" in response and response["choices"]:
+                return response["choices"][0].get("finish_reason")
+            if "finish_reason" in response:
+                return response["finish_reason"]
 
         # Anthropic format
-        if hasattr(response, 'stop_reason'):
+        if hasattr(response, "stop_reason"):
             return response.stop_reason
 
         return None
@@ -546,19 +535,19 @@ class ContinuationHandler:
         tool_calls = []
 
         # Native format (OpenAI)
-        if hasattr(response, 'tool_calls') and response.tool_calls:
+        if hasattr(response, "tool_calls") and response.tool_calls:
             tool_calls.extend(response.tool_calls)
 
         # Dict format
         if isinstance(response, dict):
-            if 'tool_calls' in response:
-                tool_calls.extend(response['tool_calls'])
+            if "tool_calls" in response:
+                tool_calls.extend(response["tool_calls"])
 
             # Check in choices
-            if 'choices' in response and response['choices']:
-                message = response['choices'][0].get('message', {})
-                if 'tool_calls' in message:
-                    tool_calls.extend(message['tool_calls'])
+            if "choices" in response and response["choices"]:
+                message = response["choices"][0].get("message", {})
+                if "tool_calls" in message:
+                    tool_calls.extend(message["tool_calls"])
 
         # XML format - would need XMLToolParser
         # This is handled separately in the response handler
@@ -580,7 +569,8 @@ if __name__ == "__main__":
     state.add_finish_reason("tool_calls")
 
     from tools.core.base import ToolResult
-    mock_call = type('MockCall', (), {'function_name': 'test_tool'})()
+
+    mock_call = type("MockCall", (), {"function_name": "test_tool"})()
     mock_result = ToolResult(success=True, output="Test output")
     state.add_tool_calls([mock_call], [mock_result])
 
@@ -599,9 +589,7 @@ if __name__ == "__main__":
 
     for finish_reason, has_tools, description in test_cases:
         state = ContinuationState()
-        should_continue, stop_reason = decider.should_continue(
-            state, finish_reason, has_tools
-        )
+        should_continue, stop_reason = decider.should_continue(state, finish_reason, has_tools)
         status = "[CONTINUE]" if should_continue else f"[STOP: {stop_reason}]"
         print(f"  {status} {description}")
 
@@ -611,19 +599,15 @@ if __name__ == "__main__":
 
     messages = [
         {"role": "user", "content": "Hello"},
-        {"role": "assistant", "content": "Let me search for that."}
+        {"role": "assistant", "content": "Let me search for that."},
     ]
 
-    mock_call = type('MockCall', (), {'function_name': 'search_web'})()
+    mock_call = type("MockCall", (), {"function_name": "search_web"})()
     mock_result = ToolResult(
-        success=True,
-        output="Search results here",
-        metadata={"source": "test"}
+        success=True, output="Search results here", metadata={"source": "test"}
     )
 
-    updated_messages = injector.inject_results(
-        messages, [mock_call], [mock_result]
-    )
+    updated_messages = injector.inject_results(messages, [mock_call], [mock_result])
 
     print(f"  Injected {len(updated_messages) - len(messages)} message(s)")
     print(f"  Last message role: {updated_messages[-1]['role']}")

@@ -80,38 +80,20 @@ def create_research_graph(checkpointer=None, interrupt_before=None, store=None):
         return "clarify"
 
     workflow.add_conditional_edges(
-        "router",
-        route_decision,
-        ["direct_answer", "agent", "web_plan", "clarify", "deepsearch"]
+        "router", route_decision, ["direct_answer", "agent", "web_plan", "clarify", "deepsearch"]
     )
 
     def after_clarify(state: AgentState) -> str:
         return "human_review" if state.get("needs_clarification") else "planner"
 
-    workflow.add_conditional_edges(
-        "clarify",
-        after_clarify,
-        ["planner", "human_review"]
-    )
+    workflow.add_conditional_edges("clarify", after_clarify, ["planner", "human_review"])
 
     # Planning path (agent + deep)
-    workflow.add_conditional_edges(
-        "planner",
-        initiate_research,
-        ["perform_parallel_search"]
-    )
-    workflow.add_conditional_edges(
-        "refine_plan",
-        initiate_research,
-        ["perform_parallel_search"]
-    )
+    workflow.add_conditional_edges("planner", initiate_research, ["perform_parallel_search"])
+    workflow.add_conditional_edges("refine_plan", initiate_research, ["perform_parallel_search"])
 
     # Web search only path
-    workflow.add_conditional_edges(
-        "web_plan",
-        initiate_research,
-        ["perform_parallel_search"]
-    )
+    workflow.add_conditional_edges("web_plan", initiate_research, ["perform_parallel_search"])
 
     # Fan-in: All parallel searches feed into the writer
     workflow.add_edge("perform_parallel_search", "writer")
@@ -119,11 +101,7 @@ def create_research_graph(checkpointer=None, interrupt_before=None, store=None):
     def after_writer(state: AgentState) -> str:
         return "evaluator" if state.get("route") == "deep" else "human_review"
 
-    workflow.add_conditional_edges(
-        "writer",
-        after_writer,
-        ["evaluator", "human_review"]
-    )
+    workflow.add_conditional_edges("writer", after_writer, ["evaluator", "human_review"])
 
     def after_evaluator(state: AgentState) -> str:
         """
@@ -166,9 +144,7 @@ def create_research_graph(checkpointer=None, interrupt_before=None, store=None):
         return "reviser"
 
     workflow.add_conditional_edges(
-        "evaluator",
-        after_evaluator,
-        ["refine_plan", "reviser", "human_review"]
+        "evaluator", after_evaluator, ["refine_plan", "reviser", "human_review"]
     )
 
     # Reviser rewrites the report and goes back to evaluator

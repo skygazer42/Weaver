@@ -33,28 +33,96 @@ logger = logging.getLogger(__name__)
 
 # Transition types supported by python-pptx
 TransitionType = Literal[
-    "none", "fade", "push", "wipe", "split", "reveal",
-    "random_bars", "shape", "uncover", "cover", "flash"
+    "none",
+    "fade",
+    "push",
+    "wipe",
+    "split",
+    "reveal",
+    "random_bars",
+    "shape",
+    "uncover",
+    "cover",
+    "flash",
 ]
 
 # Color scheme presets
 ColorScheme = Literal[
-    "default", "blue", "green", "red", "purple", "orange",
-    "dark", "light", "corporate", "creative"
+    "default", "blue", "green", "red", "purple", "orange", "dark", "light", "corporate", "creative"
 ]
 
 # Color scheme definitions (RGB hex values)
 COLOR_SCHEMES = {
-    "default": {"primary": "4472C4", "secondary": "ED7D31", "accent": "A5A5A5", "background": "FFFFFF", "text": "000000"},
-    "blue": {"primary": "1F4E79", "secondary": "2E75B6", "accent": "BDD7EE", "background": "FFFFFF", "text": "1F4E79"},
-    "green": {"primary": "375623", "secondary": "70AD47", "accent": "C6E0B4", "background": "FFFFFF", "text": "375623"},
-    "red": {"primary": "C00000", "secondary": "FF5050", "accent": "FFCCCC", "background": "FFFFFF", "text": "C00000"},
-    "purple": {"primary": "7030A0", "secondary": "9966FF", "accent": "E6CCFF", "background": "FFFFFF", "text": "7030A0"},
-    "orange": {"primary": "C65911", "secondary": "ED7D31", "accent": "FCE4D6", "background": "FFFFFF", "text": "C65911"},
-    "dark": {"primary": "FFFFFF", "secondary": "44546A", "accent": "4472C4", "background": "1E1E1E", "text": "FFFFFF"},
-    "light": {"primary": "44546A", "secondary": "4472C4", "accent": "ED7D31", "background": "F5F5F5", "text": "333333"},
-    "corporate": {"primary": "002060", "secondary": "0070C0", "accent": "00B0F0", "background": "FFFFFF", "text": "002060"},
-    "creative": {"primary": "FF6B6B", "secondary": "4ECDC4", "accent": "FFE66D", "background": "FFFFFF", "text": "2C3E50"},
+    "default": {
+        "primary": "4472C4",
+        "secondary": "ED7D31",
+        "accent": "A5A5A5",
+        "background": "FFFFFF",
+        "text": "000000",
+    },
+    "blue": {
+        "primary": "1F4E79",
+        "secondary": "2E75B6",
+        "accent": "BDD7EE",
+        "background": "FFFFFF",
+        "text": "1F4E79",
+    },
+    "green": {
+        "primary": "375623",
+        "secondary": "70AD47",
+        "accent": "C6E0B4",
+        "background": "FFFFFF",
+        "text": "375623",
+    },
+    "red": {
+        "primary": "C00000",
+        "secondary": "FF5050",
+        "accent": "FFCCCC",
+        "background": "FFFFFF",
+        "text": "C00000",
+    },
+    "purple": {
+        "primary": "7030A0",
+        "secondary": "9966FF",
+        "accent": "E6CCFF",
+        "background": "FFFFFF",
+        "text": "7030A0",
+    },
+    "orange": {
+        "primary": "C65911",
+        "secondary": "ED7D31",
+        "accent": "FCE4D6",
+        "background": "FFFFFF",
+        "text": "C65911",
+    },
+    "dark": {
+        "primary": "FFFFFF",
+        "secondary": "44546A",
+        "accent": "4472C4",
+        "background": "1E1E1E",
+        "text": "FFFFFF",
+    },
+    "light": {
+        "primary": "44546A",
+        "secondary": "4472C4",
+        "accent": "ED7D31",
+        "background": "F5F5F5",
+        "text": "333333",
+    },
+    "corporate": {
+        "primary": "002060",
+        "secondary": "0070C0",
+        "accent": "00B0F0",
+        "background": "FFFFFF",
+        "text": "002060",
+    },
+    "creative": {
+        "primary": "FF6B6B",
+        "secondary": "4ECDC4",
+        "accent": "FFE66D",
+        "background": "FFFFFF",
+        "text": "2C3E50",
+    },
 }
 
 
@@ -100,12 +168,15 @@ class _PresentationV2BaseTool(BaseTool):
     def _emit_tool_start(self, action: str, args: Dict[str, Any]) -> float:
         """Emit tool start event."""
         start_time = time.time()
-        self._emit_event("tool_start", {
-            "tool": self.name,
-            "action": action,
-            "args": args,
-            "thread_id": self.thread_id,
-        })
+        self._emit_event(
+            "tool_start",
+            {
+                "tool": self.name,
+                "action": action,
+                "args": args,
+                "thread_id": self.thread_id,
+            },
+        )
         return start_time
 
     def _emit_tool_result(
@@ -117,22 +188,22 @@ class _PresentationV2BaseTool(BaseTool):
     ) -> None:
         """Emit tool result event."""
         duration_ms = (time.time() - start_time) * 1000
-        self._emit_event("tool_result", {
-            "tool": self.name,
-            "action": action,
-            "success": success,
-            "duration_ms": round(duration_ms, 2),
-        })
+        self._emit_event(
+            "tool_result",
+            {
+                "tool": self.name,
+                "action": action,
+                "success": success,
+                "duration_ms": round(duration_ms, 2),
+            },
+        )
 
     def _ensure_pptx(self, sandbox) -> bool:
         """Ensure python-pptx is installed in sandbox."""
         try:
             result = sandbox.commands.run("pip show python-pptx", timeout=30)
             if result.exit_code != 0:
-                install_result = sandbox.commands.run(
-                    "pip install python-pptx Pillow",
-                    timeout=120
-                )
+                install_result = sandbox.commands.run("pip install python-pptx Pillow", timeout=120)
                 return install_result.exit_code == 0
             return True
         except Exception as e:
@@ -142,17 +213,14 @@ class _PresentationV2BaseTool(BaseTool):
 
 class SetTransitionInput(BaseModel):
     """Input for set_transition."""
+
     file_path: str = Field(description="Path to the presentation file")
     slide_number: int = Field(description="Slide number (1-based), or 0 for all slides")
     transition_type: TransitionType = Field(
-        default="fade",
-        description="Transition type: fade, push, wipe, split, etc."
+        default="fade", description="Transition type: fade, push, wipe, split, etc."
     )
     duration_seconds: float = Field(
-        default=1.0,
-        ge=0.1,
-        le=5.0,
-        description="Transition duration in seconds (0.1-5.0)"
+        default=1.0, ge=0.1, le=5.0, description="Transition duration in seconds (0.1-5.0)"
     )
 
 
@@ -174,11 +242,14 @@ class SetTransitionTool(_PresentationV2BaseTool):
         transition_type: TransitionType = "fade",
         duration_seconds: float = 1.0,
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("set_transition", {
-            "file_path": file_path,
-            "slide_number": slide_number,
-            "transition_type": transition_type,
-        })
+        start_time = self._emit_tool_start(
+            "set_transition",
+            {
+                "file_path": file_path,
+                "slide_number": slide_number,
+                "transition_type": transition_type,
+            },
+        )
 
         try:
             sandbox = self._get_sandbox()
@@ -231,7 +302,7 @@ print("SUCCESS")
                 "path": file_path,
                 "transition_type": transition_type,
                 "duration_seconds": duration_seconds,
-                "note": "Full transition support may require PowerPoint to apply"
+                "note": "Full transition support may require PowerPoint to apply",
             }
 
             self._emit_tool_result("set_transition", result, start_time, True)
@@ -244,19 +315,11 @@ print("SUCCESS")
 
 class ApplyThemeInput(BaseModel):
     """Input for apply_theme."""
+
     file_path: str = Field(description="Path to the presentation file")
-    color_scheme: ColorScheme = Field(
-        default="default",
-        description="Color scheme to apply"
-    )
-    font_title: str = Field(
-        default="Arial",
-        description="Font for titles"
-    )
-    font_body: str = Field(
-        default="Arial",
-        description="Font for body text"
-    )
+    color_scheme: ColorScheme = Field(default="default", description="Color scheme to apply")
+    font_title: str = Field(default="Arial", description="Font for titles")
+    font_body: str = Field(default="Arial", description="Font for body text")
 
 
 class ApplyThemeTool(_PresentationV2BaseTool):
@@ -276,10 +339,13 @@ class ApplyThemeTool(_PresentationV2BaseTool):
         font_title: str = "Arial",
         font_body: str = "Arial",
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("apply_theme", {
-            "file_path": file_path,
-            "color_scheme": color_scheme,
-        })
+        start_time = self._emit_tool_start(
+            "apply_theme",
+            {
+                "file_path": file_path,
+                "color_scheme": color_scheme,
+            },
+        )
 
         try:
             sandbox = self._get_sandbox()
@@ -301,9 +367,9 @@ from pptx.enum.text import PP_ALIGN
 prs = Presentation("{full_path}")
 
 # Color definitions
-primary = RgbColor.from_string("{colors['primary']}")
-secondary = RgbColor.from_string("{colors['secondary']}")
-text_color = RgbColor.from_string("{colors['text']}")
+primary = RgbColor.from_string("{colors["primary"]}")
+secondary = RgbColor.from_string("{colors["secondary"]}")
+text_color = RgbColor.from_string("{colors["text"]}")
 
 # Apply to all slides
 for slide in prs.slides:
@@ -349,15 +415,12 @@ print("SUCCESS")
 
 class SetBackgroundInput(BaseModel):
     """Input for set_background."""
+
     file_path: str = Field(description="Path to the presentation file")
     slide_number: int = Field(description="Slide number (1-based), or 0 for all slides")
-    color: Optional[str] = Field(
-        default=None,
-        description="Background color (hex, e.g., 'FFFFFF')"
-    )
+    color: Optional[str] = Field(default=None, description="Background color (hex, e.g., 'FFFFFF')")
     image_path: Optional[str] = Field(
-        default=None,
-        description="Path to background image in sandbox"
+        default=None, description="Path to background image in sandbox"
     )
 
 
@@ -378,10 +441,13 @@ class SetBackgroundTool(_PresentationV2BaseTool):
         color: Optional[str] = None,
         image_path: Optional[str] = None,
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("set_background", {
-            "file_path": file_path,
-            "slide_number": slide_number,
-        })
+        start_time = self._emit_tool_start(
+            "set_background",
+            {
+                "file_path": file_path,
+                "slide_number": slide_number,
+            },
+        )
 
         try:
             if not color and not image_path:
@@ -463,11 +529,11 @@ print("SUCCESS")
 
 class DuplicateSlideInput(BaseModel):
     """Input for duplicate_slide."""
+
     file_path: str = Field(description="Path to the presentation file")
     slide_number: int = Field(description="Slide number to duplicate (1-based)")
     insert_position: Optional[int] = Field(
-        default=None,
-        description="Position to insert the duplicate (default: after original)"
+        default=None, description="Position to insert the duplicate (default: after original)"
     )
 
 
@@ -475,9 +541,7 @@ class DuplicateSlideTool(_PresentationV2BaseTool):
     """Duplicate a slide in the presentation."""
 
     name: str = "duplicate_slide"
-    description: str = (
-        "Duplicate a slide and optionally insert it at a specific position."
-    )
+    description: str = "Duplicate a slide and optionally insert it at a specific position."
     args_schema: type[BaseModel] = DuplicateSlideInput
 
     def _run(
@@ -486,10 +550,13 @@ class DuplicateSlideTool(_PresentationV2BaseTool):
         slide_number: int,
         insert_position: Optional[int] = None,
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("duplicate_slide", {
-            "file_path": file_path,
-            "slide_number": slide_number,
-        })
+        start_time = self._emit_tool_start(
+            "duplicate_slide",
+            {
+                "file_path": file_path,
+                "slide_number": slide_number,
+            },
+        )
 
         try:
             sandbox = self._get_sandbox()
@@ -558,6 +625,7 @@ print(f"SUCCESS: Duplicated slide {slide_number}, total slides: {{len(prs.slides
 
 class ReorderSlidesInput(BaseModel):
     """Input for reorder_slides."""
+
     file_path: str = Field(description="Path to the presentation file")
     new_order: List[int] = Field(
         description="New order of slides as list of slide numbers (1-based)"
@@ -580,10 +648,13 @@ class ReorderSlidesTool(_PresentationV2BaseTool):
         file_path: str,
         new_order: List[int],
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("reorder_slides", {
-            "file_path": file_path,
-            "new_order": new_order,
-        })
+        start_time = self._emit_tool_start(
+            "reorder_slides",
+            {
+                "file_path": file_path,
+                "new_order": new_order,
+            },
+        )
 
         try:
             sandbox = self._get_sandbox()
@@ -649,6 +720,7 @@ print("SUCCESS")
 
 class AddTextBoxInput(BaseModel):
     """Input for add_text_box."""
+
     file_path: str = Field(description="Path to the presentation file")
     slide_number: int = Field(description="Slide number (1-based)")
     text: str = Field(description="Text content")
@@ -688,10 +760,13 @@ class AddTextBoxTool(_PresentationV2BaseTool):
         bold: bool = False,
         italic: bool = False,
     ) -> Dict[str, Any]:
-        start_time = self._emit_tool_start("add_text_box", {
-            "file_path": file_path,
-            "slide_number": slide_number,
-        })
+        start_time = self._emit_tool_start(
+            "add_text_box",
+            {
+                "file_path": file_path,
+                "slide_number": slide_number,
+            },
+        )
 
         try:
             sandbox = self._get_sandbox()

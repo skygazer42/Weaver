@@ -185,21 +185,27 @@ class _SbBrowserTool(BaseTool):
     def _emit_tool_start(self, action: str, args: Dict[str, Any]) -> float:
         """Emit tool start event and return start time."""
         start_time = time.time()
-        self._emit_event("tool_start", {
-            "tool": self.name,
-            "action": action,
-            "args": args,
-            "thread_id": self.thread_id,
-        })
+        self._emit_event(
+            "tool_start",
+            {
+                "tool": self.name,
+                "action": action,
+                "args": args,
+                "thread_id": self.thread_id,
+            },
+        )
         return start_time
 
     def _emit_progress(self, action: str, info: str):
-        self._emit_event("tool_progress", {
-            "tool": self.name,
-            "action": action,
-            "info": info,
-            "thread_id": self.thread_id,
-        })
+        self._emit_event(
+            "tool_progress",
+            {
+                "tool": self.name,
+                "action": action,
+                "info": info,
+                "thread_id": self.thread_id,
+            },
+        )
 
     def _emit_tool_result(
         self,
@@ -210,13 +216,16 @@ class _SbBrowserTool(BaseTool):
     ) -> None:
         """Emit tool result event."""
         duration_ms = (time.time() - start_time) * 1000
-        self._emit_event("tool_result", {
-            "tool": self.name,
-            "action": action,
-            "success": success,
-            "duration_ms": round(duration_ms, 2),
-            "result_keys": list(result.keys()),
-        })
+        self._emit_event(
+            "tool_result",
+            {
+                "tool": self.name,
+                "action": action,
+                "success": success,
+                "duration_ms": round(duration_ms, 2),
+                "result_keys": list(result.keys()),
+            },
+        )
 
     def _emit_screenshot(
         self,
@@ -245,16 +254,19 @@ class _SbBrowserTool(BaseTool):
                 state["last_mime_type"] = mime_type
             return
 
-        self._emit_event("tool_screenshot", {
-            "tool": self.name,
-            "action": action,
-            "url": url,
-            # Keep stream light when the image is accessible by URL.
-            "image": image if not url else None,
-            "filename": screenshot_data.get("screenshot_filename"),
-            "mime_type": mime_type,
-            "page_url": self._page_info().get("url"),
-        })
+        self._emit_event(
+            "tool_screenshot",
+            {
+                "tool": self.name,
+                "action": action,
+                "url": url,
+                # Keep stream light when the image is accessible by URL.
+                "image": image if not url else None,
+                "filename": screenshot_data.get("screenshot_filename"),
+                "mime_type": mime_type,
+                "page_url": self._page_info().get("url"),
+            },
+        )
 
         if image_hash:
             state["last_hash"] = image_hash
@@ -265,7 +277,9 @@ class _SbBrowserTool(BaseTool):
 
 class SbBrowserNavigateInput(BaseModel):
     url: str = Field(min_length=1)
-    wait_until: str = Field(default="domcontentloaded", description="domcontentloaded|load|networkidle")
+    wait_until: str = Field(
+        default="domcontentloaded", description="domcontentloaded|load|networkidle"
+    )
     wait_ms: int = Field(default=1000, ge=0, le=15000)
     full_page: bool = False
 
@@ -297,7 +311,9 @@ class SbBrowserNavigateTool(_SbBrowserTool):
                 self._emit_progress("navigate", "page_loaded")
 
                 info = self._page_info()
-                screenshot, screenshot_hash = self._screenshot_with_save("navigate", full_page=full_page)
+                screenshot, screenshot_hash = self._screenshot_with_save(
+                    "navigate", full_page=full_page
+                )
                 self._emit_progress("navigate", "screenshot_captured")
 
                 result = {**info, **screenshot}
@@ -325,7 +341,9 @@ class SbBrowserClickInput(BaseModel):
 
 class SbBrowserClickTool(_SbBrowserTool):
     name: str = "sb_browser_click"
-    description: str = "Click an element by CSS selector or visible text (sandbox browser). Returns screenshot."
+    description: str = (
+        "Click an element by CSS selector or visible text (sandbox browser). Returns screenshot."
+    )
     args_schema: type[BaseModel] = SbBrowserClickInput
 
     def _run(
@@ -363,7 +381,9 @@ class SbBrowserClickTool(_SbBrowserTool):
                 state = _get_thread_state(self.thread_id)
                 state["scroll_accum"] = 0
                 state["arrow_accum"] = 0
-                screenshot, screenshot_hash = self._screenshot_with_save("click", full_page=full_page)
+                screenshot, screenshot_hash = self._screenshot_with_save(
+                    "click", full_page=full_page
+                )
 
                 result = {**info, **screenshot}
 
@@ -382,7 +402,9 @@ class SbBrowserClickTool(_SbBrowserTool):
 
 class SbBrowserTypeInput(BaseModel):
     text: str = Field(min_length=1)
-    selector: Optional[str] = Field(default=None, description="CSS selector for an input/textarea; defaults to first input")
+    selector: Optional[str] = Field(
+        default=None, description="CSS selector for an input/textarea; defaults to first input"
+    )
     press_enter: bool = False
     wait_ms: int = Field(default=800, ge=0, le=15000)
     full_page: bool = False
@@ -405,11 +427,14 @@ class SbBrowserTypeTool(_SbBrowserTool):
         full_page: bool = False,
     ) -> Dict[str, Any]:
         def _impl() -> Dict[str, Any]:
-            start_time = self._emit_tool_start("type", {
-                "text": text[:50] + "..." if len(text) > 50 else text,
-                "selector": selector,
-                "press_enter": press_enter,
-            })
+            start_time = self._emit_tool_start(
+                "type",
+                {
+                    "text": text[:50] + "..." if len(text) > 50 else text,
+                    "selector": selector,
+                    "press_enter": press_enter,
+                },
+            )
             self._emit_progress("type", selector or "first_input")
 
             try:
@@ -438,7 +463,9 @@ class SbBrowserTypeTool(_SbBrowserTool):
                     state = _get_thread_state(self.thread_id)
                     state["scroll_accum"] = 0
                     state["arrow_accum"] = 0
-                    screenshot, screenshot_hash = self._screenshot_with_save("type", full_page=full_page)
+                    screenshot, screenshot_hash = self._screenshot_with_save(
+                        "type", full_page=full_page
+                    )
 
                 result = {**info, **screenshot}
 
@@ -485,18 +512,25 @@ class SbBrowserPressTool(_SbBrowserTool):
 
                 info = self._page_info()
                 keys_upper = (keys or "").upper().replace(" ", "")
-                meaningful = any(token in keys_upper for token in ("ENTER", "PAGEDOWN", "PAGEUP", "HOME", "END", "SPACE"))
+                meaningful = any(
+                    token in keys_upper
+                    for token in ("ENTER", "PAGEDOWN", "PAGEUP", "HOME", "END", "SPACE")
+                )
                 screenshot: Dict[str, Any] = {}
                 screenshot_hash: Optional[str] = None
                 state = _get_thread_state(self.thread_id)
                 if meaningful:
                     state["arrow_accum"] = 0
                     state["scroll_accum"] = 0
-                    screenshot, screenshot_hash = self._screenshot_with_save("press", full_page=full_page)
+                    screenshot, screenshot_hash = self._screenshot_with_save(
+                        "press", full_page=full_page
+                    )
                 elif any(token in keys_upper for token in ("ARROWDOWN", "ARROWUP")):
                     state["arrow_accum"] = int(state.get("arrow_accum") or 0) + 1
                     if state["arrow_accum"] >= 3:
-                        screenshot, screenshot_hash = self._screenshot_with_save("press", full_page=full_page)
+                        screenshot, screenshot_hash = self._screenshot_with_save(
+                            "press", full_page=full_page
+                        )
                         state["arrow_accum"] = 0
                 else:
                     state["arrow_accum"] = 0
@@ -545,14 +579,20 @@ class SbBrowserScrollTool(_SbBrowserTool):
                 self._emit_progress("scroll", "after_scroll_wait")
 
                 info = self._page_info()
-                viewport_h = (page.viewport_size or {}).get("height") if getattr(page, "viewport_size", None) else None
+                viewport_h = (
+                    (page.viewport_size or {}).get("height")
+                    if getattr(page, "viewport_size", None)
+                    else None
+                )
                 threshold = int((int(viewport_h) if viewport_h else 800) * 0.75)
                 screenshot: Dict[str, Any] = {}
                 screenshot_hash: Optional[str] = None
                 state = _get_thread_state(self.thread_id)
                 state["scroll_accum"] = int(state.get("scroll_accum") or 0) + amt
                 if abs(int(state["scroll_accum"])) >= threshold:
-                    screenshot, screenshot_hash = self._screenshot_with_save("scroll", full_page=full_page)
+                    screenshot, screenshot_hash = self._screenshot_with_save(
+                        "scroll", full_page=full_page
+                    )
                     state["scroll_accum"] = 0
 
                 result = {**info, **screenshot}
@@ -623,7 +663,9 @@ class SbBrowserScreenshotTool(_SbBrowserTool):
 
             try:
                 info = self._page_info()
-                screenshot, screenshot_hash = self._screenshot_with_save("screenshot", full_page=full_page)
+                screenshot, screenshot_hash = self._screenshot_with_save(
+                    "screenshot", full_page=full_page
+                )
 
                 result = {**info, **screenshot}
 
@@ -682,12 +724,28 @@ def build_sandbox_browser_tools(
         List of browser tools
     """
     return [
-        SbBrowserNavigateTool(thread_id=thread_id, emit_events=emit_events, save_screenshots=save_screenshots),
-        SbBrowserClickTool(thread_id=thread_id, emit_events=emit_events, save_screenshots=save_screenshots),
-        SbBrowserTypeTool(thread_id=thread_id, emit_events=emit_events, save_screenshots=save_screenshots),
-        SbBrowserPressTool(thread_id=thread_id, emit_events=emit_events, save_screenshots=save_screenshots),
-        SbBrowserScrollTool(thread_id=thread_id, emit_events=emit_events, save_screenshots=save_screenshots),
-        SbBrowserExtractTextTool(thread_id=thread_id, emit_events=emit_events, save_screenshots=save_screenshots),
-        SbBrowserScreenshotTool(thread_id=thread_id, emit_events=emit_events, save_screenshots=save_screenshots),
-        SbBrowserResetTool(thread_id=thread_id, emit_events=emit_events, save_screenshots=save_screenshots),
+        SbBrowserNavigateTool(
+            thread_id=thread_id, emit_events=emit_events, save_screenshots=save_screenshots
+        ),
+        SbBrowserClickTool(
+            thread_id=thread_id, emit_events=emit_events, save_screenshots=save_screenshots
+        ),
+        SbBrowserTypeTool(
+            thread_id=thread_id, emit_events=emit_events, save_screenshots=save_screenshots
+        ),
+        SbBrowserPressTool(
+            thread_id=thread_id, emit_events=emit_events, save_screenshots=save_screenshots
+        ),
+        SbBrowserScrollTool(
+            thread_id=thread_id, emit_events=emit_events, save_screenshots=save_screenshots
+        ),
+        SbBrowserExtractTextTool(
+            thread_id=thread_id, emit_events=emit_events, save_screenshots=save_screenshots
+        ),
+        SbBrowserScreenshotTool(
+            thread_id=thread_id, emit_events=emit_events, save_screenshots=save_screenshots
+        ),
+        SbBrowserResetTool(
+            thread_id=thread_id, emit_events=emit_events, save_screenshots=save_screenshots
+        ),
     ]

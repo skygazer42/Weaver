@@ -44,39 +44,36 @@ class EnhancedSearchTool(WeaverTool):
         parameters={
             "type": "object",
             "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "The search query string"
-                },
+                "query": {"type": "string", "description": "The search query string"},
                 "max_results": {
                     "type": "integer",
                     "description": "Maximum number of results to return",
                     "default": 5,
                     "minimum": 1,
-                    "maximum": 20
+                    "maximum": 20,
                 },
                 "search_type": {
                     "type": "string",
                     "enum": ["general", "news", "academic", "images"],
                     "description": "Type of search to perform",
-                    "default": "general"
+                    "default": "general",
                 },
                 "date_range": {
                     "type": "string",
                     "enum": ["day", "week", "month", "year", "all"],
                     "description": "Time range for results",
-                    "default": "all"
-                }
+                    "default": "all",
+                },
             },
-            "required": ["query"]
-        }
+            "required": ["query"],
+        },
     )
     def search(
         self,
         query: str,
         max_results: int = 5,
         search_type: str = "general",
-        date_range: str = "all"
+        date_range: str = "all",
     ) -> ToolResult:
         """
         Perform a web search.
@@ -97,11 +94,11 @@ class EnhancedSearchTool(WeaverTool):
             # Mock results
             results = [
                 {
-                    "title": f"Result {i+1} for '{query}'",
-                    "url": f"https://example.com/result/{i+1}",
-                    "snippet": f"This is a snippet for result {i+1}...",
+                    "title": f"Result {i + 1} for '{query}'",
+                    "url": f"https://example.com/result/{i + 1}",
+                    "snippet": f"This is a snippet for result {i + 1}...",
                     "relevance_score": 0.9 - (i * 0.1),
-                    "date": datetime.now().isoformat()
+                    "date": datetime.now().isoformat(),
                 }
                 for i in range(min(max_results, 3))
             ]
@@ -112,14 +109,14 @@ class EnhancedSearchTool(WeaverTool):
                     "results": results,
                     "count": len(results),
                     "search_type": search_type,
-                    "date_range": date_range
+                    "date_range": date_range,
                 },
                 metadata={
                     "search_type": search_type,
                     "api_version": "v2.0",
                     "timestamp": datetime.now().isoformat(),
-                    "execution_time_ms": 250
-                }
+                    "execution_time_ms": 250,
+                },
             )
 
         except Exception as e:
@@ -129,8 +126,8 @@ class EnhancedSearchTool(WeaverTool):
                 metadata={
                     "error_type": type(e).__name__,
                     "query": query,
-                    "timestamp": datetime.now().isoformat()
-                }
+                    "timestamp": datetime.now().isoformat(),
+                },
             )
 
     @tool_schema(
@@ -139,38 +136,31 @@ class EnhancedSearchTool(WeaverTool):
         parameters={
             "type": "object",
             "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "Image search query"
-                },
+                "query": {"type": "string", "description": "Image search query"},
                 "count": {
                     "type": "integer",
                     "description": "Number of images to return",
                     "default": 5,
                     "minimum": 1,
-                    "maximum": 20
+                    "maximum": 20,
                 },
                 "size": {
                     "type": "string",
                     "enum": ["small", "medium", "large", "any"],
                     "description": "Preferred image size",
-                    "default": "medium"
+                    "default": "medium",
                 },
                 "safe_search": {
                     "type": "boolean",
                     "description": "Enable safe search filter",
-                    "default": True
-                }
+                    "default": True,
+                },
             },
-            "required": ["query"]
-        }
+            "required": ["query"],
+        },
     )
     def search_images(
-        self,
-        query: str,
-        count: int = 5,
-        size: str = "medium",
-        safe_search: bool = True
+        self, query: str, count: int = 5, size: str = "medium", safe_search: bool = True
     ) -> ToolResult:
         """
         Search for images.
@@ -188,12 +178,12 @@ class EnhancedSearchTool(WeaverTool):
             # Mock image search
             images = [
                 {
-                    "url": f"https://example.com/images/{query.replace(' ', '_')}_{i+1}.jpg",
-                    "thumbnail": f"https://example.com/thumbs/{query.replace(' ', '_')}_{i+1}.jpg",
+                    "url": f"https://example.com/images/{query.replace(' ', '_')}_{i + 1}.jpg",
+                    "thumbnail": f"https://example.com/thumbs/{query.replace(' ', '_')}_{i + 1}.jpg",
                     "width": 800,
                     "height": 600,
                     "size": size,
-                    "source": f"Example Source {i+1}"
+                    "source": f"Example Source {i + 1}",
                 }
                 for i in range(min(count, 5))
             ]
@@ -203,11 +193,7 @@ class EnhancedSearchTool(WeaverTool):
                 return self.partial_response(
                     {"query": query, "images": images, "count": len(images)},
                     f"Only found {len(images)} images out of {count} requested",
-                    metadata={
-                        "requested": count,
-                        "found": len(images),
-                        "safe_search": safe_search
-                    }
+                    metadata={"requested": count, "found": len(images), "safe_search": safe_search},
                 )
 
             return self.success_response(
@@ -215,14 +201,14 @@ class EnhancedSearchTool(WeaverTool):
                 metadata={
                     "size_filter": size,
                     "safe_search": safe_search,
-                    "timestamp": datetime.now().isoformat()
-                }
+                    "timestamp": datetime.now().isoformat(),
+                },
             )
 
         except Exception as e:
             return self.fail_response(
                 f"Image search failed: {str(e)}",
-                metadata={"error_type": type(e).__name__, "query": query}
+                metadata={"error_type": type(e).__name__, "query": query},
             )
 
     @tool_schema(
@@ -235,29 +221,26 @@ class EnhancedSearchTool(WeaverTool):
                     "type": "string",
                     "enum": ["all", "news", "tech", "entertainment", "sports"],
                     "description": "Category for trending topics",
-                    "default": "all"
+                    "default": "all",
                 },
                 "region": {
                     "type": "string",
                     "description": "Geographic region (e.g., 'US', 'UK', 'global')",
-                    "default": "global"
+                    "default": "global",
                 },
                 "limit": {
                     "type": "integer",
                     "description": "Number of trending topics",
                     "default": 10,
                     "minimum": 1,
-                    "maximum": 50
-                }
+                    "maximum": 50,
+                },
             },
-            "required": []
-        }
+            "required": [],
+        },
     )
     def get_trending(
-        self,
-        category: str = "all",
-        region: str = "global",
-        limit: int = 10
+        self, category: str = "all", region: str = "global", limit: int = 10
     ) -> ToolResult:
         """
         Get trending topics.
@@ -274,11 +257,11 @@ class EnhancedSearchTool(WeaverTool):
             # Mock trending topics
             topics = [
                 {
-                    "topic": f"Trending Topic {i+1}",
+                    "topic": f"Trending Topic {i + 1}",
                     "category": category,
                     "search_volume": 100000 - (i * 10000),
                     "trend_direction": "up" if i < limit // 2 else "stable",
-                    "region": region
+                    "region": region,
                 }
                 for i in range(min(limit, 10))
             ]
@@ -289,19 +272,19 @@ class EnhancedSearchTool(WeaverTool):
                     "region": region,
                     "topics": topics,
                     "count": len(topics),
-                    "last_updated": datetime.now().isoformat()
+                    "last_updated": datetime.now().isoformat(),
                 },
                 metadata={
                     "data_source": "trending_api_v1",
                     "update_frequency": "5 minutes",
-                    "timestamp": datetime.now().isoformat()
-                }
+                    "timestamp": datetime.now().isoformat(),
+                },
             )
 
         except Exception as e:
             return self.fail_response(
                 f"Failed to fetch trending topics: {str(e)}",
-                metadata={"error_type": type(e).__name__, "category": category}
+                metadata={"error_type": type(e).__name__, "category": category},
             )
 
 
@@ -322,26 +305,22 @@ class DataAnalysisTool(WeaverTool):
                 "data": {
                     "type": "array",
                     "items": {"type": "number"},
-                    "description": "Array of numerical values to analyze"
+                    "description": "Array of numerical values to analyze",
                 },
                 "operations": {
                     "type": "array",
                     "items": {
                         "type": "string",
-                        "enum": ["mean", "median", "std", "min", "max", "sum"]
+                        "enum": ["mean", "median", "std", "min", "max", "sum"],
                     },
                     "description": "Statistical operations to perform",
-                    "default": ["mean", "std", "min", "max"]
-                }
+                    "default": ["mean", "std", "min", "max"],
+                },
             },
-            "required": ["data"]
-        }
+            "required": ["data"],
+        },
     )
-    def analyze(
-        self,
-        data: List[float],
-        operations: List[str] = None
-    ) -> ToolResult:
+    def analyze(self, data: List[float], operations: List[str] = None) -> ToolResult:
         """
         Analyze numerical data.
 
@@ -383,17 +362,14 @@ class DataAnalysisTool(WeaverTool):
                 metadata={
                     "data_points": len(data),
                     "operations_requested": operations,
-                    "timestamp": datetime.now().isoformat()
-                }
+                    "timestamp": datetime.now().isoformat(),
+                },
             )
 
         except Exception as e:
             return self.fail_response(
                 f"Analysis failed: {str(e)}",
-                metadata={
-                    "error_type": type(e).__name__,
-                    "data_length": len(data)
-                }
+                metadata={"error_type": type(e).__name__, "data_length": len(data)},
             )
 
 
@@ -418,7 +394,7 @@ if __name__ == "__main__":
     result2 = search_tool.search_images("sunset", count=10, size="large")
     print(f"\n3. Image Search Result:")
     print(f"   Success: {result2.success}")
-    if result2.metadata and 'warning' in result2.metadata:
+    if result2.metadata and "warning" in result2.metadata:
         print(f"   Warning: {result2.metadata['warning']}")
 
     # Test trending
@@ -428,7 +404,9 @@ if __name__ == "__main__":
 
     # Test DataAnalysisTool
     data_tool = DataAnalysisTool()
-    result4 = data_tool.analyze([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], operations=["mean", "median", "std"])
+    result4 = data_tool.analyze(
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], operations=["mean", "median", "std"]
+    )
     print(f"\n5. Data Analysis:")
     print(f"   Result: {result4.output}")
 

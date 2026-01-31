@@ -23,5 +23,7 @@ def detect_stuck(messages: List[BaseMessage], threshold: int = 2) -> bool:
 
 
 def inject_stuck_hint(messages: List[BaseMessage]) -> List[BaseMessage]:
-    hint = AIMessage(content="Detected repeated answers. Please try a different approach or use other tools.")
+    hint = AIMessage(
+        content="Detected repeated answers. Please try a different approach or use other tools."
+    )
     return messages + [hint]

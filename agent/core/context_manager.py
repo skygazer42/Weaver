@@ -85,6 +85,7 @@ MODEL_ENCODINGS = {
 @dataclass
 class TokenStats:
     """Statistics about token usage."""
+
     total_tokens: int = 0
     system_tokens: int = 0
     user_tokens: int = 0
@@ -97,6 +98,7 @@ class TokenStats:
 @dataclass
 class TruncationConfig:
     """Configuration for message truncation."""
+
     # Maximum tokens for the context
     max_tokens: int = 8000
     # Reserve tokens for model response
@@ -132,9 +134,7 @@ class ContextManager:
         self._encoder = self._get_encoder()
 
         # Get model token limit
-        self.max_context_tokens = MODEL_TOKEN_LIMITS.get(
-            self.model, MODEL_TOKEN_LIMITS["default"]
-        )
+        self.max_context_tokens = MODEL_TOKEN_LIMITS.get(self.model, MODEL_TOKEN_LIMITS["default"])
 
     def _normalize_model_name(self, model: str) -> str:
         """Normalize model name for lookup."""
@@ -530,7 +530,7 @@ class ContextManager:
         # Truncate content
         if self._encoder:
             tokens = self._encoder.encode(content)
-            truncated_tokens = tokens[:max_tokens - 10]
+            truncated_tokens = tokens[: max_tokens - 10]
             truncated_content = self._encoder.decode(truncated_tokens)
             truncated_content += "\n... [truncated]"
         else:
@@ -605,8 +605,6 @@ def truncate_for_model(
     truncated, stats = manager.truncate_messages(messages, max_tokens=max_tokens)
 
     if stats.truncated_count > 0:
-        logger.info(
-            f"[context_manager] Truncated {stats.truncated_count} messages for {model}"
-        )
+        logger.info(f"[context_manager] Truncated {stats.truncated_count} messages for {model}")
 
     return truncated

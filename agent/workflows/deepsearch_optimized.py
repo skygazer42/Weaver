@@ -128,12 +128,12 @@ def _format_results(results: List[Dict[str, Any]]) -> str:
             textwrap.dedent(
                 f"""\
                 [{idx}]
-                标题: {r.get('title') or 'N/A'}
-                日期: {r.get('published_date') or 'unknown'}
-                评分: {r.get('score', 0)}
-                链接: {r.get('url') or ''}
-                摘要: {r.get('summary') or r.get('snippet') or ''}
-                原文: { (r.get('raw_excerpt') or '')[:500] }
+                标题: {r.get("title") or "N/A"}
+                日期: {r.get("published_date") or "unknown"}
+                评分: {r.get("score", 0)}
+                链接: {r.get("url") or ""}
+                摘要: {r.get("summary") or r.get("snippet") or ""}
+                原文: {(r.get("raw_excerpt") or "")[:500]}
                 """
             ).strip()
         )
@@ -189,9 +189,7 @@ def _pick_relevant_urls(
         return []
 
     # 过滤已选择的 URL
-    available_results = [
-        r for r in results if r.get("url") and r.get("url") not in selected_urls
-    ]
+    available_results = [r for r in results if r.get("url") and r.get("url") not in selected_urls]
 
     if not available_results:
         logger.info("所有 URL 都已被选择过，无新 URL 可选")
@@ -209,9 +207,7 @@ def _pick_relevant_urls(
 
     # Fallback: top scores
     if not urls:
-        sorted_results = sorted(
-            available_results, key=lambda r: r.get("score", 0), reverse=True
-        )
+        sorted_results = sorted(available_results, key=lambda r: r.get("score", 0), reverse=True)
         urls = [r.get("url") for r in sorted_results if r.get("url")]
 
     # Clamp
@@ -331,9 +327,7 @@ def _save_deepsearch_data(
             "epoch": epoch,
             "mode": "deepsearch_optimized",
         }
-        path.write_text(
-            json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
         logger.info(f"[deepsearch] saved run data -> {path}")
         return str(path)
     except Exception as e:
@@ -341,9 +335,7 @@ def _save_deepsearch_data(
         return ""
 
 
-def run_deepsearch_optimized(
-    state: Dict[str, Any], config: Dict[str, Any]
-) -> Dict[str, Any]:
+def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
     """
     Optimized iterative deep-search pipeline.
 
@@ -400,8 +392,8 @@ def run_deepsearch_optimized(
                     queries = [topic]
                 have_query.extend(q for q in queries if q not in have_query)
                 logger.info(
-                    f"[deepsearch] Epoch {epoch+1}: 生成 {len(queries)} 个查询"
-                    f" | 耗时 {time.time()-query_start:.2f}s"
+                    f"[deepsearch] Epoch {epoch + 1}: 生成 {len(queries)} 个查询"
+                    f" | 耗时 {time.time() - query_start:.2f}s"
                 )
                 logger.debug(f"[deepsearch] 查询列表: {queries}")
 
@@ -430,15 +422,13 @@ def run_deepsearch_optimized(
                             all_searched_urls.append(url)
 
                 logger.info(
-                    f"[deepsearch] Epoch {epoch+1}: 搜索到 {len(combined_results)} 个结果"
+                    f"[deepsearch] Epoch {epoch + 1}: 搜索到 {len(combined_results)} 个结果"
                     f" | 累计 URL: {len(all_searched_urls)}"
-                    f" | 耗时 {time.time()-search_start:.2f}s"
+                    f" | 耗时 {time.time() - search_start:.2f}s"
                 )
 
                 if not combined_results:
-                    logger.info(
-                        f"[deepsearch] Epoch {epoch+1}: 无搜索结果，跳过本轮"
-                    )
+                    logger.info(f"[deepsearch] Epoch {epoch + 1}: 无搜索结果，跳过本轮")
                     continue
 
                 # ⏱️ Step 3: 挑选最相关的 URL（排除已选择的）
@@ -455,25 +445,23 @@ def run_deepsearch_optimized(
 
                 if not chosen_urls:
                     logger.warning(
-                        f"[deepsearch] Epoch {epoch+1}: 无新 URL 可选（已全部选择过），跳过本轮"
+                        f"[deepsearch] Epoch {epoch + 1}: 无新 URL 可选（已全部选择过），跳过本轮"
                     )
                     continue
 
                 # 更新已选择的 URL 列表
                 selected_urls.extend(chosen_urls)
 
-                chosen_results = [
-                    r for r in combined_results if r.get("url") in set(chosen_urls)
-                ]
+                chosen_results = [r for r in combined_results if r.get("url") in set(chosen_urls)]
                 if not chosen_results:
                     chosen_results = sorted(
                         combined_results, key=lambda r: r.get("score", 0), reverse=True
                     )[:top_urls]
 
                 logger.info(
-                    f"[deepsearch] Epoch {epoch+1}: 选择 {len(chosen_urls)} 个 URL"
+                    f"[deepsearch] Epoch {epoch + 1}: 选择 {len(chosen_urls)} 个 URL"
                     f" | 已选总数: {len(selected_urls)}"
-                    f" | 耗时 {time.time()-pick_start:.2f}s"
+                    f" | 耗时 {time.time() - pick_start:.2f}s"
                 )
 
                 # ⏱️ Step 4: 爬虫补充内容（可选）
@@ -481,8 +469,8 @@ def run_deepsearch_optimized(
                     crawl_start = time.time()
                     _hydrate_with_crawler(chosen_results)
                     logger.info(
-                        f"[deepsearch] Epoch {epoch+1}: 爬虫增强完成"
-                        f" | 耗时 {time.time()-crawl_start:.2f}s"
+                        f"[deepsearch] Epoch {epoch + 1}: 爬虫增强完成"
+                        f" | 耗时 {time.time() - crawl_start:.2f}s"
                     )
 
                 # ⏱️ Step 5: 摘要新知识 + 判断是否足够
@@ -494,28 +482,24 @@ def run_deepsearch_optimized(
                     summary_notes.append(summary_text)
 
                 logger.info(
-                    f"[deepsearch] Epoch {epoch+1}: 摘要完成"
+                    f"[deepsearch] Epoch {epoch + 1}: 摘要完成"
                     f" | 足够: {enough}"
                     f" | 摘要长度: {len(summary_text)}"
-                    f" | 耗时 {time.time()-summary_start:.2f}s"
+                    f" | 耗时 {time.time() - summary_start:.2f}s"
                 )
 
                 epoch_duration = time.time() - epoch_start
-                logger.info(
-                    f"[deepsearch] Epoch {epoch+1}: 总耗时 {epoch_duration:.2f}s"
-                )
+                logger.info(f"[deepsearch] Epoch {epoch + 1}: 总耗时 {epoch_duration:.2f}s")
 
                 # 如果信息足够，提前结束
                 if enough:
-                    logger.info(f"[deepsearch] Epoch {epoch+1}: 信息已足够，提前结束")
+                    logger.info(f"[deepsearch] Epoch {epoch + 1}: 信息已足够，提前结束")
                     break
 
             except asyncio.CancelledError:
                 raise  # 继续向上抛出
             except Exception as e:
-                logger.error(
-                    f"[deepsearch] Epoch {epoch+1} 失败: {str(e)}", exc_info=True
-                )
+                logger.error(f"[deepsearch] Epoch {epoch + 1} 失败: {str(e)}", exc_info=True)
                 logger.error(traceback.format_exc())
                 logger.info(f"[deepsearch] 继续下一轮搜索...")
                 continue  # 单轮失败不影响整体流程
@@ -530,7 +514,7 @@ def run_deepsearch_optimized(
         logger.info(
             f"[deepsearch] 最终报告生成完成"
             f" | 字数: {len(final_report)}"
-            f" | 耗时 {time.time()-report_start:.2f}s"
+            f" | 耗时 {time.time() - report_start:.2f}s"
         )
 
         elapsed = time.time() - start_ts

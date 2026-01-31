@@ -140,7 +140,12 @@ def upsert_agent(profile: AgentProfile, paths: Optional[AgentsStorePaths] = None
     return get_agent(profile.id, paths) or profile
 
 
-def delete_agent(agent_id: str, *, protected_ids: Optional[set[str]] = None, paths: Optional[AgentsStorePaths] = None) -> bool:
+def delete_agent(
+    agent_id: str,
+    *,
+    protected_ids: Optional[set[str]] = None,
+    paths: Optional[AgentsStorePaths] = None,
+) -> bool:
     protected_ids = protected_ids or set()
     if agent_id in protected_ids:
         return False

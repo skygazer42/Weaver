@@ -198,7 +198,7 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000,http://localhost:3100"
     interrupt_before_nodes: str = ""  # comma-separated node names for LangGraph interrupts
     app_config_path: str = "config/config.toml"  # Optional TOML config (OpenManus style)
-    mcp_config_path: str = "config/mcp.json"     # MCP servers definition (JSON)
+    mcp_config_path: str = "config/mcp.json"  # MCP servers definition (JSON)
     app_config_object: Optional[AppConfig] = None  # populated at runtime if TOML is present
 
     # Logging Config
@@ -206,7 +206,9 @@ class Settings(BaseSettings):
     log_file: str = "logs/weaver.log"  # Log file path
     log_max_bytes: int = 10485760  # 10MB
     log_backup_count: int = 5  # Keep 5 backup files
-    log_format: str = "%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s"
+    log_format: str = (
+        "%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s"
+    )
     enable_file_logging: bool = True  # Enable logging to file
     enable_json_logging: bool = False  # Enable structured JSON logging
 
@@ -219,7 +221,7 @@ class Settings(BaseSettings):
     custom_agent_prompt_path: str = ""  # 自定义 agent 提示词文件路径
     custom_writer_prompt_path: str = ""  # 自定义 writer 提示词文件路径
     prompt_pack: str = "deepsearch"  # default prompt pack
-    prompt_variant: str = "full"     # full | lite
+    prompt_variant: str = "full"  # full | lite
 
     # XML Tool Calling Config (Phase 2 - Manus 风格工具调用)
     agent_xml_tool_calling: bool = False  # 启用 XML 工具调用 (Claude 友好)
@@ -238,22 +240,22 @@ class Settings(BaseSettings):
     trim_messages_keep_first: int = 2
     trim_messages_keep_last: int = 8
     summary_messages: bool = False
-    summary_messages_trigger: int = 12   # when messages count exceeds this, summarize middle
+    summary_messages_trigger: int = 12  # when messages count exceeds this, summarize middle
     summary_messages_keep_last: int = 4
     summary_messages_model: str = "gpt-4o-mini"
     summary_messages_word_limit: int = 200
 
     # Concurrency Control (并发控制)
-    max_concurrency: int = 5          # 最大并发数
-    search_batch_size: int = 3        # 搜索批次大小
-    api_rate_limit: float = 0.5       # API 调用间隔（秒）
+    max_concurrency: int = 5  # 最大并发数
+    search_batch_size: int = 3  # 搜索批次大小
+    api_rate_limit: float = 0.5  # API 调用间隔（秒）
 
     # Deepsearch Settings
     deepsearch_max_epochs: int = 3
     deepsearch_query_num: int = 5
     deepsearch_results_per_query: int = 5
     deepsearch_enable_crawler: bool = False  # enable simple fallback crawler
-    deepsearch_save_data: bool = False       # save deepsearch run data to disk
+    deepsearch_save_data: bool = False  # save deepsearch run data to disk
     deepsearch_save_dir: str = "eval/deepsearch_data"
 
     # Crawler
@@ -304,7 +306,7 @@ class Settings(BaseSettings):
 
     # Prompt Optimization (Prompt 优化)
     prompt_optimizer_model: str = "gpt-4o"  # 用于优化 Prompt 的模型
-    prompt_optimization_epochs: int = 3      # 优化迭代轮次
+    prompt_optimization_epochs: int = 3  # 优化迭代轮次
     prompt_optimization_sample_size: int = 50  # 每轮评估样本数
 
     @property
@@ -315,7 +317,11 @@ class Settings(BaseSettings):
         # Dev ergonomics: allow common local frontend ports by default.
         # This keeps the UI working even when CORS_ORIGINS in `.env` is outdated.
         env = (self.app_env or "").strip().lower()
-        if self.debug or env in {"dev", "debug", "local", "test"} or env not in {"prod", "production"}:
+        if (
+            self.debug
+            or env in {"dev", "debug", "local", "test"}
+            or env not in {"prod", "production"}
+        ):
             for extra in (
                 "http://localhost:3000",
                 "http://127.0.0.1:3000",
@@ -330,9 +336,7 @@ class Settings(BaseSettings):
     @property
     def interrupt_nodes_list(self) -> List[str]:
         """Parse interrupt_before_nodes into list for LangGraph compile."""
-        return [
-            node.strip() for node in self.interrupt_before_nodes.split(",") if node.strip()
-        ]
+        return [node.strip() for node in self.interrupt_before_nodes.split(",") if node.strip()]
 
     @property
     def tool_selector_always_include_list(self) -> List[str]:
@@ -399,7 +403,11 @@ def load_app_config(config_path: str, mcp_path: str) -> Optional[AppConfig]:
     root = _project_root()
     primary_path = Path(config_path)
     primary = primary_path if primary_path.is_absolute() else root / config_path
-    example = primary.with_suffix(".example.toml") if primary.suffix != ".toml" else root / "config" / "config.example.toml"
+    example = (
+        primary.with_suffix(".example.toml")
+        if primary.suffix != ".toml"
+        else root / "config" / "config.example.toml"
+    )
     candidates = [primary, example]
     cfg_file = next((p for p in candidates if p.exists()), None)
     if not cfg_file:
@@ -439,7 +447,11 @@ def load_app_config(config_path: str, mcp_path: str) -> Optional[AppConfig]:
         )
     browser_settings = None
     if browser_cfg:
-        bs_kwargs = {k: v for k, v in browser_cfg.items() if k in BrowserSettings.__annotations__ and v is not None}
+        bs_kwargs = {
+            k: v
+            for k, v in browser_cfg.items()
+            if k in BrowserSettings.__annotations__ and v is not None
+        }
         if proxy:
             bs_kwargs["proxy"] = proxy
         if bs_kwargs:
@@ -456,7 +468,11 @@ def load_app_config(config_path: str, mcp_path: str) -> Optional[AppConfig]:
 
     mcp_servers = _load_mcp_servers(mcp_path)
     mcp_cfg = data.get("mcp") or {}
-    mcp_settings = MCPSettings(servers=mcp_servers or mcp_cfg.get("servers", {})) if (mcp_servers or mcp_cfg) else None
+    mcp_settings = (
+        MCPSettings(servers=mcp_servers or mcp_cfg.get("servers", {}))
+        if (mcp_servers or mcp_cfg)
+        else None
+    )
 
     runflow_cfg = data.get("runflow") or {}
     runflow_settings = RunflowSettings(**runflow_cfg) if runflow_cfg else None
@@ -495,7 +511,9 @@ def apply_app_config_overrides(settings: Settings) -> None:
 
     # Search engines
     if not settings.search_engines.strip() and app_cfg.search_config:
-        engines = [app_cfg.search_config.engine] + list(app_cfg.search_config.fallback_engines or [])
+        engines = [app_cfg.search_config.engine] + list(
+            app_cfg.search_config.fallback_engines or []
+        )
         settings.search_engines = ",".join([e for e in engines if e])
 
     # Daytona
@@ -512,12 +530,18 @@ def apply_app_config_overrides(settings: Settings) -> None:
     # MCP servers
     if not settings.mcp_servers and app_cfg.mcp_config and app_cfg.mcp_config.servers:
         try:
-            settings.mcp_servers = json.dumps({k: v.model_dump() for k, v in app_cfg.mcp_config.servers.items()})
+            settings.mcp_servers = json.dumps(
+                {k: v.model_dump() for k, v in app_cfg.mcp_config.servers.items()}
+            )
         except Exception as e:
             logger.warning(f"Failed to inject MCP servers from app config: {e}")
 
     # Sandbox switch from TOML
-    if app_cfg.sandbox and app_cfg.sandbox.use_sandbox is False and settings.sandbox_mode == "local":
+    if (
+        app_cfg.sandbox
+        and app_cfg.sandbox.use_sandbox is False
+        and settings.sandbox_mode == "local"
+    ):
         # allow disabling sandbox via config
         settings.sandbox_mode = "none"
 

@@ -376,7 +376,11 @@ class SandboxBrowserSession:
                         last_exc = e
                 if browser is None:
                     raise last_exc or RuntimeError("Failed to connect to sandbox browser via CDP.")
-                context = browser.contexts[0] if getattr(browser, "contexts", None) else browser.new_context()
+                context = (
+                    browser.contexts[0]
+                    if getattr(browser, "contexts", None)
+                    else browser.new_context()
+                )
                 page = context.new_page()
             except Exception:
                 try:
@@ -521,7 +525,9 @@ class SandboxBrowserSessionManager:
         executor = self._get_executor(thread_id)
         bound = functools.partial(fn, *args, **kwargs)
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(executor, functools.partial(self._run_and_record, thread_id, bound))
+        return await loop.run_in_executor(
+            executor, functools.partial(self._run_and_record, thread_id, bound)
+        )
 
     def reset(self, thread_id: str) -> None:
         thread_id = self._normalize_thread_id(thread_id)

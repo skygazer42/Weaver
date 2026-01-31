@@ -40,7 +40,9 @@ _ENGINE_HANDLERS = {
     "serper": lambda query, max_results: serper_search(query=query, max_results=max_results),
     "serpapi": lambda query, max_results: serpapi_search(query=query, max_results=max_results),
     "bing": lambda query, max_results: bing_search(query=query, max_results=max_results),
-    "google_cse": lambda query, max_results: google_cse_search(query=query, max_results=max_results),
+    "google_cse": lambda query, max_results: google_cse_search(
+        query=query, max_results=max_results
+    ),
     "exa": lambda query, max_results: exa_search(query=query, max_results=max_results),
     "firecrawl": lambda query, max_results: firecrawl_search(query=query, max_results=max_results),
 }
