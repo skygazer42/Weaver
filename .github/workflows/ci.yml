@@ -23,6 +23,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt -r requirements-dev.txt
 
+      - name: Dependency sanity (pip check)
+        run: python -m pip check
+
       - name: Secret scan
         run: python scripts/secret_scan.py
 
