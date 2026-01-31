@@ -1,9 +1,7 @@
-version: '3.8'
-
 services:
   postgres:
     image: pgvector/pgvector:pg16
-    container_name: manus_postgres
+    container_name: weaver_postgres
     environment:
       POSTGRES_USER: manus
       POSTGRES_PASSWORD: manus_dev_password
@@ -22,7 +20,7 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    container_name: manus_backend
+    container_name: weaver_backend
     ports:
       - "8000:8000"
     environment:

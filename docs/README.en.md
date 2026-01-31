@@ -12,7 +12,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Node.js 18+](https://img.shields.io/badge/node-18+-green.svg)](https://nodejs.org/)
+[![Node.js 20+](https://img.shields.io/badge/node-20+-green.svg)](https://nodejs.org/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-0.2+-purple.svg)](https://github.com/langchain-ai/langgraph)
 
 [Demo](https://weaver-demo.vercel.app) · [Documentation](./) · [Report Bug](https://github.com/skygazer42/weaver/issues) · [Request Feature](https://github.com/skygazer42/weaver/issues)
@@ -111,7 +111,7 @@
 ### Prerequisites
 
 - **Python 3.11+**- [Download](https://www.python.org/downloads/)
-- **Node.js 18+**- [Download](https://nodejs.org/)
+- **Node.js 20+**- [Download](https://nodejs.org/)
 - **Docker & Docker Compose**- [Install](https://docs.docker.com/get-docker/)
 
 ### 1⃣ Clone & Setup
@@ -155,9 +155,7 @@ make setup
 make setup-full
 
 # Frontend
-cd web
-pnpm install
-cd ..
+pnpm -C web install --frozen-lockfile
 
 # Optional: install Playwright browsers (needed for browser automation)
 playwright install chromium
@@ -170,8 +168,7 @@ playwright install chromium
 .venv/bin/python main.py
 
 # Terminal 2: Start frontend (defaults to port 3100)
-cd web
-pnpm dev
+pnpm -C web dev
 ```
 
 **Access points:**
@@ -412,7 +409,7 @@ Configure agent tools in `data/agents.json`:
 
 **Built-in Agent Profiles:**
 - `default` - Basic tools (web search, browser, python, crawl)
-- `manus` - Full-featured (all sandbox tools, documents, desktop)
+- `manus` - Full-featured (compatibility id; UI name is "Weaver Full Agent")
 
 ### Context Management
 
@@ -770,15 +767,20 @@ tail -f logs/threads/{thread_id}.log
 ### Local Development
 
 ```bash
-# Backend only (with auto-reload)
+# Recommended
+./scripts/setup.sh
+./scripts/dev.sh
+
+# Or run separately:
+# Database
+docker compose -f docker/docker-compose.yml up -d postgres
+
+# Backend (with auto-reload)
+source .venv/bin/activate
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
-# Frontend only
-cd web
-pnpm run dev
-
-# Database
-docker-compose -f docker/docker-compose.yml up postgres -d
+# Frontend
+pnpm -C web dev
 ```
 
 ## Deployment
@@ -798,24 +800,23 @@ docker run -p 8000:8000 \
   weaver-backend
 ```
 
-### Docker Compose (Full Stack)
+### Docker Compose (Backend + Postgres)
 
 ```bash
 # Start all services
-docker-compose -f docker/docker-compose.yml up -d
+docker compose -f docker/docker-compose.yml up -d
 
 # View logs
-docker-compose -f docker/docker-compose.yml logs -f
+docker compose -f docker/docker-compose.yml logs -f
 
 # Stop
-docker-compose -f docker/docker-compose.yml down
+docker compose -f docker/docker-compose.yml down
 ```
 
 **Services:**
 - `postgres` - PostgreSQL database (port 5432)
-- `redis` - Redis cache (port 6379)
 - `backend` - FastAPI backend (port 8000)
-- `web` - Next.js frontend (port 3000)
+  - Note: the frontend is started separately with `pnpm -C web dev` (not via compose by default).
 
 ### Vercel (Frontend)
 

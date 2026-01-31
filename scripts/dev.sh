@@ -1,8 +1,8 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Development startup script
 
-set -e
+set -euo pipefail
 
 echo "🚀 Starting Weaver App in development mode..."
 
@@ -12,32 +12,45 @@ if [ ! -f .env ]; then
     exit 1
 fi
 
-# Start database if not running
-if ! docker ps | grep -q manus_postgres; then
-    echo "🗄️  Starting PostgreSQL database..."
-    docker-compose up -d postgres
-    echo "⏳ Waiting for database to be ready..."
-    sleep 3
-fi
+compose() {
+    if docker compose version &>/dev/null; then
+        docker compose -f docker/docker-compose.yml "$@"
+        return
+    fi
+    if command -v docker-compose &>/dev/null; then
+        docker-compose -f docker/docker-compose.yml "$@"
+        return
+    fi
+    echo "❌ Docker Compose not found. Install Docker Desktop or docker-compose."
+    exit 1
+}
+
+# Start database (idempotent)
+echo "🗄️  Ensuring PostgreSQL database is running..."
+compose up -d postgres
+echo "⏳ Waiting for database to be ready..."
+sleep 3
 
 # Start backend
 echo "🐍 Starting backend server..."
-source venv/bin/activate
+if [ ! -d .venv ]; then
+    echo "❌ .venv not found. Please run ./scripts/setup.sh (or make setup) first."
+    exit 1
+fi
+source .venv/bin/activate
 uvicorn main:app --reload --host 0.0.0.0 --port 8000 &
 BACKEND_PID=$!
 
 # Start web
 echo "⚛️  Starting web server..."
-cd web
-npm run dev &
+pnpm -C web dev &
 WEB_PID=$!
-cd ..
 
 echo ""
 echo "✅ Development servers started!"
 echo ""
 echo "📍 URLs:"
-echo "   Web:      http://localhost:3000"
+echo "   Web:      http://localhost:3100"
 echo "   Backend:  http://localhost:8000"
 echo "   API Docs: http://localhost:8000/docs"
 echo ""

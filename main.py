@@ -107,6 +107,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+APP_STARTED_AT = time.monotonic()
+
 
 # Prometheus metrics (optional, made idempotent to survive double imports under reload)
 def _get_or_create_counter(name: str, *args, **kwargs):
@@ -141,7 +143,7 @@ http_inprogress = (
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     """Log all HTTP requests with timing information."""
-    request_id = str(uuid.uuid4())[:8]
+    request_id = (request.headers.get("X-Request-ID") or "").strip() or str(uuid.uuid4())[:8]
     start_time = time.time()
 
     if http_inprogress:
@@ -346,12 +348,15 @@ async def startup_event():
             )
         )
 
-        # Manus-like agent: all sandbox tools enabled
+        # Full-featured agent: all sandbox tools enabled (compat id: "manus")
         ensure_default_agent(
             default_profile=AgentProfile(
                 id="manus",
-                name="Manus Agent",
-                description="Full-featured agent with all sandbox tools (like Manus). Supports file operations, shell commands, Excel, PPT, image editing, and more.",
+                name="Weaver Full Agent",
+                description=(
+                    "Full-featured agent with all sandbox tools enabled. Supports file operations, "
+                    "shell commands, spreadsheets, presentations, image editing, and more."
+                ),
                 system_prompt=get_default_agent_prompt(),
                 enabled_tools={
                     # Core tools
@@ -542,6 +547,8 @@ async def health():
     return {
         "status": "healthy",
         "database": "configured" if settings.database_url else "not configured",
+        "version": app.version,
+        "uptime_seconds": time.monotonic() - APP_STARTED_AT,
         "timestamp": datetime.now().isoformat(),
     }
 

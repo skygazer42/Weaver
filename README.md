@@ -305,9 +305,7 @@ make setup
 make setup-full
 
 # 前端
-cd web
-pnpm install
-cd ..
+pnpm -C web install --frozen-lockfile
 
 # 可选：Playwright 浏览器（需要浏览器自动化时）
 # 依赖已在 requirements.txt 中包含 playwright，仅需安装浏览器：
@@ -321,8 +319,7 @@ playwright install chromium
 .venv/bin/python main.py
 
 # 终端 2：启动前端（默认端口 3100）
-cd web
-pnpm dev
+pnpm -C web dev
 ```
 
 ### 第五步：访问应用
@@ -616,41 +613,45 @@ GET  /api/tts/voices         # 获取可用语音列表
 ### 本地开发
 
 ```bash
-# 后端热重载
+# 一键初始化依赖 + 启动数据库（推荐）
+./scripts/setup.sh
+
+# 同时启动后端/前端（推荐）
+./scripts/dev.sh
+
+# 或者分开启动：
+# 数据库
+docker compose -f docker/docker-compose.yml up -d postgres
+
+# 后端
+source .venv/bin/activate
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
-# 前端热重载
-cd web && pnpm run dev
-
-# 数据库
-docker-compose -f docker/docker-compose.yml up postgres -d
+# 前端
+pnpm -C web dev
 ```
 
 ### 运行测试
 
 ```bash
 # 单元测试
-pytest tests/ -v
+make test
 
 # API 冒烟测试
-python tests/test_smoke_api.py
+.venv/bin/python tests/test_smoke_api.py
 
 # 深度搜索路由测试
-python scripts/test_deep_search_routing.py
+.venv/bin/python scripts/deep_search_routing_check.py
 ```
 
 ### 代码规范
 
 ```bash
 # 格式化
-black . --line-length 120
-isort . --profile black
-
-# 类型检查
-mypy agent/ tools/ common/
+make format
 
 # Lint
-ruff check .
+make lint
 ```
 
 ### 调试模式
@@ -695,13 +696,13 @@ docker run -d \
 
 ```bash
 # 启动所有服务
-docker-compose -f docker/docker-compose.yml up -d
+docker compose -f docker/docker-compose.yml up -d
 
 # 查看日志
-docker-compose -f docker/docker-compose.yml logs -f backend
+docker compose -f docker/docker-compose.yml logs -f backend
 
 # 停止服务
-docker-compose -f docker/docker-compose.yml down
+docker compose -f docker/docker-compose.yml down
 ```
 
 ### 前端部署（Vercel）
@@ -739,7 +740,7 @@ uvicorn main:app --host 0.0.0.0 --port $PORT
 
 ```bash
 # 方案 1：使用其他端口
-cd web && pnpm run dev -- -p 8080
+pnpm -C web dev -- -p 8080
 
 # 方案 2：以管理员身份运行 PowerShell
 netsh interface ipv4 show excludedportrange protocol=tcp
@@ -756,7 +757,7 @@ netsh interface ipv4 delete excludedportrange protocol=tcp startport=3000 number
 
 ```bash
 # 测试连接
-python -c "from e2b_code_interpreter import Sandbox; s = Sandbox(); print('OK')"
+.venv/bin/python -c "from e2b_code_interpreter import Sandbox; s = Sandbox(); print('OK')"
 ```
 
 ### 3. Deep Search 未执行
@@ -767,13 +768,13 @@ python -c "from e2b_code_interpreter import Sandbox; s = Sandbox(); print('OK')"
 
 - 检查 `search_mode` 参数是否为 `"deep"`
 - 查看日志确认路由决策：`grep "route_decision" logs/weaver.log`
-- 运行诊断脚本：`python scripts/test_deep_search_routing.py`
+- 运行诊断脚本：`.venv/bin/python scripts/deep_search_routing_check.py`
 
 ### 4. 数据库连接错误
 
 ```bash
 # 启动 PostgreSQL
-docker-compose -f docker/docker-compose.yml up postgres -d
+docker compose -f docker/docker-compose.yml up -d postgres
 
 # 测试连接
 psql $DATABASE_URL -c "SELECT 1"
@@ -860,15 +861,14 @@ env: {
 git clone https://github.com/skygazer42/weaver.git
 cd weaver
 cp .env.example .env
-pnpm run install:all
-pnpm run dev
+./scripts/setup.sh
+./scripts/dev.sh
 ```
 
 ### 代码规范
 
 - Python 代码遵循 PEP 8
-- 使用 Black 进行格式化
-- 添加类型提示
+- 使用 Ruff 进行格式化与 lint（`make format` / `make lint`）
 - 为新功能编写测试
 - 更新相关文档
 

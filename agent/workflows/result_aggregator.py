@@ -47,7 +47,10 @@ class SearchResult:
     @property
     def url_hash(self) -> str:
         """Generate URL hash for deduplication."""
-        normalized = self.url.lower().rstrip("/")
+        try:
+            normalized = urlparse(self.url)._replace(fragment="").geturl().lower().rstrip("/")
+        except Exception:
+            normalized = self.url.lower().rstrip("/")
         return hashlib.md5(normalized.encode()).hexdigest()[:12]
 
     @property

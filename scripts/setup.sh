@@ -1,28 +1,52 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Weaver App Setup Script
 
-set -e
+set -euo pipefail
 
 echo "🚀 Setting up Weaver App..."
 
 # Check prerequisites
 echo "📋 Checking prerequisites..."
 
-if ! command -v node &> /dev/null; then
-    echo "❌ Node.js is not installed. Please install Node.js 18+ first."
-    exit 1
-fi
+need_cmd() {
+    if ! command -v "$1" &>/dev/null; then
+        echo "❌ Missing dependency: $1"
+        exit 1
+    fi
+}
 
-if ! command -v python3 &> /dev/null; then
+# Node tooling
+need_cmd node
+need_cmd pnpm
+
+# Backend tooling
+need_cmd make
+if command -v python3.11 &>/dev/null; then
+    PYTHON="python3.11"
+elif command -v python3 &>/dev/null; then
+    PYTHON="python3"
+    echo "⚠️  python3.11 not found; falling back to python3. Makefile defaults to python3.11."
+else
     echo "❌ Python 3 is not installed. Please install Python 3.11+ first."
     exit 1
 fi
 
-if ! command -v docker &> /dev/null; then
-    echo "❌ Docker is not installed. Please install Docker first."
+# Docker / Compose
+need_cmd docker
+
+compose() {
+    if docker compose version &>/dev/null; then
+        docker compose -f docker/docker-compose.yml "$@"
+        return
+    fi
+    if command -v docker-compose &>/dev/null; then
+        docker-compose -f docker/docker-compose.yml "$@"
+        return
+    fi
+    echo "❌ Docker Compose not found. Install Docker Desktop or docker-compose."
     exit 1
-fi
+}
 
 echo "✅ Prerequisites check passed"
 
@@ -40,31 +64,17 @@ fi
 
 echo "✅ Environment files created"
 
-# Install root dependencies
-echo "📦 Installing root dependencies..."
-npm install
+# Setup backend (.venv + deps)
+echo "🐍 Installing backend dependencies..."
+make PYTHON="$PYTHON" setup
 
-# Install web dependencies
-echo "📦 Installing web dependencies..."
-cd web
-npm install
-cd ..
-
-# Setup Python virtual environment
-echo "🐍 Setting up Python virtual environment..."
-python3 -m venv venv
-source venv/bin/activate
-
-# Install Python dependencies
-echo "📦 Installing Python dependencies..."
-pip install --upgrade pip
-pip install -r requirements.txt
-
-deactivate
+# Setup frontend deps
+echo "⚛️  Installing web dependencies..."
+pnpm -C web install --frozen-lockfile
 
 # Start database
 echo "🗄️  Starting PostgreSQL database..."
-docker-compose up -d postgres
+compose up -d postgres
 
 # Wait for database to be ready
 echo "⏳ Waiting for database to be ready..."
@@ -79,8 +89,8 @@ echo "   - TAVILY_API_KEY (required for search)"
 echo "   - E2B_API_KEY (optional, for code execution)"
 echo ""
 echo "2. Start the development servers:"
-echo "   npm run dev"
+echo "   ./scripts/dev.sh"
 echo ""
-echo "3. Open http://localhost:3000 in your browser"
+echo "3. Open http://localhost:3100 in your browser"
 echo ""
 echo "🎉 Happy coding!"
