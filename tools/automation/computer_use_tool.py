@@ -24,6 +24,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import io
+import importlib.util
 import logging
 import time
 from typing import Any, Dict, List, Optional, Tuple
@@ -60,7 +61,7 @@ def _pyautogui():
     pyautogui.PAUSE = 0.1  # Small pause between actions
     return pyautogui
 
-PYAUTOGUI_AVAILABLE = True
+PYAUTOGUI_AVAILABLE = importlib.util.find_spec("pyautogui") is not None
 
 
 def _get_event_emitter(thread_id: str):
