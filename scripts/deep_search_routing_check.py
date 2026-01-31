@@ -4,7 +4,7 @@ Deep Search 路由诊断脚本
 测试 deep search 模式是否正确路由到 deepsearch_node。
 
 Usage:
-    python scripts/test_deep_search_routing.py
+    python scripts/deep_search_routing_check.py
 """
 
 import requests
@@ -15,7 +15,7 @@ from datetime import datetime
 BASE_URL = "http://localhost:8000"
 
 
-def test_deep_search_routing():
+def run_deep_search_routing_check():
     """测试 deep search 路由"""
     print("=" * 80)
     print("Deep Search 路由诊断测试")
@@ -160,7 +160,7 @@ def test_deep_search_routing():
 
 if __name__ == "__main__":
     try:
-        success = test_deep_search_routing()
+        success = run_deep_search_routing_check()
         sys.exit(0 if success else 1)
     except KeyboardInterrupt:
         print("\n\n测试被用户中断")
