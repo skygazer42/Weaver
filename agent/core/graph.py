@@ -214,11 +214,31 @@ def create_research_graph(checkpointer=None, interrupt_before=None, store=None):
     workflow.add_edge("deepsearch", "human_review")
     workflow.add_edge("human_review", END)
 
+    # Parse HITL checkpoints from settings
+    hitl_checkpoints = getattr(settings, "hitl_checkpoints", "") or ""
+    hitl_nodes = []
+    if hitl_checkpoints:
+        checkpoint_map = {
+            "plan": "planner",        # Pause after planning
+            "sources": "compressor",  # Pause after source compression
+            "draft": "writer",        # Pause after draft generation
+            "final": "human_review",  # Pause before final review
+        }
+        for cp in hitl_checkpoints.split(","):
+            cp = cp.strip().lower()
+            if cp in checkpoint_map:
+                hitl_nodes.append(checkpoint_map[cp])
+        logger.info(f"HITL checkpoints enabled: {hitl_nodes}")
+
+    # Merge HITL nodes with any provided interrupt_before
+    all_interrupts = list(interrupt_before or []) + hitl_nodes
+    final_interrupts = list(set(all_interrupts)) if all_interrupts else None
+
     # Compile the graph
     graph = workflow.compile(
         checkpointer=checkpointer,
         store=store,
-        interrupt_before=interrupt_before or None,
+        interrupt_before=final_interrupts,
     )
 
     logger.info("Research graph compiled successfully")

@@ -252,6 +252,10 @@ class Settings(BaseSettings):
     # Report Visualization Config
     enable_report_charts: bool = True  # Generate charts from data in reports
 
+    # Human-in-the-Loop (HITL) Config
+    hitl_checkpoints: str = ""  # Comma-separated interrupt points: plan,sources,draft,final
+    hitl_timeout_seconds: int = 3600  # Max wait time for human review (1 hour)
+
     # Prompt Config (选择提示词风格)
     prompt_style: str = "enhanced"  # simple | enhanced | custom
     custom_agent_prompt_path: str = ""  # 自定义 agent 提示词文件路径

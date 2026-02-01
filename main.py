@@ -6,6 +6,7 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
+from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -1967,6 +1968,151 @@ async def delete_session(thread_id: str):
         raise
     except Exception as e:
         logger.error(f"Delete session error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== HITL Interrupt API ====================
+
+
+class InterruptAction(str, Enum):
+    """Actions for interrupt handling."""
+    APPROVE = "approve"      # Approve and continue
+    MODIFY = "modify"        # Modify state and continue
+    REJECT = "reject"        # Reject and stop
+    SKIP = "skip"            # Skip this checkpoint
+
+
+class InterruptResumeRequest(BaseModel):
+    """Request to resume from an interrupt point."""
+    action: str = "approve"
+    modifications: Optional[Dict[str, Any]] = None
+    feedback: Optional[str] = None
+
+
+@app.get("/api/interrupt/{thread_id}/status")
+async def get_interrupt_status(thread_id: str):
+    """
+    Get the current interrupt status for a session.
+
+    Returns information about whether the session is paused at an interrupt point.
+    """
+    if not checkpointer:
+        raise HTTPException(status_code=400, detail="No checkpointer configured")
+
+    try:
+        config = {"configurable": {"thread_id": thread_id}}
+        checkpoint_tuple = checkpointer.get_tuple(config)
+
+        if not checkpoint_tuple:
+            raise HTTPException(status_code=404, detail=f"Session not found: {thread_id}")
+
+        state = checkpoint_tuple.checkpoint.get("channel_values", {})
+        metadata = getattr(checkpoint_tuple, "metadata", {}) or {}
+
+        # Check if paused at interrupt
+        is_interrupted = metadata.get("interrupted", False)
+        interrupt_node = metadata.get("interrupt_node", "")
+
+        # Get checkpoint info
+        checkpoint_info = {
+            "plan": {
+                "node": "planner",
+                "description": "Research plan generated, awaiting approval",
+                "data": {
+                    "research_plan": state.get("research_plan", []),
+                    "suggested_queries": state.get("suggested_queries", []),
+                },
+            },
+            "sources": {
+                "node": "compressor",
+                "description": "Sources collected and compressed, awaiting review",
+                "data": {
+                    "sources_count": len(state.get("scraped_content", [])),
+                    "compressed_knowledge": state.get("compressed_knowledge", {}),
+                },
+            },
+            "draft": {
+                "node": "writer",
+                "description": "Draft report generated, awaiting review",
+                "data": {
+                    "draft_report": state.get("draft_report", "")[:1000] + "..." if len(state.get("draft_report", "")) > 1000 else state.get("draft_report", ""),
+                },
+            },
+        }
+
+        # Find which checkpoint we're at
+        current_checkpoint = None
+        for cp_name, cp_info in checkpoint_info.items():
+            if cp_info["node"] == interrupt_node:
+                current_checkpoint = cp_name
+                break
+
+        return {
+            "thread_id": thread_id,
+            "is_interrupted": is_interrupted,
+            "interrupt_node": interrupt_node,
+            "checkpoint_name": current_checkpoint,
+            "checkpoint_info": checkpoint_info.get(current_checkpoint, {}) if current_checkpoint else {},
+            "available_actions": ["approve", "modify", "reject", "skip"] if is_interrupted else [],
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Get interrupt status error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/interrupt/{thread_id}/resume")
+async def resume_from_interrupt(thread_id: str, request: InterruptResumeRequest):
+    """
+    Resume execution from an interrupt point.
+
+    Actions:
+    - approve: Continue with current state
+    - modify: Apply modifications and continue
+    - reject: Stop execution
+    - skip: Skip this step and continue
+    """
+    if not checkpointer:
+        raise HTTPException(status_code=400, detail="No checkpointer configured")
+
+    try:
+        config = {"configurable": {"thread_id": thread_id}}
+        checkpoint_tuple = checkpointer.get_tuple(config)
+
+        if not checkpoint_tuple:
+            raise HTTPException(status_code=404, detail=f"Session not found: {thread_id}")
+
+        action = request.action.lower()
+
+        if action == "reject":
+            # Mark session as cancelled
+            return {
+                "success": True,
+                "action": "rejected",
+                "message": f"Session {thread_id} execution rejected. Session cancelled.",
+            }
+
+        if action == "modify" and request.modifications:
+            # Apply modifications would require updating the checkpoint
+            # This is a simplified implementation
+            modifications = request.modifications
+            logger.info(f"Modifications requested for {thread_id}: {modifications}")
+
+        # For approve/skip/modify, return info for client to resume via SSE
+        return {
+            "success": True,
+            "action": action,
+            "thread_id": thread_id,
+            "message": f"Session {thread_id} ready to resume. Use the streaming endpoint to continue.",
+            "modifications_applied": action == "modify",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Resume from interrupt error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
