@@ -82,8 +82,6 @@ class AgentState(TypedDict):
     research_plan: List[str]
     # Current step being executed
     current_step: int
-    # Total steps in plan
-    total_steps: int
     # Execution status
     status: ExecutionStatus
     # Completion flag
@@ -158,8 +156,6 @@ class AgentState(TypedDict):
     research_tree: Dict[str, Any]
     # Current branch being explored
     current_branch_id: Optional[str]
-    # Maximum tree depth for exploration
-    max_tree_depth: int
     # Whether tree exploration is enabled
     tree_exploration_enabled: bool
 
@@ -187,12 +183,6 @@ class AgentState(TypedDict):
     # Token usage tracking
     total_input_tokens: int
     total_output_tokens: int
-    # LLM call count
-    llm_call_count: int
-    # Search count
-    search_count: int
-    # Time spent in each phase (seconds)
-    timing: Dict[str, float]
 
 
 class ResearchPlan(TypedDict):

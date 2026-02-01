@@ -43,3 +43,13 @@ requests>=2.31.0
 markdownify>=0.12.0
 matplotlib>=3.9.0
 greenlet>=3.1.1
+
+# RAG & Export (optional but commonly used)
+# These have try/except guards - install for full functionality
+pymupdf>=1.23.0           # PDF parsing
+python-docx>=0.8.11       # DOCX parsing/export
+chromadb>=0.4.0           # Vector store for RAG
+weasyprint>=60.0          # PDF export
+jinja2>=3.1.0             # HTML template rendering
+markdown>=3.5.0           # Markdown to HTML conversion
+openai>=1.0.0             # OpenAI embeddings API

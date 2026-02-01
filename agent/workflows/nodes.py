@@ -390,41 +390,50 @@ def coordinator_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any
 
     logger.info("Executing coordinator node")
 
-    topic = state.get("input", "")
-    research_plan = state.get("research_plan", [])
-    scraped_content = state.get("scraped_content", [])
-    summary_notes = state.get("summary_notes", [])
-    revision_count = state.get("revision_count", 0)
-    max_revisions = state.get("max_revisions", 2)
+    try:
+        topic = state.get("input", "")
+        research_plan = state.get("research_plan", [])
+        scraped_content = state.get("scraped_content", [])
+        summary_notes = state.get("summary_notes", [])
+        revision_count = state.get("revision_count", 0)
+        max_revisions = state.get("max_revisions", 2)
 
-    model = _model_for_task("routing", config)
-    llm = _chat_model(model, temperature=0.3)
+        model = _model_for_task("routing", config)
+        llm = _chat_model(model, temperature=0.3)
 
-    coordinator = ResearchCoordinator(llm, config)
+        coordinator = ResearchCoordinator(llm, config)
 
-    # Build knowledge summary from summary_notes
-    knowledge_summary = "\n".join(summary_notes[:5]) if summary_notes else ""
+        # Build knowledge summary from summary_notes
+        knowledge_summary = "\n".join(summary_notes[:5]) if summary_notes else ""
 
-    decision = coordinator.decide_next_action(
-        topic=topic,
-        num_queries=len(research_plan),
-        num_sources=len(scraped_content),
-        num_summaries=len(summary_notes),
-        current_epoch=revision_count,
-        max_epochs=max_revisions + 1,
-        knowledge_summary=knowledge_summary,
-    )
+        decision = coordinator.decide_next_action(
+            topic=topic,
+            num_queries=len(research_plan),
+            num_sources=len(scraped_content),
+            num_summaries=len(summary_notes),
+            current_epoch=revision_count,
+            max_epochs=max_revisions + 1,
+            knowledge_summary=knowledge_summary,
+        )
 
-    logger.info(
-        f"[coordinator] Decision: {decision.action.value} | "
-        f"Reasoning: {decision.reasoning[:100]}"
-    )
+        logger.info(
+            f"[coordinator] Decision: {decision.action.value} | "
+            f"Reasoning: {decision.reasoning[:100]}"
+        )
 
-    return {
-        "coordinator_action": decision.action.value,
-        "coordinator_reasoning": decision.reasoning,
-        "missing_topics": decision.priority_topics if decision.priority_topics else state.get("missing_topics", []),
-    }
+        return {
+            "coordinator_action": decision.action.value,
+            "coordinator_reasoning": decision.reasoning,
+            "missing_topics": decision.priority_topics if decision.priority_topics else state.get("missing_topics", []),
+        }
+    except Exception as e:
+        logger.error(f"Coordinator error: {e}", exc_info=True)
+        # Default to planning on error - safe fallback
+        return {
+            "coordinator_action": "plan",
+            "coordinator_reasoning": f"Coordinator error, defaulting to plan: {str(e)}",
+            "missing_topics": state.get("missing_topics", []),
+        }
 
 
 def deepsearch_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
