@@ -1514,6 +1514,462 @@ async def memory_status():
     }
 
 
+# ==================== Tracing API ====================
+
+
+@app.get("/api/traces/{thread_id}")
+async def get_traces(thread_id: str):
+    """
+    Get traces for a thread.
+
+    Returns the latest trace with full span tree.
+    """
+    from common.tracing import get_trace
+
+    if not settings.enable_tracing:
+        raise HTTPException(status_code=400, detail="Tracing is not enabled")
+
+    trace = get_trace(thread_id)
+    if not trace:
+        raise HTTPException(status_code=404, detail=f"No traces found for thread {thread_id}")
+
+    return trace
+
+
+@app.get("/api/traces/{thread_id}/summary")
+async def get_trace_summary(thread_id: str):
+    """
+    Get trace summary for a thread.
+
+    Returns high-level statistics: token counts, durations, node breakdown.
+    """
+    from common.tracing import get_trace_summary as _get_summary
+
+    if not settings.enable_tracing:
+        raise HTTPException(status_code=400, detail="Tracing is not enabled")
+
+    summary = _get_summary(thread_id)
+    if not summary:
+        raise HTTPException(status_code=404, detail=f"No traces found for thread {thread_id}")
+
+    return summary
+
+
+@app.get("/api/traces/{thread_id}/all")
+async def get_all_traces(thread_id: str):
+    """
+    Get all traces for a thread.
+
+    Returns list of all stored traces (up to buffer limit).
+    """
+    from common.tracing import get_all_traces as _get_all
+
+    if not settings.enable_tracing:
+        raise HTTPException(status_code=400, detail="Tracing is not enabled")
+
+    traces = _get_all(thread_id)
+    return {"thread_id": thread_id, "count": len(traces), "traces": traces}
+
+
+# ==================== Report Export API ====================
+
+
+class ExportRequest(BaseModel):
+    """Export request for generating reports in various formats."""
+    format: str = "html"  # html, pdf, docx
+    title: Optional[str] = None
+
+
+@app.get("/api/export/{thread_id}")
+async def export_report_endpoint(
+    thread_id: str,
+    format: str = "html",
+    title: Optional[str] = None,
+):
+    """
+    Export a research report for a given thread.
+
+    Args:
+        thread_id: Thread ID to export report for
+        format: Output format (html, pdf, docx)
+        title: Optional custom title for the report
+    """
+    from tools.export import export_report as do_export
+
+    if not checkpointer:
+        raise HTTPException(status_code=400, detail="No checkpointer configured")
+
+    try:
+        config = {"configurable": {"thread_id": thread_id}}
+        checkpoint = checkpointer.get_tuple(config)
+        if not checkpoint:
+            raise HTTPException(status_code=404, detail=f"No checkpoint found for thread {thread_id}")
+
+        state = checkpoint.checkpoint.get("channel_values", {})
+        final_report = state.get("final_report", "")
+        if not final_report:
+            raise HTTPException(status_code=404, detail="No report found for this thread")
+
+        sources = []
+        scraped = state.get("scraped_content", [])
+        if isinstance(scraped, list):
+            for item in scraped:
+                if isinstance(item, dict):
+                    for r in item.get("results", []):
+                        url = r.get("url") if isinstance(r, dict) else None
+                        if url and url not in sources:
+                            sources.append(url)
+
+        report_title = title or "Research Report"
+        format_lower = format.lower().strip()
+
+        if format_lower == "html":
+            html_content = do_export(
+                final_report, format="html", title=report_title,
+                thread_id=thread_id, sources=sources,
+            )
+            return StreamingResponse(
+                iter([html_content.encode("utf-8") if isinstance(html_content, str) else html_content]),
+                media_type="text/html",
+                headers={"Content-Disposition": f'inline; filename="report_{thread_id}.html"'},
+            )
+
+        elif format_lower == "pdf":
+            try:
+                pdf_bytes = do_export(
+                    final_report, format="pdf", title=report_title,
+                    thread_id=thread_id, sources=sources,
+                )
+                return StreamingResponse(
+                    iter([pdf_bytes if isinstance(pdf_bytes, bytes) else pdf_bytes.encode("utf-8")]),
+                    media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="report_{thread_id}.pdf"'},
+                )
+            except ImportError as e:
+                raise HTTPException(status_code=501, detail=f"PDF export requires WeasyPrint: {e}")
+
+        elif format_lower in ("docx", "doc"):
+            try:
+                docx_bytes = do_export(
+                    final_report, format="docx", title=report_title,
+                    thread_id=thread_id, sources=sources,
+                )
+                return StreamingResponse(
+                    iter([docx_bytes if isinstance(docx_bytes, bytes) else docx_bytes.encode("utf-8")]),
+                    media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    headers={"Content-Disposition": f'attachment; filename="report_{thread_id}.docx"'},
+                )
+            except ImportError as e:
+                raise HTTPException(status_code=501, detail=f"DOCX export requires python-docx: {e}")
+
+        else:
+            raise HTTPException(status_code=400, detail=f"Unsupported format: {format}. Use html, pdf, or docx.")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Export error for thread {thread_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== RAG Document API ====================
+
+
+@app.post("/api/documents/upload")
+async def upload_document(file: UploadFile = File(...)):
+    """
+    Upload a document to the RAG knowledge base.
+
+    Supports PDF, DOCX, TXT, MD files.
+    """
+    from tools.rag import RAGTool
+
+    if not settings.rag_enabled:
+        raise HTTPException(status_code=400, detail="RAG is not enabled. Set rag_enabled=True in settings.")
+
+    try:
+        from tools.rag.rag_tool import get_rag_tool
+
+        rag = get_rag_tool()
+        if rag is None:
+            raise HTTPException(status_code=500, detail="Failed to initialize RAG tool")
+
+        content = await file.read()
+        result = rag.add_document(content=content, filename=file.filename)
+
+        if not result.get("success"):
+            raise HTTPException(status_code=400, detail=result.get("error", "Upload failed"))
+
+        return {
+            "success": True,
+            "filename": file.filename,
+            "chunks": result.get("chunks", 0),
+            "message": f"Document '{file.filename}' uploaded successfully with {result.get('chunks', 0)} chunks",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Document upload error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/documents/list")
+async def list_documents(limit: int = 100):
+    """
+    List all documents in the RAG knowledge base.
+    """
+    if not settings.rag_enabled:
+        raise HTTPException(status_code=400, detail="RAG is not enabled.")
+
+    try:
+        from tools.rag.rag_tool import get_rag_tool
+
+        rag = get_rag_tool()
+        if rag is None:
+            raise HTTPException(status_code=500, detail="Failed to initialize RAG tool")
+
+        documents = rag.list_documents(limit=limit)
+        count = rag.count()
+
+        return {
+            "total_chunks": count,
+            "documents": documents,
+        }
+
+    except Exception as e:
+        logger.error(f"List documents error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/documents/{source:path}")
+async def delete_document(source: str):
+    """
+    Delete a document from the RAG knowledge base by source path.
+    """
+    if not settings.rag_enabled:
+        raise HTTPException(status_code=400, detail="RAG is not enabled.")
+
+    try:
+        from tools.rag.rag_tool import get_rag_tool
+
+        rag = get_rag_tool()
+        if rag is None:
+            raise HTTPException(status_code=500, detail="Failed to initialize RAG tool")
+
+        result = rag.delete_document(source)
+        if not result.get("success"):
+            raise HTTPException(status_code=400, detail=result.get("error", "Delete failed"))
+
+        return {"success": True, "message": f"Document '{source}' deleted"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Delete document error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/documents/search")
+async def search_documents(query: str, n_results: int = 5):
+    """
+    Search the RAG knowledge base.
+    """
+    if not settings.rag_enabled:
+        raise HTTPException(status_code=400, detail="RAG is not enabled.")
+
+    try:
+        from tools.rag.rag_tool import get_rag_tool
+
+        rag = get_rag_tool()
+        if rag is None:
+            raise HTTPException(status_code=500, detail="Failed to initialize RAG tool")
+
+        results = rag.search(query, n_results=n_results)
+
+        return {
+            "query": query,
+            "results": results,
+        }
+
+    except Exception as e:
+        logger.error(f"Search documents error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== Sessions API ====================
+
+
+@app.get("/api/sessions")
+async def list_sessions(
+    limit: int = 50,
+    status: Optional[str] = None,
+):
+    """
+    List all research sessions.
+
+    Args:
+        limit: Maximum sessions to return
+        status: Filter by status (pending, running, completed, cancelled)
+    """
+    if not checkpointer:
+        raise HTTPException(status_code=400, detail="No checkpointer configured")
+
+    try:
+        from common.session_manager import get_session_manager
+
+        manager = get_session_manager(checkpointer)
+        sessions = manager.list_sessions(limit=limit, status_filter=status)
+
+        return {
+            "count": len(sessions),
+            "sessions": [s.to_dict() for s in sessions],
+        }
+
+    except Exception as e:
+        logger.error(f"List sessions error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/sessions/{thread_id}")
+async def get_session(thread_id: str):
+    """
+    Get session info by thread ID.
+    """
+    if not checkpointer:
+        raise HTTPException(status_code=400, detail="No checkpointer configured")
+
+    try:
+        from common.session_manager import get_session_manager
+
+        manager = get_session_manager(checkpointer)
+        session = manager.get_session(thread_id)
+
+        if not session:
+            raise HTTPException(status_code=404, detail=f"Session not found: {thread_id}")
+
+        return session.to_dict()
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Get session error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/sessions/{thread_id}/state")
+async def get_session_state(thread_id: str):
+    """
+    Get full session state snapshot.
+    """
+    if not checkpointer:
+        raise HTTPException(status_code=400, detail="No checkpointer configured")
+
+    try:
+        from common.session_manager import get_session_manager
+
+        manager = get_session_manager(checkpointer)
+        state = manager.get_session_state(thread_id)
+
+        if not state:
+            raise HTTPException(status_code=404, detail=f"Session not found: {thread_id}")
+
+        return state.to_dict()
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Get session state error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class ResumeRequest(BaseModel):
+    """Request to resume a session."""
+    additional_input: Optional[str] = None
+    update_state: Optional[Dict[str, Any]] = None
+
+
+@app.post("/api/sessions/{thread_id}/resume")
+async def resume_session(thread_id: str, request: ResumeRequest = None):
+    """
+    Resume a paused or cancelled research session.
+    """
+    if not checkpointer:
+        raise HTTPException(status_code=400, detail="No checkpointer configured")
+
+    try:
+        from common.session_manager import get_session_manager
+
+        manager = get_session_manager(checkpointer)
+
+        # Check if session can be resumed
+        can_resume, reason = manager.can_resume(thread_id)
+        if not can_resume:
+            raise HTTPException(status_code=400, detail=reason)
+
+        # Get current state
+        state = manager.get_session_state(thread_id)
+        if not state:
+            raise HTTPException(status_code=404, detail=f"Session not found: {thread_id}")
+
+        # Build config for resumption
+        config = {
+            "configurable": {
+                "thread_id": thread_id,
+            }
+        }
+
+        # Resume the graph execution
+        # Note: Actual resumption depends on the graph implementation
+        # This returns info for the client to continue via SSE
+        return {
+            "success": True,
+            "thread_id": thread_id,
+            "status": "ready_to_resume",
+            "message": f"Session {thread_id} is ready to resume. Use the streaming endpoint with this thread_id.",
+            "current_state": {
+                "route": state.state.get("route"),
+                "revision_count": state.state.get("revision_count", 0),
+                "has_report": bool(state.state.get("final_report")),
+            },
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Resume session error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/sessions/{thread_id}")
+async def delete_session(thread_id: str):
+    """
+    Delete a research session.
+    """
+    if not checkpointer:
+        raise HTTPException(status_code=400, detail="No checkpointer configured")
+
+    try:
+        from common.session_manager import get_session_manager
+
+        manager = get_session_manager(checkpointer)
+        success = manager.delete_session(thread_id)
+
+        if not success:
+            raise HTTPException(status_code=400, detail=f"Failed to delete session: {thread_id}")
+
+        return {
+            "success": True,
+            "message": f"Session {thread_id} deleted",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Delete session error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ==================== ASR 璇煶璇嗗埆 API ====================
 
 

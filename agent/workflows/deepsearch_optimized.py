@@ -7,6 +7,8 @@ Key improvements:
 3. Enhanced error handling
 4. Better cancellation support
 5. OOP encapsulation (optional)
+6. Tree-based exploration (new)
+7. Multi-model support (new)
 
 Based on: deep_search-dev reference implementation
 """
@@ -38,6 +40,12 @@ from prompts.templates.deepsearch import (
 )
 from tools.crawl.crawler import crawl_urls
 from tools.search.search import tavily_search
+
+# Import tree-based research components
+from agent.workflows.research_tree import TreeExplorer, ResearchTree
+
+# Import knowledge gap analysis
+from agent.workflows.knowledge_gap import KnowledgeGapAnalyzer
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +107,27 @@ def _selected_reasoning_model(config: Dict[str, Any], fallback: str) -> str:
     return fallback
 
 
+def _model_for_task(task_type: str, config: Dict[str, Any]) -> str:
+    """
+    Get model name for a specific task type using the ModelRouter.
+
+    Args:
+        task_type: One of: planning, query_gen, research, critique, synthesis, writing
+        config: RunnableConfig dict with optional overrides
+    """
+    try:
+        from agent.core.multi_model import TaskType, get_model_router
+
+        tt = TaskType(task_type)
+        router = get_model_router()
+        return router.get_model_name(tt, config)
+    except Exception:
+        # Fallback to legacy behavior
+        if task_type in ("planning", "query_gen", "critique", "gap_analysis"):
+            return _selected_reasoning_model(config, settings.reasoning_model)
+        return _selected_model(config, settings.primary_model)
+
+
 def _parse_list_output(text: str) -> List[str]:
     """Parse python-list-like output into a string list."""
     if not text:
@@ -147,11 +176,21 @@ def _generate_queries(
     summary_notes: List[str],
     query_num: int,
     config: Dict[str, Any],
+    missing_topics: Optional[List[str]] = None,
 ) -> List[str]:
-    """Generate new search queries based on topic and existing knowledge."""
+    """Generate new search queries based on topic, existing knowledge, and knowledge gaps.
+
+    If missing_topics is provided (from gap analysis), prioritizes those areas.
+    """
+    # If we have missing topics from gap analysis, incorporate them
+    enhanced_topic = topic
+    if missing_topics:
+        gap_hint = f"\n\n注意：以下方面信息仍然不足，请优先覆盖：{', '.join(missing_topics[:3])}"
+        enhanced_topic = topic + gap_hint
+
     prompt = ChatPromptTemplate.from_messages([("user", formulate_query_prompt)])
     msg = prompt.format_messages(
-        topic=topic,
+        topic=enhanced_topic,
         have_query=", ".join(have_query) or "[]",
         summary_search="\n\n".join(summary_notes) or "暂无",
         query_num=query_num,
@@ -354,12 +393,14 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
     per_query_results = int(getattr(settings, "deepsearch_results_per_query", 5))
     top_urls = max(3, min(5, per_query_results))
 
-    reasoning_model = _selected_reasoning_model(config, settings.reasoning_model)
-    primary_model = _selected_model(config, settings.primary_model)
+    # Use multi-model routing for different task types
+    planning_model = _model_for_task("planning", config)
+    research_model = _model_for_task("research", config)
+    writing_model = _model_for_task("writing", config)
 
-    planner_llm = _chat_model(reasoning_model, temperature=0.8)
-    critic_llm = _chat_model(reasoning_model, temperature=0.2)
-    writer_llm = _chat_model(primary_model, temperature=0.5)
+    planner_llm = _chat_model(planning_model, temperature=0.8)
+    critic_llm = _chat_model(research_model, temperature=0.2)
+    writer_llm = _chat_model(writing_model, temperature=0.5)
 
     have_query: List[str] = []
     summary_notes: List[str] = []
@@ -381,10 +422,12 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
                 epoch_start = time.time()
                 logger.info(f"[deepsearch] ===== Epoch {epoch + 1}/{max_epochs} =====")
 
-                # ⏱️ Step 1: 生成查询
+                # ⏱️ Step 1: 生成查询 (利用知识空白分析结果)
                 query_start = time.time()
+                missing_topics = state.get("missing_topics", []) if epoch > 0 else []
                 queries = _generate_queries(
-                    planner_llm, topic, have_query, summary_notes, query_num, config
+                    planner_llm, topic, have_query, summary_notes, query_num, config,
+                    missing_topics=missing_topics,
                 )
                 if epoch == 0 and topic not in queries:
                     queries.append(topic)
@@ -488,6 +531,43 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
                     f" | 耗时 {time.time() - summary_start:.2f}s"
                 )
 
+                # ⏱️ Step 5.5: 知识空白分析 (可选)
+                use_gap_analysis = getattr(settings, "deepsearch_use_gap_analysis", True)
+                if use_gap_analysis and not enough and epoch < max_epochs - 1:
+                    gap_start = time.time()
+                    try:
+                        gap_model = _model_for_task("gap_analysis", config)
+                        gap_llm = _chat_model(gap_model, temperature=0.3)
+                        gap_analyzer = KnowledgeGapAnalyzer(gap_llm, config, coverage_threshold=0.8)
+
+                        # Analyze current knowledge state
+                        collected_knowledge = "\n\n".join(summary_notes)
+                        gap_result = gap_analyzer.analyze(topic, have_query, collected_knowledge)
+
+                        logger.info(
+                            f"[deepsearch] Epoch {epoch + 1}: 知识空白分析完成"
+                            f" | 覆盖率: {gap_result.overall_coverage:.2f}"
+                            f" | 空白数: {len(gap_result.gaps)}"
+                            f" | 耗时 {time.time() - gap_start:.2f}s"
+                        )
+
+                        # Use gap analysis to determine if we can stop early
+                        if gap_analyzer.is_research_sufficient(gap_result):
+                            logger.info(f"[deepsearch] Epoch {epoch + 1}: 知识空白分析判定信息足够")
+                            enough = True
+
+                        # Get high-priority aspects for next round's query generation
+                        high_priority_aspects = gap_analyzer.get_high_priority_aspects(gap_result)
+                        if high_priority_aspects:
+                            logger.info(
+                                f"[deepsearch] 高优先级空白: {', '.join(high_priority_aspects[:3])}"
+                            )
+                            # Store for use in next epoch's query generation
+                            state["missing_topics"] = high_priority_aspects
+
+                    except Exception as e:
+                        logger.warning(f"[deepsearch] 知识空白分析失败，继续常规流程: {e}")
+
                 epoch_duration = time.time() - epoch_start
                 logger.info(f"[deepsearch] Epoch {epoch + 1}: 总耗时 {epoch_duration:.2f}s")
 
@@ -559,3 +639,159 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
             "errors": ["DeepSearch was cancelled"],
             "final_report": "任务已被取消",
         }
+
+
+def run_deepsearch_tree(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Tree-based deep search pipeline.
+
+    Uses hierarchical topic decomposition and parallel branch exploration
+    for more comprehensive research coverage.
+
+    Inspired by GPT Researcher's tree exploration approach.
+    """
+    topic = state.get("input", "")
+    _check_cancel(state)
+
+    # Use multi-model routing for different task types
+    planning_model = _model_for_task("planning", config)
+    research_model = _model_for_task("research", config)
+    writing_model = _model_for_task("writing", config)
+
+    planner_llm = _chat_model(planning_model, temperature=0.8)
+    critic_llm = _chat_model(research_model, temperature=0.2)
+    writer_llm = _chat_model(writing_model, temperature=0.5)
+
+    max_depth = int(getattr(settings, "tree_max_depth", 2))
+    max_branches = int(getattr(settings, "tree_max_branches", 4))
+    queries_per_branch = int(getattr(settings, "tree_queries_per_branch", 3))
+    per_query_results = int(getattr(settings, "deepsearch_results_per_query", 5))
+    parallel_branches = int(getattr(settings, "tree_parallel_branches", 3))
+
+    logger.info(
+        f"[deepsearch-tree] Starting tree exploration: topic='{topic}' "
+        f"depth={max_depth} branches={max_branches} parallel={parallel_branches}"
+    )
+
+    start_ts = time.time()
+
+    try:
+        # Create tree explorer
+        explorer = TreeExplorer(
+            planner_llm=planner_llm,
+            researcher_llm=critic_llm,
+            writer_llm=writer_llm,
+            search_func=tavily_search.invoke,
+            config=config,
+            max_depth=max_depth,
+            max_branches=max_branches,
+            queries_per_branch=queries_per_branch,
+        )
+
+        # Run tree exploration (use async if parallel_branches > 0)
+        if parallel_branches > 0:
+            # Use async parallel exploration
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # If already in async context, use run_in_executor
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(
+                            lambda: asyncio.run(explorer.run_async(topic, state, decompose_root=True))
+                        )
+                        tree = future.result()
+                else:
+                    tree = loop.run_until_complete(explorer.run_async(topic, state, decompose_root=True))
+            except RuntimeError:
+                # No event loop, create one
+                tree = asyncio.run(explorer.run_async(topic, state, decompose_root=True))
+            logger.info(f"[deepsearch-tree] Used async parallel exploration")
+        else:
+            tree = explorer.run(topic, state, decompose_root=True)
+
+        # Get merged summary from all branches
+        merged_summary = explorer.get_final_summary()
+        all_sources = explorer.get_all_sources()
+        all_findings = explorer.get_all_findings()
+
+        # Generate final report using the comprehensive summary
+        summary_notes = [merged_summary] if merged_summary else []
+        final_report = (
+            _final_report(writer_llm, topic, summary_notes, config)
+            if summary_notes
+            else summary_text_prompt
+        )
+
+        elapsed = time.time() - start_ts
+        logger.info(
+            f"[deepsearch-tree] ===== Completed =====\n"
+            f"  Total time: {elapsed:.2f}s\n"
+            f"  Tree nodes: {len(tree.nodes)}\n"
+            f"  Total sources: {len(all_sources)}\n"
+            f"  Report length: {len(final_report)} chars"
+        )
+
+        # Collect queries from all nodes
+        have_query = []
+        search_runs = []
+        for node in tree.nodes.values():
+            have_query.extend(node.queries)
+            for finding in node.findings:
+                search_runs.append({
+                    "query": finding.get("query", ""),
+                    "results": [finding.get("result", {})],
+                    "timestamp": finding.get("timestamp", ""),
+                    "branch_id": node.id,
+                    "branch_topic": node.topic,
+                })
+
+        # Save data
+        save_path = _save_deepsearch_data(
+            topic, have_query, summary_notes, search_runs, final_report, epoch=1,
+        )
+
+        messages = [AIMessage(content=final_report)]
+        if save_path:
+            messages.append(AIMessage(content=f"(数据已保存: {save_path})"))
+
+        return {
+            "research_plan": have_query,
+            "scraped_content": search_runs,
+            "draft_report": final_report,
+            "final_report": final_report,
+            "messages": messages,
+            "research_tree": tree.to_dict(),
+            "is_complete": False,
+        }
+
+    except asyncio.CancelledError:
+        logger.warning("[deepsearch-tree] 收到取消信号，停止任务")
+        return {
+            "is_cancelled": True,
+            "is_complete": True,
+            "errors": ["DeepSearch was cancelled"],
+            "final_report": "任务已被取消",
+        }
+    except Exception as e:
+        logger.error(f"[deepsearch-tree] Failed: {e}", exc_info=True)
+        # Fallback to linear mode
+        logger.info("[deepsearch-tree] Falling back to linear deepsearch...")
+        return run_deepsearch_optimized(state, config)
+
+
+def run_deepsearch_auto(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Auto-select between tree and linear deep search based on settings.
+
+    Uses tree-based exploration if enabled in settings, otherwise falls back
+    to the optimized linear approach.
+    """
+    use_tree = getattr(settings, "tree_exploration_enabled", True)
+
+    if use_tree:
+        logger.info("[deepsearch] Using tree-based exploration mode")
+        return run_deepsearch_tree(state, config)
+    else:
+        logger.info("[deepsearch] Using linear exploration mode")
+        return run_deepsearch_optimized(state, config)

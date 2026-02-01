@@ -177,6 +177,31 @@ def _selected_reasoning_model(config: RunnableConfig, fallback: str) -> str:
     return fallback
 
 
+def _model_for_task(task_type: str, config: RunnableConfig) -> str:
+    """
+    Get model name for a specific task type using the ModelRouter.
+
+    Respects runtime config overrides, per-task settings, and defaults.
+    Falls back to _selected_model/_selected_reasoning_model for compatibility.
+
+    Args:
+        task_type: One of: routing, planning, query_gen, research, critique,
+                   synthesis, writing, evaluation, reflection, gap_analysis
+        config: LangGraph RunnableConfig
+    """
+    try:
+        from agent.core.multi_model import TaskType, get_model_router
+
+        tt = TaskType(task_type)
+        router = get_model_router()
+        return router.get_model_name(tt, config)
+    except Exception:
+        # Fallback to legacy behavior
+        if task_type in ("planning", "evaluation", "critique", "routing", "reflection", "gap_analysis"):
+            return _selected_reasoning_model(config, settings.reasoning_model)
+        return _selected_model(config, settings.primary_model)
+
+
 def _extract_tool_call_fields(
     tool_call: Any,
 ) -> Tuple[Optional[str], Dict[str, Any], Optional[str]]:
@@ -348,6 +373,60 @@ def perform_parallel_search(state: QueryState, config: RunnableConfig) -> Dict[s
         return {"scraped_content": []}
 
 
+def coordinator_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
+    """
+    Coordinator node that decides the next research action.
+
+    Uses ResearchCoordinator to decide between:
+    - plan: generate/refine research plan
+    - research: gather more information
+    - synthesize: generate report from findings
+    - reflect: reflect on progress
+    - complete: finish research
+
+    Returns state updates including the coordinator's decision as 'coordinator_action'.
+    """
+    from agent.workflows.agents import ResearchCoordinator
+
+    logger.info("Executing coordinator node")
+
+    topic = state.get("input", "")
+    research_plan = state.get("research_plan", [])
+    scraped_content = state.get("scraped_content", [])
+    summary_notes = state.get("summary_notes", [])
+    revision_count = state.get("revision_count", 0)
+    max_revisions = state.get("max_revisions", 2)
+
+    model = _model_for_task("routing", config)
+    llm = _chat_model(model, temperature=0.3)
+
+    coordinator = ResearchCoordinator(llm, config)
+
+    # Build knowledge summary from summary_notes
+    knowledge_summary = "\n".join(summary_notes[:5]) if summary_notes else ""
+
+    decision = coordinator.decide_next_action(
+        topic=topic,
+        num_queries=len(research_plan),
+        num_sources=len(scraped_content),
+        num_summaries=len(summary_notes),
+        current_epoch=revision_count,
+        max_epochs=max_revisions + 1,
+        knowledge_summary=knowledge_summary,
+    )
+
+    logger.info(
+        f"[coordinator] Decision: {decision.action.value} | "
+        f"Reasoning: {decision.reasoning[:100]}"
+    )
+
+    return {
+        "coordinator_action": decision.action.value,
+        "coordinator_reasoning": decision.reasoning,
+        "missing_topics": decision.priority_topics if decision.priority_topics else state.get("missing_topics", []),
+    }
+
+
 def deepsearch_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     """Deep search pipeline that iterates query → search → summarize."""
     logger.info("Executing deepsearch node")
@@ -427,6 +506,29 @@ def route_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     # Merge max_revisions into result
     result["max_revisions"] = max_revisions
 
+    # Domain classification (if enabled)
+    if getattr(settings, "domain_routing_enabled", False) and route in ("deep", "web"):
+        try:
+            from agent.workflows.domain_router import DomainClassifier
+
+            domain_llm = _chat_model(_model_for_task("routing", config), temperature=0.3)
+            classifier = DomainClassifier(domain_llm, config)
+
+            classification = classifier.classify(state.get("input", ""))
+
+            result["domain"] = classification.domain.value
+            result["domain_config"] = classification.to_dict()
+
+            logger.info(
+                f"[route_node] Domain classified: {classification.domain.value} "
+                f"(confidence: {classification.confidence:.2f})"
+            )
+
+        except Exception as e:
+            logger.warning(f"[route_node] Domain classification failed: {e}")
+            result["domain"] = "general"
+            result["domain_config"] = {}
+
     return result
 
 
@@ -436,7 +538,7 @@ def clarify_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     Uses structured output with retry for robustness.
     """
     logger.info("Executing clarify node")
-    llm = _chat_model(_selected_reasoning_model(config, settings.reasoning_model), temperature=0.3)
+    llm = _chat_model(_model_for_task("routing", config), temperature=0.3)
 
     class ClarifyResponse(BaseModel):
         need_clarification: bool = Field(
@@ -490,7 +592,7 @@ def direct_answer_node(state: AgentState, config: RunnableConfig) -> Dict[str, A
     """Direct answer without research."""
     logger.info("Executing direct answer node")
     t0 = time.time()
-    llm = _chat_model(_selected_model(config, settings.primary_model), temperature=0.7)
+    llm = _chat_model(_model_for_task("writing", config), temperature=0.7)
     messages = [
         SystemMessage(content="You are a helpful assistant. Answer succinctly and accurately."),
         HumanMessage(content=_build_user_content(state["input"], state.get("images"))),
@@ -547,7 +649,7 @@ def planner_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
 
         # Use reasoning model for planning
         llm = _chat_model(
-            _selected_reasoning_model(config, settings.reasoning_model), temperature=1
+            _model_for_task("planning", config), temperature=1
         )
         t0 = time.time()
 
@@ -663,7 +765,7 @@ def refine_plan_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any
     if not new_queries:
         logger.info("No evaluator suggestions, generating via LLM")
         llm = _chat_model(
-            _selected_reasoning_model(config, settings.reasoning_model), temperature=0.8
+            _model_for_task("planning", config), temperature=0.8
         )
         t0 = time.time()
 
@@ -771,7 +873,7 @@ def agent_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
         profile = cfg.get("agent_profile") or {}
         thread_id = str(cfg.get("thread_id") or "default")
 
-        model = _selected_model(config, settings.primary_model)
+        model = _model_for_task("research", config)
 
         # Try to use enhanced tool registry if available
         tools = build_agent_tools(config)
@@ -911,6 +1013,70 @@ You can also use XML format for tool calls:
         }
 
 
+def compressor_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
+    """
+    Compressor node: Extracts and structures key facts from research.
+
+    Processes scraped_content and summary_notes into compressed_knowledge.
+    This structured format improves writer output quality and citation accuracy.
+    """
+    from agent.workflows.compressor import ResearchCompressor
+
+    logger.info("Executing compressor node")
+
+    topic = state.get("input", "")
+    scraped_content = state.get("scraped_content", [])
+    summary_notes = state.get("summary_notes", [])
+
+    if not scraped_content:
+        logger.info("[compressor] No content to compress")
+        return {"compressed_knowledge": {}}
+
+    try:
+        model = _model_for_task("research", config)
+        llm = _chat_model(model, temperature=0.3)
+
+        compressor = ResearchCompressor(llm, config)
+
+        # Check for existing compressed knowledge
+        existing_knowledge = state.get("compressed_knowledge", {})
+
+        # Compress new content
+        knowledge = compressor.compress(
+            topic=topic,
+            scraped_content=scraped_content,
+            summary_notes=summary_notes,
+        )
+
+        # Merge with existing if present
+        if existing_knowledge and existing_knowledge.get("facts"):
+            from agent.workflows.compressor import CompressedKnowledge, ExtractedFact
+
+            existing = CompressedKnowledge(
+                topic=existing_knowledge.get("topic", topic),
+                facts=[
+                    ExtractedFact(**f) for f in existing_knowledge.get("facts", [])
+                ],
+                statistics=existing_knowledge.get("statistics", []),
+                key_entities=existing_knowledge.get("key_entities", []),
+                summary=existing_knowledge.get("summary", ""),
+            )
+            knowledge = compressor.merge_knowledge(existing, knowledge)
+
+        compressed_dict = knowledge.to_dict()
+
+        logger.info(
+            f"[compressor] Compressed: {len(knowledge.facts)} facts, "
+            f"{len(knowledge.statistics)} stats"
+        )
+
+        return {"compressed_knowledge": compressed_dict}
+
+    except Exception as e:
+        logger.error(f"Compressor error: {e}", exc_info=True)
+        return {"compressed_knowledge": {}}
+
+
 def writer_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     """
     Writer node: Synthesizes research into a comprehensive report.
@@ -929,7 +1095,7 @@ def writer_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     try:
         check_cancellation(state)
 
-        agent, writer_tools = build_writer_agent(_selected_model(config, settings.primary_model))
+        agent, writer_tools = build_writer_agent(_model_for_task("writing", config))
         t0 = time.time()
         code_results: List[Dict[str, Any]] = []
 
@@ -1034,7 +1200,7 @@ def evaluator_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     Returns actionable feedback including missing topics and suggested queries.
     """
     logger.info("Executing evaluator node (structured)")
-    llm = _chat_model(_selected_reasoning_model(config, settings.reasoning_model), temperature=0)
+    llm = _chat_model(_model_for_task("evaluation", config), temperature=0)
     t0 = time.time()
 
     class EvalDimensions(BaseModel):
@@ -1158,6 +1324,40 @@ Provide specific, actionable feedback and search queries to address gaps.""",
 
         logger.info(f"Evaluator verdict: {verdict} (avg={avg_score:.2f}, min={min_score:.2f})")
 
+        # Enhanced quality assessment
+        try:
+            from agent.workflows.quality_assessor import QualityAssessor
+
+            quality_llm = _chat_model(_model_for_task("evaluation", config), temperature=0)
+            assessor = QualityAssessor(quality_llm, config)
+
+            scraped_content = state.get("scraped_content", [])
+            sources = [s.get("url") for s in state.get("sources", []) if s.get("url")]
+
+            quality_report = assessor.assess(report, scraped_content, sources)
+
+            # Merge quality scores into dimensions
+            dimensions["claim_support"] = quality_report.claim_support_score
+            dimensions["source_diversity"] = quality_report.source_diversity_score
+            dimensions["contradiction_free"] = quality_report.contradiction_free_score
+
+            # Adjust verdict if quality issues found
+            if quality_report.overall_score < 0.5 and verdict == "pass":
+                verdict = "revise"
+                logger.info(f"Adjusted verdict due to quality issues: {quality_report.overall_score:.2f}")
+
+            # Add quality recommendations to feedback
+            if quality_report.recommendations:
+                eval_summary += f"\nQuality recommendations: {'; '.join(quality_report.recommendations)}"
+
+            logger.info(
+                f"Quality assessment: overall={quality_report.overall_score:.2f}, "
+                f"claims={quality_report.claim_support_score:.2f}"
+            )
+
+        except Exception as e:
+            logger.warning(f"Quality assessment skipped: {e}")
+
         return {
             "evaluation": eval_summary,
             "verdict": verdict,
@@ -1174,7 +1374,7 @@ Provide specific, actionable feedback and search queries to address gaps.""",
 def revise_report_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     """Revise the report based on evaluator feedback."""
     logger.info("Executing revise report node")
-    llm = _chat_model(_selected_model(config, settings.primary_model), temperature=0.5)
+    llm = _chat_model(_model_for_task("writing", config), temperature=0.5)
     prompt = ChatPromptTemplate.from_messages(
         [
             (

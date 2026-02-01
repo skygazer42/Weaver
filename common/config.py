@@ -212,9 +212,42 @@ class Settings(BaseSettings):
     enable_file_logging: bool = True  # Enable logging to file
     enable_json_logging: bool = False  # Enable structured JSON logging
 
+    # Tracing Config
+    enable_tracing: bool = False  # Enable LLM call tracing
+    trace_buffer_size: int = 1000  # Max traces to keep in memory
+    otlp_endpoint: str = ""  # Optional OTLP exporter endpoint
+
     # Model Config
     primary_model: str = "deepseek-chat"
     reasoning_model: str = "o1-mini"  # For planning
+
+    # Multi-Model Research Config (Task-specific models)
+    planner_model: str = ""  # Model for research planning (defaults to reasoning_model)
+    researcher_model: str = ""  # Model for research analysis (defaults to primary_model)
+    writer_model: str = ""  # Model for report writing (defaults to primary_model)
+    evaluator_model: str = ""  # Model for quality evaluation (defaults to reasoning_model)
+    critic_model: str = ""  # Model for URL selection/critique (defaults to reasoning_model)
+
+    # Hierarchical Agent Config
+    use_hierarchical_agents: bool = False  # Enable coordinator→planner→researcher→reporter flow
+
+    # Domain Routing Config
+    domain_routing_enabled: bool = False  # Enable domain-specific routing and prompts
+
+    # RAG (Retrieval-Augmented Generation) Config
+    rag_enabled: bool = False  # Enable local document RAG
+    rag_store_path: Optional[str] = None  # Path for persistent vector storage
+    rag_collection_name: str = "weaver_documents"  # ChromaDB collection name
+    rag_embedding_model: str = "text-embedding-3-small"  # OpenAI embedding model
+    rag_chunk_size: int = 1000  # Document chunk size
+    rag_chunk_overlap: int = 200  # Overlap between chunks
+
+    # Tree-based Research Config
+    tree_exploration_enabled: bool = True  # Enable tree-based deep research
+    tree_max_depth: int = 2  # Maximum tree depth (0 = root only)
+    tree_max_branches: int = 4  # Maximum children per node
+    tree_queries_per_branch: int = 3  # Number of queries per branch
+    tree_parallel_branches: int = 3  # Max concurrent branch exploration (0 = sequential)
 
     # Prompt Config (选择提示词风格)
     prompt_style: str = "enhanced"  # simple | enhanced | custom
@@ -257,6 +290,13 @@ class Settings(BaseSettings):
     deepsearch_enable_crawler: bool = False  # enable simple fallback crawler
     deepsearch_save_data: bool = False  # save deepsearch run data to disk
     deepsearch_save_dir: str = "eval/deepsearch_data"
+    deepsearch_use_gap_analysis: bool = True  # use knowledge gap analysis for targeted queries
+
+    # Multi-Search Engine Config
+    search_strategy: str = "fallback"  # fallback | parallel | round_robin | best_first
+    brave_api_key: str = ""  # Brave Search API key
+    serper_api_key: str = ""  # Serper.dev API key
+    exa_api_key: str = ""  # Exa.ai API key
 
     # Crawler
     crawler_headless: bool = True  # True=无头(默认不弹窗)，False=可视化调试

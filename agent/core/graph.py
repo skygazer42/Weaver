@@ -8,6 +8,8 @@ from langgraph.graph import END, StateGraph
 from agent.workflows.nodes import (
     agent_node,
     clarify_node,
+    compressor_node,
+    coordinator_node,
     deepsearch_node,
     direct_answer_node,
     evaluator_node,
@@ -36,7 +38,14 @@ def create_research_graph(checkpointer=None, interrupt_before=None, store=None):
     2. planner -> [parallel] perform_parallel_search (executes searches)
     3. perform_parallel_search -> writer (aggregates results)
     4. writer -> END
+
+    Optional hierarchical mode (use_hierarchical_agents=True):
+    - Uses coordinator to decide next action: plan, research, synthesize, complete
+    - Enables more intelligent research loop control
     """
+    from common.config import settings
+
+    use_hierarchical = getattr(settings, "use_hierarchical_agents", False)
 
     # Initialize the graph
     workflow = StateGraph(AgentState)
@@ -55,6 +64,11 @@ def create_research_graph(checkpointer=None, interrupt_before=None, store=None):
     workflow.add_node("reviser", revise_report_node)
     workflow.add_node("human_review", human_review_node)
     workflow.add_node("deepsearch", deepsearch_node)
+    workflow.add_node("compressor", compressor_node)
+
+    # Add coordinator node for hierarchical mode
+    if use_hierarchical:
+        workflow.add_node("coordinator", coordinator_node)
 
     # Set entry point
     workflow.set_entry_point("router")
@@ -64,6 +78,9 @@ def create_research_graph(checkpointer=None, interrupt_before=None, store=None):
         logger.info(f"[route_decision] state['route'] = '{route}'")
 
         if route == "deep":
+            if use_hierarchical:
+                logger.info("[route_decision] → Routing to 'coordinator' node (hierarchical)")
+                return "coordinator"
             logger.info("[route_decision] → Routing to 'deepsearch' node")
             return "deepsearch"
         if route == "agent":
@@ -79,9 +96,33 @@ def create_research_graph(checkpointer=None, interrupt_before=None, store=None):
         logger.info("[route_decision] → Routing to 'clarify' node (default)")
         return "clarify"
 
-    workflow.add_conditional_edges(
-        "router", route_decision, ["direct_answer", "agent", "web_plan", "clarify", "deepsearch"]
-    )
+    route_targets = ["direct_answer", "agent", "web_plan", "clarify", "deepsearch"]
+    if use_hierarchical:
+        route_targets.append("coordinator")
+
+    workflow.add_conditional_edges("router", route_decision, route_targets)
+
+    # Coordinator edges (hierarchical mode only)
+    if use_hierarchical:
+        def after_coordinator(state: AgentState) -> str:
+            action = state.get("coordinator_action", "research")
+            logger.info(f"[after_coordinator] action='{action}'")
+            if action == "plan":
+                return "planner"
+            elif action == "research":
+                return "planner"  # plan then research
+            elif action == "synthesize":
+                return "writer"
+            elif action == "complete":
+                return "human_review"
+            elif action == "reflect":
+                return "planner"  # reflect feeds back into planning
+            return "planner"
+
+        workflow.add_conditional_edges(
+            "coordinator", after_coordinator,
+            ["planner", "writer", "human_review"]
+        )
 
     def after_clarify(state: AgentState) -> str:
         return "human_review" if state.get("needs_clarification") else "planner"
@@ -95,13 +136,28 @@ def create_research_graph(checkpointer=None, interrupt_before=None, store=None):
     # Web search only path
     workflow.add_conditional_edges("web_plan", initiate_research, ["perform_parallel_search"])
 
-    # Fan-in: All parallel searches feed into the writer
-    workflow.add_edge("perform_parallel_search", "writer")
+    # After search: deep mode goes through compressor, others go directly to writer
+    def after_search(state: AgentState) -> str:
+        if state.get("route") == "deep":
+            return "compressor"
+        return "writer"
+
+    workflow.add_conditional_edges("perform_parallel_search", after_search, ["compressor", "writer"])
+
+    # Compressor feeds into writer
+    workflow.add_edge("compressor", "writer")
 
     def after_writer(state: AgentState) -> str:
-        return "evaluator" if state.get("route") == "deep" else "human_review"
+        if state.get("route") == "deep":
+            if use_hierarchical:
+                return "coordinator"
+            return "evaluator"
+        return "human_review"
 
-    workflow.add_conditional_edges("writer", after_writer, ["evaluator", "human_review"])
+    writer_targets = ["evaluator", "human_review"]
+    if use_hierarchical:
+        writer_targets.append("coordinator")
+    workflow.add_conditional_edges("writer", after_writer, writer_targets)
 
     def after_evaluator(state: AgentState) -> str:
         """
