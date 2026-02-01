@@ -249,6 +249,9 @@ class Settings(BaseSettings):
     tree_queries_per_branch: int = 3  # Number of queries per branch
     tree_parallel_branches: int = 3  # Max concurrent branch exploration (0 = sequential)
 
+    # Report Visualization Config
+    enable_report_charts: bool = True  # Generate charts from data in reports
+
     # Prompt Config (选择提示词风格)
     prompt_style: str = "enhanced"  # simple | enhanced | custom
     custom_agent_prompt_path: str = ""  # 自定义 agent 提示词文件路径

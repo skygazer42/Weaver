@@ -1150,6 +1150,28 @@ def writer_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
         else:
             report = getattr(response, "content", None) or str(response)
 
+        # Generate visualizations if compressed_knowledge available
+        compressed_knowledge = state.get("compressed_knowledge", {})
+        if compressed_knowledge and getattr(settings, "enable_report_charts", True):
+            try:
+                from agent.workflows.viz_planner import VizPlanner, embed_charts_in_report
+
+                viz_llm = _chat_model(_model_for_task("writing", config), temperature=0.3)
+                viz_planner = VizPlanner(viz_llm, config)
+
+                charts = viz_planner.generate_all_charts(
+                    compressed_knowledge,
+                    report_text=report,
+                    max_charts=3,
+                )
+
+                if charts:
+                    report = embed_charts_in_report(report, charts, format="markdown")
+                    logger.info(f"[writer] Embedded {len(charts)} charts in report")
+
+            except Exception as e:
+                logger.warning(f"[writer] Chart generation skipped: {e}")
+
         return {
             "draft_report": report,
             "final_report": report,
