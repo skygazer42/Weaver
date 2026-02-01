@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import ReactMarkdown from 'react-markdown'
@@ -17,10 +17,51 @@ interface ArtifactsPanelProps {
   onToggle?: () => void
 }
 
+// Tab button component
+const ArtifactTab = memo(function ArtifactTab({
+  artifact,
+  isActive,
+  onClick
+}: {
+  artifact: Artifact
+  isActive: boolean
+  onClick: () => void
+}) {
+  const getTabIcon = () => {
+    switch (artifact.type) {
+      case 'report': return <FileText className="h-3 w-3" />
+      case 'code': return <Code className="h-3 w-3" />
+      case 'chart': return <BarChart className="h-3 w-3" />
+      default: return <FileText className="h-3 w-3" />
+    }
+  }
+
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap",
+        isActive
+          ? "bg-primary text-primary-foreground shadow-sm"
+          : "text-muted-foreground hover:text-foreground hover:bg-muted"
+      )}
+      title={artifact.title}
+    >
+      {getTabIcon()}
+      <span className="max-w-[80px] truncate">{artifact.title}</span>
+    </button>
+  )
+})
+
 export function ArtifactsPanel({ artifacts, isOpen = true, onToggle }: ArtifactsPanelProps) {
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(0)
 
   if (artifacts.length === 0) return null
+
+  // Ensure active index is valid
+  const currentIndex = Math.min(activeIndex, artifacts.length - 1)
+  const activeArtifact = artifacts[currentIndex]
 
   // If collapsed (and not fullscreen), render slim bar
   if (!isOpen && !isFullscreen) {
@@ -38,7 +79,7 @@ export function ArtifactsPanel({ artifacts, isOpen = true, onToggle }: Artifacts
       )
   }
 
-  // If fullscreen, render as a fixed overlay
+  // If fullscreen, render as a fixed overlay (show all artifacts)
   if (isFullscreen) {
       return (
         <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-xl flex flex-col animate-in fade-in zoom-in-95 duration-200">
@@ -76,7 +117,7 @@ export function ArtifactsPanel({ artifacts, isOpen = true, onToggle }: Artifacts
             )}
             <div>
                 <h2 className="text-sm font-bold tracking-tight">Artifacts</h2>
-                <p className="text-xs text-muted-foreground">Generated assets</p>
+                <p className="text-xs text-muted-foreground">{artifacts.length} generated</p>
             </div>
         </div>
         <div className="flex gap-1">
@@ -86,11 +127,26 @@ export function ArtifactsPanel({ artifacts, isOpen = true, onToggle }: Artifacts
         </div>
       </div>
 
+      {/* Tab navigation for multiple artifacts */}
+      {artifacts.length > 1 && (
+        <div className="px-3 py-2 border-b bg-muted/20 overflow-x-auto">
+          <div className="flex gap-1 min-w-max">
+            {artifacts.map((artifact, index) => (
+              <ArtifactTab
+                key={artifact.id}
+                artifact={artifact}
+                isActive={index === currentIndex}
+                onClick={() => setActiveIndex(index)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Only render the active artifact */}
       <ScrollArea className="flex-1 p-4">
-        <div className="space-y-4 pb-4">
-          {artifacts.map((artifact) => (
-            <ArtifactCard key={artifact.id} artifact={artifact} />
-          ))}
+        <div className="pb-4">
+          <ArtifactCard artifact={activeArtifact} />
         </div>
       </ScrollArea>
     </div>

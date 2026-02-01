@@ -25,6 +25,9 @@ export interface Message {
   toolInvocations?: ToolInvocation[]
   sources?: MessageSource[]
   attachments?: ImageAttachment[]
+  // Error state
+  isError?: boolean
+  retryable?: boolean
 }
 
 export interface ChatSession {

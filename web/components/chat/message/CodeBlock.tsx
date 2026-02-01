@@ -1,11 +1,12 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useMemo, useCallback, memo } from 'react'
 import { Check, Copy, ChevronDown, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import { Virtuoso } from 'react-virtuoso'
 import { cn } from '@/lib/utils'
 
 interface CodeBlockProps {
@@ -14,9 +15,61 @@ interface CodeBlockProps {
   defaultCollapsed?: boolean
 }
 
+// Threshold for enabling virtual scrolling
+const VIRTUAL_SCROLL_THRESHOLD = 100
+
+// Memoized line component for virtual scrolling
+const CodeLine = memo(function CodeLine({
+  line,
+  lineNumber,
+  language
+}: {
+  line: string
+  lineNumber: number
+  language: string
+}) {
+  return (
+    <div className="flex font-mono text-sm leading-6">
+      <span className="select-none text-white/30 w-12 pr-4 text-right shrink-0">
+        {lineNumber}
+      </span>
+      <SyntaxHighlighter
+        language={language?.toLowerCase() || 'text'}
+        style={oneDark}
+        customStyle={{
+          margin: 0,
+          padding: 0,
+          background: 'transparent',
+          fontSize: 'inherit',
+          lineHeight: 'inherit',
+          display: 'inline',
+        }}
+        PreTag="span"
+        CodeTag="span"
+      >
+        {line || ' '}
+      </SyntaxHighlighter>
+    </div>
+  )
+})
+
 export function CodeBlock({ language, value, defaultCollapsed = false }: CodeBlockProps) {
   const [copied, setCopied] = useState(false)
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed)
+
+  // Memoize line splitting
+  const lines = useMemo(() => value.split('\n'), [value])
+  const useVirtualization = lines.length > VIRTUAL_SCROLL_THRESHOLD
+
+  // Memoized item renderer for Virtuoso
+  const itemContent = useCallback((index: number) => (
+    <CodeLine
+      key={index}
+      line={lines[index]}
+      lineNumber={index + 1}
+      language={language}
+    />
+  ), [lines, language])
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -70,33 +123,46 @@ export function CodeBlock({ language, value, defaultCollapsed = false }: CodeBlo
       {/* Code Content */}
       {!isCollapsed && (
           <div className="overflow-x-auto animate-in slide-in-from-top-2 duration-200">
-             <SyntaxHighlighter
+            {useVirtualization ? (
+              // Virtual scrolling for large code blocks (>100 lines)
+              <div className="px-4 py-4">
+                <Virtuoso
+                  style={{ height: '400px' }}
+                  totalCount={lines.length}
+                  itemContent={itemContent}
+                  className="scrollbar-thin scrollbar-thumb-white/20"
+                />
+              </div>
+            ) : (
+              // Standard rendering for smaller code blocks
+              <SyntaxHighlighter
                 language={language?.toLowerCase() || 'text'}
                 style={oneDark}
-                                customStyle={{
-                                    margin: 0,
-                                    padding: '1.5rem',
-                                    background: 'transparent',
-                                    fontSize: '14px',
-                                    lineHeight: '1.6',
-                                    fontFamily: 'var(--font-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                                    whiteSpace: 'pre-wrap',
-                                    wordBreak: 'normal',
-                                    overflowWrap: 'anywhere',
-                                }}
-                                codeTagProps={{
-                                    style: {
-                                        whiteSpace: 'pre-wrap',
-                                        wordBreak: 'normal',
-                                        overflowWrap: 'anywhere'
-                                    }
-                                }}
-                                showLineNumbers={false}
-                                wrapLongLines={false}
-                                PreTag="div"
-             >
+                customStyle={{
+                  margin: 0,
+                  padding: '1.5rem',
+                  background: 'transparent',
+                  fontSize: '14px',
+                  lineHeight: '1.6',
+                  fontFamily: 'var(--font-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'normal',
+                  overflowWrap: 'anywhere',
+                }}
+                codeTagProps={{
+                  style: {
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'normal',
+                    overflowWrap: 'anywhere'
+                  }
+                }}
+                showLineNumbers={false}
+                wrapLongLines={false}
+                PreTag="div"
+              >
                 {value}
-             </SyntaxHighlighter>
+              </SyntaxHighlighter>
+            )}
           </div>
       )}
     </div>

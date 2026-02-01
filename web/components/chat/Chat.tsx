@@ -1,47 +1,66 @@
 'use client'
 
-import React, { useRef, useEffect, useState } from 'react'
-import { Virtuoso, VirtuosoHandle } from 'react-virtuoso'
-import { MessageItem } from './MessageItem'
-import { ArtifactsPanel } from './ArtifactsPanel'
+import React, { useEffect, useState, useCallback, Suspense } from 'react'
+import dynamic from 'next/dynamic'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
 import { EmptyState } from './EmptyState'
 import { ChatInput } from './ChatInput'
-import { Loader2, ArrowDown, X, Monitor } from 'lucide-react'
+import { ChatMessages } from './ChatMessages'
+import { ScrollToBottomButton, InterruptBanner, MobileArtifactsOverlay } from './ChatOverlays'
+import { Monitor } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { Message } from '@/types/chat'
-import { STORAGE_KEYS, DEFAULT_MODEL } from '@/lib/constants'
+import { useChatState } from '@/hooks/useChatState'
 import { useChatHistory } from '@/hooks/useChatHistory'
 import { useChatStream } from '@/hooks/useChatStream'
 import { filesToImageAttachments } from '@/lib/file-utils'
 import { Discover } from '@/components/views/Discover'
 import { Library } from '@/components/views/Library'
-import { SettingsDialog } from '@/components/settings/SettingsDialog'
-import { BrowserViewer } from './BrowserViewer'
+import { LoadingSkeleton } from '@/components/ui/loading'
+
+// Dynamic imports for heavy components
+const ArtifactsPanel = dynamic(
+  () => import('./ArtifactsPanel').then(mod => ({ default: mod.ArtifactsPanel })),
+  {
+    loading: () => <div className="w-[400px] h-full flex items-center justify-center"><LoadingSkeleton className="w-full h-full" /></div>,
+    ssr: false
+  }
+)
+
+const BrowserViewer = dynamic(
+  () => import('./BrowserViewer').then(mod => ({ default: mod.BrowserViewer })),
+  { ssr: false }
+)
+
+const SettingsDialog = dynamic(
+  () => import('@/components/settings/SettingsDialog').then(mod => ({ default: mod.SettingsDialog })),
+  { ssr: false }
+)
 
 export function Chat() {
-  // UI State
-  const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL)
-  const [searchMode, setSearchMode] = useState('') // empty = direct LLM only
-  const [showScrollButton, setShowScrollButton] = useState(false)
-  const [showMobileArtifacts, setShowMobileArtifacts] = useState(false)
-  const [isArtifactsOpen, setIsArtifactsOpen] = useState(true)
-  const [showSettings, setShowSettings] = useState(false)
-  const [showBrowserViewer, setShowBrowserViewer] = useState(true) // Browser viewer visibility
+  // Unified UI state via reducer
+  const {
+    state: ui,
+    toggleSidebar,
+    toggleArtifacts,
+    setMobileArtifacts,
+    setScrollButton,
+    setSettings,
+    setBrowserViewer,
+    setView,
+    setModel,
+    setSearchMode,
+    resetForNewChat,
+  } = useChatState()
 
-  const [currentView, setCurrentView] = useState('dashboard') // 'dashboard' | 'discover' | 'library'
+  // Session state
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
-
   const [input, setInput] = useState('')
   const [attachments, setAttachments] = useState<File[]>([])
 
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const virtuosoRef = useRef<VirtuosoHandle>(null)
-  const lastAtBottom = useRef<boolean | null>(null)
-
+  // Chat history
   const {
     history,
     isHistoryLoading,
@@ -53,11 +72,11 @@ export function Chat() {
     renameSession
   } = useChatHistory()
 
+  // Chat stream
   const {
     messages,
     setMessages,
     isLoading,
-    setIsLoading, // Exposed but maybe not needed directly if handleStop covers it
     currentStatus,
     setCurrentStatus,
     artifacts,
@@ -69,85 +88,54 @@ export function Chat() {
     processChat,
     handleStop,
     handleApproveInterrupt
-  } = useChatStream({ selectedModel, searchMode })
+  } = useChatStream({ selectedModel: ui.selectedModel, searchMode: ui.searchMode })
 
-  // Debug: Log browser viewer conditions
-  useEffect(() => {
-    console.log('[Chat] Browser Viewer Debug:', {
-      currentView,
-      threadId,
-      showBrowserViewer,
-      shouldShow: currentView === 'dashboard' && !!threadId
-    })
-  }, [currentView, threadId, showBrowserViewer])
-
-  // Load Model from LocalStorage
-  useEffect(() => {
-      const savedModel = localStorage.getItem(STORAGE_KEYS.MODEL)
-      if (savedModel) {
-          setSelectedModel(savedModel)
-      }
-  }, [])
-
-  // Save Model to LocalStorage
-  useEffect(() => {
-      localStorage.setItem(STORAGE_KEYS.MODEL, selectedModel)
-  }, [selectedModel])
-
-  // Auto-save messages when they update during streaming or after approval
+  // Auto-save messages
   useEffect(() => {
     if (messages.length > 0 && currentSessionId && !isLoading) {
       saveToHistory(messages, currentSessionId)
     }
   }, [messages, currentSessionId, isLoading, saveToHistory])
 
-  // Auto-scroll logic handled by Virtuoso's followOutput,
-  // but we can add specific triggers if needed.
-
-  const handleNewChat = () => {
-      if (messages.length > 0) {
-        saveToHistory(messages, currentSessionId || undefined)
-      }
-
-      setCurrentView('dashboard') // Switch back to chat view
-      setCurrentSessionId(null)
-
-      // Reset state
-      setMessages([])
-      setArtifacts([])
-      setCurrentStatus('')
-      setInput('')
-      setThreadId(null)
-      setPendingInterrupt(null)
-      setSearchMode('') // default to direct LLM
-      handleStop() // Abort any ongoing request
-  }
-
-  const handleDeleteChat = (id: string) => {
-      deleteSession(id)
-      if (currentSessionId === id) {
-          handleNewChat()
-      }
-  }
-
-  const handleClearHistory = () => {
-      clearHistory()
-      handleNewChat() // Reset current view as well
-  }
-
-  const handleChatSelect = (id: string) => {
-    // Save current chat if not empty
+  // Handlers
+  const handleNewChat = useCallback(() => {
     if (messages.length > 0) {
-        saveToHistory(messages, currentSessionId || undefined)
+      saveToHistory(messages, currentSessionId || undefined)
     }
 
-    // Load new session
+    setCurrentSessionId(null)
+    setMessages([])
+    setArtifacts([])
+    setCurrentStatus('')
+    setInput('')
+    setThreadId(null)
+    setPendingInterrupt(null)
+    resetForNewChat()
+    handleStop()
+  }, [messages, currentSessionId, saveToHistory, setMessages, setArtifacts, setCurrentStatus, setThreadId, setPendingInterrupt, resetForNewChat, handleStop])
+
+  const handleDeleteChat = useCallback((id: string) => {
+    deleteSession(id)
+    if (currentSessionId === id) {
+      handleNewChat()
+    }
+  }, [deleteSession, currentSessionId, handleNewChat])
+
+  const handleClearHistory = useCallback(() => {
+    clearHistory()
+    handleNewChat()
+  }, [clearHistory, handleNewChat])
+
+  const handleChatSelect = useCallback((id: string) => {
+    if (messages.length > 0) {
+      saveToHistory(messages, currentSessionId || undefined)
+    }
+
     const loadedMessages = loadSession(id)
     if (loadedMessages) {
       setMessages(loadedMessages)
       setCurrentSessionId(id)
-      setCurrentView('dashboard') // Ensure we are on the chat view
-      // Reset other state
+      setView('dashboard')
       setArtifacts([])
       setCurrentStatus('')
       setInput('')
@@ -155,9 +143,9 @@ export function Chat() {
       setPendingInterrupt(null)
       handleStop()
     }
-  }
+  }, [messages, currentSessionId, saveToHistory, loadSession, setMessages, setView, setArtifacts, setCurrentStatus, setThreadId, setPendingInterrupt, handleStop])
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
     if ((!input.trim() && attachments.length === 0) || isLoading) return
 
@@ -175,181 +163,130 @@ export function Chat() {
     setInput('')
     setAttachments([])
 
-    // Auto-save logic: if it's the first message, it will trigger saveToHistory later
-    // or we can call it here to get an ID.
     if (!currentSessionId && newHistory.length === 1) {
-        const id = saveToHistory(newHistory)
-        if (id) setCurrentSessionId(id)
+      const id = saveToHistory(newHistory)
+      if (id) setCurrentSessionId(id)
     } else if (currentSessionId) {
-        saveToHistory(newHistory, currentSessionId)
+      saveToHistory(newHistory, currentSessionId)
     }
 
     await processChat(newHistory, imagePayloads)
-  }
+  }, [input, attachments, isLoading, messages, currentSessionId, setMessages, saveToHistory, processChat])
 
-  const handleEditMessage = async (id: string, newContent: string) => {
-      const index = messages.findIndex(m => m.id === id)
-      if (index === -1) return
+  const handleEditMessage = useCallback(async (id: string, newContent: string) => {
+    const index = messages.findIndex(m => m.id === id)
+    if (index === -1) return
 
-      const previousMessages = messages.slice(0, index)
-      const updatedMessage: Message = {
-          ...messages[index],
-          content: newContent
-      }
+    const previousMessages = messages.slice(0, index)
+    const updatedMessage: Message = { ...messages[index], content: newContent }
+    const newHistory = [...previousMessages, updatedMessage]
+    setMessages(newHistory)
 
-      const newHistory = [...previousMessages, updatedMessage]
-      setMessages(newHistory)
+    if (updatedMessage.role === 'user') {
+      await processChat(newHistory, updatedMessage.attachments)
+    }
+  }, [messages, setMessages, processChat])
 
-      if (updatedMessage.role === 'user') {
-          await processChat(newHistory, updatedMessage.attachments)
-      }
-  }
+  const handleStarterClick = useCallback((text: string, mode: string) => {
+    setInput(text)
+    setSearchMode(mode)
+  }, [setSearchMode])
 
-  const handleStarterClick = (text: string, mode: string) => {
-      setInput(text)
-      setSearchMode(mode)
-  }
+  const handleAtBottomChange = useCallback((atBottom: boolean) => {
+    setScrollButton(!atBottom)
+  }, [setScrollButton])
 
-  const handleAtBottomChange = (atBottom: boolean) => {
-      // Prevent state churn loops from repeated identical callbacks
-      if (lastAtBottom.current === atBottom) return
-      lastAtBottom.current = atBottom
-      setShowScrollButton(!atBottom)
-  }
+  const scrollToBottom = useCallback(() => {
+    // ChatMessages handles this internally
+  }, [])
 
-  const scrollToBottom = () => {
-      const idx = messages.length - 1
-      if (idx >= 0) {
-          virtuosoRef.current?.scrollToIndex({
-              index: idx,
-              align: 'end',
-              behavior: 'smooth'
-          })
-      }
-  }
-
-  // Render Content based on View
+  // Render content based on current view
   const renderContent = () => {
-      if (currentView === 'discover') return <Discover />
-      if (currentView === 'library') return <Library />
+    if (ui.currentView === 'discover') return <Discover />
+    if (ui.currentView === 'library') return <Library />
 
-      // Default: Dashboard/Chat
-      return (
-        <div className="flex-1 flex flex-col min-h-0">
-          {messages.length === 0 ? (
-            <div className="h-full w-full p-4 overflow-y-auto">
-               <EmptyState
-                  selectedMode={searchMode}
-                  onModeSelect={setSearchMode}
-                  onStarterClick={handleStarterClick}
-               />
-            </div>
-          ) : (
-            <Virtuoso
-                ref={virtuosoRef}
-                data={messages}
-                followOutput="auto"
-                atBottomStateChange={handleAtBottomChange}
-                className="scrollbar-thin scrollbar-thumb-muted/20"
-                itemContent={(index, message) => (
-                    <div className="max-w-5xl mx-auto px-4 sm:px-0">
-                        <MessageItem key={message.id} message={message} onEdit={handleEditMessage} />
-                    </div>
-                )}
-                components={{
-                    Footer: () => (
-                        <div className="max-w-5xl mx-auto px-4 sm:px-0 pb-4">
-                            {currentStatus && (
-                                <div className="flex items-center gap-2 text-sm text-muted-foreground py-2 animate-in fade-in slide-in-from-bottom-2">
-                                    {isLoading && <Loader2 className="h-3 w-3 animate-spin text-primary" />}
-                                    <span className="font-medium animate-pulse">{currentStatus}</span>
-                                </div>
-                            )}
-                            <div className="h-4" />
-                        </div>
-                    )
-                }}
+    return (
+      <div className="flex-1 flex flex-col min-h-0">
+        {messages.length === 0 ? (
+          <div className="h-full w-full p-4 overflow-y-auto">
+            <EmptyState
+              selectedMode={ui.searchMode}
+              onModeSelect={setSearchMode}
+              onStarterClick={handleStarterClick}
             />
-          )}
-        </div>
-      )
+          </div>
+        ) : (
+          <ChatMessages
+            messages={messages}
+            isLoading={isLoading}
+            currentStatus={currentStatus}
+            onEditMessage={handleEditMessage}
+            onAtBottomChange={handleAtBottomChange}
+          />
+        )}
+      </div>
+    )
   }
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background text-foreground font-sans selection:bg-primary/20">
       {/* Sidebar */}
       <Sidebar
-        isOpen={sidebarOpen}
-        onToggle={() => setSidebarOpen(!sidebarOpen)}
+        isOpen={ui.sidebarOpen}
+        onToggle={toggleSidebar}
         onNewChat={handleNewChat}
         onSelectChat={handleChatSelect}
         onDeleteChat={handleDeleteChat}
         onTogglePin={togglePin}
         onRenameChat={renameSession}
         onClearHistory={handleClearHistory}
-        onOpenSettings={() => setShowSettings(true)}
-        activeView={currentView}
-        onViewChange={setCurrentView}
+        onOpenSettings={() => setSettings(true)}
+        activeView={ui.currentView}
+        onViewChange={(v: string) => setView(v as 'dashboard' | 'discover' | 'library')}
         history={history}
         isLoading={isHistoryLoading}
       />
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 relative">
-        {/* Header */}
         <Header
-          sidebarOpen={sidebarOpen}
-          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-          selectedModel={selectedModel}
-          onModelChange={setSelectedModel}
-          onToggleArtifacts={() => setShowMobileArtifacts(!showMobileArtifacts)}
+          sidebarOpen={ui.sidebarOpen}
+          onToggleSidebar={toggleSidebar}
+          selectedModel={ui.selectedModel}
+          onModelChange={setModel}
+          onToggleArtifacts={() => setMobileArtifacts(!ui.showMobileArtifacts)}
           hasArtifacts={artifacts.length > 0}
         />
 
-        {/* Dynamic Content Area */}
         {renderContent()}
 
         <SettingsDialog
-            open={showSettings}
-            onOpenChange={setShowSettings}
-            selectedModel={selectedModel}
-            onModelChange={setSelectedModel}
+          open={ui.showSettings}
+          onOpenChange={setSettings}
+          selectedModel={ui.selectedModel}
+          onModelChange={setModel}
         />
 
-        {/* Chat-specific overlays (Scroll button, Interrupts) - only show in dashboard view */}
-        {currentView === 'dashboard' && (
-           <>
-                {/* Scroll To Bottom Button */}
-                <div className={cn("absolute bottom-24 right-6 z-30 transition-all duration-500", showScrollButton ? "translate-y-0 opacity-100" : "translate-y-10 opacity-0 pointer-events-none")}>
-                    <Button variant="outline" size="icon" className="rounded-full shadow-lg bg-background/80 backdrop-blur border-primary/20 hover:bg-background" onClick={() => scrollToBottom()}>
-                        <ArrowDown className="h-4 w-4" />
-                    </Button>
-                </div>
+        {/* Chat overlays - only in dashboard view */}
+        {ui.currentView === 'dashboard' && (
+          <>
+            <ScrollToBottomButton
+              visible={ui.showScrollButton}
+              onClick={scrollToBottom}
+            />
 
-                {pendingInterrupt && (
-                <div className="mx-4 mb-3 p-3 border rounded-xl bg-amber-50 text-amber-900 shadow-sm flex flex-col gap-2">
-                    <div className="text-sm font-semibold">Tool approval required</div>
-                    <div className="text-xs text-amber-800">
-                    {pendingInterrupt.message || pendingInterrupt?.prompts?.[0]?.message || 'Approve tool execution to continue.'}
-                    </div>
-                    <div className="flex gap-2">
-                    <Button size="sm" onClick={handleApproveInterrupt} disabled={isLoading}>
-                        Approve & Continue
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => setPendingInterrupt(null)} disabled={isLoading}>
-                        Dismiss
-                    </Button>
-                    </div>
-                </div>
-                )}
-           </>
+            <InterruptBanner
+              pendingInterrupt={pendingInterrupt}
+              isLoading={isLoading}
+              onApprove={handleApproveInterrupt}
+              onDismiss={() => setPendingInterrupt(null)}
+            />
+          </>
         )}
 
-        {/* Input Area - Always visible or only in dashboard? Usually always visible in chat apps, but maybe hidden in Library?
-            For now, let's keep it visible only in Dashboard/Chat view to avoid confusion.
-        */}
-        {currentView === 'dashboard' && (
-            <ChatInput
+        {/* Input area */}
+        {ui.currentView === 'dashboard' && (
+          <ChatInput
             input={input}
             setInput={setInput}
             attachments={attachments}
@@ -357,49 +294,65 @@ export function Chat() {
             onSubmit={handleSubmit}
             isLoading={isLoading}
             onStop={handleStop}
-            searchMode={searchMode}
+            searchMode={ui.searchMode}
             setSearchMode={setSearchMode}
-            />
+          />
         )}
+
+        {/* Accessibility: live region for status updates */}
+        <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+          {currentStatus}
+        </div>
       </div>
 
       {/* Desktop Artifacts Panel */}
       {artifacts.length > 0 && (
         <div className={cn(
-            "border-l hidden xl:flex flex-col bg-card animate-in slide-in-from-right duration-500 shadow-2xl z-20 transition-all",
-            isArtifactsOpen ? "w-[400px]" : "w-[50px]"
+          "border-l hidden xl:flex flex-col bg-card animate-in slide-in-from-right duration-500 shadow-2xl z-20 transition-all",
+          ui.isArtifactsOpen ? "w-[400px]" : "w-[50px]"
         )}>
           <ArtifactsPanel
-              artifacts={artifacts}
-              isOpen={isArtifactsOpen}
-              onToggle={() => setIsArtifactsOpen(!isArtifactsOpen)}
+            artifacts={artifacts}
+            isOpen={ui.isArtifactsOpen}
+            onToggle={toggleArtifacts}
           />
         </div>
       )}
 
-      {/* Browser Viewer - Shows when there's an active thread */}
-      {currentView === 'dashboard' && threadId && (
+      {/* Browser Viewer */}
+      {ui.currentView === 'dashboard' && threadId && (
         <>
-          {/* Browser Viewer Toggle Button */}
           <Button
             variant="outline"
             size="icon"
-            className="fixed bottom-32 right-6 z-50 rounded-full shadow-lg bg-background"
-            onClick={() => setShowBrowserViewer(!showBrowserViewer)}
-            title={showBrowserViewer ? "Hide Browser" : "Show Browser"}
+            className={cn(
+              "fixed z-50 rounded-full shadow-lg bg-background",
+              "bottom-32 right-6", // Desktop
+              "max-xl:bottom-24 max-xl:right-4" // Adjust for smaller screens
+            )}
+            onClick={() => setBrowserViewer(!ui.showBrowserViewer)}
+            aria-label={ui.showBrowserViewer ? 'Hide browser' : 'Show browser'}
           >
-            <Monitor className={cn("h-4 w-4", showBrowserViewer && "text-primary")} />
+            <Monitor className={cn("h-4 w-4", ui.showBrowserViewer && "text-primary")} />
           </Button>
 
-          {/* Browser Viewer Panel */}
-          {showBrowserViewer && (
-            <div className="fixed bottom-48 right-6 z-40">
+          {ui.showBrowserViewer && (
+            <div className={cn(
+              "z-40",
+              // Desktop: fixed position
+              "xl:fixed xl:bottom-48 xl:right-6",
+              // Mobile/Tablet: sticky at bottom, full width
+              "max-xl:fixed max-xl:bottom-0 max-xl:left-0 max-xl:right-0 max-xl:max-h-[50vh]"
+            )}>
               <BrowserViewer
                 threadId={threadId}
-                className="shadow-2xl"
+                className={cn(
+                  "shadow-2xl",
+                  "max-xl:rounded-b-none max-xl:w-full"
+                )}
                 defaultExpanded={true}
                 alwaysShow={true}
-                onClose={() => setShowBrowserViewer(false)}
+                onClose={() => setBrowserViewer(false)}
               />
             </div>
           )}
@@ -407,19 +360,11 @@ export function Chat() {
       )}
 
       {/* Mobile Artifacts Overlay */}
-      {showMobileArtifacts && (
-         <div className="fixed inset-0 z-50 bg-background xl:hidden flex flex-col animate-in slide-in-from-right duration-300">
-             <div className="flex items-center justify-between p-4 border-b">
-                 <h2 className="font-semibold">Artifacts</h2>
-                 <Button variant="ghost" size="icon" onClick={() => setShowMobileArtifacts(false)}>
-                     <X className="h-5 w-5" />
-                 </Button>
-             </div>
-             <div className="flex-1 overflow-hidden">
-                 <ArtifactsPanel artifacts={artifacts} />
-             </div>
-         </div>
-      )}
+      <MobileArtifactsOverlay
+        show={ui.showMobileArtifacts}
+        artifacts={artifacts}
+        onClose={() => setMobileArtifacts(false)}
+      />
     </div>
   )
 }

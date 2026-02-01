@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { cn } from '@/lib/utils'
 import { MessageSquare, Send, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -30,19 +30,7 @@ export function CommentsPanel({ threadId, isOpen, onClose, className }: Comments
   const [isSubmitting, setIsSubmitting] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    if (isOpen && threadId) {
-      fetchComments()
-    }
-  }, [isOpen, threadId])
-
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-    }
-  }, [comments])
-
-  const fetchComments = async () => {
+  const fetchComments = useCallback(async () => {
     try {
       const response = await fetch(`${getApiBaseUrl()}/api/sessions/${threadId}/comments`)
       const data = await response.json()
@@ -50,7 +38,19 @@ export function CommentsPanel({ threadId, isOpen, onClose, className }: Comments
     } catch {
       toast.error('Failed to load comments')
     }
-  }
+  }, [threadId])
+
+  useEffect(() => {
+    if (isOpen && threadId) {
+      fetchComments()
+    }
+  }, [isOpen, threadId, fetchComments])
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }, [comments])
 
   const submitComment = async () => {
     if (!newComment.trim()) return

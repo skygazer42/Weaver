@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --secondary: #8b5cf6;
+            --text: #1f2937;
+            --text-light: #6b7280;
+            --border: #e5e7eb;
+            --bg: #ffffff;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Georgia', 'Times New Roman', serif;
+            color: var(--text);
+            background: var(--bg);
+            line-height: 1.8;
+            font-size: 11pt;
+        }
+        .report-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 60px 40px;
+        }
+        .report-header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding-bottom: 30px;
+            border-bottom: 2px solid var(--primary);
+        }
+        .report-header h1 {
+            font-size: 28pt;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 15px;
+        }
+        .report-meta {
+            font-size: 10pt;
+            color: var(--text-light);
+        }
+        .report-content h2 {
+            font-size: 16pt;
+            font-weight: 600;
+            color: var(--primary);
+            margin: 30px 0 15px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+        .report-content h3 {
+            font-size: 13pt;
+            font-weight: 600;
+            margin: 20px 0 10px;
+        }
+        .report-content p {
+            margin-bottom: 15px;
+            text-align: justify;
+        }
+        .report-content ul, .report-content ol {
+            margin: 15px 0 15px 25px;
+        }
+        .report-content li {
+            margin-bottom: 8px;
+        }
+        .report-content blockquote {
+            margin: 20px 0;
+            padding: 15px 20px;
+            background: #f9fafb;
+            border-left: 4px solid var(--primary);
+            font-style: italic;
+        }
+        .report-content code {
+            font-family: 'Courier New', monospace;
+            background: #f3f4f6;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10pt;
+        }
+        .report-content pre {
+            background: #1f2937;
+            color: #f9fafb;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 20px 0;
+        }
+        .report-content pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+        }
+        .report-content a {
+            color: var(--primary);
+            text-decoration: underline;
+        }
+        .sources {
+            margin-top: 50px;
+            padding-top: 30px;
+            border-top: 1px solid var(--border);
+        }
+        .sources h2 {
+            font-size: 14pt;
+            margin-bottom: 15px;
+        }
+        .sources ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+        .sources li {
+            margin-bottom: 8px;
+            font-size: 9pt;
+        }
+        .sources a {
+            color: var(--text-light);
+            word-break: break-all;
+        }
+        @media print {
+            .report-container { padding: 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="report-container">
+        <header class="report-header">
+            <h1>{{ title }}</h1>
+            <div class="report-meta">
+                <span>Generated: {{ generated_at }}</span>
+                {% if thread_id %} | <span>Session: {{ thread_id }}</span>{% endif %}
+            </div>
+        </header>
+        <main class="report-content">
+            {{ content | safe }}
+        </main>
+        {% if sources %}
+        <section class="sources">
+            <h2>References</h2>
+            <ul>
+            {% for url in sources %}
+                <li><a href="{{ url }}" target="_blank">{{ url }}</a></li>
+            {% endfor %}
+            </ul>
+        </section>
+        {% endif %}
+    </div>
+</body>
+</html>

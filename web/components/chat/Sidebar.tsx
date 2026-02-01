@@ -1,12 +1,16 @@
 'use client'
 
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useI18n } from '@/lib/i18n/i18n-context'
 import { Plus, Compass, LayoutGrid, FolderOpen, MessageSquare, PanelLeft, Trash2, Settings, Pin, PinOff } from 'lucide-react'
+import { Virtuoso } from 'react-virtuoso'
 import { ChatSession } from '@/types/chat'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+
+// Constant group order - defined outside component to avoid recreating on each render
+const GROUP_ORDER = ['Today', 'Yesterday', 'Previous 7 Days', 'Older'] as const
 
 interface SidebarProps {
   isOpen: boolean
@@ -66,7 +70,49 @@ export function Sidebar({
     return groups
   }, [unpinnedItems])
 
-  const groupOrder = ['Today', 'Yesterday', 'Previous 7 Days', 'Older']
+  // Build a flat list of items with group headers for virtual scrolling
+  const flatItems = useMemo(() => {
+    const items: Array<{ type: 'header'; label: string } | { type: 'item'; item: ChatSession }> = []
+
+    if (pinnedItems.length > 0) {
+      items.push({ type: 'header', label: 'Pinned' })
+      pinnedItems.forEach(item => items.push({ type: 'item', item }))
+    }
+
+    GROUP_ORDER.forEach(dateLabel => {
+      const group = groupedHistory[dateLabel]
+      if (group && group.length > 0) {
+        items.push({ type: 'header', label: dateLabel })
+        group.forEach(item => items.push({ type: 'item', item }))
+      }
+    })
+
+    return items
+  }, [pinnedItems, groupedHistory])
+
+  // Virtuoso item renderer
+  const renderFlatItem = useCallback((index: number) => {
+    const entry = flatItems[index]
+    if (entry.type === 'header') {
+      return (
+        <div className={cn(
+          "px-3 text-[10px] font-semibold uppercase tracking-widest mb-1 pt-3",
+          entry.label === 'Pinned' ? "text-primary flex items-center gap-1" : "text-muted-foreground/70"
+        )}>
+          {entry.label === 'Pinned' && <Pin className="h-3 w-3 fill-primary" />}
+          {entry.label}
+        </div>
+      )
+    }
+    return (
+      <SidebarChatItem
+        item={entry.item}
+        onSelect={onSelectChat}
+        onDelete={setDeleteId}
+        onTogglePin={onTogglePin}
+      />
+    )
+  }, [flatItems, onSelectChat, onTogglePin])
 
   return (
     <>
@@ -116,7 +162,14 @@ export function Sidebar({
                 </div>
                 <span className="font-bold text-base tracking-tight gradient-text">{t('weaver')}</span>
              </div>
-             <Button variant="ghost" size="icon" onClick={onToggle} className="h-7 w-7 text-muted-foreground hover:text-foreground">
+             <Button
+               variant="ghost"
+               size="icon"
+               onClick={onToggle}
+               aria-label={isOpen ? "Close sidebar" : "Open sidebar"}
+               aria-expanded={isOpen}
+               className="h-7 w-7 text-muted-foreground hover:text-foreground"
+             >
                 <PanelLeft className="h-4 w-4" />
              </Button>
           </div>
@@ -137,11 +190,11 @@ export function Sidebar({
           </div>
 
           {/* Navigation Groups */}
-          <div className="flex-1 overflow-y-auto space-y-6 py-2 pr-1 scrollbar-thin scrollbar-thumb-muted/50">
+          <nav aria-label="Workspace navigation" className="flex-1 overflow-y-auto space-y-6 py-2 pr-1 scrollbar-thin scrollbar-thumb-muted/50">
 
             {/* Workspace */}
-            <div className="space-y-1">
-               <div className="px-3 text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-widest mb-1">
+            <div className="space-y-1" role="group" aria-labelledby="workspace-heading">
+               <div id="workspace-heading" className="px-3 text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-widest mb-1">
                  {t('workspace')}
                </div>
                <SidebarItem icon={LayoutGrid} label={t('dashboard')} active={activeView === 'dashboard'} onClick={() => onViewChange('dashboard')} />
@@ -158,6 +211,14 @@ export function Sidebar({
                   </div>
               ) : history.length === 0 ? (
                   <div className="px-3 text-xs text-muted-foreground italic py-2">{t('noRecentChats')}</div>
+              ) : flatItems.length > 20 ? (
+                  // Virtual scrolling for large history lists
+                  <Virtuoso
+                    style={{ height: 'calc(100vh - 280px)' }}
+                    totalCount={flatItems.length}
+                    itemContent={renderFlatItem}
+                    className="scrollbar-thin scrollbar-thumb-muted/50"
+                  />
               ) : (
                   <div className="space-y-4">
                       {/* Pinned Section */}
@@ -179,7 +240,7 @@ export function Sidebar({
                       )}
 
                       {/* Grouped Recent Section */}
-                      {groupOrder.map(dateLabel => {
+                      {GROUP_ORDER.map(dateLabel => {
                           const items = groupedHistory[dateLabel]
                           if (!items || items.length === 0) return null
 
@@ -202,7 +263,7 @@ export function Sidebar({
                       })}
                   </div>
               )}
-          </div>
+          </nav>
 
           {/* Bottom Actions - Removed Settings and Clear History as requested */}
         </div>
@@ -223,12 +284,13 @@ function SidebarChatItem({
     onTogglePin: (id: string) => void
 }) {
     return (
-        <div className="group relative">
+        <div className="group relative" role="listitem">
             <button
                 onClick={() => onSelect(item.id)}
+                aria-label={`Open chat: ${item.title}`}
                 className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm transition-all duration-200 text-muted-foreground hover:bg-muted/60 hover:text-foreground text-left pr-12"
             >
-                <MessageSquare className="h-4 w-4 shrink-0 transition-colors group-hover:text-primary" />
+                <MessageSquare className="h-4 w-4 shrink-0 transition-colors group-hover:text-primary" aria-hidden="true" />
                 <span className="truncate">{item.title}</span>
             </button>
             <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 flex items-center transition-all bg-gradient-to-l from-muted/60 pl-2">
@@ -237,21 +299,24 @@ function SidebarChatItem({
                         e.stopPropagation()
                         onTogglePin(item.id)
                     }}
+                    aria-label={item.isPinned ? `Unpin ${item.title}` : `Pin ${item.title}`}
+                    aria-pressed={item.isPinned}
                     className={cn(
                         "p-1 text-muted-foreground hover:text-primary transition-all",
                         item.isPinned && "text-primary"
                     )}
                 >
-                    {item.isPinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
+                    {item.isPinned ? <PinOff className="h-3.5 w-3.5" aria-hidden="true" /> : <Pin className="h-3.5 w-3.5" aria-hidden="true" />}
                 </button>
                 <button
                     onClick={(e) => {
                         e.stopPropagation()
                         onDelete(item.id)
                     }}
+                    aria-label={`Delete ${item.title}`}
                     className="p-1 text-muted-foreground hover:text-destructive transition-all"
                 >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                 </button>
             </div>
         </div>
@@ -263,11 +328,12 @@ function SidebarItem({ icon: Icon, label, active, onClick }: { icon: any, label:
     return (
         <button
             onClick={onClick}
+            aria-current={active ? 'page' : undefined}
             className={cn(
             "sidebar-item",
             active && "active"
         )}>
-            <Icon className={cn("h-4 w-4 transition-colors", active ? "text-blue-500" : "text-muted-foreground group-hover:text-foreground")} />
+            <Icon className={cn("h-4 w-4 transition-colors", active ? "text-blue-500" : "text-muted-foreground group-hover:text-foreground")} aria-hidden="true" />
             <span className="truncate">{label}</span>
         </button>
     )

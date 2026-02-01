@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, memo } from 'react'
+import React, { useState, memo, useMemo, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
@@ -64,17 +64,18 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
 
   const { saveArtifact } = useArtifacts()
 
-  // Preprocess content for Math rendering
-  const displayContent = preprocessContent(message.content || '')
+  // Memoize preprocessed content for Math rendering
+  const displayContent = useMemo(() => preprocessContent(message.content || ''), [message.content])
 
-  const handleCopy = () => {
+  // Memoized handlers
+  const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(message.content)
     setCopied(true)
     toast.success('Message copied')
     setTimeout(() => setCopied(false), 2000)
-  }
+  }, [message.content])
 
-  const handleSaveToLibrary = () => {
+  const handleSaveToLibrary = useCallback(() => {
     saveArtifact({
         type: 'text',
         title: message.content.slice(0, 30) + '...',
@@ -84,7 +85,7 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
     setSaved(true)
     toast.success('Saved to Library')
     setTimeout(() => setSaved(false), 2000)
-  }
+  }, [message.content, saveArtifact])
 
   const handleSpeak = async () => {
     // If playing, stop
@@ -111,47 +112,60 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
 
     setIsTTSLoading(true)
 
-    try {
-      const response = await fetch(`${getApiBaseUrl()}/api/tts/synthesize`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: plainText.slice(0, 2000), // limit length
-          voice: 'longxiaochun'
+    // Retry with exponential backoff
+    const MAX_RETRIES = 3
+    let lastError: Error | null = null
+
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        const response = await fetch(`${getApiBaseUrl()}/api/tts/synthesize`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: plainText.slice(0, 2000),
+            voice: 'longxiaochun'
+          })
         })
-      })
 
-      const result = await response.json()
+        const result = await response.json()
 
-      if (result.success && result.audio) {
-        // Create audio and play
-        const audio = new Audio(`data:audio/mp3;base64,${result.audio}`)
-        setAudioRef(audio)
-
-        audio.onended = () => {
-          setIsPlaying(false)
+        if (result.success && result.audio) {
+          const audio = new Audio(`data:audio/mp3;base64,${result.audio}`)
+          setAudioRef(audio)
+          audio.onended = () => setIsPlaying(false)
+          audio.onerror = () => {
+            toast.error('Audio playback failed')
+            setIsPlaying(false)
+          }
+          await audio.play()
+          setIsPlaying(true)
+          setIsTTSLoading(false)
+          return
         }
 
-        audio.onerror = () => {
-          toast.error('Audio playback failed')
-          setIsPlaying(false)
+        if (response.status === 503 && attempt < MAX_RETRIES - 1) {
+          // Service temporarily unavailable, retry with backoff
+          await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 1000))
+          continue
         }
 
-        await audio.play()
-        setIsPlaying(true)
-      } else if (response.status === 503) {
-        // TTS service unavailable, fallback to browser
-        fallbackToWebTTS(plainText)
-      } else {
-        toast.error(result.error || 'TTS failed')
+        if (response.status !== 503) {
+          toast.error(result.error || 'TTS failed')
+          break
+        }
+      } catch (error) {
+        lastError = error as Error
+        if (attempt < MAX_RETRIES - 1) {
+          await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 1000))
+          continue
+        }
       }
-    } catch (error) {
-      console.error('TTS error:', error)
-      // Fallback
-      fallbackToWebTTS(plainText)
-    } finally {
-      setIsTTSLoading(false)
     }
+
+    // All retries exhausted, fallback to browser TTS
+    console.error('TTS failed after retries:', lastError)
+    fallbackToWebTTS(plainText)
+    setIsTTSLoading(false)
   }
 
   const fallbackToWebTTS = (text: string) => {
@@ -302,7 +316,10 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
                           <img
                             src={att.preview}
                             alt={att.name || `attachment-${idx}`}
-                            className="w-full h-auto max-h-40 object-cover bg-white"
+                            loading="lazy"
+                            decoding="async"
+                            className="w-full h-auto max-h-40 object-cover bg-white blur-sm transition-all duration-300"
+                            onLoad={(e) => e.currentTarget.classList.remove('blur-sm')}
                           />
                         ) : (
                           <div className="p-3 text-xs text-muted-foreground">

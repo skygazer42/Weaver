@@ -1586,6 +1586,7 @@ async def export_report_endpoint(
     thread_id: str,
     format: str = "html",
     title: Optional[str] = None,
+    template: str = "default",
 ):
     """
     Export a research report for a given thread.
@@ -1594,6 +1595,7 @@ async def export_report_endpoint(
         thread_id: Thread ID to export report for
         format: Output format (html, pdf, docx)
         title: Optional custom title for the report
+        template: Template style (default, academic, business, minimal)
     """
     from tools.export import export_report as do_export
 
@@ -1671,6 +1673,35 @@ async def export_report_endpoint(
     except Exception as e:
         logger.error(f"Export error for thread {thread_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/export/templates")
+async def list_export_templates():
+    """List available export templates."""
+    return {
+        "templates": [
+            {
+                "id": "default",
+                "name": "Default",
+                "description": "Standard research report format with Weaver branding",
+            },
+            {
+                "id": "academic",
+                "name": "Academic",
+                "description": "Formal serif font style for research papers with proper citations",
+            },
+            {
+                "id": "business",
+                "name": "Business",
+                "description": "Professional business report with gradient header and modern layout",
+            },
+            {
+                "id": "minimal",
+                "name": "Minimal",
+                "description": "Clean, distraction-free formatting focused on content",
+            },
+        ]
+    }
 
 
 # ==================== RAG Document API ====================

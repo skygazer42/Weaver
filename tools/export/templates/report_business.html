@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <style>
+        :root {
+            --primary: #0066cc;
+            --accent: #00a3e0;
+            --text: #333333;
+            --text-light: #666666;
+            --border: #dddddd;
+            --bg: #ffffff;
+            --highlight: #f5f9fc;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+            color: var(--text);
+            background: var(--bg);
+            line-height: 1.6;
+            font-size: 11pt;
+        }
+        .report-container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px;
+        }
+        .report-header {
+            background: linear-gradient(135deg, #0066cc 0%, #00a3e0 100%);
+            color: white;
+            padding: 40px;
+            margin: -40px -40px 40px;
+            border-radius: 0 0 20px 20px;
+        }
+        .report-header h1 {
+            font-size: 26pt;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+        .report-meta {
+            font-size: 10pt;
+            opacity: 0.9;
+        }
+        .report-content h2 {
+            font-size: 15pt;
+            font-weight: 600;
+            color: var(--primary);
+            margin: 35px 0 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .report-content h2::before {
+            content: '';
+            display: inline-block;
+            width: 4px;
+            height: 24px;
+            background: linear-gradient(180deg, var(--primary), var(--accent));
+            border-radius: 2px;
+        }
+        .report-content h3 {
+            font-size: 12pt;
+            font-weight: 600;
+            margin: 25px 0 10px;
+            color: var(--text);
+        }
+        .report-content p {
+            margin-bottom: 12px;
+        }
+        .report-content ul, .report-content ol {
+            margin: 15px 0 15px 20px;
+        }
+        .report-content li {
+            margin-bottom: 6px;
+        }
+        .report-content blockquote {
+            margin: 20px 0;
+            padding: 20px 25px;
+            background: var(--highlight);
+            border-radius: 10px;
+            border-left: 4px solid var(--accent);
+        }
+        .report-content code {
+            font-family: 'Consolas', 'Monaco', monospace;
+            background: #f1f3f5;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10pt;
+        }
+        .report-content pre {
+            background: #1a1a2e;
+            color: #eaeaea;
+            padding: 25px;
+            border-radius: 12px;
+            overflow-x: auto;
+            margin: 20px 0;
+        }
+        .report-content pre code {
+            background: none;
+            padding: 0;
+        }
+        .report-content a {
+            color: var(--primary);
+            text-decoration: none;
+            border-bottom: 1px dashed var(--primary);
+        }
+        .report-content a:hover {
+            border-bottom-style: solid;
+        }
+        .sources {
+            margin-top: 50px;
+            padding: 25px;
+            background: var(--highlight);
+            border-radius: 12px;
+        }
+        .sources h2 {
+            font-size: 12pt;
+            margin: 0 0 15px;
+        }
+        .sources h2::before {
+            display: none;
+        }
+        .sources ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+        .sources li {
+            margin-bottom: 6px;
+            font-size: 9pt;
+            padding-left: 15px;
+            position: relative;
+        }
+        .sources li::before {
+            content: '→';
+            position: absolute;
+            left: 0;
+            color: var(--accent);
+        }
+        .sources a {
+            color: var(--text-light);
+            word-break: break-all;
+        }
+        @media print {
+            .report-header { margin: 0 0 30px; border-radius: 0; }
+            .report-container { padding: 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="report-container">
+        <header class="report-header">
+            <h1>{{ title }}</h1>
+            <div class="report-meta">
+                {{ generated_at }}{% if thread_id %} • {{ thread_id }}{% endif %}
+            </div>
+        </header>
+        <main class="report-content">
+            {{ content | safe }}
+        </main>
+        {% if sources %}
+        <section class="sources">
+            <h2>📚 Sources</h2>
+            <ul>
+            {% for url in sources %}
+                <li><a href="{{ url }}" target="_blank">{{ url }}</a></li>
+            {% endfor %}
+            </ul>
+        </section>
+        {% endif %}
+    </div>
+</body>
+</html>

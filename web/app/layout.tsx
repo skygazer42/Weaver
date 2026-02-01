@@ -10,11 +10,17 @@ import { Toaster } from "@/components/ui/sonner"
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
+  display: "swap",
+  preload: true,
+  fallback: ["system-ui", "-apple-system", "sans-serif"],
 })
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
   variable: "--font-mono",
+  display: "swap",
+  preload: false, // Code font doesn't need to block rendering
+  fallback: ["ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
 })
 
 export const metadata: Metadata = {

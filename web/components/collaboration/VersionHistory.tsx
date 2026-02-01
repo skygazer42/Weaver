@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { cn } from '@/lib/utils'
 import { History, Clock, RotateCcw, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -29,13 +29,7 @@ export function VersionHistory({ threadId, isOpen, onClose, onRestore, className
   const [isLoading, setIsLoading] = useState(false)
   const [restoringId, setRestoringId] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (isOpen && threadId) {
-      fetchVersions()
-    }
-  }, [isOpen, threadId])
-
-  const fetchVersions = async () => {
+  const fetchVersions = useCallback(async () => {
     setIsLoading(true)
     try {
       const response = await fetch(`${getApiBaseUrl()}/api/sessions/${threadId}/versions`)
@@ -46,7 +40,13 @@ export function VersionHistory({ threadId, isOpen, onClose, onRestore, className
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [threadId])
+
+  useEffect(() => {
+    if (isOpen && threadId) {
+      fetchVersions()
+    }
+  }, [isOpen, threadId, fetchVersions])
 
   const createVersion = async () => {
     try {

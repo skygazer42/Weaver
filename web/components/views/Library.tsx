@@ -1,8 +1,9 @@
 'use client'
 
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useCallback } from 'react'
 import { FolderOpen, History, FileCode, Star, Trash2 } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { VirtuosoGrid } from 'react-virtuoso'
 import { useChatHistory } from '@/hooks/useChatHistory'
 import { useArtifacts } from '@/hooks/useArtifacts'
 import { SessionItem } from '@/components/library/SessionItem'
@@ -118,32 +119,62 @@ export function Library() {
 
         {/* Content */}
         <div className="flex-1 min-h-0">
-          <ScrollArea className="h-full pr-4">
             {isLoading ? (
               <div className="flex items-center justify-center h-40 text-muted-foreground">
                 Loading your library...
               </div>
             ) : filteredItems.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-10">
-                {filteredItems.map((item) => (
-                  item.libType === 'session' ? (
-                    <SessionItem
-                      key={item.id}
-                      session={item}
-                      onSelect={(id) => router.push(`/?session=${id}`)}
-                      onDelete={(id) => { setDeleteId(id); setDeleteType('session'); }}
-                      onRename={(id) => setEditSession({ id, title: item.title })}
-                      onTogglePin={togglePin}
-                    />
-                  ) : (
-                    <ArtifactItem
-                      key={item.id}
-                      artifact={item}
-                      onDelete={(id) => { setDeleteId(id); setDeleteType('artifact'); }}
-                    />
-                  )
-                ))}
-              </div>
+              filteredItems.length > 30 ? (
+                // Virtualized grid for large collections
+                <VirtuosoGrid
+                  style={{ height: '100%' }}
+                  totalCount={filteredItems.length}
+                  listClassName="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-10 pr-4"
+                  itemContent={(index) => {
+                    const item = filteredItems[index]
+                    return item.libType === 'session' ? (
+                      <SessionItem
+                        key={item.id}
+                        session={item}
+                        onSelect={(id) => router.push(`/?session=${id}`)}
+                        onDelete={(id) => { setDeleteId(id); setDeleteType('session'); }}
+                        onRename={(id) => setEditSession({ id, title: item.title })}
+                        onTogglePin={togglePin}
+                      />
+                    ) : (
+                      <ArtifactItem
+                        key={item.id}
+                        artifact={item}
+                        onDelete={(id) => { setDeleteId(id); setDeleteType('artifact'); }}
+                      />
+                    )
+                  }}
+                />
+              ) : (
+                // Standard rendering for small collections
+                <ScrollArea className="h-full pr-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-10">
+                    {filteredItems.map((item) => (
+                      item.libType === 'session' ? (
+                        <SessionItem
+                          key={item.id}
+                          session={item}
+                          onSelect={(id) => router.push(`/?session=${id}`)}
+                          onDelete={(id) => { setDeleteId(id); setDeleteType('session'); }}
+                          onRename={(id) => setEditSession({ id, title: item.title })}
+                          onTogglePin={togglePin}
+                        />
+                      ) : (
+                        <ArtifactItem
+                          key={item.id}
+                          artifact={item}
+                          onDelete={(id) => { setDeleteId(id); setDeleteType('artifact'); }}
+                        />
+                      )
+                    ))}
+                  </div>
+                </ScrollArea>
+              )
             ) : (
               <div className="flex flex-col items-center justify-center h-80 border-2 border-dashed rounded-3xl bg-muted/30">
                 <div className="h-16 w-16 bg-muted rounded-full flex items-center justify-center mb-4">
@@ -155,7 +186,6 @@ export function Library() {
                 </p>
               </div>
             )}
-          </ScrollArea>
         </div>
       </div>
 

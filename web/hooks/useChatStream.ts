@@ -1,11 +1,15 @@
 import { useState, useRef, useCallback } from 'react'
 import { Message, Artifact, ToolInvocation, ImageAttachment } from '@/types/chat'
 import { getApiBaseUrl } from '@/lib/api'
+import { createAppError } from '@/lib/errors'
 
 interface UseChatStreamProps {
   selectedModel: string
   searchMode: string
 }
+
+// Throttle status updates to reduce re-renders
+const STATUS_THROTTLE_MS = 150
 
 export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps) {
   const [messages, setMessages] = useState<Message[]>([])
@@ -17,26 +21,50 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
 
   const abortControllerRef = useRef<AbortController | null>(null)
 
+  // Throttled status update
+  const lastStatusUpdateRef = useRef<number>(0)
+  const pendingStatusRef = useRef<string>('')
+  const statusTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  const throttledSetStatus = useCallback((text: string) => {
+    const now = Date.now()
+    if (now - lastStatusUpdateRef.current >= STATUS_THROTTLE_MS) {
+      lastStatusUpdateRef.current = now
+      setCurrentStatus(text)
+    } else {
+      // Schedule update
+      pendingStatusRef.current = text
+      if (!statusTimerRef.current) {
+        statusTimerRef.current = setTimeout(() => {
+          setCurrentStatus(pendingStatusRef.current)
+          lastStatusUpdateRef.current = Date.now()
+          statusTimerRef.current = null
+        }, STATUS_THROTTLE_MS)
+      }
+    }
+  }, [])
+
+  // Use Set for O(1) artifact deduplication
+  const artifactIdsRef = useRef(new Set<string>())
+
   const handleStop = useCallback(async () => {
-    // 优先通知后端取消当前线程
     if (threadId) {
       try {
         await fetch(
           `${getApiBaseUrl()}/api/chat/cancel/${threadId}`,
           { method: 'POST' }
         )
-        setCurrentStatus('已发送取消请求...')
+        setCurrentStatus('Sending cancel request...')
       } catch (err) {
-        console.error('取消请求失败', err)
+        console.error('Cancel request failed', err)
       }
     }
-    // 同时中断前端的 SSE
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
       abortControllerRef.current = null
     }
     setIsLoading(false)
-    setCurrentStatus('已取消')
+    setCurrentStatus('Cancelled')
     setTimeout(() => setCurrentStatus(''), 3000)
   }, [threadId])
 
@@ -118,7 +146,7 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
               const data = JSON.parse(line.slice(2))
 
               if (data.type === 'status') {
-                setCurrentStatus(data.data.text)
+                throttledSetStatus(data.data.text)
               } else if (data.type === 'text') {
                 assistantMessage.content += data.data.content
                 console.log('[useChatStream] Updating message (text):', {
@@ -179,10 +207,11 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
                 )
               } else if (data.type === 'artifact') {
                 const newArtifact = data.data as Artifact
-                setArtifacts((prev) => {
-                  if (prev.some(a => a.id === newArtifact.id)) return prev
-                  return [...prev, newArtifact]
-                })
+                // Use Set for O(1) deduplication
+                if (!artifactIdsRef.current.has(newArtifact.id)) {
+                  artifactIdsRef.current.add(newArtifact.id)
+                  setArtifacts((prev) => [...prev, newArtifact])
+                }
               }
             } catch (err) {
               console.error('Error parsing stream data:', err)
@@ -194,20 +223,23 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
       }
 
       setCurrentStatus('')
-    } catch (error: any) {
-      if (error.name === 'AbortError') {
-        console.log('Request aborted')
-      } else {
-        console.error('Error:', error)
+    } catch (error: unknown) {
+      const appError = createAppError(error)
+
+      if (appError.code !== 'TIMEOUT') {
         setMessages((prev) => [
           ...prev,
           {
             id: `error-${Date.now()}`,
             role: 'assistant',
-            content: 'Sorry, an error occurred. Please try again.',
-          },
+            content: appError.message,
+            isError: true,
+            retryable: appError.retryable,
+          } as Message,
         ])
       }
+
+      console.error('Chat error:', appError)
     } finally {
       setIsLoading(false)
       abortControllerRef.current = null

@@ -1,12 +1,59 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { ChatSession, Message } from '@/types/chat'
 import { StorageService } from '@/lib/storage-service'
+
+// Smart title generation from message content
+function generateSmartTitle(content: string): string {
+  if (!content) return 'New Conversation'
+
+  // Clean markdown and special characters
+  const clean = content
+    .replace(/```[\s\S]*?```/g, '') // Remove code blocks
+    .replace(/`[^`]+`/g, '') // Remove inline code
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Links -> text
+    .replace(/[#*_~\[\]]/g, '') // Remove markdown symbols
+    .replace(/https?:\/\/\S+/g, '') // Remove URLs
+    .replace(/\n+/g, ' ') // Newlines to spaces
+    .trim()
+
+  if (!clean) return 'New Conversation'
+
+  // Extract meaningful words (skip common filler words)
+  const stopWords = new Set(['the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been',
+    'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
+    'should', 'may', 'might', 'must', 'can', 'i', 'you', 'he', 'she', 'it', 'we',
+    'they', 'me', 'him', 'her', 'us', 'them', 'my', 'your', 'his', 'its', 'our',
+    'their', 'this', 'that', 'these', 'those', 'what', 'which', 'who', 'whom',
+    'how', 'when', 'where', 'why', 'please', 'help', 'want', 'need', 'like', 'just'])
+
+  const words = clean
+    .split(/\s+/)
+    .filter(w => w.length > 2 && !stopWords.has(w.toLowerCase()))
+    .slice(0, 6) // Take first 6 meaningful words
+
+  if (words.length === 0) {
+    // Fallback to first N characters
+    return clean.length > 40 ? clean.slice(0, 37) + '...' : clean
+  }
+
+  const title = words.join(' ')
+  return title.length > 50 ? title.slice(0, 47) + '...' : title
+}
 
 export function useChatHistory() {
   const [history, setHistory] = useState<ChatSession[]>([])
   const [isHistoryLoading, setIsHistoryLoading] = useState(true)
+
+  // Debounce timer for localStorage persistence
+  const saveTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const historyRef = useRef<ChatSession[]>(history)
+
+  // Keep ref in sync
+  useEffect(() => {
+    historyRef.current = history
+  }, [history])
 
   // Load History
   useEffect(() => {
@@ -40,10 +87,25 @@ export function useChatHistory() {
     loadHistory()
   }, [])
 
-  // Persist changes whenever history updates
+  // Debounced persistence - only save every 2 seconds to avoid localStorage thrashing
   useEffect(() => {
-    if (!isHistoryLoading) {
-      StorageService.saveHistory(history)
+    if (isHistoryLoading) return
+
+    // Clear existing timer
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current)
+    }
+
+    // Set new timer
+    saveTimerRef.current = setTimeout(() => {
+      StorageService.saveHistory(historyRef.current)
+    }, 2000)
+
+    // Cleanup
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current)
+      }
     }
   }, [history, isHistoryLoading])
 
@@ -77,10 +139,12 @@ export function useChatHistory() {
            return b.updatedAt - a.updatedAt
         })
       } else {
-        // Create new session
+        // Create new session with smart title
         sessionId = sessionId || timestamp.toString()
         const firstUserMsg = messages.find(m => m.role === 'user')
-        const title = firstUserMsg ? firstUserMsg.content.slice(0, 40) : 'New Conversation'
+        const title = firstUserMsg
+          ? generateSmartTitle(firstUserMsg.content)
+          : 'New Conversation'
 
         const newSession: ChatSession = {
           id: sessionId,
