@@ -179,6 +179,10 @@ class AgentState(TypedDict):
     # Domain-specific configuration (search hints, sources, etc.)
     domain_config: Dict[str, Any]
 
+    # ============ Sub-Agent Context Isolation ============
+    # Tracking of sub-agent contexts for parallel branches
+    sub_agent_contexts: Dict[str, Dict[str, Any]]
+
     # ============ Metrics ============
     # Token usage tracking
     total_input_tokens: int

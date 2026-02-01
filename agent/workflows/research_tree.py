@@ -743,15 +743,18 @@ class TreeExplorer:
         semaphore: Optional[asyncio.Semaphore] = None,
     ) -> None:
         """
-        Async parallel exploration of child nodes.
+        Async parallel exploration of child nodes with context isolation.
 
         Uses asyncio.gather() with semaphore to limit concurrency.
+        Each child branch gets an isolated context to prevent cross-contamination.
 
         Args:
             parent: Parent node whose children to explore
             state: Agent state for cancellation
             semaphore: Optional semaphore for concurrency control
         """
+        from agent.core.context import fork_state, merge_state
+
         if parent.depth >= self.max_depth:
             return
 
@@ -777,14 +780,36 @@ class TreeExplorer:
         if not children:
             return
 
-        async def explore_with_semaphore(child: ResearchTreeNode) -> None:
+        # Store child results for merging
+        child_results = []
+        results_lock = asyncio.Lock()
+
+        async def explore_with_isolation(child: ResearchTreeNode) -> None:
             async with semaphore:
                 self._check_cancel(state)
-                await self.explore_branch_async(child, state)
 
-        # Explore all children in parallel
-        logger.info(f"[TreeExplorer] Parallel exploring {len(children)} children of {parent.id}")
-        await asyncio.gather(*[explore_with_semaphore(c) for c in children])
+                # Fork state for this child branch
+                scope_id = f"branch_{child.id}"
+                forked_state = fork_state(state, scope_id, clear_messages=True)
+
+                # Explore with isolated context
+                await self.explore_branch_async(child, forked_state)
+
+                # Collect results for later merge
+                async with results_lock:
+                    child_results.append((scope_id, forked_state))
+
+        # Explore all children in parallel with isolated contexts
+        logger.info(f"[TreeExplorer] Parallel exploring {len(children)} children of {parent.id} with context isolation")
+        await asyncio.gather(*[explore_with_isolation(c) for c in children])
+
+        # Merge all child results back to parent state
+        for scope_id, child_state in child_results:
+            updates = merge_state(state, child_state, scope_id)
+            for key, value in updates.items():
+                state[key] = value
+
+        logger.info(f"[TreeExplorer] Merged {len(child_results)} child contexts")
 
     async def run_async(
         self,
