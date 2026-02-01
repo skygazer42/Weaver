@@ -1,4 +1,3 @@
-import json
 import logging
 import textwrap
 from typing import List
@@ -6,36 +5,13 @@ from typing import List
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_openai import ChatOpenAI
 
+from agent.core.llm_factory import create_summary_model
 from common.config import settings
 
 logger = logging.getLogger(__name__)
 
-
-def _chat_model_summary() -> ChatOpenAI:
-    params = {
-        "model": settings.summary_messages_model or settings.primary_model,
-        "temperature": 0,
-        "api_key": settings.openai_api_key,
-        "timeout": settings.openai_timeout or None,
-    }
-    if settings.use_azure:
-        params.update(
-            {
-                "azure_endpoint": settings.azure_endpoint or None,
-                "azure_deployment": params["model"],
-                "api_version": settings.azure_api_version or None,
-                "api_key": settings.azure_api_key or settings.openai_api_key,
-            }
-        )
-    elif settings.openai_base_url:
-        params["base_url"] = settings.openai_base_url
-
-    if settings.openai_extra_body:
-        try:
-            params["extra_body"] = json.loads(settings.openai_extra_body)
-        except json.JSONDecodeError:
-            logger.warning("Invalid JSON in openai_extra_body; ignoring.")
-    return ChatOpenAI(**params)
+# Use shared factory
+_chat_model_summary = create_summary_model
 
 
 def _messages_to_text(messages: List[BaseMessage]) -> str:

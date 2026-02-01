@@ -13,6 +13,7 @@ Design Philosophy:
 4. Compatible: Works alongside LangChain tools
 """
 
+import ast
 import inspect
 import json
 import logging
@@ -372,7 +373,7 @@ if __name__ == "__main__":
         def calculate(self, expression: str) -> ToolResult:
             """Calculate a mathematical expression."""
             try:
-                result = eval(expression)  # In production, use a safer evaluator
+                result = ast.literal_eval(expression)
                 return self.success_response({"expression": expression, "result": result})
             except Exception as e:
                 return self.fail_response(

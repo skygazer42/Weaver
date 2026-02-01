@@ -13,12 +13,10 @@ Key improvements:
 Based on: deep_search-dev reference implementation
 """
 
-import ast
 import asyncio
 import json
 import logging
 import re
-import textwrap
 import time
 import traceback
 from datetime import datetime
@@ -29,6 +27,8 @@ from langchain_core.messages import AIMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
+from agent.core.llm_factory import create_chat_model
+from agent.workflows.parsing_utils import format_search_results, parse_list_output
 from common.cancellation import check_cancellation as _check_cancel_token
 from common.config import settings
 from prompts.templates.deepsearch import (
@@ -49,35 +49,10 @@ from agent.workflows.knowledge_gap import KnowledgeGapAnalyzer
 
 logger = logging.getLogger(__name__)
 
-
-def _chat_model(model: str, temperature: float) -> ChatOpenAI:
-    """Build a ChatOpenAI client that honors OpenAI/Azure/base_url overrides."""
-    params: Dict[str, Any] = {
-        "model": model,
-        "temperature": temperature,
-        "api_key": settings.openai_api_key,
-        "timeout": settings.openai_timeout or None,
-    }
-
-    if settings.use_azure:
-        params.update(
-            {
-                "azure_endpoint": settings.azure_endpoint or None,
-                "azure_deployment": model,
-                "api_version": settings.azure_api_version or None,
-                "api_key": settings.azure_api_key or settings.openai_api_key,
-            }
-        )
-    elif settings.openai_base_url:
-        params["base_url"] = settings.openai_base_url
-
-    if settings.openai_extra_body:
-        try:
-            params["extra_body"] = json.loads(settings.openai_extra_body)
-        except json.JSONDecodeError:
-            logger.warning("Invalid JSON in openai_extra_body; ignoring.")
-
-    return ChatOpenAI(**params)
+# Use shared implementations
+_chat_model = create_chat_model
+_parse_list_output = parse_list_output
+_format_results = format_search_results
 
 
 def _check_cancel(state: Dict[str, Any]) -> None:
@@ -126,47 +101,6 @@ def _model_for_task(task_type: str, config: Dict[str, Any]) -> str:
         if task_type in ("planning", "query_gen", "critique", "gap_analysis"):
             return _selected_reasoning_model(config, settings.reasoning_model)
         return _selected_model(config, settings.primary_model)
-
-
-def _parse_list_output(text: str) -> List[str]:
-    """Parse python-list-like output into a string list."""
-    if not text:
-        return []
-    fenced = re.findall(r"```(?:python)?(.*?)```", text, flags=re.S | re.I)
-    if fenced:
-        text = fenced[-1]
-    start = text.find("[")
-    end = text.rfind("]")
-    if start != -1 and end > start:
-        text = text[start : end + 1]
-    try:
-        data = ast.literal_eval(text)
-        if isinstance(data, list):
-            return [str(x).strip() for x in data if isinstance(x, (str, int, float))]
-    except Exception:
-        pass
-    # Fallback: split by newline
-    return [line.strip() for line in text.splitlines() if line.strip()]
-
-
-def _format_results(results: List[Dict[str, Any]]) -> str:
-    """Format search results for prompt consumption."""
-    blocks: List[str] = []
-    for idx, r in enumerate(results, 1):
-        blocks.append(
-            textwrap.dedent(
-                f"""\
-                [{idx}]
-                标题: {r.get("title") or "N/A"}
-                日期: {r.get("published_date") or "unknown"}
-                评分: {r.get("score", 0)}
-                链接: {r.get("url") or ""}
-                摘要: {r.get("summary") or r.get("snippet") or ""}
-                原文: {(r.get("raw_excerpt") or "")[:500]}
-                """
-            ).strip()
-        )
-    return "\n\n".join(blocks)
 
 
 def _generate_queries(
@@ -221,17 +155,17 @@ def _pick_relevant_urls(
     results: List[Dict[str, Any]],
     max_urls: int,
     config: Dict[str, Any],
-    selected_urls: List[str],  # 新增：已选择的 URL
+    selected_urls_set: set,  # Use set for O(1) lookup
 ) -> List[str]:
     """Pick relevant URLs from search results, excluding already selected ones."""
     if not results:
         return []
 
-    # 过滤已选择的 URL
-    available_results = [r for r in results if r.get("url") and r.get("url") not in selected_urls]
+    # Filter already selected URLs with O(1) set lookup
+    available_results = [r for r in results if r.get("url") and r.get("url") not in selected_urls_set]
 
     if not available_results:
-        logger.info("所有 URL 都已被选择过，无新 URL 可选")
+        logger.info("All URLs have been selected, no new URLs available")
         return []
 
     formatted = _format_results(available_results)
@@ -249,14 +183,14 @@ def _pick_relevant_urls(
         sorted_results = sorted(available_results, key=lambda r: r.get("score", 0), reverse=True)
         urls = [r.get("url") for r in sorted_results if r.get("url")]
 
-    # Clamp
+    # Clamp and dedupe
     deduped: List[str] = []
     seen = set()
     for u in urls:
         if not isinstance(u, str):
             continue
         u = u.strip()
-        if not u or u in seen or u in selected_urls:
+        if not u or u in seen or u in selected_urls_set:
             continue
         seen.add(u)
         deduped.append(u)
@@ -406,9 +340,11 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
     summary_notes: List[str] = []
     search_runs: List[Dict[str, Any]] = []
 
-    # ✨ 新增：URL 去重机制
-    all_searched_urls: List[str] = []  # 所有搜索到的 URL
-    selected_urls: List[str] = []  # 已爬取的 URL
+    # URL deduplication mechanism - use set for O(1) lookup
+    all_searched_urls: List[str] = []  # Ordered list for logging
+    all_searched_urls_set: set = set()  # Fast lookup
+    selected_urls: List[str] = []  # Already crawled URLs
+    selected_urls_set: set = set()  # Fast lookup
 
     logger.info(f"[deepsearch] topic='{topic}' epochs={max_epochs}")
     logger.info(f"[deepsearch] 开始优化版深度搜索")
@@ -458,11 +394,12 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
                         }
                     )
 
-                    # 📝 记录所有搜索到的 URL（去重）
+                    # Record all searched URLs (dedupe with O(1) set lookup)
                     for r in results:
                         url = r.get("url")
-                        if url and url not in all_searched_urls:
+                        if url and url not in all_searched_urls_set:
                             all_searched_urls.append(url)
+                            all_searched_urls_set.add(url)
 
                 logger.info(
                     f"[deepsearch] Epoch {epoch + 1}: 搜索到 {len(combined_results)} 个结果"
@@ -474,7 +411,7 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
                     logger.info(f"[deepsearch] Epoch {epoch + 1}: 无搜索结果，跳过本轮")
                     continue
 
-                # ⏱️ Step 3: 挑选最相关的 URL（排除已选择的）
+                # Step 3: Pick most relevant URLs (excluding already selected)
                 pick_start = time.time()
                 chosen_urls = _pick_relevant_urls(
                     critic_llm,
@@ -483,19 +420,21 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
                     combined_results,
                     top_urls,
                     config,
-                    selected_urls,  # ✨ 传入已选择的 URL
+                    selected_urls_set,  # Pass set for O(1) lookup
                 )
 
                 if not chosen_urls:
                     logger.warning(
-                        f"[deepsearch] Epoch {epoch + 1}: 无新 URL 可选（已全部选择过），跳过本轮"
+                        f"[deepsearch] Epoch {epoch + 1}: No new URLs available, skipping"
                     )
                     continue
 
-                # 更新已选择的 URL 列表
+                # Update selected URLs list and set
                 selected_urls.extend(chosen_urls)
+                selected_urls_set.update(chosen_urls)
 
-                chosen_results = [r for r in combined_results if r.get("url") in set(chosen_urls)]
+                chosen_urls_set = set(chosen_urls)
+                chosen_results = [r for r in combined_results if r.get("url") in chosen_urls_set]
                 if not chosen_results:
                     chosen_results = sorted(
                         combined_results, key=lambda r: r.get("score", 0), reverse=True

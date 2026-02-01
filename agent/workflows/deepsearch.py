@@ -1,10 +1,8 @@
-import ast
 import asyncio
 import json
 import logging
 import os
 import re
-import textwrap
 import time
 from datetime import datetime
 from pathlib import Path
@@ -15,6 +13,8 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from openai import BadRequestError
 
+from agent.core.llm_factory import create_chat_model
+from agent.workflows.parsing_utils import format_search_results, parse_list_output
 from common.cancellation import check_cancellation as _check_cancel_token
 from common.config import settings
 from prompts.templates.deepsearch import (
@@ -30,34 +30,10 @@ from tools.search.search import tavily_search
 logger = logging.getLogger(__name__)
 
 
-def _chat_model(model: str, temperature: float) -> ChatOpenAI:
-    """Build a ChatOpenAI client that honors OpenAI/Azure/base_url overrides."""
-    params: Dict[str, Any] = {
-        "model": model,
-        "temperature": temperature,
-        "api_key": settings.openai_api_key,
-        "timeout": settings.openai_timeout or None,
-    }
-
-    if settings.use_azure:
-        params.update(
-            {
-                "azure_endpoint": settings.azure_endpoint or None,
-                "azure_deployment": model,
-                "api_version": settings.azure_api_version or None,
-                "api_key": settings.azure_api_key or settings.openai_api_key,
-            }
-        )
-    elif settings.openai_base_url:
-        params["base_url"] = settings.openai_base_url
-
-    if settings.openai_extra_body:
-        try:
-            params["extra_body"] = json.loads(settings.openai_extra_body)
-        except json.JSONDecodeError:
-            logger.warning("Invalid JSON in openai_extra_body; ignoring.")
-
-    return ChatOpenAI(**params)
+# Use shared implementation
+_chat_model = create_chat_model
+_parse_list_output = parse_list_output
+_format_results = format_search_results
 
 
 def _check_cancel(state: Dict[str, Any]) -> None:
@@ -85,47 +61,6 @@ def _selected_reasoning_model(config: Dict[str, Any], fallback: str) -> str:
         if isinstance(val, str) and val.strip():
             return val.strip()
     return fallback
-
-
-def _parse_list_output(text: str) -> List[str]:
-    """Parse python-list-like output into a string list."""
-    if not text:
-        return []
-    fenced = re.findall(r"```(?:python)?(.*?)```", text, flags=re.S | re.I)
-    if fenced:
-        text = fenced[-1]
-    start = text.find("[")
-    end = text.rfind("]")
-    if start != -1 and end > start:
-        text = text[start : end + 1]
-    try:
-        data = ast.literal_eval(text)
-        if isinstance(data, list):
-            return [str(x).strip() for x in data if isinstance(x, (str, int, float))]
-    except Exception:
-        pass
-    # Fallback: split by newline
-    return [line.strip() for line in text.splitlines() if line.strip()]
-
-
-def _format_results(results: List[Dict[str, Any]]) -> str:
-    """Format search results for prompt consumption."""
-    blocks: List[str] = []
-    for idx, r in enumerate(results, 1):
-        blocks.append(
-            textwrap.dedent(
-                f"""\
-                [{idx}]
-                标题: {r.get("title") or "N/A"}
-                日期: {r.get("published_date") or "unknown"}
-                评分: {r.get("score", 0)}
-                链接: {r.get("url") or ""}
-                摘要: {r.get("summary") or r.get("snippet") or ""}
-                原文: {(r.get("raw_excerpt") or "")[:500]}
-                """
-            ).strip()
-        )
-    return "\n\n".join(blocks)
 
 
 def _generate_queries(

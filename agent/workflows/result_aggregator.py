@@ -279,23 +279,36 @@ class ResultAggregator:
             best = max(group, key=lambda x: len(x.content))
             candidates.append(best)
 
-        # Further similarity check using SequenceMatcher
-        deduped: List[SearchResult] = []
-        for res in candidates:
+        # Optimized similarity check using set-based tracking
+        # Avoid O(N) list.remove() by tracking kept indices
+        kept_indices: List[int] = []
+        similarity_cache: Dict[tuple, float] = {}
+
+        for i, res in enumerate(candidates):
             is_duplicate = False
-            for existing in deduped:
-                similarity = self._text_similarity(res.content, existing.content)
+            replace_idx = -1
+
+            for j in kept_indices:
+                existing = candidates[j]
+                # Use cache key based on truncated content hash
+                cache_key = (id(res), id(existing))
+                if cache_key not in similarity_cache:
+                    similarity_cache[cache_key] = self._text_similarity(res.content, existing.content)
+                similarity = similarity_cache[cache_key]
+
                 if similarity >= self.similarity_threshold:
                     is_duplicate = True
                     # Keep the longer/better one
                     if len(res.content) > len(existing.content):
-                        deduped.remove(existing)
-                        deduped.append(res)
+                        replace_idx = kept_indices.index(j)
                     break
-            if not is_duplicate:
-                deduped.append(res)
 
-        return deduped
+            if not is_duplicate:
+                kept_indices.append(i)
+            elif replace_idx >= 0:
+                kept_indices[replace_idx] = i
+
+        return [candidates[i] for i in kept_indices]
 
     def _text_similarity(self, text1: str, text2: str) -> float:
         """Calculate similarity ratio between two texts."""

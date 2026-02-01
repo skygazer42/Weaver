@@ -214,12 +214,19 @@ class QueryDeduplicator:
 
         unique: List[str] = []
         duplicates: List[str] = []
+        # Use dict for O(1) exact match lookup, list for similarity check
+        seen_exact: set = set()
         seen_normalized: List[str] = []
 
         for query in queries:
             normalized = self._normalize(query)
 
-            # Check if similar to any seen query
+            # Fast path: exact match (O(1))
+            if normalized in seen_exact:
+                duplicates.append(query)
+                continue
+
+            # Slow path: similarity check (only against unique queries)
             is_duplicate = False
             for seen in seen_normalized:
                 similarity = SequenceMatcher(None, normalized, seen).ratio()
@@ -231,6 +238,7 @@ class QueryDeduplicator:
                 duplicates.append(query)
             else:
                 unique.append(query)
+                seen_exact.add(normalized)
                 seen_normalized.append(normalized)
 
         if duplicates:

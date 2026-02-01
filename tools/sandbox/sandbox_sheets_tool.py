@@ -633,7 +633,8 @@ print(f"Sheets: {{wb.sheetnames}}")
             for line in result.stdout.split("\n"):
                 if line.startswith("Sheets:"):
                     try:
-                        sheets = eval(line.replace("Sheets:", "").strip())
+                        import ast as _ast
+                        sheets = _ast.literal_eval(line.replace("Sheets:", "").strip())
                     except Exception:
                         pass
 

@@ -741,7 +741,8 @@ if __name__ == "__main__":
     async def mock_calculate(expression: str) -> ToolResult:
         """Mock calculator tool."""
         try:
-            result = eval(expression)
+            import ast as _ast
+            result = _ast.literal_eval(expression)
             return ToolResult(
                 success=True, output=json.dumps({"expression": expression, "result": result})
             )

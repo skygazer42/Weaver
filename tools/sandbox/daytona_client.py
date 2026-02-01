@@ -39,7 +39,7 @@ def _daytona_cfg():
         "daytona_entrypoint",
         "/usr/bin/supervisord -n -c /etc/supervisor/conf.d/supervisord.conf",
     )
-    vnc_pwd = getattr(settings, "daytona_vnc_password", "123456")
+    vnc_pwd = getattr(settings, "daytona_vnc_password", "")
     return key, url, target, image, entrypoint, vnc_pwd
 
 

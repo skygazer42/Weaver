@@ -13,7 +13,7 @@ from langchain_openai import ChatOpenAI
 from langgraph.types import Send, interrupt
 from pydantic import BaseModel, Field
 
-from agent.core.middleware import enforce_tool_call_limit, retry_call
+from agent.core.middleware import async_retry_call, enforce_tool_call_limit, retry_call
 from agent.core.processor_config import AgentProcessorConfig
 from agent.core.state import AgentState, QueryState, ResearchPlan
 from agent.workflows.browser_context_helper import build_browser_context_hint

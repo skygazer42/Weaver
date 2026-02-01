@@ -1688,6 +1688,19 @@ async def upload_document(file: UploadFile = File(...)):
     if not settings.rag_enabled:
         raise HTTPException(status_code=400, detail="RAG is not enabled. Set rag_enabled=True in settings.")
 
+    # Validate file size (max 50MB)
+    MAX_FILE_SIZE = 50 * 1024 * 1024
+    content = await file.read()
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=413, detail=f"File too large. Maximum size is {MAX_FILE_SIZE // (1024*1024)}MB.")
+
+    # Validate file extension
+    ALLOWED_EXTENSIONS = {"pdf", "docx", "doc", "txt", "md", "csv"}
+    filename = file.filename or ""
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"Unsupported file type '.{ext}'. Allowed: {', '.join(ALLOWED_EXTENSIONS)}")
+
     try:
         from tools.rag.rag_tool import get_rag_tool
 
@@ -1695,7 +1708,6 @@ async def upload_document(file: UploadFile = File(...)):
         if rag is None:
             raise HTTPException(status_code=500, detail="Failed to initialize RAG tool")
 
-        content = await file.read()
         result = rag.add_document(content=content, filename=file.filename)
 
         if not result.get("success"):
@@ -2169,6 +2181,23 @@ async def recognize_speech(request: ASRRequest):
 @app.post("/api/asr/upload")
 async def recognize_speech_upload(file: UploadFile = File(...), sample_rate: int = 16000):
     """ASR upload endpoint receiving audio file."""
+    # Validate file size (max 50MB)
+    MAX_AUDIO_SIZE = 50 * 1024 * 1024
+    audio_bytes = await file.read()
+    if len(audio_bytes) > MAX_AUDIO_SIZE:
+        raise HTTPException(status_code=413, detail=f"File too large. Maximum size is {MAX_AUDIO_SIZE // (1024*1024)}MB.")
+
+    # Validate audio format
+    VALID_AUDIO_FORMATS = {"wav", "mp3", "m4a", "flac", "ogg", "webm", "pcm"}
+    filename = file.filename or "audio.wav"
+    format_ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "wav"
+    if format_ext not in VALID_AUDIO_FORMATS:
+        raise HTTPException(status_code=400, detail=f"Unsupported audio format '.{format_ext}'. Allowed: {', '.join(VALID_AUDIO_FORMATS)}")
+
+    # Validate sample rate
+    if not (8000 <= sample_rate <= 48000):
+        raise HTTPException(status_code=400, detail="Sample rate must be between 8000 and 48000 Hz.")
+
     try:
         asr_service = get_asr_service()
 
@@ -2178,14 +2207,6 @@ async def recognize_speech_upload(file: UploadFile = File(...), sample_rate: int
                 detail="ASR service not available. Please configure DASHSCOPE_API_KEY.",
             )
 
-        # 璇诲彇鏂囦欢鍐呭
-        audio_bytes = await file.read()
-
-        # Determine format from file extension
-        filename = file.filename or "audio.wav"
-        format_ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "wav"
-
-        # 璋冪敤 ASR 鏈嶅姟
         result = asr_service.recognize_bytes(
             audio_data=audio_bytes,
             format=format_ext,

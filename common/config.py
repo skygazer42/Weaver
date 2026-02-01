@@ -76,7 +76,7 @@ class DaytonaSettings(BaseModel):
     daytona_target: str = "us"
     sandbox_image_name: str = "whitezxj/sandbox:0.1.0"
     sandbox_entrypoint: str = "/usr/bin/supervisord -n -c /etc/supervisor/conf.d/supervisord.conf"
-    VNC_password: str = "123456"
+    VNC_password: str = ""  # Must be set via environment variable
 
 
 class MCPServerConfig(BaseModel):
@@ -315,7 +315,7 @@ class Settings(BaseSettings):
     daytona_target: str = "us"
     daytona_image_name: str = "whitezxj/sandbox:0.1.0"
     daytona_entrypoint: str = "/usr/bin/supervisord -n -c /etc/supervisor/conf.d/supervisord.conf"
-    daytona_vnc_password: str = "123456"
+    daytona_vnc_password: str = ""  # Must be set via environment variable
 
     # Sandbox mode: local (E2B), daytona (remote), none (disabled)
     sandbox_mode: str = "local"

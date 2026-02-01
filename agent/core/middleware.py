@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import time
 from typing import Any, Callable, Dict, List
@@ -12,6 +13,7 @@ logger = logging.getLogger(__name__)
 def retry_call(fn: Callable, *, attempts: int, backoff: float, **kwargs) -> Any:
     """
     Simple synchronous retry helper with exponential backoff.
+    Note: Use async_retry_call for async contexts to avoid blocking.
     """
     last_exc = None
     for i in range(attempts):
@@ -24,6 +26,31 @@ def retry_call(fn: Callable, *, attempts: int, backoff: float, **kwargs) -> Any:
                 f"Tool call failed (attempt {i + 1}/{attempts}): {e}; retrying in {wait:.1f}s"
             )
             time.sleep(wait)
+    if last_exc:
+        raise last_exc
+    return None
+
+
+async def async_retry_call(fn: Callable, *, attempts: int, backoff: float, **kwargs) -> Any:
+    """
+    Async retry helper with exponential backoff.
+    Does not block the event loop during wait.
+    """
+    last_exc = None
+    for i in range(attempts):
+        try:
+            result = fn(**kwargs)
+            # If fn returns a coroutine, await it
+            if asyncio.iscoroutine(result):
+                return await result
+            return result
+        except Exception as e:
+            last_exc = e
+            wait = backoff * (2**i)
+            logger.warning(
+                f"Tool call failed (attempt {i + 1}/{attempts}): {e}; retrying in {wait:.1f}s"
+            )
+            await asyncio.sleep(wait)
     if last_exc:
         raise last_exc
     return None
