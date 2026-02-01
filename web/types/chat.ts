@@ -52,3 +52,33 @@ export interface Artifact {
   updatedAt: number
   tags?: string[]
 }
+
+// Research Visualization Types
+export interface ResearchNode {
+  id: string
+  topic: string
+  status: 'pending' | 'in_progress' | 'completed' | 'failed'
+  depth: number
+  parentId: string | null
+  childrenIds: string[]
+  sources: ResearchSource[]
+  summary: string
+}
+
+export interface ResearchSource {
+  title: string
+  url: string
+  provider?: string
+  score?: number
+}
+
+export interface ResearchTree {
+  rootId: string
+  nodes: Record<string, ResearchNode>
+}
+
+export interface ResearchEvent {
+  type: 'research_node_start' | 'research_node_complete' | 'research_tree_update' | 'search'
+  data: any
+  timestamp: number
+}

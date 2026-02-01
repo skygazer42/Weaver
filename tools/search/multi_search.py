@@ -393,6 +393,68 @@ class ExaProvider(SearchProvider):
             return []
 
 
+# Import feed providers (lazy to avoid circular imports)
+def _get_feed_providers() -> List[SearchProvider]:
+    """Get available real-time feed providers."""
+    providers = []
+    try:
+        from tools.search.feeds.hackernews_provider import HackerNewsProvider
+        hn = HackerNewsProvider()
+        if hn.is_available():
+            providers.append(hn)
+    except ImportError:
+        pass
+
+    try:
+        from tools.search.feeds.twitter_provider import TwitterProvider
+        twitter = TwitterProvider()
+        if twitter.is_available():
+            providers.append(twitter)
+    except ImportError:
+        pass
+
+    try:
+        from tools.search.feeds.reddit_provider import RedditProvider
+        reddit = RedditProvider()
+        if reddit.is_available():
+            providers.append(reddit)
+    except ImportError:
+        pass
+
+    return providers
+
+
+# Import academic providers (lazy to avoid circular imports)
+def _get_academic_providers() -> List[SearchProvider]:
+    """Get available academic search providers."""
+    providers = []
+    try:
+        from tools.search.academic.arxiv_provider import ArxivProvider
+        arxiv = ArxivProvider()
+        if arxiv.is_available():
+            providers.append(arxiv)
+    except ImportError:
+        pass
+
+    try:
+        from tools.search.academic.semantic_scholar_provider import SemanticScholarProvider
+        ss = SemanticScholarProvider()
+        if ss.is_available():
+            providers.append(ss)
+    except ImportError:
+        pass
+
+    try:
+        from tools.search.academic.pubmed_provider import PubMedProvider
+        pm = PubMedProvider()
+        if pm.is_available():
+            providers.append(pm)
+    except ImportError:
+        pass
+
+    return providers
+
+
 class MultiSearchOrchestrator:
     """
     Orchestrates searches across multiple providers.
@@ -452,7 +514,16 @@ class MultiSearchOrchestrator:
         if exa.is_available():
             providers.append(exa)
 
+        # Real-time feed providers
+        feed_providers = _get_feed_providers()
+        providers.extend(feed_providers)
+
+        # Academic providers
+        academic_providers = _get_academic_providers()
+        providers.extend(academic_providers)
+
         logger.info(f"[MultiSearch] Initialized {len(providers)} providers: {[p.name for p in providers]}")
+        return providers
         return providers
 
     def get_available_providers(self) -> List[SearchProvider]:

@@ -66,6 +66,12 @@ class ToolEventType(str, Enum):
     AGENT_ITERATION = "agent_iteration"  # Agent iteration
     AGENT_DONE = "agent_done"  # Agent loop completed
 
+    # Research visualization events
+    RESEARCH_NODE_START = "research_node_start"  # Research node begins
+    RESEARCH_NODE_COMPLETE = "research_node_complete"  # Research node completed
+    RESEARCH_TREE_UPDATE = "research_tree_update"  # Research tree structure updated
+    SEARCH = "search"  # Search query executed with results
+
     # System events
     ERROR = "error"  # General error
     DONE = "done"  # Stream completed
@@ -347,6 +353,64 @@ class EventEmitter:
     async def emit_done(self, message: Optional[str] = None) -> Event:
         """Convenience method to emit done event."""
         return await self.emit(ToolEvent.DONE, {"message": message or "Stream completed"})
+
+    async def emit_research_node_start(
+        self,
+        node_id: str,
+        topic: str,
+        depth: int = 0,
+        parent_id: Optional[str] = None,
+    ) -> Event:
+        """Convenience method to emit research node start event."""
+        return await self.emit(
+            ToolEvent.RESEARCH_NODE_START,
+            {
+                "node_id": node_id,
+                "topic": topic,
+                "depth": depth,
+                "parent_id": parent_id,
+            },
+        )
+
+    async def emit_research_node_complete(
+        self,
+        node_id: str,
+        summary: Optional[str] = None,
+        sources: Optional[List[Dict[str, Any]]] = None,
+    ) -> Event:
+        """Convenience method to emit research node complete event."""
+        return await self.emit(
+            ToolEvent.RESEARCH_NODE_COMPLETE,
+            {
+                "node_id": node_id,
+                "summary": summary,
+                "sources": sources or [],
+            },
+        )
+
+    async def emit_research_tree_update(
+        self,
+        tree: Dict[str, Any],
+    ) -> Event:
+        """Convenience method to emit research tree update event."""
+        return await self.emit(ToolEvent.RESEARCH_TREE_UPDATE, {"tree": tree})
+
+    async def emit_search(
+        self,
+        query: str,
+        provider: str,
+        results: Optional[List[Dict[str, Any]]] = None,
+    ) -> Event:
+        """Convenience method to emit search event."""
+        return await self.emit(
+            ToolEvent.SEARCH,
+            {
+                "query": query,
+                "provider": provider,
+                "results": results or [],
+                "count": len(results) if results else 0,
+            },
+        )
 
     def get_buffered_events(self) -> List[Event]:
         """Get all buffered events for replay."""

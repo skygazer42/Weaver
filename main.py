@@ -1983,6 +1983,196 @@ async def delete_session(thread_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ==================== Collaboration API ====================
+
+
+class ShareRequest(BaseModel):
+    """Request to create a share link."""
+    permissions: str = "view"
+    expires_hours: Optional[int] = 72
+
+
+class CommentRequest(BaseModel):
+    """Request to add a comment."""
+    content: str
+    author: str = "anonymous"
+    message_id: Optional[str] = None
+
+
+@app.post("/api/sessions/{thread_id}/share")
+async def create_share(thread_id: str, req: ShareRequest):
+    """Create a share link for a session."""
+    try:
+        from common.collaboration import create_share_link
+
+        link = create_share_link(
+            thread_id=thread_id,
+            permissions=req.permissions,
+            expires_hours=req.expires_hours,
+        )
+        return {
+            "success": True,
+            "share": link,
+            "url": f"/share/{link['id']}",
+        }
+    except Exception as e:
+        logger.error(f"Create share error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/share/{share_id}")
+async def get_share(share_id: str):
+    """Get shared session content."""
+    try:
+        from common.collaboration import get_share_link
+
+        link = get_share_link(share_id)
+        if not link:
+            raise HTTPException(status_code=404, detail="Share link not found or expired")
+
+        # Get session state if checkpointer available
+        session_data = None
+        if checkpointer:
+            from common.session_manager import get_session_manager
+
+            manager = get_session_manager(checkpointer)
+            session = manager.get_session(link["thread_id"])
+            if session:
+                session_data = {
+                    "id": session.thread_id,
+                    "title": session.title,
+                    "messages": session.messages,
+                }
+
+        return {
+            "success": True,
+            "share": link,
+            "session": session_data,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Get share error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/share/{share_id}")
+async def delete_share(share_id: str):
+    """Delete a share link."""
+    try:
+        from common.collaboration import delete_share_link
+
+        success = delete_share_link(share_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Share link not found")
+        return {"success": True, "id": share_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Delete share error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/sessions/{thread_id}/comments")
+async def add_comment(thread_id: str, req: CommentRequest):
+    """Add a comment to a session."""
+    try:
+        from common.collaboration import add_comment
+
+        comment = add_comment(
+            thread_id=thread_id,
+            content=req.content,
+            author=req.author,
+            message_id=req.message_id,
+        )
+        return {"success": True, "comment": comment}
+    except Exception as e:
+        logger.error(f"Add comment error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/sessions/{thread_id}/comments")
+async def get_comments(thread_id: str, message_id: Optional[str] = None):
+    """Get comments for a session."""
+    try:
+        from common.collaboration import get_comments
+
+        comments = get_comments(thread_id, message_id)
+        return {"comments": comments, "count": len(comments)}
+    except Exception as e:
+        logger.error(f"Get comments error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/sessions/{thread_id}/versions")
+async def get_versions(thread_id: str):
+    """Get version history for a session."""
+    try:
+        from common.collaboration import list_versions
+
+        versions = list_versions(thread_id)
+        return {"versions": versions, "count": len(versions)}
+    except Exception as e:
+        logger.error(f"Get versions error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/sessions/{thread_id}/versions")
+async def create_version(thread_id: str, label: Optional[str] = None):
+    """Create a version snapshot of a session."""
+    try:
+        if not checkpointer:
+            raise HTTPException(status_code=400, detail="No checkpointer configured")
+
+        from common.collaboration import save_version
+        from common.session_manager import get_session_manager
+
+        manager = get_session_manager(checkpointer)
+        session = manager.get_session(thread_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        # Create snapshot from session state
+        state_snapshot = {
+            "thread_id": session.thread_id,
+            "title": session.title,
+            "messages": session.messages,
+            "metadata": getattr(session, "metadata", {}),
+        }
+
+        version = save_version(thread_id, state_snapshot, label)
+        return {"success": True, "version": version}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Create version error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/sessions/{thread_id}/restore/{version_id}")
+async def restore_version(thread_id: str, version_id: str):
+    """Restore a session from a version snapshot."""
+    try:
+        from common.collaboration import get_version_snapshot
+
+        snapshot = get_version_snapshot(version_id)
+        if not snapshot:
+            raise HTTPException(status_code=404, detail="Version snapshot not found")
+
+        # Note: Full restoration would require re-initializing the session state
+        # For now, just return the snapshot for client-side handling
+        return {
+            "success": True,
+            "snapshot": snapshot,
+            "message": "Version snapshot retrieved. Client should handle restoration.",
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Restore version error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ==================== HITL Interrupt API ====================
 
 

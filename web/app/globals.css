@@ -24,28 +24,49 @@
     --input: 240 5.9% 90%;
     --ring: 240 5.9% 10%;
     --radius: 0.75rem;
+
+    /* Gradient colors */
+    --gradient-primary-start: 237 84% 67%;
+    --gradient-primary-end: 271 68% 49%;
+    --gradient-accent-start: 217 91% 60%;
+    --gradient-accent-end: 262 83% 58%;
+
+    /* Glass effect */
+    --glass-bg: rgba(255, 255, 255, 0.8);
+    --glass-blur: 20px;
+    --glass-border: rgba(255, 255, 255, 0.3);
+
+    /* Accent colors for UI elements */
+    --accent-blue: 217 91% 60%;
+    --accent-purple: 262 83% 58%;
+    --accent-pink: 330 81% 60%;
+    --accent-cyan: 189 94% 43%;
   }
 
   .dark {
-    --background: 240 10% 3.9%;
+    --background: 222 47% 6%;
     --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
+    --card: 222 47% 8%;
     --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
+    --popover: 222 47% 8%;
     --popover-foreground: 0 0% 98%;
     --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
-    --secondary: 240 3.7% 15.9%;
+    --primary-foreground: 222 47% 6%;
+    --secondary: 222 47% 12%;
     --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
+    --muted: 222 47% 12%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 222 47% 12%;
     --accent-foreground: 0 0% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
+    --border: 222 47% 15%;
+    --input: 222 47% 15%;
+    --ring: 217 91% 60%;
+
+    /* Dark mode glass effect */
+    --glass-bg: rgba(15, 23, 42, 0.8);
+    --glass-border: rgba(255, 255, 255, 0.1);
   }
 }
 
@@ -76,4 +97,306 @@
   .text-balance {
     text-wrap: balance;
   }
+}
+
+/* Gradient Utilities */
+@layer utilities {
+  .gradient-primary {
+    background: linear-gradient(135deg, hsl(var(--gradient-primary-start)) 0%, hsl(var(--gradient-primary-end)) 100%);
+  }
+
+  .gradient-accent {
+    background: linear-gradient(135deg, hsl(var(--accent-blue)) 0%, hsl(var(--accent-purple)) 100%);
+  }
+
+  .gradient-text {
+    background: linear-gradient(135deg, hsl(var(--accent-blue)) 0%, hsl(var(--accent-purple)) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .gradient-border {
+    position: relative;
+    background: hsl(var(--background));
+    border: 1px solid transparent;
+    background-clip: padding-box;
+  }
+
+  .gradient-border::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: -1;
+    margin: -1px;
+    border-radius: inherit;
+    background: linear-gradient(135deg, hsl(var(--accent-blue)) 0%, hsl(var(--accent-purple)) 100%);
+  }
+}
+
+/* Glass Effect Utilities */
+@layer utilities {
+  .glass {
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
+  }
+
+  .glass-subtle {
+    background: var(--glass-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+  }
+
+  .glass-strong {
+    background: var(--glass-bg);
+    backdrop-filter: blur(30px) saturate(180%);
+    -webkit-backdrop-filter: blur(30px) saturate(180%);
+    border: 1px solid var(--glass-border);
+  }
+}
+
+/* Glow Effects */
+@layer utilities {
+  .glow {
+    box-shadow: 0 0 20px hsla(var(--accent-purple), 0.3);
+  }
+
+  .glow-sm {
+    box-shadow: 0 0 10px hsla(var(--accent-purple), 0.2);
+  }
+
+  .glow-lg {
+    box-shadow: 0 0 40px hsla(var(--accent-purple), 0.4);
+  }
+
+  .glow-blue {
+    box-shadow: 0 0 20px hsla(var(--accent-blue), 0.3);
+  }
+
+  .glow-pink {
+    box-shadow: 0 0 20px hsla(var(--accent-pink), 0.3);
+  }
+}
+
+/* Animation Utilities */
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-out forwards;
+  }
+
+  .animate-fade-in-up {
+    animation: fadeInUp 0.5s ease-out forwards;
+  }
+
+  .animate-slide-in-right {
+    animation: slideInRight 0.3s ease-out forwards;
+  }
+
+  .animate-slide-in-left {
+    animation: slideInLeft 0.3s ease-out forwards;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.2s ease-out forwards;
+  }
+
+  .animate-pulse-glow {
+    animation: pulseGlow 2s ease-in-out infinite;
+  }
+
+  .animate-shimmer {
+    animation: shimmer 2s linear infinite;
+    background-size: 200% 100%;
+  }
+}
+
+/* Keyframe Definitions */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 20px hsla(var(--accent-purple), 0.3);
+  }
+  50% {
+    box-shadow: 0 0 40px hsla(var(--accent-purple), 0.5);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Research UI Specific Styles */
+@layer components {
+  .research-card {
+    @apply glass rounded-xl p-4 transition-all duration-300;
+  }
+
+  .research-card:hover {
+    @apply glow-sm;
+    transform: translateY(-2px);
+  }
+
+  .source-badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+    @apply bg-gradient-to-r from-blue-500/10 to-purple-500/10;
+    @apply border border-blue-500/20;
+  }
+
+  .progress-bar {
+    @apply relative h-1.5 rounded-full overflow-hidden;
+    @apply bg-muted;
+  }
+
+  .progress-bar-fill {
+    @apply absolute inset-y-0 left-0 rounded-full;
+    @apply gradient-accent;
+    transition: width 0.5s ease-out;
+  }
+
+  .tree-node {
+    @apply relative pl-6 before:absolute before:left-2 before:top-0 before:h-full before:w-px;
+    @apply before:bg-gradient-to-b before:from-blue-500/50 before:to-purple-500/50;
+  }
+
+  .tree-node::after {
+    @apply absolute left-2 top-3 w-3 h-px;
+    @apply bg-gradient-to-r from-blue-500/50 to-purple-500/50;
+    content: '';
+  }
+
+  .status-indicator {
+    @apply relative inline-flex h-2 w-2 rounded-full;
+  }
+
+  .status-indicator.pending {
+    @apply bg-yellow-500;
+  }
+
+  .status-indicator.in-progress {
+    @apply bg-blue-500 animate-pulse;
+  }
+
+  .status-indicator.completed {
+    @apply bg-green-500;
+  }
+
+  .status-indicator.failed {
+    @apply bg-red-500;
+  }
+}
+
+/* Sidebar Styles */
+@layer components {
+  .sidebar {
+    @apply glass-subtle border-r border-border/50;
+  }
+
+  .sidebar-item {
+    @apply flex items-center gap-3 px-3 py-2 rounded-lg;
+    @apply text-muted-foreground hover:text-foreground;
+    @apply hover:bg-accent/50 transition-all duration-200;
+  }
+
+  .sidebar-item.active {
+    @apply bg-gradient-to-r from-blue-500/10 to-purple-500/10;
+    @apply text-foreground border-l-2 border-blue-500;
+  }
+}
+
+/* Message Styles */
+@layer components {
+  .message-user {
+    @apply bg-gradient-to-r from-blue-500/10 to-purple-500/10;
+    @apply border border-blue-500/20 rounded-2xl rounded-br-md;
+  }
+
+  .message-assistant {
+    @apply glass rounded-2xl rounded-bl-md;
+  }
+
+  .message-thinking {
+    @apply bg-gradient-to-r from-amber-500/5 to-orange-500/5;
+    @apply border border-amber-500/20 rounded-xl;
+  }
+}
+
+/* Dark mode gradient background */
+.dark .gradient-bg {
+  background: linear-gradient(135deg,
+    hsl(222 47% 6%) 0%,
+    hsl(230 40% 10%) 50%,
+    hsl(222 47% 6%) 100%
+  );
+}
+
+/* Selection styling */
+::selection {
+  background: hsla(var(--accent-purple), 0.3);
+}
+
+.dark ::selection {
+  background: hsla(var(--accent-blue), 0.3);
 }

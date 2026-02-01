@@ -102,7 +102,7 @@ export function Sidebar({
       {/* Sidebar Container */}
       <div
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex flex-col border-r bg-card/50 backdrop-blur-xl transition-all duration-300 ease-out md:relative",
+          "fixed inset-y-0 left-0 z-50 flex flex-col sidebar transition-all duration-300 ease-out md:relative",
           isOpen ? "w-[260px] translate-x-0" : "-translate-x-full w-0 md:translate-x-0 md:w-0 md:border-r-0 overflow-hidden"
         )}
       >
@@ -111,12 +111,12 @@ export function Sidebar({
           {/* Sidebar Header */}
           <div className="flex items-center justify-between px-2 mb-2 pt-1">
              <div className="flex items-center gap-2 select-none">
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground text-xs font-bold">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg gradient-accent text-white text-xs font-bold shadow-glow-sm">
                     W
                 </div>
-                <span className="font-bold text-base tracking-tight">{t('weaver')}</span>
+                <span className="font-bold text-base tracking-tight gradient-text">{t('weaver')}</span>
              </div>
-             <Button variant="ghost" size="icon" onClick={onToggle} className="h-7 w-7 text-muted-foreground">
+             <Button variant="ghost" size="icon" onClick={onToggle} className="h-7 w-7 text-muted-foreground hover:text-foreground">
                 <PanelLeft className="h-4 w-4" />
              </Button>
           </div>
@@ -125,10 +125,10 @@ export function Sidebar({
           <div className="mb-2">
              <Button
                 className={cn(
-                    "w-full justify-start gap-2 h-10 shadow-sm border bg-background hover:bg-muted/50 transition-all font-medium text-sm",
+                    "w-full justify-start gap-2 h-10 shadow-sm transition-all font-medium text-sm",
                     !isOpen && "px-2"
                 )}
-                variant="outline"
+                variant="gradient"
                 onClick={onNewChat}
              >
                 <Plus className="h-4 w-4" />
@@ -264,12 +264,10 @@ function SidebarItem({ icon: Icon, label, active, onClick }: { icon: any, label:
         <button
             onClick={onClick}
             className={cn(
-            "flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm transition-all duration-200 group",
-            active
-              ? "bg-primary/10 text-primary font-medium"
-              : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+            "sidebar-item",
+            active && "active"
         )}>
-            <Icon className={cn("h-4 w-4 transition-colors", active ? "text-primary" : "text-muted-foreground group-hover:text-foreground")} />
+            <Icon className={cn("h-4 w-4 transition-colors", active ? "text-blue-500" : "text-muted-foreground group-hover:text-foreground")} />
             <span className="truncate">{label}</span>
         </button>
     )

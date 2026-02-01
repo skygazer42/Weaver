@@ -184,9 +184,11 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
   return (
     <div
       className={cn(
-        'group flex w-full gap-2 py-4 animate-in fade-in slide-in-from-bottom-1 duration-300',
+        'group flex w-full gap-2 py-4',
+        'animate-fade-in-up',
         isUser ? 'justify-end' : 'justify-start'
       )}
+      style={{ animationDelay: '0.05s' }}
     >
             {/* Bot Avatar - Removed */}
             <div className={cn(
@@ -214,10 +216,10 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
             </div>
         ) : (
             <div className={cn(
-                "relative px-5 py-3.5 shadow-sm",
+                "relative px-5 py-3.5 shadow-sm transition-all duration-300",
                 isUser
-                  ? "bg-primary text-primary-foreground rounded-2xl rounded-tr-sm"
-                  : "bg-muted/30 border text-foreground rounded-2xl rounded-tl-sm backdrop-blur-sm"
+                  ? "message-user"
+                  : "message-assistant hover:shadow-glow-sm"
               )}
             >
               <div className={cn(

@@ -305,6 +305,22 @@ class Settings(BaseSettings):
     serper_api_key: str = ""  # Serper.dev API key
     exa_api_key: str = ""  # Exa.ai API key
 
+    # Real-time Feed Settings
+    twitter_bearer_token: str = ""  # Twitter/X API v2 Bearer Token
+    twitter_api_key: str = ""  # Twitter API Key (optional)
+    twitter_api_secret: str = ""  # Twitter API Secret (optional)
+    reddit_client_id: str = ""  # Reddit OAuth client ID
+    reddit_client_secret: str = ""  # Reddit OAuth client secret
+    reddit_user_agent: str = "Weaver/1.0"  # Reddit API user agent
+    hackernews_enabled: bool = True  # HackerNews search (no API key needed)
+
+    # Academic Search Settings
+    arxiv_enabled: bool = True  # arXiv search (no API key needed)
+    scholar_enabled: bool = True  # Google Scholar (no API key, rate limited)
+    semantic_scholar_api_key: str = ""  # Semantic Scholar API key (optional, higher rate)
+    pubmed_email: str = ""  # NCBI Entrez email (required for PubMed)
+    pubmed_api_key: str = ""  # NCBI API key (optional, higher rate)
+
     # Crawler
     crawler_headless: bool = True  # True=无头(默认不弹窗)，False=可视化调试
     use_optimized_crawler: bool = False  # 是否启用Playwright优化爬虫，Windows建议默认False

@@ -53,3 +53,16 @@ weasyprint>=60.0          # PDF export
 jinja2>=3.1.0             # HTML template rendering
 markdown>=3.5.0           # Markdown to HTML conversion
 openai>=1.0.0             # OpenAI embeddings API
+
+# Real-time Feed Providers (optional)
+# Install for Twitter/Reddit/HackerNews search
+tweepy>=4.14.0            # Twitter/X API v2
+praw>=7.7.0               # Reddit API
+duckduckgo-search>=6.0.0  # DuckDuckGo (no API key)
+
+# Academic Search Providers (optional)
+# Install for arXiv/Semantic Scholar/PubMed search
+arxiv>=2.1.0              # arXiv API
+biopython>=1.83           # PubMed/NCBI Entrez
+exa-py>=1.0.0             # Exa.ai neural search
+
