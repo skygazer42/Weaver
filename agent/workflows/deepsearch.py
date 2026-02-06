@@ -6,7 +6,7 @@ import re
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from langchain_core.messages import AIMessage
 from langchain_core.prompts import ChatPromptTemplate
@@ -14,6 +14,7 @@ from langchain_openai import ChatOpenAI
 from openai import BadRequestError
 
 from agent.core.llm_factory import create_chat_model
+from agent.workflows.domain_router import ResearchDomain, build_provider_profile
 from agent.workflows.parsing_utils import format_search_results, parse_list_output
 from common.cancellation import check_cancellation as _check_cancel_token
 from common.config import settings
@@ -25,6 +26,7 @@ from prompts.templates.deepsearch import (
     summary_text_prompt,
 )
 from tools.crawl.crawler import crawl_urls
+from tools.search.multi_search import SearchStrategy, multi_search
 from tools.search.search import tavily_search
 
 logger = logging.getLogger(__name__)
@@ -61,6 +63,82 @@ def _selected_reasoning_model(config: Dict[str, Any], fallback: str) -> str:
         if isinstance(val, str) and val.strip():
             return val.strip()
     return fallback
+
+
+def _resolve_search_strategy() -> SearchStrategy:
+    raw = str(getattr(settings, "search_strategy", "fallback") or "fallback").strip().lower()
+    try:
+        return SearchStrategy(raw)
+    except ValueError:
+        logger.warning(f"[deepsearch] invalid search_strategy='{raw}', fallback to 'fallback'")
+        return SearchStrategy.FALLBACK
+
+
+def _normalize_multi_search_results(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    normalized: List[Dict[str, Any]] = []
+    for r in results:
+        if not isinstance(r, dict):
+            continue
+        normalized.append(
+            {
+                "title": r.get("title", ""),
+                "url": r.get("url", ""),
+                "summary": r.get("summary") or r.get("snippet", ""),
+                "raw_excerpt": r.get("raw_excerpt") or r.get("content", ""),
+                "score": float(r.get("score", 0.5) or 0.5),
+                "published_date": r.get("published_date"),
+                "provider": r.get("provider", ""),
+            }
+        )
+    return normalized
+
+
+def _resolve_provider_profile(state: Dict[str, Any]) -> Optional[List[str]]:
+    """Build provider profile from domain routing metadata if present."""
+    domain_config = state.get("domain_config") or {}
+    suggested_sources = domain_config.get("suggested_sources", [])
+    domain_value = (state.get("domain") or domain_config.get("domain") or "general")
+    try:
+        domain = ResearchDomain(str(domain_value).strip().lower())
+    except ValueError:
+        domain = ResearchDomain.GENERAL
+
+    profile = build_provider_profile(suggested_sources=suggested_sources, domain=domain)
+    return profile or None
+
+
+def _search_query(
+    query: str,
+    max_results: int,
+    config: Dict[str, Any],
+    provider_profile: Optional[List[str]] = None,
+) -> List[Dict[str, Any]]:
+    """Search with multi-provider orchestration first, then Tavily fallback."""
+    strategy = _resolve_search_strategy()
+    try:
+        kwargs: Dict[str, Any] = {
+            "query": query,
+            "max_results": max_results,
+            "strategy": strategy,
+        }
+        if provider_profile:
+            kwargs["provider_profile"] = provider_profile
+        multi_results = multi_search(**kwargs)
+        normalized = _normalize_multi_search_results(multi_results)
+        if normalized:
+            return normalized
+        logger.info(f"[deepsearch] multi_search returned no results for query='{query[:80]}'")
+    except Exception as e:
+        logger.warning(f"[deepsearch] multi_search failed, falling back to tavily: {e}")
+
+    try:
+        return tavily_search.invoke(
+            {"query": query, "max_results": max_results},
+            config=config,
+        )
+    except Exception as e:
+        logger.warning(f"[deepsearch] tavily fallback failed: {e}")
+        return []
 
 
 def _generate_queries(
@@ -299,6 +377,7 @@ def run_deepsearch(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, A
     have_query: List[str] = []
     summary_notes: List[str] = []
     search_runs: List[Dict[str, Any]] = []
+    provider_profile = _resolve_provider_profile(state)
 
     logger.info(f"[deepsearch] topic='{topic}' epochs={max_epochs}")
 
@@ -320,9 +399,11 @@ def run_deepsearch(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, A
         combined_results: List[Dict[str, Any]] = []
         for q in queries:
             _check_cancel(state)
-            results = tavily_search.invoke(
-                {"query": q, "max_results": per_query_results},
-                config=config,
+            results = _search_query(
+                q,
+                per_query_results,
+                config,
+                provider_profile=provider_profile,
             )
             combined_results.extend(results)
             search_runs.append(

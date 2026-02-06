@@ -11,19 +11,23 @@ Key Features:
 4. Quality scoring per provider based on historical accuracy
 """
 
-import asyncio
+import copy
 import hashlib
 import logging
+import math
+import re
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from difflib import SequenceMatcher
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
+from agent.core.search_cache import get_search_cache
 from common.config import settings
+from tools.search.reliability import ProviderReliabilityManager, ReliabilityPolicy
 
 logger = logging.getLogger(__name__)
 
@@ -471,6 +475,7 @@ class MultiSearchOrchestrator:
         providers: Optional[List[SearchProvider]] = None,
         strategy: SearchStrategy = SearchStrategy.FALLBACK,
         similarity_threshold: float = 0.7,
+        reliability_manager: Optional[ProviderReliabilityManager] = None,
     ):
         """
         Initialize the orchestrator.
@@ -484,6 +489,18 @@ class MultiSearchOrchestrator:
         self.strategy = strategy
         self.similarity_threshold = similarity_threshold
         self._round_robin_index = 0
+        self.enable_freshness_ranking = bool(
+            getattr(settings, "search_enable_freshness_ranking", True)
+        )
+        self.freshness_half_life_days = max(
+            1.0, float(getattr(settings, "search_freshness_half_life_days", 30.0))
+        )
+        self.freshness_weight = min(
+            1.0, max(0.0, float(getattr(settings, "search_freshness_weight", 0.35)))
+        )
+        self.reliability_manager = reliability_manager or ProviderReliabilityManager(
+            ReliabilityPolicy()
+        )
 
     def _init_default_providers(self) -> List[SearchProvider]:
         """Initialize default providers based on available API keys."""
@@ -524,7 +541,6 @@ class MultiSearchOrchestrator:
 
         logger.info(f"[MultiSearch] Initialized {len(providers)} providers: {[p.name for p in providers]}")
         return providers
-        return providers
 
     def get_available_providers(self) -> List[SearchProvider]:
         """Get list of currently healthy and available providers."""
@@ -535,6 +551,7 @@ class MultiSearchOrchestrator:
         query: str,
         max_results: int = 10,
         strategy: Optional[SearchStrategy] = None,
+        provider_profile: Optional[List[str]] = None,
     ) -> List[SearchResult]:
         """
         Execute a search using the configured strategy.
@@ -549,21 +566,106 @@ class MultiSearchOrchestrator:
         """
         strategy = strategy or self.strategy
         available = self.get_available_providers()
+        available = self._apply_provider_profile(available, provider_profile)
 
         if not available:
             logger.error("[MultiSearch] No available search providers")
             return []
 
+        cache = get_search_cache()
+        cache_key = self._cache_query_key(query, max_results, strategy, provider_profile)
+        cached = cache.get(cache_key)
+        if cached is not None:
+            logger.info(f"[MultiSearch] cache hit for query='{query[:80]}'")
+            return self._from_cached_results(cached)
+
+        results: List[SearchResult]
         if strategy == SearchStrategy.FALLBACK:
-            return self._search_fallback(query, max_results, available)
+            results = self._search_fallback(query, max_results, available)
         elif strategy == SearchStrategy.PARALLEL:
-            return self._search_parallel(query, max_results, available)
+            results = self._search_parallel(query, max_results, available)
         elif strategy == SearchStrategy.ROUND_ROBIN:
-            return self._search_round_robin(query, max_results, available)
+            results = self._search_round_robin(query, max_results, available)
         elif strategy == SearchStrategy.BEST_FIRST:
-            return self._search_best_first(query, max_results, available)
+            results = self._search_best_first(query, max_results, available)
         else:
-            return self._search_fallback(query, max_results, available)
+            results = self._search_fallback(query, max_results, available)
+
+        if results:
+            cache.set(cache_key, [r.to_dict() for r in results])
+
+        return results
+
+    def _cache_query_key(
+        self,
+        query: str,
+        max_results: int,
+        strategy: SearchStrategy,
+        provider_profile: Optional[List[str]],
+    ) -> str:
+        profile = ",".join(provider_profile or [])
+        return f"multi_search::{strategy.value}::{max_results}::{profile}::{query}"
+
+    def _from_cached_results(self, cached: List[Dict[str, Any]]) -> List[SearchResult]:
+        results: List[SearchResult] = []
+        for item in cached or []:
+            if not isinstance(item, dict):
+                continue
+            results.append(
+                SearchResult(
+                    title=item.get("title", ""),
+                    url=item.get("url", ""),
+                    snippet=item.get("snippet", ""),
+                    content=item.get("content", ""),
+                    score=float(item.get("score", 0.0) or 0.0),
+                    published_date=item.get("published_date"),
+                    provider=item.get("provider", ""),
+                    raw_data=copy.deepcopy(item),
+                )
+            )
+        return results
+
+    def _apply_provider_profile(
+        self,
+        providers: List[SearchProvider],
+        provider_profile: Optional[List[str]],
+    ) -> List[SearchProvider]:
+        """Filter/reorder providers by requested profile while keeping safe fallback."""
+        if not provider_profile:
+            return providers
+
+        preferred = [str(name).strip().lower() for name in provider_profile if str(name).strip()]
+        if not preferred:
+            return providers
+
+        providers_by_name = {p.name.lower(): p for p in providers}
+        selected: List[SearchProvider] = []
+        for name in preferred:
+            provider = providers_by_name.get(name)
+            if provider and provider not in selected:
+                selected.append(provider)
+
+        if selected:
+            logger.info(f"[MultiSearch] Provider profile selected: {[p.name for p in selected]}")
+            return selected
+
+        logger.warning(
+            f"[MultiSearch] Provider profile had no available matches: {preferred}, "
+            "falling back to default provider pool"
+        )
+        return providers
+
+    def _call_provider(
+        self,
+        provider: SearchProvider,
+        query: str,
+        max_results: int,
+    ) -> List[SearchResult]:
+        """Call provider through reliability layer (retry + circuit breaker)."""
+        result = self.reliability_manager.call(
+            provider.name, lambda: provider.search(query, max_results)
+        )
+        return result if isinstance(result, list) else []
 
     def _search_fallback(
         self,
@@ -573,10 +675,10 @@ class MultiSearchOrchestrator:
     ) -> List[SearchResult]:
         """Try providers sequentially until success."""
         for provider in providers:
-            results = provider.search(query, max_results)
+            results = self._call_provider(provider, query, max_results)
             if results:
                 logger.info(f"[MultiSearch] Got {len(results)} results from {provider.name}")
-                return results
+                return self._deduplicate_and_rank(results, max_results, query=query)
             logger.warning(f"[MultiSearch] {provider.name} returned no results, trying next...")
 
         logger.warning("[MultiSearch] All providers failed")
@@ -595,7 +697,7 @@ class MultiSearchOrchestrator:
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(providers)) as executor:
             futures = {
-                executor.submit(p.search, query, max_results): p
+                executor.submit(self._call_provider, p, query, max_results): p
                 for p in providers
             }
 
@@ -609,7 +711,7 @@ class MultiSearchOrchestrator:
                     logger.error(f"[MultiSearch] {provider.name} failed: {e}")
 
         # Deduplicate and rank
-        return self._deduplicate_and_rank(all_results, max_results)
+        return self._deduplicate_and_rank(all_results, max_results, query=query)
 
     def _search_round_robin(
         self,
@@ -624,9 +726,9 @@ class MultiSearchOrchestrator:
         provider = providers[self._round_robin_index % len(providers)]
         self._round_robin_index += 1
 
-        results = provider.search(query, max_results)
+        results = self._call_provider(provider, query, max_results)
         if results:
-            return results
+            return self._deduplicate_and_rank(results, max_results, query=query)
 
         # Fallback to next provider if current fails
         return self._search_fallback(query, max_results, providers)
@@ -655,6 +757,7 @@ class MultiSearchOrchestrator:
         self,
         results: List[SearchResult],
         max_results: int,
+        query: str = "",
     ) -> List[SearchResult]:
         """Deduplicate results by URL and content similarity, then rank."""
         if not results:
@@ -683,7 +786,7 @@ class MultiSearchOrchestrator:
                     if similarity > self.similarity_threshold:
                         is_duplicate = True
                         # Keep higher scored result
-                        if r.score > existing.score:
+                        if self._ranking_score(r, query) > self._ranking_score(existing, query):
                             final.remove(existing)
                             final.append(r)
                         break
@@ -696,10 +799,75 @@ class MultiSearchOrchestrator:
 
             unique = final
 
-        # Rank by score
-        unique.sort(key=lambda r: r.score, reverse=True)
+        # Rank by blended relevance + freshness score
+        unique.sort(key=lambda r: self._ranking_score(r, query), reverse=True)
 
         return unique[:max_results]
+
+    def _is_time_sensitive_query(self, query: str) -> bool:
+        q = (query or "").lower()
+        if not q:
+            return False
+
+        markers = (
+            "latest",
+            "today",
+            "recent",
+            "current",
+            "breaking",
+            "this week",
+            "this month",
+            "update",
+            "news",
+        )
+        if any(marker in q for marker in markers):
+            return True
+
+        return bool(re.search(r"\b20\d{2}\b", q))
+
+    def _parse_published_date(self, value: Optional[str]) -> Optional[datetime]:
+        if not value:
+            return None
+
+        text = str(value).strip()
+        if not text:
+            return None
+
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+
+        try:
+            dt = datetime.fromisoformat(text)
+        except ValueError:
+            for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%Y-%m-%d %H:%M:%S"):
+                try:
+                    dt = datetime.strptime(text, fmt)
+                    break
+                except ValueError:
+                    continue
+            else:
+                return None
+
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+
+    def _freshness_score(self, published_date: Optional[str]) -> float:
+        dt = self._parse_published_date(published_date)
+        if dt is None:
+            return 0.5
+
+        now = datetime.now(timezone.utc)
+        age_days = max(0.0, (now - dt).total_seconds() / 86400.0)
+        return math.exp(-age_days / self.freshness_half_life_days)
+
+    def _ranking_score(self, result: SearchResult, query: str) -> float:
+        base_score = float(result.score or 0.0)
+        if not self.enable_freshness_ranking or not self._is_time_sensitive_query(query):
+            return base_score
+
+        freshness = self._freshness_score(result.published_date)
+        return (1.0 - self.freshness_weight) * base_score + self.freshness_weight * freshness
 
     def get_provider_stats(self) -> List[Dict[str, Any]]:
         """Get statistics for all providers."""
@@ -728,6 +896,7 @@ def multi_search(
     query: str,
     max_results: int = 10,
     strategy: SearchStrategy = SearchStrategy.FALLBACK,
+    provider_profile: Optional[List[str]] = None,
 ) -> List[Dict[str, Any]]:
     """
     Convenience function for multi-provider search.
@@ -736,10 +905,16 @@ def multi_search(
         query: Search query
         max_results: Maximum number of results
         strategy: Search strategy to use
+        provider_profile: Optional ordered list of provider names to prioritize
 
     Returns:
         List of result dictionaries
     """
     orchestrator = get_search_orchestrator()
-    results = orchestrator.search(query, max_results, strategy)
+    results = orchestrator.search(
+        query=query,
+        max_results=max_results,
+        strategy=strategy,
+        provider_profile=provider_profile,
+    )
     return [r.to_dict() for r in results]

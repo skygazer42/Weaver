@@ -3,6 +3,7 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -82,3 +83,36 @@ jobs:
 
       - name: Build image
         run: docker build -f docker/Dockerfile .
+
+  benchmark_smoke:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Run benchmark smoke
+        run: |
+          python scripts/benchmark_deep_research.py \
+            --max-cases 3 \
+            --mode auto \
+            --output /tmp/benchmark_smoke.json
+
+      - name: Upload benchmark artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-smoke-report
+          path: /tmp/benchmark_smoke.json

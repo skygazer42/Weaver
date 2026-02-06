@@ -100,6 +100,41 @@ DOMAIN_CONFIGS = {
     },
 }
 
+# Provider profiles for multi-search orchestration.
+_SOURCE_PROVIDER_HINTS = {
+    "arxiv": "arxiv",
+    "pubmed": "pubmed",
+    "scholar.google": "semantic_scholar",
+    "semantic scholar": "semantic_scholar",
+    "nature.com": "semantic_scholar",
+    "sciencedirect.com": "semantic_scholar",
+    "jstor.org": "semantic_scholar",
+    "reuters.com": "serper",
+    "bloomberg.com": "serper",
+    "wsj.com": "serper",
+    "sec.gov": "tavily",
+    "law.cornell.edu": "tavily",
+    "courtlistener.com": "tavily",
+    "github.com": "duckduckgo",
+    "stackoverflow.com": "duckduckgo",
+    "developer.mozilla.org": "duckduckgo",
+    "docs.microsoft.com": "duckduckgo",
+    "who.int": "tavily",
+    "cdc.gov": "tavily",
+    "wikipedia.org": "tavily",
+}
+
+_DOMAIN_PROVIDER_DEFAULTS = {
+    ResearchDomain.SCIENTIFIC: ["arxiv", "pubmed", "semantic_scholar", "exa", "tavily"],
+    ResearchDomain.MEDICAL: ["pubmed", "semantic_scholar", "tavily", "serper"],
+    ResearchDomain.TECHNICAL: ["duckduckgo", "tavily", "serper", "exa"],
+    ResearchDomain.FINANCIAL: ["serper", "tavily", "brave", "exa"],
+    ResearchDomain.LEGAL: ["tavily", "serper", "duckduckgo"],
+    ResearchDomain.BUSINESS: ["serper", "tavily", "exa"],
+    ResearchDomain.HISTORICAL: ["tavily", "duckduckgo", "serper"],
+    ResearchDomain.GENERAL: ["tavily", "duckduckgo", "serper"],
+}
+
 
 class DomainClassificationResponse(BaseModel):
     """Structured response for domain classification."""
@@ -273,3 +308,42 @@ def classify_domain(
     """
     classifier = DomainClassifier(llm, config)
     return classifier.classify(query)
+
+
+def build_provider_profile(
+    suggested_sources: Optional[List[str]],
+    domain: ResearchDomain = ResearchDomain.GENERAL,
+) -> List[str]:
+    """
+    Build a provider profile for multi-search from domain and source hints.
+
+    Args:
+        suggested_sources: Domain-specific source domains from classification.
+        domain: Classified research domain.
+
+    Returns:
+        Ordered list of provider names to prioritize.
+    """
+    profile: List[str] = []
+
+    def add_provider(name: Optional[str]) -> None:
+        if not name:
+            return
+        name = str(name).strip().lower()
+        if name and name not in profile:
+            profile.append(name)
+
+    for source in suggested_sources or []:
+        source_text = str(source or "").strip().lower()
+        if not source_text:
+            continue
+        for hint, provider in _SOURCE_PROVIDER_HINTS.items():
+            if hint in source_text:
+                add_provider(provider)
+
+    for provider in _DOMAIN_PROVIDER_DEFAULTS.get(
+        domain, _DOMAIN_PROVIDER_DEFAULTS[ResearchDomain.GENERAL]
+    ):
+        add_provider(provider)
+
+    return profile

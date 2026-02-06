@@ -20,6 +20,8 @@ from urllib.parse import urlparse
 from langchain_core.language_models import BaseChatModel
 from langchain_core.prompts import ChatPromptTemplate
 
+from agent.workflows.claim_verifier import ClaimStatus, ClaimVerifier
+
 logger = logging.getLogger(__name__)
 
 
@@ -40,6 +42,7 @@ class QualityReport:
     source_diversity_score: float = 0.0
     contradiction_free_score: float = 1.0
     citation_accuracy_score: float = 0.0
+    citation_coverage_score: float = 1.0
 
     verified_claims: List[ClaimVerification] = field(default_factory=list)
     contradictions: List[str] = field(default_factory=list)
@@ -55,6 +58,7 @@ class QualityReport:
             "source_diversity_score": self.source_diversity_score,
             "contradiction_free_score": self.contradiction_free_score,
             "citation_accuracy_score": self.citation_accuracy_score,
+            "citation_coverage_score": self.citation_coverage_score,
             "overall_score": self.overall_score,
             "verified_claims_count": len(self.verified_claims),
             "supported_claims": sum(1 for c in self.verified_claims if c.supported),
@@ -154,21 +158,50 @@ class QualityAssessor:
         quality.verified_claims = self.check_claims(report, scraped_content)
         if quality.verified_claims:
             supported = sum(1 for c in quality.verified_claims if c.supported)
-            quality.claim_support_score = supported / len(quality.verified_claims)
+            contradicted = sum(
+                1
+                for c in quality.verified_claims
+                if c.notes.strip().lower() == ClaimStatus.CONTRADICTED.value
+            )
+            quality.claim_support_score = max(
+                0.0,
+                (supported - 0.5 * contradicted) / len(quality.verified_claims),
+            )
+            if contradicted:
+                contradicted_claims = [
+                    c.claim
+                    for c in quality.verified_claims
+                    if c.notes.strip().lower() == ClaimStatus.CONTRADICTED.value
+                ]
+                quality.contradictions.extend(
+                    [
+                        f"Claim contradicted by collected evidence: {claim[:120]}"
+                        for claim in contradicted_claims[:3]
+                    ]
+                )
 
         # 3. Check contradictions
-        quality.contradictions = self.check_contradictions(report)
+        model_contradictions = self.check_contradictions(report)
+        quality.contradictions = list(dict.fromkeys(quality.contradictions + model_contradictions))
         quality.contradiction_free_score = 1.0 if not quality.contradictions else max(0, 1 - len(quality.contradictions) * 0.2)
 
         # 4. Check citation accuracy
         quality.missing_citations, quality.citation_accuracy_score = self.check_citation_accuracy(report, all_urls)
+        coverage_missing, quality.citation_coverage_score = self.check_citation_coverage(report)
+        if coverage_missing:
+            merged_missing = quality.missing_citations + coverage_missing
+            # Keep first occurrence order stable while deduping.
+            quality.missing_citations = list(dict.fromkeys(merged_missing))
 
         # Calculate overall score
+        citation_quality = (
+            quality.citation_accuracy_score + quality.citation_coverage_score
+        ) / 2.0
         quality.overall_score = (
             quality.claim_support_score * 0.35 +
             quality.source_diversity_score * 0.2 +
             quality.contradiction_free_score * 0.25 +
-            quality.citation_accuracy_score * 0.2
+            citation_quality * 0.2
         )
 
         # Generate recommendations
@@ -199,29 +232,25 @@ class QualityAssessor:
         Returns:
             List of ClaimVerification results
         """
-        # Extract claims
-        extract_prompt = ChatPromptTemplate.from_messages([
-            ("user", CLAIM_EXTRACTION_PROMPT)
-        ])
-        msg = extract_prompt.format_messages(report=report[:8000])
-        response = self.llm.invoke(msg, config=self.config)
-        claims_text = getattr(response, "content", "") or ""
+        verifier = ClaimVerifier()
+        claim_checks = verifier.verify_report(
+            report=report,
+            scraped_content=scraped_content,
+            max_claims=max_claims,
+        )
 
-        claims = [c.strip() for c in claims_text.split("\n") if c.strip() and len(c) > 20]
-        claims = claims[:max_claims]
-
-        if not claims:
-            return []
-
-        # Build sources context
-        sources_context = self._build_sources_context(scraped_content)
-
-        # Verify each claim
-        verifications = []
-        for claim in claims:
-            verification = self._verify_claim(claim, sources_context)
-            verifications.append(verification)
-
+        verifications: List[ClaimVerification] = []
+        for check in claim_checks:
+            status = check.status.value
+            verifications.append(
+                ClaimVerification(
+                    claim=check.claim,
+                    supported=check.status == ClaimStatus.VERIFIED,
+                    supporting_sources=check.evidence_urls,
+                    confidence=min(1.0, check.score / 6.0) if check.score else 0.0,
+                    notes=status,
+                )
+            )
         return verifications
 
     def _verify_claim(self, claim: str, sources_context: str) -> ClaimVerification:
@@ -355,6 +384,41 @@ class QualityAssessor:
 
         return [], 0.5
 
+    def check_citation_coverage(self, report: str) -> Tuple[List[str], float]:
+        """
+        Estimate citation coverage over claim-like sentences.
+
+        Returns:
+            Tuple of (uncited_claims, coverage_ratio)
+        """
+        if not report:
+            return [], 1.0
+
+        claim_like_sentences: List[str] = []
+        sentence_candidates = re.split(r"(?<=[。！？.!?])\s+", report)
+        claim_markers = [
+            r"\d{4}",
+            r"\d+%",
+            r"\d+\.\d+",
+            r"(?:research|study|report|data|according to|shows|found)",
+            r"(?:研究|数据显示|统计|报告|发现|增长|下降)",
+        ]
+
+        for sentence in sentence_candidates:
+            text = sentence.strip()
+            if len(text) < 15:
+                continue
+            if any(re.search(marker, text, flags=re.IGNORECASE) for marker in claim_markers):
+                claim_like_sentences.append(text)
+
+        if not claim_like_sentences:
+            return [], 1.0
+
+        citation_pattern = re.compile(r"\[(?:S\d+-\d+|\d+)\]|\[来源[：:].*?\]|https?://\S+", re.IGNORECASE)
+        uncited_claims = [s for s in claim_like_sentences if not citation_pattern.search(s)]
+        coverage = 1.0 - (len(uncited_claims) / max(1, len(claim_like_sentences)))
+        return uncited_claims[:5], max(0.0, min(1.0, coverage))
+
     def check_source_diversity(self, sources: List[str]) -> Tuple[List[str], float]:
         """
         Check diversity of source domains.
@@ -455,6 +519,8 @@ class QualityAssessor:
 
         if quality.citation_accuracy_score < 0.6:
             recommendations.append("改进引用格式，确保关键数据和事实都有明确来源标注")
+        if quality.citation_coverage_score < 0.6:
+            recommendations.append("提高引用覆盖率：为每个关键数据或结论补充明确引用标签")
 
         if not recommendations:
             recommendations.append("报告质量良好，可以进一步丰富细节和案例")

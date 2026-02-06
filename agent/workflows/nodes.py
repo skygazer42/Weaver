@@ -27,7 +27,7 @@ from tools.core.registry import get_global_registry, get_registered_tools
 
 from .agent_factory import build_tool_agent, build_writer_agent
 from .agent_tools import build_agent_tools
-from .deepsearch import run_deepsearch
+from .deepsearch_optimized import run_deepsearch_auto
 
 ENHANCED_TOOLS_AVAILABLE = True
 
@@ -397,6 +397,27 @@ def coordinator_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any
         summary_notes = state.get("summary_notes", [])
         revision_count = state.get("revision_count", 0)
         max_revisions = state.get("max_revisions", 2)
+        eval_dimensions = state.get("eval_dimensions", {}) or {}
+        quality_overall_score = state.get("quality_overall_score")
+        if quality_overall_score is None and isinstance(eval_dimensions, dict) and eval_dimensions:
+            numeric_values = [
+                float(v)
+                for v in eval_dimensions.values()
+                if isinstance(v, (int, float))
+            ]
+            if numeric_values:
+                quality_overall_score = sum(numeric_values) / len(numeric_values)
+
+        quality_gap_count = state.get("quality_gap_count")
+        if quality_gap_count is None:
+            quality_gap_count = len(state.get("missing_topics", []) or [])
+
+        citation_accuracy = None
+        if isinstance(eval_dimensions, dict):
+            if isinstance(eval_dimensions.get("citation_coverage"), (int, float)):
+                citation_accuracy = float(eval_dimensions["citation_coverage"])
+            elif isinstance(eval_dimensions.get("accuracy"), (int, float)):
+                citation_accuracy = float(eval_dimensions["accuracy"])
 
         model = _model_for_task("routing", config)
         llm = _chat_model(model, temperature=0.3)
@@ -414,6 +435,9 @@ def coordinator_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any
             current_epoch=revision_count,
             max_epochs=max_revisions + 1,
             knowledge_summary=knowledge_summary,
+            quality_score=quality_overall_score,
+            quality_gap_count=int(quality_gap_count or 0),
+            citation_accuracy=citation_accuracy,
         )
 
         logger.info(
@@ -425,6 +449,11 @@ def coordinator_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any
             "coordinator_action": decision.action.value,
             "coordinator_reasoning": decision.reasoning,
             "missing_topics": decision.priority_topics if decision.priority_topics else state.get("missing_topics", []),
+            "coordinator_quality_snapshot": {
+                "overall": quality_overall_score,
+                "gap_count": int(quality_gap_count or 0),
+                "citation_accuracy": citation_accuracy,
+            },
         }
     except Exception as e:
         logger.error(f"Coordinator error: {e}", exc_info=True)
@@ -443,7 +472,7 @@ def deepsearch_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]
         token_id = state.get("cancel_token_id")
         if token_id:
             _check_cancellation(token_id)
-        return run_deepsearch(state, config)
+        return run_deepsearch_auto(state, config)
     except asyncio.CancelledError as e:
         return handle_cancellation(state, e)
     except Exception as e:
@@ -1354,6 +1383,9 @@ Provide specific, actionable feedback and search queries to address gaps.""",
             eval_summary += f"Feedback: {feedback}"
 
         logger.info(f"Evaluator verdict: {verdict} (avg={avg_score:.2f}, min={min_score:.2f})")
+        quality_overall_score = avg_score
+        quality_gap_count = len(missing_topics)
+        citation_coverage_score = float(dimensions.get("accuracy", 0.0))
 
         # Enhanced quality assessment
         try:
@@ -1366,16 +1398,37 @@ Provide specific, actionable feedback and search queries to address gaps.""",
             sources = [s.get("url") for s in state.get("sources", []) if s.get("url")]
 
             quality_report = assessor.assess(report, scraped_content, sources)
+            quality_overall_score = quality_report.overall_score
 
             # Merge quality scores into dimensions
             dimensions["claim_support"] = quality_report.claim_support_score
             dimensions["source_diversity"] = quality_report.source_diversity_score
             dimensions["contradiction_free"] = quality_report.contradiction_free_score
+            dimensions["citation_coverage"] = quality_report.citation_coverage_score
+            citation_coverage_score = quality_report.citation_coverage_score
+            quality_gap_count = len(missing_topics) + len(quality_report.missing_citations)
 
             # Adjust verdict if quality issues found
             if quality_report.overall_score < 0.5 and verdict == "pass":
                 verdict = "revise"
                 logger.info(f"Adjusted verdict due to quality issues: {quality_report.overall_score:.2f}")
+
+            citation_gate_threshold = float(
+                getattr(settings, "citation_gate_min_coverage", 0.6)
+            )
+            if (
+                verdict == "pass"
+                and quality_report.citation_coverage_score < citation_gate_threshold
+            ):
+                verdict = "revise"
+                logger.info(
+                    "Adjusted verdict due to citation gate: "
+                    f"{quality_report.citation_coverage_score:.2f} < {citation_gate_threshold:.2f}"
+                )
+                eval_summary += (
+                    f"\nCitation gate: coverage {quality_report.citation_coverage_score:.2f} "
+                    f"below threshold {citation_gate_threshold:.2f}."
+                )
 
             # Add quality recommendations to feedback
             if quality_report.recommendations:
@@ -1395,6 +1448,9 @@ Provide specific, actionable feedback and search queries to address gaps.""",
             "eval_dimensions": dimensions,
             "missing_topics": missing_topics,
             "suggested_queries": suggested_queries if verdict != "pass" else [],
+            "quality_overall_score": quality_overall_score,
+            "quality_gap_count": quality_gap_count,
+            "citation_coverage_score": citation_coverage_score,
         }
 
     except Exception as e:

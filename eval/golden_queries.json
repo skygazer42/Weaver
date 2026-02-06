@@ -1,0 +1,17 @@
+[
+  {
+    "id": "case_001",
+    "query": "Latest AI chip market share in 2025",
+    "expected_fields": ["market_share", "top_vendors"]
+  },
+  {
+    "id": "case_002",
+    "query": "State of open-source coding models in 2026",
+    "expected_fields": ["model_names", "license", "strengths"]
+  },
+  {
+    "id": "case_003",
+    "query": "Recent FDA guidance updates for AI-enabled medical devices",
+    "expected_fields": ["guidance_name", "publish_date", "key_changes"]
+  }
+]

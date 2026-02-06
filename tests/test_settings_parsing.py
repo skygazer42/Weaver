@@ -90,3 +90,22 @@ def test_cors_origins_list_does_not_auto_expand_in_prod():
         app_env="prod",
     )
     assert s.cors_origins_list == ["http://example.com", "http://foo.com"]
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("auto", "auto"),
+        ("tree", "tree"),
+        ("linear", "linear"),
+        ("TREE", "tree"),
+        (" Linear ", "linear"),
+        ("", "auto"),
+        ("unknown", "auto"),
+    ],
+)
+def test_deepsearch_mode_normalizes_to_supported_values(raw, expected):
+    from common.config import Settings
+
+    s = Settings(_env_file=None, deepsearch_mode=raw)
+    assert s.deepsearch_mode == expected

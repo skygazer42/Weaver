@@ -35,6 +35,9 @@ COORDINATOR_PROMPT = """
 - 已收集来源数: {num_sources}
 - 已生成摘要数: {num_summaries}
 - 当前轮次: {current_epoch}/{max_epochs}
+- 质量总分: {quality_score}
+- 缺口数量: {quality_gap_count}
+- 引用准确/覆盖: {citation_accuracy}
 - 已知信息摘要: {knowledge_summary}
 
 # 你可以选择的行动
@@ -86,6 +89,9 @@ class ResearchCoordinator:
         current_epoch: int,
         max_epochs: int,
         knowledge_summary: str = "",
+        quality_score: Optional[float] = None,
+        quality_gap_count: int = 0,
+        citation_accuracy: Optional[float] = None,
     ) -> CoordinatorDecision:
         """
         Decide the next action based on current research state.
@@ -108,6 +114,40 @@ class ResearchCoordinator:
                 priority_topics=[],
             )
 
+        quality_score = None if quality_score is None else float(quality_score)
+        citation_accuracy = (
+            None if citation_accuracy is None else float(citation_accuracy)
+        )
+        quality_gap_count = max(0, int(quality_gap_count or 0))
+
+        # Quality-driven deterministic loop control
+        if (
+            quality_score is not None
+            and num_summaries > 0
+            and quality_score >= 0.82
+            and quality_gap_count == 0
+            and (citation_accuracy is None or citation_accuracy >= 0.7)
+        ):
+            return CoordinatorDecision(
+                action=CoordinatorAction.COMPLETE,
+                reasoning="质量评估良好且无明显缺口，可以结束研究流程",
+                priority_topics=[],
+            )
+
+        if (
+            quality_score is not None
+            and (
+                quality_score < 0.6
+                or quality_gap_count > 0
+                or (citation_accuracy is not None and citation_accuracy < 0.55)
+            )
+        ):
+            return CoordinatorDecision(
+                action=CoordinatorAction.RESEARCH,
+                reasoning="质量信号显示仍存在证据或覆盖缺口，继续补充研究",
+                priority_topics=[],
+            )
+
         # Use LLM for complex decisions
         prompt = ChatPromptTemplate.from_messages([
             ("user", COORDINATOR_PROMPT)
@@ -120,6 +160,13 @@ class ResearchCoordinator:
             num_summaries=num_summaries,
             current_epoch=current_epoch,
             max_epochs=max_epochs,
+            quality_score=(
+                f"{quality_score:.2f}" if quality_score is not None else "unknown"
+            ),
+            quality_gap_count=quality_gap_count,
+            citation_accuracy=(
+                f"{citation_accuracy:.2f}" if citation_accuracy is not None else "unknown"
+            ),
             knowledge_summary=knowledge_summary[:2000] or "暂无",
         )
 

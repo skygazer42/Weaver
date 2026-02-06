@@ -177,7 +177,21 @@ def get_search_cache() -> SearchCache:
     """Get the global search cache instance."""
     global _search_cache
     if _search_cache is None:
-        _search_cache = SearchCache()
+        try:
+            from common.config import settings
+
+            _search_cache = SearchCache(
+                max_size=max(1, int(getattr(settings, "search_cache_max_size", 200))),
+                ttl_seconds=max(
+                    1.0, float(getattr(settings, "search_cache_ttl_seconds", 1800.0))
+                ),
+                similarity_threshold=min(
+                    1.0,
+                    max(0.0, float(getattr(settings, "search_cache_similarity_threshold", 0.9))),
+                ),
+            )
+        except Exception:
+            _search_cache = SearchCache()
     return _search_cache
 
 

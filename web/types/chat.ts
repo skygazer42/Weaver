@@ -9,6 +9,11 @@ export interface ToolInvocation {
 export interface MessageSource {
   title: string
   url: string
+  rawUrl?: string
+  domain?: string
+  provider?: string
+  publishedDate?: string
+  freshnessDays?: number | null
 }
 
 export interface ImageAttachment {
@@ -73,6 +78,12 @@ export interface ResearchSource {
   url: string
   provider?: string
   score?: number
+}
+
+export interface ResearchQualityMetrics {
+  coverage: number
+  citation: number
+  consistency: number
 }
 
 export interface ResearchTree {

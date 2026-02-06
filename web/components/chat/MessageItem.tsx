@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, memo, useMemo, useCallback } from 'react'
+import React, { useState, memo, useMemo, useCallback, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
@@ -16,6 +16,7 @@ import { Message, Artifact } from '@/types/chat'
 import { ThinkingProcess } from './message/ThinkingProcess'
 import { CodeBlock } from './message/CodeBlock'
 import { CitationBadge } from './message/CitationBadge'
+import { SourceInspector } from './message/SourceInspector'
 import { useArtifacts } from '@/hooks/useArtifacts'
 import { getApiBaseUrl } from '@/lib/api'
 
@@ -61,6 +62,8 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
   const [isPlaying, setIsPlaying] = useState(false)
   const [isTTSLoading, setIsTTSLoading] = useState(false)
   const [audioRef, setAudioRef] = useState<HTMLAudioElement | null>(null)
+  const [activeCitation, setActiveCitation] = useState<string | null>(null)
+  const sourceInspectorRef = useRef<HTMLDivElement | null>(null)
 
   const { saveArtifact } = useArtifacts()
 
@@ -194,6 +197,12 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
   const tools = message.toolInvocations || []
   const hasTools = tools.length > 0
   const isThinking = tools.some(t => t.state === 'running')
+  const hasSources = !isUser && (message.sources?.length || 0) > 0
+
+  const handleCitationClick = useCallback((citation: string) => {
+    setActiveCitation(prev => (prev === citation ? null : citation))
+    sourceInspectorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [])
 
   return (
     <div
@@ -253,7 +262,14 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
                                         return parts.map((part, i) => {
                                             const match = part.match(/^\[(\d+)\]$/)
                                             if (match) {
-                                                return <CitationBadge key={i} num={match[1]} />
+                                                return (
+                                                  <CitationBadge
+                                                    key={i}
+                                                    num={match[1]}
+                                                    active={activeCitation === match[1]}
+                                                    onClick={handleCitationClick}
+                                                  />
+                                                )
                                             }
                                             return part
                                         })
@@ -331,6 +347,16 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
                         </div>
                       </div>
                     ))}
+                  </div>
+                )}
+
+                {hasSources && (
+                  <div ref={sourceInspectorRef}>
+                    <SourceInspector
+                      sources={message.sources || []}
+                      activeCitation={activeCitation}
+                      onSelectCitation={setActiveCitation}
+                    />
                   </div>
                 )}
 
