@@ -11,16 +11,17 @@ Key Features:
 4. Quality scoring per provider based on historical accuracy
 """
 
-import asyncio
 import hashlib
 import logging
+import math
+import re
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from difflib import SequenceMatcher
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
 from common.config import settings
@@ -484,6 +485,15 @@ class MultiSearchOrchestrator:
         self.strategy = strategy
         self.similarity_threshold = similarity_threshold
         self._round_robin_index = 0
+        self.enable_freshness_ranking = bool(
+            getattr(settings, "search_enable_freshness_ranking", True)
+        )
+        self.freshness_half_life_days = max(
+            1.0, float(getattr(settings, "search_freshness_half_life_days", 30.0))
+        )
+        self.freshness_weight = min(
+            1.0, max(0.0, float(getattr(settings, "search_freshness_weight", 0.35)))
+        )
 
     def _init_default_providers(self) -> List[SearchProvider]:
         """Initialize default providers based on available API keys."""
@@ -523,7 +533,6 @@ class MultiSearchOrchestrator:
         providers.extend(academic_providers)
 
         logger.info(f"[MultiSearch] Initialized {len(providers)} providers: {[p.name for p in providers]}")
-        return providers
         return providers
 
     def get_available_providers(self) -> List[SearchProvider]:
@@ -576,7 +585,7 @@ class MultiSearchOrchestrator:
             results = provider.search(query, max_results)
             if results:
                 logger.info(f"[MultiSearch] Got {len(results)} results from {provider.name}")
-                return results
+                return self._deduplicate_and_rank(results, max_results, query=query)
             logger.warning(f"[MultiSearch] {provider.name} returned no results, trying next...")
 
         logger.warning("[MultiSearch] All providers failed")
@@ -609,7 +618,7 @@ class MultiSearchOrchestrator:
                     logger.error(f"[MultiSearch] {provider.name} failed: {e}")
 
         # Deduplicate and rank
-        return self._deduplicate_and_rank(all_results, max_results)
+        return self._deduplicate_and_rank(all_results, max_results, query=query)
 
     def _search_round_robin(
         self,
@@ -626,7 +635,7 @@ class MultiSearchOrchestrator:
 
         results = provider.search(query, max_results)
         if results:
-            return results
+            return self._deduplicate_and_rank(results, max_results, query=query)
 
         # Fallback to next provider if current fails
         return self._search_fallback(query, max_results, providers)
@@ -655,6 +664,7 @@ class MultiSearchOrchestrator:
         self,
         results: List[SearchResult],
         max_results: int,
+        query: str = "",
     ) -> List[SearchResult]:
         """Deduplicate results by URL and content similarity, then rank."""
         if not results:
@@ -683,7 +693,7 @@ class MultiSearchOrchestrator:
                     if similarity > self.similarity_threshold:
                         is_duplicate = True
                         # Keep higher scored result
-                        if r.score > existing.score:
+                        if self._ranking_score(r, query) > self._ranking_score(existing, query):
                             final.remove(existing)
                             final.append(r)
                         break
@@ -696,10 +706,75 @@ class MultiSearchOrchestrator:
 
             unique = final
 
-        # Rank by score
-        unique.sort(key=lambda r: r.score, reverse=True)
+        # Rank by blended relevance + freshness score
+        unique.sort(key=lambda r: self._ranking_score(r, query), reverse=True)
 
         return unique[:max_results]
+
+    def _is_time_sensitive_query(self, query: str) -> bool:
+        q = (query or "").lower()
+        if not q:
+            return False
+
+        markers = (
+            "latest",
+            "today",
+            "recent",
+            "current",
+            "breaking",
+            "this week",
+            "this month",
+            "update",
+            "news",
+        )
+        if any(marker in q for marker in markers):
+            return True
+
+        return bool(re.search(r"\b20\d{2}\b", q))
+
+    def _parse_published_date(self, value: Optional[str]) -> Optional[datetime]:
+        if not value:
+            return None
+
+        text = str(value).strip()
+        if not text:
+            return None
+
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+
+        try:
+            dt = datetime.fromisoformat(text)
+        except ValueError:
+            for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%Y-%m-%d %H:%M:%S"):
+                try:
+                    dt = datetime.strptime(text, fmt)
+                    break
+                except ValueError:
+                    continue
+            else:
+                return None
+
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+
+    def _freshness_score(self, published_date: Optional[str]) -> float:
+        dt = self._parse_published_date(published_date)
+        if dt is None:
+            return 0.5
+
+        now = datetime.now(timezone.utc)
+        age_days = max(0.0, (now - dt).total_seconds() / 86400.0)
+        return math.exp(-age_days / self.freshness_half_life_days)
+
+    def _ranking_score(self, result: SearchResult, query: str) -> float:
+        base_score = float(result.score or 0.0)
+        if not self.enable_freshness_ranking or not self._is_time_sensitive_query(query):
+            return base_score
+
+        freshness = self._freshness_score(result.published_date)
+        return (1.0 - self.freshness_weight) * base_score + self.freshness_weight * freshness
 
     def get_provider_stats(self) -> List[Dict[str, Any]]:
         """Get statistics for all providers."""

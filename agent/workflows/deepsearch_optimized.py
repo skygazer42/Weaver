@@ -45,6 +45,7 @@ from prompts.templates.deepsearch import (
     summary_text_prompt,
 )
 from tools.crawl.crawler import crawl_urls
+from tools.search.multi_search import SearchStrategy, multi_search
 from tools.search.search import tavily_search
 
 logger = logging.getLogger(__name__)
@@ -87,6 +88,56 @@ def _resolve_deepsearch_mode(config: Dict[str, Any]) -> str:
         return _normalize_deepsearch_mode(runtime_mode)
 
     return _normalize_deepsearch_mode(getattr(settings, "deepsearch_mode", "auto"))
+
+
+def _resolve_search_strategy() -> SearchStrategy:
+    raw = str(getattr(settings, "search_strategy", "fallback") or "fallback").strip().lower()
+    try:
+        return SearchStrategy(raw)
+    except ValueError:
+        logger.warning(f"[deepsearch] invalid search_strategy='{raw}', fallback to 'fallback'")
+        return SearchStrategy.FALLBACK
+
+
+def _normalize_multi_search_results(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    normalized: List[Dict[str, Any]] = []
+    for r in results:
+        if not isinstance(r, dict):
+            continue
+        normalized.append(
+            {
+                "title": r.get("title", ""),
+                "url": r.get("url", ""),
+                "summary": r.get("summary") or r.get("snippet", ""),
+                "raw_excerpt": r.get("raw_excerpt") or r.get("content", ""),
+                "score": float(r.get("score", 0.5) or 0.5),
+                "published_date": r.get("published_date"),
+                "provider": r.get("provider", ""),
+            }
+        )
+    return normalized
+
+
+def _search_query(query: str, max_results: int, config: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Search with multi-provider orchestration first, then Tavily fallback."""
+    strategy = _resolve_search_strategy()
+    try:
+        multi_results = multi_search(query=query, max_results=max_results, strategy=strategy)
+        normalized = _normalize_multi_search_results(multi_results)
+        if normalized:
+            return normalized
+        logger.info(f"[deepsearch] multi_search returned no results for query='{query[:80]}'")
+    except Exception as e:
+        logger.warning(f"[deepsearch] multi_search failed, falling back to tavily: {e}")
+
+    try:
+        return tavily_search.invoke(
+            {"query": query, "max_results": max_results},
+            config=config,
+        )
+    except Exception as e:
+        logger.warning(f"[deepsearch] tavily fallback failed: {e}")
+        return []
 
 
 def _selected_model(config: Dict[str, Any], fallback: str) -> str:
@@ -406,10 +457,7 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
                 combined_results: List[Dict[str, Any]] = []
                 for q in queries:
                     _check_cancel(state)
-                    results = tavily_search.invoke(
-                        {"query": q, "max_results": per_query_results},
-                        config=config,
-                    )
+                    results = _search_query(q, per_query_results, config)
                     combined_results.extend(results)
                     search_runs.append(
                         {
@@ -645,7 +693,11 @@ def run_deepsearch_tree(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[s
             planner_llm=planner_llm,
             researcher_llm=critic_llm,
             writer_llm=writer_llm,
-            search_func=tavily_search.invoke,
+            search_func=lambda payload, config_payload=None: _search_query(
+                (payload or {}).get("query", ""),
+                int((payload or {}).get("max_results", per_query_results)),
+                config_payload if isinstance(config_payload, dict) else config,
+            ),
             config=config,
             max_depth=max_depth,
             max_branches=max_branches,

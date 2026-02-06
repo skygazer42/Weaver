@@ -302,6 +302,9 @@ class Settings(BaseSettings):
 
     # Multi-Search Engine Config
     search_strategy: str = "fallback"  # fallback | parallel | round_robin | best_first
+    search_enable_freshness_ranking: bool = True  # Apply freshness boost for time-sensitive queries
+    search_freshness_half_life_days: float = 30.0  # Decay half-life for recency score
+    search_freshness_weight: float = 0.35  # Blend weight between relevance and freshness
     brave_api_key: str = ""  # Brave Search API key
     serper_api_key: str = ""  # Serper.dev API key
     exa_api_key: str = ""  # Exa.ai API key
