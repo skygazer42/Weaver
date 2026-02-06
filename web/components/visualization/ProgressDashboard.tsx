@@ -19,6 +19,8 @@ interface ProgressDashboardProps {
       coverage: number
       citation: number
       consistency: number
+      freshness?: number
+      queryCoverage?: number
     }
   }
   className?: string
@@ -77,6 +79,12 @@ export function ProgressDashboard({
               <QualityBadge label="Coverage" value={stats.quality.coverage} />
               <QualityBadge label="Citation" value={stats.quality.citation} />
               <QualityBadge label="Consistency" value={stats.quality.consistency} />
+              {typeof stats.quality.freshness === 'number' && (
+                <QualityBadge label="Freshness" value={stats.quality.freshness} />
+              )}
+              {typeof stats.quality.queryCoverage === 'number' && (
+                <QualityBadge label="Query Plan" value={stats.quality.queryCoverage} />
+              )}
             </div>
           )}
         </div>
@@ -149,6 +157,12 @@ export function ProgressDashboard({
                   <QualityBadge label="Coverage" value={stats.quality.coverage} />
                   <QualityBadge label="Citation" value={stats.quality.citation} />
                   <QualityBadge label="Consistency" value={stats.quality.consistency} />
+                  {typeof stats.quality.freshness === 'number' && (
+                    <QualityBadge label="Freshness" value={stats.quality.freshness} />
+                  )}
+                  {typeof stats.quality.queryCoverage === 'number' && (
+                    <QualityBadge label="Query Plan" value={stats.quality.queryCoverage} />
+                  )}
                 </div>
               </div>
             )}

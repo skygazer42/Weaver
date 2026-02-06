@@ -84,6 +84,8 @@ export interface ResearchQualityMetrics {
   coverage: number
   citation: number
   consistency: number
+  freshness?: number
+  queryCoverage?: number
 }
 
 export interface ResearchTree {

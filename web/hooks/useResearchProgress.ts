@@ -38,10 +38,15 @@ export function useResearchProgress({
     const asNumber = (value: any, fallback = 0): number =>
       Number.isFinite(Number(value)) ? Math.max(0, Math.min(1, Number(value))) : fallback
 
+    const queryCoverage = asNumber(raw.queryCoverage ?? raw.query_coverage_score ?? raw.query_coverage?.score, -1)
+    const freshness = asNumber(raw.freshness ?? raw.fresh_30_ratio ?? raw.freshness_summary?.fresh_30_ratio, -1)
+
     return {
-      coverage: asNumber(raw.coverage),
+      coverage: asNumber(raw.coverage ?? (queryCoverage >= 0 ? queryCoverage : 0)),
       citation: asNumber(raw.citation ?? raw.citation_coverage ?? raw.accuracy),
       consistency: asNumber(raw.consistency ?? raw.contradiction_free ?? raw.coherence),
+      freshness: freshness >= 0 ? freshness : undefined,
+      queryCoverage: queryCoverage >= 0 ? queryCoverage : undefined,
     }
   }, [])
 
