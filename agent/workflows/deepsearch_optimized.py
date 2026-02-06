@@ -14,6 +14,7 @@ Based on: deep_search-dev reference implementation
 """
 
 import asyncio
+import copy
 import json
 import logging
 import re
@@ -28,6 +29,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
 from agent.core.llm_factory import create_chat_model
+from agent.core.search_cache import get_search_cache
 from agent.workflows.domain_router import ResearchDomain, build_provider_profile
 
 # Import knowledge gap analysis
@@ -133,6 +135,52 @@ def _resolve_provider_profile(state: Dict[str, Any]) -> Optional[List[str]]:
     return profile or None
 
 
+def _cache_query_key(
+    query: str,
+    max_results: int,
+    strategy: SearchStrategy,
+    provider_profile: Optional[List[str]] = None,
+) -> str:
+    profile = ",".join((provider_profile or []))
+    return f"deepsearch::{strategy.value}::{max_results}::{profile}::{query}"
+
+
+def _estimate_tokens_from_text(text: str) -> int:
+    if not text:
+        return 0
+    return max(1, len(str(text)) // 4)
+
+
+def _estimate_tokens_from_results(results: List[Dict[str, Any]]) -> int:
+    tokens = 0
+    for result in results or []:
+        if not isinstance(result, dict):
+            continue
+        tokens += _estimate_tokens_from_text(result.get("title", ""))
+        snippet = (
+            result.get("raw_excerpt")
+            or result.get("summary")
+            or result.get("snippet")
+            or result.get("content")
+            or ""
+        )
+        tokens += _estimate_tokens_from_text(str(snippet)[:600])
+    return tokens
+
+
+def _budget_stop_reason(
+    start_ts: float,
+    tokens_used: int,
+    max_seconds: float,
+    max_tokens: int,
+) -> Optional[str]:
+    if max_seconds > 0 and (time.time() - start_ts) >= max_seconds:
+        return "time_budget_exceeded"
+    if max_tokens > 0 and tokens_used >= max_tokens:
+        return "token_budget_exceeded"
+    return None
+
+
 def _search_query(
     query: str,
     max_results: int,
@@ -141,6 +189,13 @@ def _search_query(
 ) -> List[Dict[str, Any]]:
     """Search with multi-provider orchestration first, then Tavily fallback."""
     strategy = _resolve_search_strategy()
+    cache = get_search_cache()
+    cache_key = _cache_query_key(query, max_results, strategy, provider_profile)
+    cached = cache.get(cache_key)
+    if cached is not None:
+        logger.info(f"[deepsearch] cache hit for query='{query[:80]}'")
+        return copy.deepcopy(cached)
+
     try:
         kwargs: Dict[str, Any] = {
             "query": query,
@@ -152,16 +207,20 @@ def _search_query(
         multi_results = multi_search(**kwargs)
         normalized = _normalize_multi_search_results(multi_results)
         if normalized:
+            cache.set(cache_key, copy.deepcopy(normalized))
             return normalized
         logger.info(f"[deepsearch] multi_search returned no results for query='{query[:80]}'")
     except Exception as e:
         logger.warning(f"[deepsearch] multi_search failed, falling back to tavily: {e}")
 
     try:
-        return tavily_search.invoke(
+        fallback_results = tavily_search.invoke(
             {"query": query, "max_results": max_results},
             config=config,
         )
+        if fallback_results:
+            cache.set(cache_key, copy.deepcopy(fallback_results))
+        return fallback_results
     except Exception as e:
         logger.warning(f"[deepsearch] tavily fallback failed: {e}")
         return []
@@ -429,6 +488,8 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
     query_num = int(getattr(settings, "deepsearch_query_num", 5))
     per_query_results = int(getattr(settings, "deepsearch_results_per_query", 5))
     top_urls = max(3, min(5, per_query_results))
+    max_seconds = max(0.0, float(getattr(settings, "deepsearch_max_seconds", 0.0)))
+    max_tokens = max(0, int(getattr(settings, "deepsearch_max_tokens", 0)))
 
     # Use multi-model routing for different task types
     planning_model = _model_for_task("planning", config)
@@ -454,12 +515,23 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
     logger.info(f"[deepsearch] 开始优化版深度搜索")
 
     start_ts = time.time()
+    tokens_used = _estimate_tokens_from_text(topic)
+    budget_stop_reason = ""
 
     try:
         for epoch in range(max_epochs):
             try:
                 _check_cancel(state)
                 epoch_start = time.time()
+                budget_stop_reason = _budget_stop_reason(
+                    start_ts=start_ts,
+                    tokens_used=tokens_used,
+                    max_seconds=max_seconds,
+                    max_tokens=max_tokens,
+                )
+                if budget_stop_reason:
+                    logger.info(f"[deepsearch] 预算触发提前停止: {budget_stop_reason}")
+                    break
                 logger.info(f"[deepsearch] ===== Epoch {epoch + 1}/{max_epochs} =====")
 
                 # ⏱️ Step 1: 生成查询 (利用知识空白分析结果)
@@ -473,6 +545,7 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
                     queries.append(topic)
                 if not queries:
                     queries = [topic]
+                tokens_used += sum(_estimate_tokens_from_text(q) for q in queries)
                 have_query.extend(q for q in queries if q not in have_query)
                 logger.info(
                     f"[deepsearch] Epoch {epoch + 1}: 生成 {len(queries)} 个查询"
@@ -485,12 +558,23 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
                 combined_results: List[Dict[str, Any]] = []
                 for q in queries:
                     _check_cancel(state)
+                    budget_stop_reason = _budget_stop_reason(
+                        start_ts=start_ts,
+                        tokens_used=tokens_used,
+                        max_seconds=max_seconds,
+                        max_tokens=max_tokens,
+                    )
+                    if budget_stop_reason:
+                        logger.info(f"[deepsearch] 搜索阶段触发预算停止: {budget_stop_reason}")
+                        break
+
                     results = _search_query(
                         q,
                         per_query_results,
                         config,
                         provider_profile=provider_profile,
                     )
+                    tokens_used += _estimate_tokens_from_results(results)
                     combined_results.extend(results)
                     search_runs.append(
                         {
@@ -506,6 +590,9 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
                         if url and url not in all_searched_urls_set:
                             all_searched_urls.append(url)
                             all_searched_urls_set.add(url)
+
+                if budget_stop_reason:
+                    break
 
                 logger.info(
                     f"[deepsearch] Epoch {epoch + 1}: 搜索到 {len(combined_results)} 个结果"
@@ -568,6 +655,7 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
                 )
                 if summary_text:
                     summary_notes.append(summary_text)
+                    tokens_used += _estimate_tokens_from_text(summary_text)
 
                 logger.info(
                     f"[deepsearch] Epoch {epoch + 1}: 摘要完成"
@@ -575,6 +663,15 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
                     f" | 摘要长度: {len(summary_text)}"
                     f" | 耗时 {time.time() - summary_start:.2f}s"
                 )
+                budget_stop_reason = _budget_stop_reason(
+                    start_ts=start_ts,
+                    tokens_used=tokens_used,
+                    max_seconds=max_seconds,
+                    max_tokens=max_tokens,
+                )
+                if budget_stop_reason:
+                    logger.info(f"[deepsearch] 摘要后触发预算停止: {budget_stop_reason}")
+                    break
 
                 # ⏱️ Step 5.5: 知识空白分析 (可选)
                 use_gap_analysis = getattr(settings, "deepsearch_use_gap_analysis", True)
@@ -651,6 +748,8 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
             f"\n  总 URL: {len(all_searched_urls)}"
             f"\n  已爬取: {len(selected_urls)}"
             f"\n  摘要数: {len(summary_notes)}"
+            f"\n  估算Token: {tokens_used}"
+            f"\n  预算停止原因: {budget_stop_reason or 'none'}"
         )
 
         # 保存数据
@@ -666,6 +765,15 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
         messages = [AIMessage(content=final_report)]
         if save_path:
             messages.append(AIMessage(content=f"(数据已保存: {save_path})"))
+        if budget_stop_reason:
+            messages.append(
+                AIMessage(
+                    content=(
+                        "（由于预算限制提前收敛："
+                        f"{budget_stop_reason}; tokens={tokens_used}; elapsed={elapsed:.2f}s）"
+                    )
+                )
+            )
 
         return {
             "research_plan": have_query,
@@ -674,6 +782,9 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
             "final_report": final_report,
             "messages": messages,
             "is_complete": False,
+            "budget_stop_reason": budget_stop_reason,
+            "deepsearch_tokens_used": tokens_used,
+            "deepsearch_elapsed_seconds": elapsed,
         }
 
     except asyncio.CancelledError:
@@ -712,6 +823,8 @@ def run_deepsearch_tree(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[s
     queries_per_branch = int(getattr(settings, "tree_queries_per_branch", 3))
     per_query_results = int(getattr(settings, "deepsearch_results_per_query", 5))
     parallel_branches = int(getattr(settings, "tree_parallel_branches", 3))
+    max_seconds = max(0.0, float(getattr(settings, "deepsearch_max_seconds", 0.0)))
+    max_tokens = max(0, int(getattr(settings, "deepsearch_max_tokens", 0)))
 
     logger.info(
         f"[deepsearch-tree] Starting tree exploration: topic='{topic}' "
@@ -720,6 +833,29 @@ def run_deepsearch_tree(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[s
     provider_profile = _resolve_provider_profile(state)
 
     start_ts = time.time()
+    budget_stop_reason = ""
+    tokens_used = _estimate_tokens_from_text(topic)
+
+    budget_stop_reason = _budget_stop_reason(
+        start_ts=start_ts,
+        tokens_used=tokens_used,
+        max_seconds=max_seconds,
+        max_tokens=max_tokens,
+    )
+    if budget_stop_reason:
+        return {
+            "research_plan": [],
+            "scraped_content": [],
+            "draft_report": summary_text_prompt,
+            "final_report": summary_text_prompt,
+            "messages": [
+                AIMessage(content=f"（预算限制触发，未执行树搜索：{budget_stop_reason}）")
+            ],
+            "is_complete": False,
+            "budget_stop_reason": budget_stop_reason,
+            "deepsearch_tokens_used": tokens_used,
+            "deepsearch_elapsed_seconds": 0.0,
+        }
 
     try:
         # Create tree explorer
@@ -775,6 +911,17 @@ def run_deepsearch_tree(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[s
         )
 
         elapsed = time.time() - start_ts
+        tokens_used += _estimate_tokens_from_text(merged_summary)
+        tokens_used += _estimate_tokens_from_text(final_report)
+        post_budget_reason = _budget_stop_reason(
+            start_ts=start_ts,
+            tokens_used=tokens_used,
+            max_seconds=max_seconds,
+            max_tokens=max_tokens,
+        )
+        if post_budget_reason:
+            budget_stop_reason = post_budget_reason
+
         logger.info(
             f"[deepsearch-tree] ===== Completed =====\n"
             f"  Total time: {elapsed:.2f}s\n"
@@ -805,6 +952,8 @@ def run_deepsearch_tree(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[s
         messages = [AIMessage(content=final_report)]
         if save_path:
             messages.append(AIMessage(content=f"(数据已保存: {save_path})"))
+        if budget_stop_reason:
+            messages.append(AIMessage(content=f"（预算限制提示：{budget_stop_reason}）"))
 
         return {
             "research_plan": have_query,
@@ -814,6 +963,9 @@ def run_deepsearch_tree(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[s
             "messages": messages,
             "research_tree": tree.to_dict(),
             "is_complete": False,
+            "budget_stop_reason": budget_stop_reason,
+            "deepsearch_tokens_used": tokens_used,
+            "deepsearch_elapsed_seconds": elapsed,
         }
 
     except asyncio.CancelledError:

@@ -299,12 +299,17 @@ class Settings(BaseSettings):
     deepsearch_save_dir: str = "eval/deepsearch_data"
     deepsearch_use_gap_analysis: bool = True  # use knowledge gap analysis for targeted queries
     deepsearch_mode: str = "auto"  # auto | tree | linear
+    deepsearch_max_seconds: float = 0.0  # 0 = disabled
+    deepsearch_max_tokens: int = 0  # 0 = disabled
 
     # Multi-Search Engine Config
     search_strategy: str = "fallback"  # fallback | parallel | round_robin | best_first
     search_enable_freshness_ranking: bool = True  # Apply freshness boost for time-sensitive queries
     search_freshness_half_life_days: float = 30.0  # Decay half-life for recency score
     search_freshness_weight: float = 0.35  # Blend weight between relevance and freshness
+    search_cache_max_size: int = 200  # session-level search cache capacity
+    search_cache_ttl_seconds: float = 1800.0  # search cache TTL in seconds
+    search_cache_similarity_threshold: float = 0.9  # fuzzy query match threshold
     brave_api_key: str = ""  # Brave Search API key
     serper_api_key: str = ""  # Serper.dev API key
     exa_api_key: str = ""  # Exa.ai API key

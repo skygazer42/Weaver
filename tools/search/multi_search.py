@@ -11,6 +11,7 @@ Key Features:
 4. Quality scoring per provider based on historical accuracy
 """
 
+import copy
 import hashlib
 import logging
 import math
@@ -24,6 +25,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
+from agent.core.search_cache import get_search_cache
 from common.config import settings
 from tools.search.reliability import ProviderReliabilityManager, ReliabilityPolicy
 
@@ -570,16 +572,58 @@ class MultiSearchOrchestrator:
             logger.error("[MultiSearch] No available search providers")
             return []
 
+        cache = get_search_cache()
+        cache_key = self._cache_query_key(query, max_results, strategy, provider_profile)
+        cached = cache.get(cache_key)
+        if cached is not None:
+            logger.info(f"[MultiSearch] cache hit for query='{query[:80]}'")
+            return self._from_cached_results(cached)
+
+        results: List[SearchResult]
         if strategy == SearchStrategy.FALLBACK:
-            return self._search_fallback(query, max_results, available)
+            results = self._search_fallback(query, max_results, available)
         elif strategy == SearchStrategy.PARALLEL:
-            return self._search_parallel(query, max_results, available)
+            results = self._search_parallel(query, max_results, available)
         elif strategy == SearchStrategy.ROUND_ROBIN:
-            return self._search_round_robin(query, max_results, available)
+            results = self._search_round_robin(query, max_results, available)
         elif strategy == SearchStrategy.BEST_FIRST:
-            return self._search_best_first(query, max_results, available)
+            results = self._search_best_first(query, max_results, available)
         else:
-            return self._search_fallback(query, max_results, available)
+            results = self._search_fallback(query, max_results, available)
+
+        if results:
+            cache.set(cache_key, [r.to_dict() for r in results])
+
+        return results
+
+    def _cache_query_key(
+        self,
+        query: str,
+        max_results: int,
+        strategy: SearchStrategy,
+        provider_profile: Optional[List[str]],
+    ) -> str:
+        profile = ",".join(provider_profile or [])
+        return f"multi_search::{strategy.value}::{max_results}::{profile}::{query}"
+
+    def _from_cached_results(self, cached: List[Dict[str, Any]]) -> List[SearchResult]:
+        results: List[SearchResult] = []
+        for item in cached or []:
+            if not isinstance(item, dict):
+                continue
+            results.append(
+                SearchResult(
+                    title=item.get("title", ""),
+                    url=item.get("url", ""),
+                    snippet=item.get("snippet", ""),
+                    content=item.get("content", ""),
+                    score=float(item.get("score", 0.0) or 0.0),
+                    published_date=item.get("published_date"),
+                    provider=item.get("provider", ""),
+                    raw_data=copy.deepcopy(item),
+                )
+            )
+        return results
 
     def _apply_provider_profile(
         self,
