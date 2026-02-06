@@ -1014,3 +1014,74 @@ This project is licensed under the MIT License - see the [LICENSE](../LICENSE) f
 Made by the Weaver Team
 
 </div>
+
+---
+
+## Deep Research VNext (2026-02)
+
+### What Changed
+
+- Multi-provider search orchestration (`fallback|parallel|round_robin|best_first`)
+- Freshness-aware ranking for time-sensitive queries
+- Domain-aware provider profiles
+- Provider reliability guardrails (retry + circuit breaker)
+- Evidence-based claim verification + citation gate
+- DeepSearch budget guards (time/token)
+- Session-level search cache with TTL
+- Deep research artifact persistence and resume support
+- Benchmark loader and golden regression runner
+
+### Key Configuration
+
+```bash
+# Deep mode selection
+DEEPSEARCH_MODE=auto                     # auto|tree|linear
+TREE_EXPLORATION_ENABLED=true
+
+# Budget guards
+DEEPSEARCH_MAX_SECONDS=0                 # 0 = disabled
+DEEPSEARCH_MAX_TOKENS=0                  # 0 = disabled
+
+# Search orchestration
+SEARCH_STRATEGY=fallback                 # fallback|parallel|round_robin|best_first
+SEARCH_ENABLE_FRESHNESS_RANKING=true
+SEARCH_FRESHNESS_HALF_LIFE_DAYS=30
+SEARCH_FRESHNESS_WEIGHT=0.35
+
+# Session cache
+SEARCH_CACHE_MAX_SIZE=200
+SEARCH_CACHE_TTL_SECONDS=1800
+SEARCH_CACHE_SIMILARITY_THRESHOLD=0.9
+
+# Citation gate
+CITATION_GATE_MIN_COVERAGE=0.6
+```
+
+### Benchmark Smoke
+
+```bash
+python scripts/benchmark_deep_research.py \
+  --max-cases 3 \
+  --mode auto \
+  --output /tmp/bench.json
+```
+
+- Sample tasks: `eval/benchmarks/sample_tasks.jsonl`
+- Golden baseline: `eval/golden_queries.json`
+- Full benchmark notes: `docs/benchmarks/README.md`
+
+### Rollback / Troubleshooting
+
+- Unstable deep research flow:
+  - set `DEEPSEARCH_MODE=linear`
+  - disable tree default with `TREE_EXPLORATION_ENABLED=false`
+- Stale results:
+  - enable freshness ranking
+  - reduce `SEARCH_FRESHNESS_HALF_LIFE_DAYS`
+- Noisy search reliability:
+  - pin `SEARCH_STRATEGY=fallback`
+- Citation gate blocks completion too often:
+  - review citation coverage in report output
+  - temporarily lower `CITATION_GATE_MIN_COVERAGE`
+- Cache too sticky during rollout:
+  - reduce `SEARCH_CACHE_TTL_SECONDS` (e.g., 120-300)

@@ -140,11 +140,16 @@ export class StorageService {
   }
 
   static getSessionMessages<T>(sessionId: string): T[] {
-    return this.getItem<T[]>(`session_${sessionId}`) || []
+    const messages = this.getItem<T[]>(`session_${sessionId}`) || []
+    if (!Array.isArray(messages)) {
+      return []
+    }
+    return this.normalizeSessionMessages(messages) as T[]
   }
 
   static saveSessionMessages<T>(sessionId: string, messages: T[]): void {
-    this.setItem(`session_${sessionId}`, messages)
+    const normalized = this.normalizeSessionMessages(messages)
+    this.setItem(`session_${sessionId}`, normalized)
   }
 
   static removeSessionMessages(sessionId: string): void {
@@ -174,5 +179,80 @@ export class StorageService {
              }
         }
     })
+  }
+
+  private static normalizeSessionMessages<T>(messages: T[]): T[] {
+    if (!Array.isArray(messages)) {
+      return messages
+    }
+    return messages.map((message: any) => {
+      if (!message || !Array.isArray(message.sources)) {
+        return message
+      }
+      return {
+        ...message,
+        sources: message.sources.map((source: any) => this.normalizeSource(source)),
+      }
+    }) as T[]
+  }
+
+  private static normalizeSource(source: any): any {
+    if (!source || typeof source !== 'object') {
+      return source
+    }
+
+    const rawUrl = String(source.rawUrl || source.url || '').trim()
+    const canonicalUrl = this.normalizeUrl(rawUrl)
+    const publishedDate = source.publishedDate ? String(source.publishedDate) : undefined
+
+    return {
+      ...source,
+      rawUrl: rawUrl || source.rawUrl || '',
+      url: canonicalUrl || rawUrl || source.url,
+      domain: source.domain || this.extractDomain(canonicalUrl || rawUrl),
+      provider: source.provider || this.inferProvider(canonicalUrl || rawUrl),
+      publishedDate,
+      freshnessDays:
+        source.freshnessDays ?? this.computeFreshnessDays(publishedDate),
+    }
+  }
+
+  private static normalizeUrl(url: string): string {
+    if (!url) return ''
+    try {
+      const parsed = new URL(url)
+      parsed.hash = ''
+      return parsed.toString()
+    } catch {
+      return url
+    }
+  }
+
+  private static extractDomain(url: string): string {
+    if (!url) return 'unknown'
+    try {
+      const parsed = new URL(url)
+      return parsed.hostname.replace(/^www\\./, '')
+    } catch {
+      return 'unknown'
+    }
+  }
+
+  private static inferProvider(url: string): string {
+    const domain = this.extractDomain(url)
+    if (domain.includes('arxiv')) return 'arxiv'
+    if (domain.includes('pubmed')) return 'pubmed'
+    if (domain.includes('github')) return 'github'
+    if (domain.includes('reddit')) return 'reddit'
+    if (domain.includes('news')) return 'news'
+    return 'web'
+  }
+
+  private static computeFreshnessDays(dateText?: string): number | null {
+    if (!dateText) return null
+    const parsed = Date.parse(dateText)
+    if (Number.isNaN(parsed)) return null
+    const days = (Date.now() - parsed) / (1000 * 60 * 60 * 24)
+    return Math.max(0, Number(days.toFixed(1)))
   }
 }

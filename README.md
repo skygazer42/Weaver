@@ -909,3 +909,76 @@ cp .env.example .env
 由 Weaver Team 制作 | Made by Weaver Team
 
 </div>
+
+---
+
+## Deep Research VNext（2026-02）
+
+### 新能力概览
+
+- 多搜索引擎编排（`fallback|parallel|round_robin|best_first`）
+- 时效性排序（time-sensitive query freshness ranking）
+- 领域感知 provider profile（scientific/medical/technical 等）
+- 搜索可靠性保护（重试 + 熔断）
+- 证据校验与引用门禁（citation gate）
+- DeepSearch 预算守卫（时间/Token）
+- 会话级搜索缓存（TTL）
+- Deep research artifact 持久化与恢复
+- Benchmark loader + golden 回归脚本
+
+### 关键配置项
+
+```bash
+# Deep mode
+DEEPSEARCH_MODE=auto                     # auto|tree|linear
+TREE_EXPLORATION_ENABLED=true            # auto 模式下是否默认走树搜索
+
+# 预算守卫
+DEEPSEARCH_MAX_SECONDS=0                 # 0=关闭
+DEEPSEARCH_MAX_TOKENS=0                  # 0=关闭
+
+# 多搜索策略
+SEARCH_STRATEGY=fallback                 # fallback|parallel|round_robin|best_first
+SEARCH_ENABLE_FRESHNESS_RANKING=true
+SEARCH_FRESHNESS_HALF_LIFE_DAYS=30
+SEARCH_FRESHNESS_WEIGHT=0.35
+
+# 搜索缓存
+SEARCH_CACHE_MAX_SIZE=200
+SEARCH_CACHE_TTL_SECONDS=1800
+SEARCH_CACHE_SIMILARITY_THRESHOLD=0.9
+
+# 引用门禁（低覆盖率不允许直接 pass）
+CITATION_GATE_MIN_COVERAGE=0.6
+```
+
+### Benchmark 使用
+
+```bash
+python scripts/benchmark_deep_research.py \
+  --max-cases 3 \
+  --mode auto \
+  --output /tmp/bench.json
+```
+
+- 样例集：`eval/benchmarks/sample_tasks.jsonl`
+- Golden 基线：`eval/golden_queries.json`
+- 详细说明：`docs/benchmarks/README.md`
+
+### 常见问题与回滚开关
+
+- DeepSearch 结果发散：
+  - 先切 `DEEPSEARCH_MODE=linear`
+  - 降低 `TREE_EXPLORATION_ENABLED`
+- 结果偏旧：
+  - 开启 `SEARCH_ENABLE_FRESHNESS_RANKING=true`
+  - 调小 `SEARCH_FRESHNESS_HALF_LIFE_DAYS`
+- 搜索不稳定：
+  - 使用 `SEARCH_STRATEGY=fallback`
+  - 保持默认重试/熔断（已内建）
+- 引用覆盖率过低导致反复修订：
+  - 检查生成内容是否包含可追踪引用
+  - 临时降低 `CITATION_GATE_MIN_COVERAGE`
+- 命中陈旧缓存：
+  - 减小 `SEARCH_CACHE_TTL_SECONDS`
+  - 线上发布窗口可临时调低至 120~300 秒
