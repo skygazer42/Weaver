@@ -93,3 +93,22 @@ Exit criteria:
 - [ ] rollback env vars documented in deployment config
 - [ ] citation gate threshold reviewed by product/ops
 - [ ] nightly benchmark workflow enabled
+
+
+### Stage 4: Quality Diagnostics (New)
+
+DeepSearch now emits additional diagnostics in `quality_summary` and `deepsearch_artifacts`:
+- `query_coverage_score` + `query_dimensions_covered/missing`
+- `freshness_summary` (7d/30d/180d buckets + known/unknown date counts)
+- `freshness_warning` for time-sensitive prompts when fresh-source ratio is too low
+
+Operational use:
+- Track low query coverage as an early signal of shallow planning.
+- For time-sensitive asks (latest/recent/current), treat `freshness_warning` as a retry trigger.
+- Prefer adding official docs + recent updates queries before increasing `deepsearch_max_epochs`.
+
+Reference directions (latest deep-research patterns):
+- OpenAI: [Introducing deep research](https://openai.com/index/introducing-deep-research/)
+- Google Gemini API changelog (Deep Research + thought summaries): [Developer changelog](https://ai.google.dev/changelog)
+- Anthropic: [Think tool](https://www.anthropic.com/engineering/claude-think-tool)
+- Open deep-research implementation reference: [HKUDS/DeepResearchAgent](https://github.com/HKUDS/DeepResearchAgent)
