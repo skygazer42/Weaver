@@ -1956,12 +1956,21 @@ async def resume_session(thread_id: str, request: ResumeRequest = None):
         if not state:
             raise HTTPException(status_code=404, detail=f"Session not found: {thread_id}")
 
-        # Build config for resumption
-        config = {
-            "configurable": {
-                "thread_id": thread_id,
-            }
-        }
+        restored_state = manager.build_resume_state(
+            thread_id=thread_id,
+            additional_input=request.additional_input if request else None,
+            update_state=request.update_state if request else None,
+        )
+        if restored_state is None:
+            raise HTTPException(status_code=404, detail=f"Session not found: {thread_id}")
+
+        deepsearch_artifacts = restored_state.get("deepsearch_artifacts", {}) or {}
+        quality_summary = deepsearch_artifacts.get("quality_summary", {}) if isinstance(
+            deepsearch_artifacts, dict
+        ) else {}
+        queries = deepsearch_artifacts.get("queries", []) if isinstance(
+            deepsearch_artifacts, dict
+        ) else []
 
         # Resume the graph execution
         # Note: Actual resumption depends on the graph implementation
@@ -1975,6 +1984,19 @@ async def resume_session(thread_id: str, request: ResumeRequest = None):
                 "route": state.state.get("route"),
                 "revision_count": state.state.get("revision_count", 0),
                 "has_report": bool(state.state.get("final_report")),
+                "has_deepsearch_artifacts": bool(deepsearch_artifacts),
+                "deepsearch_queries": len(queries) if isinstance(queries, list) else 0,
+            },
+            "deepsearch_resume": {
+                "artifacts_restored": bool(deepsearch_artifacts),
+                "mode": deepsearch_artifacts.get("mode") if isinstance(deepsearch_artifacts, dict) else None,
+                "quality_summary": quality_summary if isinstance(quality_summary, dict) else {},
+            },
+            "resume_state": {
+                "route": restored_state.get("route"),
+                "revision_count": restored_state.get("revision_count", 0),
+                "research_plan_count": len(restored_state.get("research_plan", []) or []),
+                "resumed_from_checkpoint": bool(restored_state.get("resumed_from_checkpoint")),
             },
         }
 

@@ -752,6 +752,22 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
             f"\n  预算停止原因: {budget_stop_reason or 'none'}"
         )
 
+        quality_summary = {
+            "epochs_completed": epoch + 1,
+            "summary_count": len(summary_notes),
+            "source_count": len(all_searched_urls),
+            "selected_url_count": len(selected_urls),
+            "budget_stop_reason": budget_stop_reason or "",
+            "tokens_used": tokens_used,
+            "elapsed_seconds": elapsed,
+        }
+        deepsearch_artifacts = {
+            "mode": "linear",
+            "queries": have_query,
+            "research_tree": None,
+            "quality_summary": quality_summary,
+        }
+
         # 保存数据
         save_path = _save_deepsearch_data(
             topic,
@@ -780,6 +796,9 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
             "scraped_content": search_runs,
             "draft_report": final_report,
             "final_report": final_report,
+            "quality_summary": quality_summary,
+            "deepsearch_artifacts": deepsearch_artifacts,
+            "deepsearch_mode": "linear",
             "messages": messages,
             "is_complete": False,
             "budget_stop_reason": budget_stop_reason,
@@ -843,6 +862,14 @@ def run_deepsearch_tree(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[s
         max_tokens=max_tokens,
     )
     if budget_stop_reason:
+        quality_summary = {
+            "epochs_completed": 0,
+            "summary_count": 0,
+            "source_count": 0,
+            "budget_stop_reason": budget_stop_reason,
+            "tokens_used": tokens_used,
+            "elapsed_seconds": 0.0,
+        }
         return {
             "research_plan": [],
             "scraped_content": [],
@@ -855,6 +882,14 @@ def run_deepsearch_tree(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[s
             "budget_stop_reason": budget_stop_reason,
             "deepsearch_tokens_used": tokens_used,
             "deepsearch_elapsed_seconds": 0.0,
+            "quality_summary": quality_summary,
+            "deepsearch_artifacts": {
+                "mode": "tree",
+                "queries": [],
+                "research_tree": None,
+                "quality_summary": quality_summary,
+            },
+            "deepsearch_mode": "tree",
         }
 
     try:
@@ -948,6 +983,21 @@ def run_deepsearch_tree(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[s
         save_path = _save_deepsearch_data(
             topic, have_query, summary_notes, search_runs, final_report, epoch=1,
         )
+        quality_summary = {
+            "epochs_completed": 1,
+            "summary_count": len(summary_notes),
+            "source_count": len(all_sources),
+            "tree_node_count": len(tree.nodes),
+            "budget_stop_reason": budget_stop_reason or "",
+            "tokens_used": tokens_used,
+            "elapsed_seconds": elapsed,
+        }
+        deepsearch_artifacts = {
+            "mode": "tree",
+            "queries": have_query,
+            "research_tree": tree.to_dict(),
+            "quality_summary": quality_summary,
+        }
 
         messages = [AIMessage(content=final_report)]
         if save_path:
@@ -960,6 +1010,9 @@ def run_deepsearch_tree(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[s
             "scraped_content": search_runs,
             "draft_report": final_report,
             "final_report": final_report,
+            "quality_summary": quality_summary,
+            "deepsearch_artifacts": deepsearch_artifacts,
+            "deepsearch_mode": "tree",
             "messages": messages,
             "research_tree": tree.to_dict(),
             "is_complete": False,

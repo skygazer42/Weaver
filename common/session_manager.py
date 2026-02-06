@@ -6,7 +6,8 @@ Wraps the LangGraph checkpointer for persistence and recovery.
 """
 
 import logging
-from dataclasses import dataclass
+from copy import deepcopy
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -47,6 +48,7 @@ class SessionState:
     state: Dict[str, Any]
     checkpoint_ts: str
     parent_checkpoint_id: Optional[str]
+    deepsearch_artifacts: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -54,6 +56,7 @@ class SessionState:
             "checkpoint_ts": self.checkpoint_ts,
             "parent_checkpoint_id": self.parent_checkpoint_id,
             "state": self._sanitize_state(self.state),
+            "deepsearch_artifacts": self.deepsearch_artifacts,
         }
 
     def _sanitize_state(self, state: Dict[str, Any]) -> Dict[str, Any]:
@@ -69,6 +72,13 @@ class SessionState:
             elif k in ("scraped_content", "pending_tool_calls"):
                 # Summarize large lists
                 sanitized[k] = f"[{len(v)} items]" if isinstance(v, list) else v
+            elif k == "deepsearch_artifacts" and isinstance(v, dict):
+                sanitized[k] = {
+                    "mode": v.get("mode"),
+                    "queries_count": len(v.get("queries", []) or []),
+                    "has_tree": bool(v.get("research_tree")),
+                    "quality_summary": v.get("quality_summary", {}),
+                }
             else:
                 # Try to include as-is, fall back to string representation
                 try:
@@ -234,11 +244,14 @@ class SessionManager:
                 if parent_config:
                     parent_id = parent_config.get("configurable", {}).get("checkpoint_id")
 
+            deepsearch_artifacts = self._extract_deepsearch_artifacts(state)
+
             return SessionState(
                 thread_id=thread_id,
                 state=state,
                 checkpoint_ts=checkpoint_ts,
                 parent_checkpoint_id=parent_id,
+                deepsearch_artifacts=deepsearch_artifacts,
             )
 
         except Exception as e:
@@ -306,6 +319,44 @@ class SessionManager:
 
         return True, "Session can be resumed"
 
+    def build_resume_state(
+        self,
+        thread_id: str,
+        additional_input: Optional[str] = None,
+        update_state: Optional[Dict[str, Any]] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Build a restored state payload for session resumption.
+
+        Rehydrates deepsearch artifacts into top-level fields so graph execution
+        can continue from collected context instead of starting from scratch.
+        """
+        session_state = self.get_session_state(thread_id)
+        if not session_state:
+            return None
+
+        restored = deepcopy(session_state.state)
+        artifacts = session_state.deepsearch_artifacts or {}
+
+        if isinstance(update_state, dict):
+            restored.update(update_state)
+
+        if additional_input:
+            restored["resume_input"] = additional_input
+
+        if artifacts:
+            restored["deepsearch_artifacts"] = artifacts
+            if artifacts.get("queries") and not restored.get("research_plan"):
+                restored["research_plan"] = list(artifacts.get("queries", []))
+            if artifacts.get("research_tree") and not restored.get("research_tree"):
+                restored["research_tree"] = artifacts.get("research_tree")
+            if artifacts.get("quality_summary") and not restored.get("quality_summary"):
+                restored["quality_summary"] = artifacts.get("quality_summary")
+
+        restored["resumed_from_checkpoint"] = True
+        restored["resumed_at"] = datetime.utcnow().isoformat()
+        return restored
+
     def _build_session_info(
         self,
         thread_id: str,
@@ -347,6 +398,38 @@ class SessionManager:
             revision_count=revision_count,
             message_count=message_count,
         )
+
+    def _extract_deepsearch_artifacts(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract canonical deepsearch artifacts from state snapshot."""
+        if not isinstance(state, dict):
+            return {}
+
+        artifacts = state.get("deepsearch_artifacts")
+        if isinstance(artifacts, dict):
+            return artifacts
+
+        queries = state.get("research_plan", []) if isinstance(state.get("research_plan", []), list) else []
+        research_tree = state.get("research_tree")
+        quality_summary = state.get("quality_summary")
+        if not isinstance(quality_summary, dict):
+            quality_summary = {
+                "summary_count": len(state.get("summary_notes", []) or []),
+                "source_count": len(state.get("scraped_content", []) or []),
+                "revision_count": int(state.get("revision_count", 0) or 0),
+                "quality_overall_score": state.get("quality_overall_score"),
+            }
+
+        if not queries and not research_tree and not quality_summary:
+            return {}
+
+        return {
+            "mode": state.get("deepsearch_mode")
+            or state.get("route")
+            or "deepsearch",
+            "queries": queries,
+            "research_tree": research_tree,
+            "quality_summary": quality_summary,
+        }
 
 
 # Global session manager instance
