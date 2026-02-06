@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { getApiBaseUrl } from '@/lib/api'
 import { TimelineStep } from '@/components/visualization/ResearchTimeline'
 import { TreeNode } from '@/components/visualization/ResearchTree'
+import { ResearchQualityMetrics } from '@/types/chat'
 
 type ResearchStatus = 'pending' | 'in_progress' | 'completed' | 'failed'
 
@@ -15,6 +16,7 @@ export interface ResearchProgress {
     searchQueries: number
     elapsedTime: string
     status: ResearchStatus
+    quality?: ResearchQualityMetrics
   }
   isConnected: boolean
   error: string | null
@@ -29,6 +31,31 @@ export function useResearchProgress({
   threadId,
   enabled = true,
 }: UseResearchProgressOptions): ResearchProgress {
+  const normalizeQuality = useCallback((raw: any): ResearchQualityMetrics | null => {
+    if (!raw || typeof raw !== 'object') {
+      return null
+    }
+    const asNumber = (value: any, fallback = 0): number =>
+      Number.isFinite(Number(value)) ? Math.max(0, Math.min(1, Number(value))) : fallback
+
+    return {
+      coverage: asNumber(raw.coverage),
+      citation: asNumber(raw.citation ?? raw.citation_coverage ?? raw.accuracy),
+      consistency: asNumber(raw.consistency ?? raw.contradiction_free ?? raw.coherence),
+    }
+  }, [])
+
+  const mergeQuality = useCallback((raw: any) => {
+    const normalized = normalizeQuality(raw)
+    if (!normalized) {
+      return
+    }
+    setStats(prev => ({
+      ...prev,
+      quality: normalized,
+    }))
+  }, [normalizeQuality])
+
   const [timeline, setTimeline] = useState<TimelineStep[]>([])
   const [tree, setTree] = useState<TreeNode | null>(null)
   const [stats, setStats] = useState<{
@@ -36,6 +63,7 @@ export function useResearchProgress({
     searchQueries: number
     elapsedTime: string
     status: ResearchStatus
+    quality?: ResearchQualityMetrics
   }>({
     totalSources: 0,
     searchQueries: 0,
@@ -112,6 +140,7 @@ export function useResearchProgress({
             sources: data.sources,
             description: data.summary,
           })
+          mergeQuality(data.quality || data.eval_dimensions)
           setStats(prev => ({
             ...prev,
             totalSources: prev.totalSources + (data.sources?.length || 0),
@@ -145,8 +174,18 @@ export function useResearchProgress({
           if (data.tree) {
             setTree(data.tree)
           }
+          mergeQuality(data.quality || data.eval_dimensions)
         } catch (err) {
           console.error('Failed to parse research_tree_update:', err)
+        }
+      })
+
+      eventSource.addEventListener('quality_update', (e) => {
+        try {
+          const data = JSON.parse(e.data)
+          mergeQuality(data)
+        } catch (err) {
+          console.error('Failed to parse quality_update:', err)
         }
       })
 
@@ -172,7 +211,7 @@ export function useResearchProgress({
       setError('Failed to connect to event stream')
       console.error('SSE connection error:', err)
     }
-  }, [threadId, enabled])
+  }, [threadId, enabled, mergeQuality])
 
   const addTimelineStep = useCallback((step: TimelineStep) => {
     setTimeline(prev => [...prev, step])

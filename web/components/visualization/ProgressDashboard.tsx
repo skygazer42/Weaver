@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import { Clock, GitBranch, BarChart3, FileText } from 'lucide-react'
 import { ResearchTimeline, TimelineStep } from './ResearchTimeline'
 import { ResearchTree, TreeNode } from './ResearchTree'
+import { QualityBadge } from './QualityBadge'
 
 interface ProgressDashboardProps {
   timeline?: TimelineStep[]
@@ -14,6 +15,11 @@ interface ProgressDashboardProps {
     searchQueries: number
     elapsedTime: string
     status: 'pending' | 'in_progress' | 'completed' | 'failed'
+    quality?: {
+      coverage: number
+      citation: number
+      consistency: number
+    }
   }
   className?: string
 }
@@ -66,6 +72,13 @@ export function ProgressDashboard({
               {stats.elapsedTime}
             </span>
           </div>
+          {stats.quality && (
+            <div className="flex items-center gap-2">
+              <QualityBadge label="Coverage" value={stats.quality.coverage} />
+              <QualityBadge label="Citation" value={stats.quality.citation} />
+              <QualityBadge label="Consistency" value={stats.quality.consistency} />
+            </div>
+          )}
         </div>
       )}
 
@@ -127,6 +140,18 @@ export function ProgressDashboard({
               icon={GitBranch}
               color={stats.status === 'completed' ? 'green' : stats.status === 'failed' ? 'red' : 'blue'}
             />
+            {stats.quality && (
+              <div className="col-span-2 rounded-xl border bg-gradient-to-r from-slate-500/5 to-slate-500/10 p-4">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Quality Signals
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <QualityBadge label="Coverage" value={stats.quality.coverage} />
+                  <QualityBadge label="Citation" value={stats.quality.citation} />
+                  <QualityBadge label="Consistency" value={stats.quality.consistency} />
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

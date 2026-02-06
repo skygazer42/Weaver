@@ -75,6 +75,12 @@ export interface ResearchSource {
   score?: number
 }
 
+export interface ResearchQualityMetrics {
+  coverage: number
+  citation: number
+  consistency: number
+}
+
 export interface ResearchTree {
   rootId: string
   nodes: Record<string, ResearchNode>
