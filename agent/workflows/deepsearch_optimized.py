@@ -28,7 +28,13 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
 from agent.core.llm_factory import create_chat_model
+
+# Import knowledge gap analysis
+from agent.workflows.knowledge_gap import KnowledgeGapAnalyzer
 from agent.workflows.parsing_utils import format_search_results, parse_list_output
+
+# Import tree-based research components
+from agent.workflows.research_tree import ResearchTree, TreeExplorer
 from common.cancellation import check_cancellation as _check_cancel_token
 from common.config import settings
 from prompts.templates.deepsearch import (
@@ -41,18 +47,14 @@ from prompts.templates.deepsearch import (
 from tools.crawl.crawler import crawl_urls
 from tools.search.search import tavily_search
 
-# Import tree-based research components
-from agent.workflows.research_tree import TreeExplorer, ResearchTree
-
-# Import knowledge gap analysis
-from agent.workflows.knowledge_gap import KnowledgeGapAnalyzer
-
 logger = logging.getLogger(__name__)
 
 # Use shared implementations
 _chat_model = create_chat_model
 _parse_list_output = parse_list_output
 _format_results = format_search_results
+
+_DEEPSEARCH_MODES = {"auto", "tree", "linear"}
 
 
 def _check_cancel(state: Dict[str, Any]) -> None:
@@ -62,6 +64,29 @@ def _check_cancel(state: Dict[str, Any]) -> None:
     token_id = state.get("cancel_token_id")
     if token_id:
         _check_cancel_token(token_id)
+
+
+def _normalize_deepsearch_mode(value: Any) -> str:
+    """Normalize deepsearch mode to one of: auto, tree, linear."""
+    mode = str(value or "").strip().lower()
+    if mode in _DEEPSEARCH_MODES:
+        return mode
+    return "auto"
+
+
+def _resolve_deepsearch_mode(config: Dict[str, Any]) -> str:
+    """
+    Resolve deepsearch mode with precedence:
+    1. request/configurable.deepsearch_mode
+    2. settings.deepsearch_mode
+    3. auto
+    """
+    cfg = config.get("configurable") or {}
+    runtime_mode = cfg.get("deepsearch_mode") if isinstance(cfg, dict) else None
+    if runtime_mode is not None:
+        return _normalize_deepsearch_mode(runtime_mode)
+
+    return _normalize_deepsearch_mode(getattr(settings, "deepsearch_mode", "auto"))
 
 
 def _selected_model(config: Dict[str, Any], fallback: str) -> str:
@@ -726,11 +751,20 @@ def run_deepsearch_auto(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[s
     Uses tree-based exploration if enabled in settings, otherwise falls back
     to the optimized linear approach.
     """
-    use_tree = getattr(settings, "tree_exploration_enabled", True)
+    mode = _resolve_deepsearch_mode(config)
 
+    if mode == "tree":
+        logger.info("[deepsearch] Using tree-based exploration mode (override)")
+        return run_deepsearch_tree(state, config)
+
+    if mode == "linear":
+        logger.info("[deepsearch] Using linear exploration mode (override)")
+        return run_deepsearch_optimized(state, config)
+
+    use_tree = getattr(settings, "tree_exploration_enabled", True)
     if use_tree:
         logger.info("[deepsearch] Using tree-based exploration mode")
         return run_deepsearch_tree(state, config)
-    else:
-        logger.info("[deepsearch] Using linear exploration mode")
-        return run_deepsearch_optimized(state, config)
+
+    logger.info("[deepsearch] Using linear exploration mode")
+    return run_deepsearch_optimized(state, config)

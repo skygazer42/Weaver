@@ -15,7 +15,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic_settings import BaseSettings
 
 # -----------------------------
@@ -298,6 +298,7 @@ class Settings(BaseSettings):
     deepsearch_save_data: bool = False  # save deepsearch run data to disk
     deepsearch_save_dir: str = "eval/deepsearch_data"
     deepsearch_use_gap_analysis: bool = True  # use knowledge gap analysis for targeted queries
+    deepsearch_mode: str = "auto"  # auto | tree | linear
 
     # Multi-Search Engine Config
     search_strategy: str = "fallback"  # fallback | parallel | round_robin | best_first
@@ -425,6 +426,14 @@ class Settings(BaseSettings):
             if cfg:
                 engines = [cfg.engine] + list(cfg.fallback_engines or [])
         return engines or ["tavily"]
+
+    @field_validator("deepsearch_mode", mode="before")
+    @classmethod
+    def normalize_deepsearch_mode(cls, value: str) -> str:
+        mode = str(value or "").strip().lower()
+        if mode in {"auto", "tree", "linear"}:
+            return mode
+        return "auto"
 
 
 def _project_root() -> Path:

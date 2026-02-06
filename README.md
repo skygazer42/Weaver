@@ -293,6 +293,9 @@ MEM0_API_KEY=m0-...                      # 从 https://mem0.ai 获取
 # MCP 工具桥
 ENABLE_MCP=true
 MCP_SERVERS={"filesystem": {...}}
+
+# 深度研究模式（auto|tree|linear）
+DEEPSEARCH_MODE=auto
 ```
 
 ### 第三步：安装依赖

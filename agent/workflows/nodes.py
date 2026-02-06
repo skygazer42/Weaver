@@ -27,7 +27,7 @@ from tools.core.registry import get_global_registry, get_registered_tools
 
 from .agent_factory import build_tool_agent, build_writer_agent
 from .agent_tools import build_agent_tools
-from .deepsearch import run_deepsearch
+from .deepsearch_optimized import run_deepsearch_auto
 
 ENHANCED_TOOLS_AVAILABLE = True
 
@@ -443,7 +443,7 @@ def deepsearch_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]
         token_id = state.get("cancel_token_id")
         if token_id:
             _check_cancellation(token_id)
-        return run_deepsearch(state, config)
+        return run_deepsearch_auto(state, config)
     except asyncio.CancelledError as e:
         return handle_cancellation(state, e)
     except Exception as e:
