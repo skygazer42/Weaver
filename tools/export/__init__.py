@@ -9,10 +9,10 @@ Provides functionality to export research reports to various formats:
 
 from tools.export.markdown_converter import (
     MarkdownConverter,
+    export_report,
+    to_docx,
     to_html,
     to_pdf,
-    to_docx,
-    export_report,
 )
 
 __all__ = [

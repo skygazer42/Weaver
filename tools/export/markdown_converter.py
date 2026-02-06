@@ -23,7 +23,8 @@ except ImportError:
     MARKDOWN_AVAILABLE = False
 
 try:
-    from weasyprint import HTML as WeasyprintHTML, CSS
+    from weasyprint import CSS
+    from weasyprint import HTML as WeasyprintHTML
     WEASYPRINT_AVAILABLE = True
 except ImportError:
     WeasyprintHTML = None
@@ -32,15 +33,15 @@ except ImportError:
 
 try:
     from docx import Document
-    from docx.shared import Inches, Pt
     from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.shared import Inches, Pt
     DOCX_AVAILABLE = True
 except ImportError:
     Document = None
     DOCX_AVAILABLE = False
 
 try:
-    from jinja2 import Environment, FileSystemLoader, BaseLoader
+    from jinja2 import BaseLoader, Environment, FileSystemLoader
     JINJA2_AVAILABLE = True
 except ImportError:
     Environment = None

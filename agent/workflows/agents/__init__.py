@@ -2,8 +2,8 @@
 
 from .coordinator import ResearchCoordinator
 from .planner import ResearchPlanner
-from .researcher import ResearchAgent
 from .reporter import ResearchReporter
+from .researcher import ResearchAgent
 
 __all__ = [
     "ResearchCoordinator",

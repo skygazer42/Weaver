@@ -30,8 +30,8 @@ logger = logging.getLogger(__name__)
 try:
     import matplotlib
     matplotlib.use('Agg')  # Non-interactive backend
-    import matplotlib.pyplot as plt
     import matplotlib.font_manager as fm
+    import matplotlib.pyplot as plt
     MATPLOTLIB_AVAILABLE = True
 except ImportError:
     plt = None
