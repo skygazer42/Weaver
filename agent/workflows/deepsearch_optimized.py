@@ -35,6 +35,12 @@ from agent.workflows.domain_router import ResearchDomain, build_provider_profile
 # Import knowledge gap analysis
 from agent.workflows.knowledge_gap import KnowledgeGapAnalyzer
 from agent.workflows.parsing_utils import format_search_results, parse_list_output
+from agent.workflows.query_strategy import (
+    analyze_query_coverage,
+    backfill_diverse_queries,
+    is_time_sensitive_topic,
+    summarize_freshness,
+)
 
 # Import tree-based research components
 from agent.workflows.research_tree import ResearchTree, TreeExplorer
@@ -307,7 +313,12 @@ def _generate_queries(
         clean.append(q_norm)
         if len(clean) >= query_num:
             break
-    return clean
+    return backfill_diverse_queries(
+        topic=topic,
+        existing_queries=clean,
+        historical_queries=have_query,
+        query_num=query_num,
+    )
 
 
 def _pick_relevant_urls(
@@ -433,6 +444,34 @@ def _hydrate_with_crawler(results: List[Dict[str, Any]]) -> None:
 
 def _safe_filename(name: str) -> str:
     return re.sub(r'[\/\\:\*\?"<>\|]', "_", name)[:80]
+
+
+
+
+def _build_quality_diagnostics(topic: str, queries: List[str], search_runs: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Build query-coverage and freshness diagnostics for deepsearch runs."""
+    query_coverage = analyze_query_coverage(queries)
+    freshness_summary = summarize_freshness(search_runs)
+    time_sensitive_query = is_time_sensitive_topic(topic)
+
+    freshness_warning = ""
+    if (
+        time_sensitive_query
+        and freshness_summary.get("known_count", 0) >= 3
+        and freshness_summary.get("fresh_30_ratio", 0.0) < 0.4
+    ):
+        freshness_warning = "low_freshness_for_time_sensitive_query"
+
+    return {
+        "query_coverage": query_coverage,
+        "query_coverage_score": query_coverage.get("score", 0.0),
+        "query_dimensions_covered": query_coverage.get("covered_dimensions", []),
+        "query_dimensions_missing": query_coverage.get("missing_dimensions", []),
+        "query_dimension_hits": query_coverage.get("dimension_hits", {}),
+        "freshness_summary": freshness_summary,
+        "time_sensitive_query": time_sensitive_query,
+        "freshness_warning": freshness_warning,
+    }
 
 
 def _save_deepsearch_data(
@@ -752,6 +791,7 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
             f"\n  预算停止原因: {budget_stop_reason or 'none'}"
         )
 
+        diagnostics = _build_quality_diagnostics(topic, have_query, search_runs)
         quality_summary = {
             "epochs_completed": epoch + 1,
             "summary_count": len(summary_notes),
@@ -760,12 +800,15 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
             "budget_stop_reason": budget_stop_reason or "",
             "tokens_used": tokens_used,
             "elapsed_seconds": elapsed,
+            **diagnostics,
         }
         deepsearch_artifacts = {
             "mode": "linear",
             "queries": have_query,
             "research_tree": None,
             "quality_summary": quality_summary,
+            "query_coverage": diagnostics.get("query_coverage", {}),
+            "freshness_summary": diagnostics.get("freshness_summary", {}),
         }
 
         # 保存数据
@@ -788,6 +831,12 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
                         "（由于预算限制提前收敛："
                         f"{budget_stop_reason}; tokens={tokens_used}; elapsed={elapsed:.2f}s）"
                     )
+                )
+            )
+        if diagnostics.get("freshness_warning"):
+            messages.append(
+                AIMessage(
+                    content="（时间敏感问题的新鲜来源占比较低，建议补充近30天来源并重试。）"
                 )
             )
 
@@ -983,6 +1032,7 @@ def run_deepsearch_tree(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[s
         save_path = _save_deepsearch_data(
             topic, have_query, summary_notes, search_runs, final_report, epoch=1,
         )
+        diagnostics = _build_quality_diagnostics(topic, have_query, search_runs)
         quality_summary = {
             "epochs_completed": 1,
             "summary_count": len(summary_notes),
@@ -991,12 +1041,15 @@ def run_deepsearch_tree(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[s
             "budget_stop_reason": budget_stop_reason or "",
             "tokens_used": tokens_used,
             "elapsed_seconds": elapsed,
+            **diagnostics,
         }
         deepsearch_artifacts = {
             "mode": "tree",
             "queries": have_query,
             "research_tree": tree.to_dict(),
             "quality_summary": quality_summary,
+            "query_coverage": diagnostics.get("query_coverage", {}),
+            "freshness_summary": diagnostics.get("freshness_summary", {}),
         }
 
         messages = [AIMessage(content=final_report)]
@@ -1004,6 +1057,10 @@ def run_deepsearch_tree(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[s
             messages.append(AIMessage(content=f"(数据已保存: {save_path})"))
         if budget_stop_reason:
             messages.append(AIMessage(content=f"（预算限制提示：{budget_stop_reason}）"))
+        if diagnostics.get("freshness_warning"):
+            messages.append(
+                AIMessage(content="（时间敏感问题的新鲜来源占比较低，建议补充近30天来源并重试。）")
+            )
 
         return {
             "research_plan": have_query,
