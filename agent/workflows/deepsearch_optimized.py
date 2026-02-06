@@ -28,6 +28,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
 from agent.core.llm_factory import create_chat_model
+from agent.workflows.domain_router import ResearchDomain, build_provider_profile
 
 # Import knowledge gap analysis
 from agent.workflows.knowledge_gap import KnowledgeGapAnalyzer
@@ -118,11 +119,37 @@ def _normalize_multi_search_results(results: List[Dict[str, Any]]) -> List[Dict[
     return normalized
 
 
-def _search_query(query: str, max_results: int, config: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _resolve_provider_profile(state: Dict[str, Any]) -> Optional[List[str]]:
+    """Build provider profile from domain routing metadata if present."""
+    domain_config = state.get("domain_config") or {}
+    suggested_sources = domain_config.get("suggested_sources", [])
+    domain_value = (state.get("domain") or domain_config.get("domain") or "general")
+    try:
+        domain = ResearchDomain(str(domain_value).strip().lower())
+    except ValueError:
+        domain = ResearchDomain.GENERAL
+
+    profile = build_provider_profile(suggested_sources=suggested_sources, domain=domain)
+    return profile or None
+
+
+def _search_query(
+    query: str,
+    max_results: int,
+    config: Dict[str, Any],
+    provider_profile: Optional[List[str]] = None,
+) -> List[Dict[str, Any]]:
     """Search with multi-provider orchestration first, then Tavily fallback."""
     strategy = _resolve_search_strategy()
     try:
-        multi_results = multi_search(query=query, max_results=max_results, strategy=strategy)
+        kwargs: Dict[str, Any] = {
+            "query": query,
+            "max_results": max_results,
+            "strategy": strategy,
+        }
+        if provider_profile:
+            kwargs["provider_profile"] = provider_profile
+        multi_results = multi_search(**kwargs)
         normalized = _normalize_multi_search_results(multi_results)
         if normalized:
             return normalized
@@ -415,6 +442,7 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
     have_query: List[str] = []
     summary_notes: List[str] = []
     search_runs: List[Dict[str, Any]] = []
+    provider_profile = _resolve_provider_profile(state)
 
     # URL deduplication mechanism - use set for O(1) lookup
     all_searched_urls: List[str] = []  # Ordered list for logging
@@ -457,7 +485,12 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
                 combined_results: List[Dict[str, Any]] = []
                 for q in queries:
                     _check_cancel(state)
-                    results = _search_query(q, per_query_results, config)
+                    results = _search_query(
+                        q,
+                        per_query_results,
+                        config,
+                        provider_profile=provider_profile,
+                    )
                     combined_results.extend(results)
                     search_runs.append(
                         {
@@ -684,6 +717,7 @@ def run_deepsearch_tree(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[s
         f"[deepsearch-tree] Starting tree exploration: topic='{topic}' "
         f"depth={max_depth} branches={max_branches} parallel={parallel_branches}"
     )
+    provider_profile = _resolve_provider_profile(state)
 
     start_ts = time.time()
 
@@ -697,6 +731,7 @@ def run_deepsearch_tree(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[s
                 (payload or {}).get("query", ""),
                 int((payload or {}).get("max_results", per_query_results)),
                 config_payload if isinstance(config_payload, dict) else config,
+                provider_profile=provider_profile,
             ),
             config=config,
             max_depth=max_depth,

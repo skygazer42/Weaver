@@ -25,6 +25,7 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
 from common.config import settings
+from tools.search.reliability import ProviderReliabilityManager, ReliabilityPolicy
 
 logger = logging.getLogger(__name__)
 
@@ -472,6 +473,7 @@ class MultiSearchOrchestrator:
         providers: Optional[List[SearchProvider]] = None,
         strategy: SearchStrategy = SearchStrategy.FALLBACK,
         similarity_threshold: float = 0.7,
+        reliability_manager: Optional[ProviderReliabilityManager] = None,
     ):
         """
         Initialize the orchestrator.
@@ -493,6 +495,9 @@ class MultiSearchOrchestrator:
         )
         self.freshness_weight = min(
             1.0, max(0.0, float(getattr(settings, "search_freshness_weight", 0.35)))
+        )
+        self.reliability_manager = reliability_manager or ProviderReliabilityManager(
+            ReliabilityPolicy()
         )
 
     def _init_default_providers(self) -> List[SearchProvider]:
@@ -544,6 +549,7 @@ class MultiSearchOrchestrator:
         query: str,
         max_results: int = 10,
         strategy: Optional[SearchStrategy] = None,
+        provider_profile: Optional[List[str]] = None,
     ) -> List[SearchResult]:
         """
         Execute a search using the configured strategy.
@@ -558,6 +564,7 @@ class MultiSearchOrchestrator:
         """
         strategy = strategy or self.strategy
         available = self.get_available_providers()
+        available = self._apply_provider_profile(available, provider_profile)
 
         if not available:
             logger.error("[MultiSearch] No available search providers")
@@ -574,6 +581,48 @@ class MultiSearchOrchestrator:
         else:
             return self._search_fallback(query, max_results, available)
 
+    def _apply_provider_profile(
+        self,
+        providers: List[SearchProvider],
+        provider_profile: Optional[List[str]],
+    ) -> List[SearchProvider]:
+        """Filter/reorder providers by requested profile while keeping safe fallback."""
+        if not provider_profile:
+            return providers
+
+        preferred = [str(name).strip().lower() for name in provider_profile if str(name).strip()]
+        if not preferred:
+            return providers
+
+        providers_by_name = {p.name.lower(): p for p in providers}
+        selected: List[SearchProvider] = []
+        for name in preferred:
+            provider = providers_by_name.get(name)
+            if provider and provider not in selected:
+                selected.append(provider)
+
+        if selected:
+            logger.info(f"[MultiSearch] Provider profile selected: {[p.name for p in selected]}")
+            return selected
+
+        logger.warning(
+            f"[MultiSearch] Provider profile had no available matches: {preferred}, "
+            "falling back to default provider pool"
+        )
+        return providers
+
+    def _call_provider(
+        self,
+        provider: SearchProvider,
+        query: str,
+        max_results: int,
+    ) -> List[SearchResult]:
+        """Call provider through reliability layer (retry + circuit breaker)."""
+        result = self.reliability_manager.call(
+            provider.name, lambda: provider.search(query, max_results)
+        )
+        return result if isinstance(result, list) else []
+
     def _search_fallback(
         self,
         query: str,
@@ -582,7 +631,7 @@ class MultiSearchOrchestrator:
     ) -> List[SearchResult]:
         """Try providers sequentially until success."""
         for provider in providers:
-            results = provider.search(query, max_results)
+            results = self._call_provider(provider, query, max_results)
             if results:
                 logger.info(f"[MultiSearch] Got {len(results)} results from {provider.name}")
                 return self._deduplicate_and_rank(results, max_results, query=query)
@@ -604,7 +653,7 @@ class MultiSearchOrchestrator:
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(providers)) as executor:
             futures = {
-                executor.submit(p.search, query, max_results): p
+                executor.submit(self._call_provider, p, query, max_results): p
                 for p in providers
             }
 
@@ -633,7 +682,7 @@ class MultiSearchOrchestrator:
         provider = providers[self._round_robin_index % len(providers)]
         self._round_robin_index += 1
 
-        results = provider.search(query, max_results)
+        results = self._call_provider(provider, query, max_results)
         if results:
             return self._deduplicate_and_rank(results, max_results, query=query)
 
@@ -803,6 +852,7 @@ def multi_search(
     query: str,
     max_results: int = 10,
     strategy: SearchStrategy = SearchStrategy.FALLBACK,
+    provider_profile: Optional[List[str]] = None,
 ) -> List[Dict[str, Any]]:
     """
     Convenience function for multi-provider search.
@@ -811,10 +861,16 @@ def multi_search(
         query: Search query
         max_results: Maximum number of results
         strategy: Search strategy to use
+        provider_profile: Optional ordered list of provider names to prioritize
 
     Returns:
         List of result dictionaries
     """
     orchestrator = get_search_orchestrator()
-    results = orchestrator.search(query, max_results, strategy)
+    results = orchestrator.search(
+        query=query,
+        max_results=max_results,
+        strategy=strategy,
+        provider_profile=provider_profile,
+    )
     return [r.to_dict() for r in results]
