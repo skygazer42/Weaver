@@ -40,6 +40,7 @@ class QualityReport:
     source_diversity_score: float = 0.0
     contradiction_free_score: float = 1.0
     citation_accuracy_score: float = 0.0
+    citation_coverage_score: float = 1.0
 
     verified_claims: List[ClaimVerification] = field(default_factory=list)
     contradictions: List[str] = field(default_factory=list)
@@ -55,6 +56,7 @@ class QualityReport:
             "source_diversity_score": self.source_diversity_score,
             "contradiction_free_score": self.contradiction_free_score,
             "citation_accuracy_score": self.citation_accuracy_score,
+            "citation_coverage_score": self.citation_coverage_score,
             "overall_score": self.overall_score,
             "verified_claims_count": len(self.verified_claims),
             "supported_claims": sum(1 for c in self.verified_claims if c.supported),
@@ -162,13 +164,21 @@ class QualityAssessor:
 
         # 4. Check citation accuracy
         quality.missing_citations, quality.citation_accuracy_score = self.check_citation_accuracy(report, all_urls)
+        coverage_missing, quality.citation_coverage_score = self.check_citation_coverage(report)
+        if coverage_missing:
+            merged_missing = quality.missing_citations + coverage_missing
+            # Keep first occurrence order stable while deduping.
+            quality.missing_citations = list(dict.fromkeys(merged_missing))
 
         # Calculate overall score
+        citation_quality = (
+            quality.citation_accuracy_score + quality.citation_coverage_score
+        ) / 2.0
         quality.overall_score = (
             quality.claim_support_score * 0.35 +
             quality.source_diversity_score * 0.2 +
             quality.contradiction_free_score * 0.25 +
-            quality.citation_accuracy_score * 0.2
+            citation_quality * 0.2
         )
 
         # Generate recommendations
@@ -355,6 +365,41 @@ class QualityAssessor:
 
         return [], 0.5
 
+    def check_citation_coverage(self, report: str) -> Tuple[List[str], float]:
+        """
+        Estimate citation coverage over claim-like sentences.
+
+        Returns:
+            Tuple of (uncited_claims, coverage_ratio)
+        """
+        if not report:
+            return [], 1.0
+
+        claim_like_sentences: List[str] = []
+        sentence_candidates = re.split(r"(?<=[。！？.!?])\s+", report)
+        claim_markers = [
+            r"\d{4}",
+            r"\d+%",
+            r"\d+\.\d+",
+            r"(?:research|study|report|data|according to|shows|found)",
+            r"(?:研究|数据显示|统计|报告|发现|增长|下降)",
+        ]
+
+        for sentence in sentence_candidates:
+            text = sentence.strip()
+            if len(text) < 15:
+                continue
+            if any(re.search(marker, text, flags=re.IGNORECASE) for marker in claim_markers):
+                claim_like_sentences.append(text)
+
+        if not claim_like_sentences:
+            return [], 1.0
+
+        citation_pattern = re.compile(r"\[(?:S\d+-\d+|\d+)\]|\[来源[：:].*?\]|https?://\S+", re.IGNORECASE)
+        uncited_claims = [s for s in claim_like_sentences if not citation_pattern.search(s)]
+        coverage = 1.0 - (len(uncited_claims) / max(1, len(claim_like_sentences)))
+        return uncited_claims[:5], max(0.0, min(1.0, coverage))
+
     def check_source_diversity(self, sources: List[str]) -> Tuple[List[str], float]:
         """
         Check diversity of source domains.
@@ -455,6 +500,8 @@ class QualityAssessor:
 
         if quality.citation_accuracy_score < 0.6:
             recommendations.append("改进引用格式，确保关键数据和事实都有明确来源标注")
+        if quality.citation_coverage_score < 0.6:
+            recommendations.append("提高引用覆盖率：为每个关键数据或结论补充明确引用标签")
 
         if not recommendations:
             recommendations.append("报告质量良好，可以进一步丰富细节和案例")

@@ -1371,11 +1371,29 @@ Provide specific, actionable feedback and search queries to address gaps.""",
             dimensions["claim_support"] = quality_report.claim_support_score
             dimensions["source_diversity"] = quality_report.source_diversity_score
             dimensions["contradiction_free"] = quality_report.contradiction_free_score
+            dimensions["citation_coverage"] = quality_report.citation_coverage_score
 
             # Adjust verdict if quality issues found
             if quality_report.overall_score < 0.5 and verdict == "pass":
                 verdict = "revise"
                 logger.info(f"Adjusted verdict due to quality issues: {quality_report.overall_score:.2f}")
+
+            citation_gate_threshold = float(
+                getattr(settings, "citation_gate_min_coverage", 0.6)
+            )
+            if (
+                verdict == "pass"
+                and quality_report.citation_coverage_score < citation_gate_threshold
+            ):
+                verdict = "revise"
+                logger.info(
+                    "Adjusted verdict due to citation gate: "
+                    f"{quality_report.citation_coverage_score:.2f} < {citation_gate_threshold:.2f}"
+                )
+                eval_summary += (
+                    f"\nCitation gate: coverage {quality_report.citation_coverage_score:.2f} "
+                    f"below threshold {citation_gate_threshold:.2f}."
+                )
 
             # Add quality recommendations to feedback
             if quality_report.recommendations:

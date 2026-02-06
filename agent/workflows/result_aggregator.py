@@ -15,6 +15,8 @@ from difflib import SequenceMatcher
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
+from agent.workflows.source_registry import SourceRegistry
+
 logger = logging.getLogger(__name__)
 
 
@@ -30,6 +32,8 @@ class SearchResult:
     score: float = 0.0
     source_idx: int = 0
     result_idx: int = 0
+    source_id: str = ""
+    canonical_url: str = ""
 
     @property
     def tag(self) -> str:
@@ -40,15 +44,19 @@ class SearchResult:
     def domain(self) -> str:
         """Extract domain from URL."""
         try:
-            return urlparse(self.url).netloc
+            base_url = self.canonical_url or self.url
+            return urlparse(base_url).netloc
         except Exception:
             return ""
 
     @property
     def url_hash(self) -> str:
         """Generate URL hash for deduplication."""
+        if self.source_id:
+            return self.source_id
         try:
-            normalized = urlparse(self.url)._replace(fragment="").geturl().lower().rstrip("/")
+            base_url = self.canonical_url or self.url
+            normalized = urlparse(base_url)._replace(fragment="").geturl().lower().rstrip("/")
         except Exception:
             normalized = self.url.lower().rstrip("/")
         return hashlib.md5(normalized.encode()).hexdigest()[:12]
@@ -106,7 +114,8 @@ class AggregatedResults:
                 blocks.append(f"   Query: {res.query}")
                 blocks.append(f"   {content_preview}")
                 blocks.append("")
-                sources.append(f"[{res.tag}] {res.title} - {res.url}")
+                display_url = res.canonical_url or res.url
+                sources.append(f"[{res.tag}] {res.title} - {display_url}")
 
         # Tier 2 - Supporting sources
         if self.tier_2:
@@ -118,14 +127,16 @@ class AggregatedResults:
                 blocks.append(f"[{res.tag}] **{res.title}** ({res.domain})")
                 blocks.append(f"   {content_preview}")
                 blocks.append("")
-                sources.append(f"[{res.tag}] {res.title} - {res.url}")
+                display_url = res.canonical_url or res.url
+                sources.append(f"[{res.tag}] {res.title} - {display_url}")
 
         # Tier 3 - Additional context (abbreviated)
         if self.tier_3:
             blocks.append("## Additional Sources")
             for res in self.tier_3[:max_tier_3]:
                 blocks.append(f"[{res.tag}] {res.title} ({res.domain})")
-                sources.append(f"[{res.tag}] {res.title} - {res.url}")
+                display_url = res.canonical_url or res.url
+                sources.append(f"[{res.tag}] {res.title} - {display_url}")
 
         return "\n".join(blocks), "\n".join(sources)
 
@@ -216,6 +227,7 @@ class ResultAggregator:
     def _normalize_results(self, scraped_content: List[Dict[str, Any]]) -> List[SearchResult]:
         """Convert raw scraped content to normalized SearchResult objects."""
         results: List[SearchResult] = []
+        source_registry = SourceRegistry()
 
         for idx, item in enumerate(scraped_content):
             query = item.get("query", "")
@@ -232,6 +244,10 @@ class ResultAggregator:
                 if not url or not content:
                     continue
 
+                source = source_registry.register(url=url, title=title)
+                canonical_url = source.canonical_url if source else url
+                source_id = source.source_id if source else ""
+
                 results.append(
                     SearchResult(
                         query=query,
@@ -241,6 +257,8 @@ class ResultAggregator:
                         timestamp=timestamp,
                         source_idx=idx,
                         result_idx=ridx,
+                        source_id=source_id,
+                        canonical_url=canonical_url,
                     )
                 )
 
