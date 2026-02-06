@@ -20,6 +20,8 @@ from urllib.parse import urlparse
 from langchain_core.language_models import BaseChatModel
 from langchain_core.prompts import ChatPromptTemplate
 
+from agent.workflows.claim_verifier import ClaimStatus, ClaimVerifier
+
 logger = logging.getLogger(__name__)
 
 
@@ -156,10 +158,31 @@ class QualityAssessor:
         quality.verified_claims = self.check_claims(report, scraped_content)
         if quality.verified_claims:
             supported = sum(1 for c in quality.verified_claims if c.supported)
-            quality.claim_support_score = supported / len(quality.verified_claims)
+            contradicted = sum(
+                1
+                for c in quality.verified_claims
+                if c.notes.strip().lower() == ClaimStatus.CONTRADICTED.value
+            )
+            quality.claim_support_score = max(
+                0.0,
+                (supported - 0.5 * contradicted) / len(quality.verified_claims),
+            )
+            if contradicted:
+                contradicted_claims = [
+                    c.claim
+                    for c in quality.verified_claims
+                    if c.notes.strip().lower() == ClaimStatus.CONTRADICTED.value
+                ]
+                quality.contradictions.extend(
+                    [
+                        f"Claim contradicted by collected evidence: {claim[:120]}"
+                        for claim in contradicted_claims[:3]
+                    ]
+                )
 
         # 3. Check contradictions
-        quality.contradictions = self.check_contradictions(report)
+        model_contradictions = self.check_contradictions(report)
+        quality.contradictions = list(dict.fromkeys(quality.contradictions + model_contradictions))
         quality.contradiction_free_score = 1.0 if not quality.contradictions else max(0, 1 - len(quality.contradictions) * 0.2)
 
         # 4. Check citation accuracy
@@ -209,29 +232,25 @@ class QualityAssessor:
         Returns:
             List of ClaimVerification results
         """
-        # Extract claims
-        extract_prompt = ChatPromptTemplate.from_messages([
-            ("user", CLAIM_EXTRACTION_PROMPT)
-        ])
-        msg = extract_prompt.format_messages(report=report[:8000])
-        response = self.llm.invoke(msg, config=self.config)
-        claims_text = getattr(response, "content", "") or ""
+        verifier = ClaimVerifier()
+        claim_checks = verifier.verify_report(
+            report=report,
+            scraped_content=scraped_content,
+            max_claims=max_claims,
+        )
 
-        claims = [c.strip() for c in claims_text.split("\n") if c.strip() and len(c) > 20]
-        claims = claims[:max_claims]
-
-        if not claims:
-            return []
-
-        # Build sources context
-        sources_context = self._build_sources_context(scraped_content)
-
-        # Verify each claim
-        verifications = []
-        for claim in claims:
-            verification = self._verify_claim(claim, sources_context)
-            verifications.append(verification)
-
+        verifications: List[ClaimVerification] = []
+        for check in claim_checks:
+            status = check.status.value
+            verifications.append(
+                ClaimVerification(
+                    claim=check.claim,
+                    supported=check.status == ClaimStatus.VERIFIED,
+                    supporting_sources=check.evidence_urls,
+                    confidence=min(1.0, check.score / 6.0) if check.score else 0.0,
+                    notes=status,
+                )
+            )
         return verifications
 
     def _verify_claim(self, claim: str, sources_context: str) -> ClaimVerification:
