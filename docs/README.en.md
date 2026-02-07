@@ -529,6 +529,10 @@ Start a new chat session with streaming response.
 
 `/api/events/{thread_id}` now emits typed SSE events (`event: <event_name>`) and includes
 resume cursor IDs (`id: <seq>`). Payload JSON keeps the `{type, data, ...}` envelope for backward compatibility.
+Client recommendation:
+- Prefer `addEventListener('<type>')` for typed events.
+- Also handle default `message` events and dispatch by envelope `type` as a fallback.
+- Treat `done` as the terminal event (`complete` can be supported as a compatibility alias).
 
 ### Cancel Endpoint
 

@@ -39,6 +39,19 @@ function parseEventPayload(raw: string): any {
   }
 }
 
+function parseEventEnvelope(raw: string): { type?: string; data?: any } {
+  try {
+    const parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object') return {}
+    if (typeof parsed.type === 'string' && parsed.data && typeof parsed.data === 'object') {
+      return { type: parsed.type, data: parsed.data }
+    }
+    return {}
+  } catch {
+    return {}
+  }
+}
+
 function normalizeSourceUrl(input: any): string {
   const raw = String(input || '').trim()
   if (!raw) return ''
@@ -203,10 +216,29 @@ export function useResearchProgress({
         setError('Connection lost')
       }
 
-      // Handle different event types
-      eventSource.addEventListener('research_node_start', (e) => {
-        try {
-          const data = parseEventPayload(e.data)
+      const dispatchTypedEvent = (type: string, data: any) => {
+        if (!type || !data || typeof data !== 'object') return
+        if (type === 'quality_update') {
+          mergeQuality(data)
+          return
+        }
+        if (type === 'research_tree_update') {
+          if (data.tree) {
+            setTree(data.tree)
+          }
+          mergeQuality(data.quality || data.eval_dimensions)
+          return
+        }
+        if (type === 'search') {
+          const newSources = collectNewSourceCount(data.results || [])
+          setStats(prev => ({
+            ...prev,
+            searchQueries: prev.searchQueries + 1,
+            totalSources: prev.totalSources + newSources,
+          }))
+          return
+        }
+        if (type === 'research_node_start') {
           addTimelineStep({
             id: data.node_id || `step-${Date.now()}`,
             title: data.topic || 'Researching...',
@@ -214,14 +246,9 @@ export function useResearchProgress({
             timestamp: new Date().toLocaleTimeString(),
           })
           setStats(prev => ({ ...prev, status: 'in_progress' }))
-        } catch (err) {
-          console.error('Failed to parse research_node_start:', err)
+          return
         }
-      })
-
-      eventSource.addEventListener('research_node_complete', (e) => {
-        try {
-          const data = parseEventPayload(e.data)
+        if (type === 'research_node_complete') {
           updateTimelineStep(data.node_id, {
             status: 'completed',
             sources: data.sources,
@@ -233,6 +260,27 @@ export function useResearchProgress({
             ...prev,
             totalSources: prev.totalSources + newSources,
           }))
+          return
+        }
+        if (type === 'done' || type === 'complete') {
+          setStats(prev => ({ ...prev, status: 'completed' }))
+        }
+      }
+
+      // Handle different event types
+      eventSource.addEventListener('research_node_start', (e) => {
+        try {
+          const data = parseEventPayload(e.data)
+          dispatchTypedEvent('research_node_start', data)
+        } catch (err) {
+          console.error('Failed to parse research_node_start:', err)
+        }
+      })
+
+      eventSource.addEventListener('research_node_complete', (e) => {
+        try {
+          const data = parseEventPayload(e.data)
+          dispatchTypedEvent('research_node_complete', data)
         } catch (err) {
           console.error('Failed to parse research_node_complete:', err)
         }
@@ -241,12 +289,7 @@ export function useResearchProgress({
       eventSource.addEventListener('search', (e) => {
         try {
           const data = parseEventPayload(e.data)
-          const newSources = collectNewSourceCount(data.results || [])
-          setStats(prev => ({
-            ...prev,
-            searchQueries: prev.searchQueries + 1,
-            totalSources: prev.totalSources + newSources,
-          }))
+          dispatchTypedEvent('search', data)
         } catch (err) {
           console.error('Failed to parse search event:', err)
         }
@@ -255,10 +298,7 @@ export function useResearchProgress({
       eventSource.addEventListener('research_tree_update', (e) => {
         try {
           const data = parseEventPayload(e.data)
-          if (data.tree) {
-            setTree(data.tree)
-          }
-          mergeQuality(data.quality || data.eval_dimensions)
+          dispatchTypedEvent('research_tree_update', data)
         } catch (err) {
           console.error('Failed to parse research_tree_update:', err)
         }
@@ -267,7 +307,7 @@ export function useResearchProgress({
       eventSource.addEventListener('quality_update', (e) => {
         try {
           const data = parseEventPayload(e.data)
-          mergeQuality(data)
+          dispatchTypedEvent('quality_update', data)
         } catch (err) {
           console.error('Failed to parse quality_update:', err)
         }
@@ -276,6 +316,19 @@ export function useResearchProgress({
       eventSource.addEventListener('complete', () => {
         setStats(prev => ({ ...prev, status: 'completed' }))
       })
+
+      eventSource.addEventListener('done', () => {
+        setStats(prev => ({ ...prev, status: 'completed' }))
+      })
+
+      // Fallback path: if proxies or middleware strip `event:` lines and we only
+      // get default message events, route by payload.type when possible.
+      eventSource.onmessage = (e) => {
+        const envelope = parseEventEnvelope(e.data)
+        if (envelope.type && envelope.data) {
+          dispatchTypedEvent(envelope.type, envelope.data)
+        }
+      }
 
       eventSource.addEventListener('error', (e) => {
         try {
