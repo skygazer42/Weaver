@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button'
 import { PanelLeft, Sun, Moon, ChevronDown, Check, LayoutPanelLeft, Settings } from 'lucide-react'
 import { useTheme } from '@/components/theme-provider'
 import { useI18n } from '@/lib/i18n/i18n-context'
-import { SettingsDialog } from '@/components/settings/SettingsDialog'
 import { cn } from '@/lib/utils'
 
 interface HeaderProps {
@@ -13,15 +12,23 @@ interface HeaderProps {
   onToggleSidebar: () => void
   selectedModel: string
   onModelChange: (model: string) => void
+  onOpenSettings: () => void
   onToggleArtifacts?: () => void
   hasArtifacts?: boolean
 }
 
-export function Header({ sidebarOpen, onToggleSidebar, selectedModel, onModelChange, onToggleArtifacts, hasArtifacts }: HeaderProps) {
+export function Header({
+  sidebarOpen,
+  onToggleSidebar,
+  selectedModel,
+  onModelChange,
+  onOpenSettings,
+  onToggleArtifacts,
+  hasArtifacts
+}: HeaderProps) {
   const { theme, setTheme } = useTheme()
   const { t } = useI18n()
   const [isModelOpen, setIsModelOpen] = useState(false)
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const toggleTheme = () => {
@@ -31,14 +38,25 @@ export function Header({ sidebarOpen, onToggleSidebar, selectedModel, onModelCha
 
   // Close dropdown when clicking outside
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
+    if (!isModelOpen) return
+
+    function handleClickOutside(event: PointerEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsModelOpen(false)
       }
     }
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [])
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setIsModelOpen(false)
+      }
+    }
+    document.addEventListener('pointerdown', handleClickOutside)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('pointerdown', handleClickOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [isModelOpen])
 
   const models = [
     // OpenAI 系列
@@ -139,20 +157,13 @@ export function Header({ sidebarOpen, onToggleSidebar, selectedModel, onModelCha
          <Button
            variant="ghost"
            size="icon"
-           onClick={() => setIsSettingsOpen(true)}
+           onClick={onOpenSettings}
            className="rounded-full hover:bg-muted/50"
          >
             <Settings className="h-5 w-5" />
             <span className="sr-only">Settings</span>
          </Button>
       </div>
-
-      <SettingsDialog
-        open={isSettingsOpen}
-        onOpenChange={setIsSettingsOpen}
-        selectedModel={selectedModel}
-        onModelChange={onModelChange}
-      />
     </header>
   )
 }

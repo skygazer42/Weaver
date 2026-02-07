@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState, useCallback, Suspense } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
@@ -16,8 +16,6 @@ import { useChatState } from '@/hooks/useChatState'
 import { useChatHistory } from '@/hooks/useChatHistory'
 import { useChatStream } from '@/hooks/useChatStream'
 import { filesToImageAttachments } from '@/lib/file-utils'
-import { Discover } from '@/components/views/Discover'
-import { Library } from '@/components/views/Library'
 import { LoadingSkeleton } from '@/components/ui/loading'
 
 // Dynamic imports for heavy components
@@ -37,6 +35,22 @@ const BrowserViewer = dynamic(
 const SettingsDialog = dynamic(
   () => import('@/components/settings/SettingsDialog').then(mod => ({ default: mod.SettingsDialog })),
   { ssr: false }
+)
+
+const Discover = dynamic(
+  () => import('@/components/views/Discover').then(mod => ({ default: mod.Discover })),
+  {
+    loading: () => <div className="h-full w-full p-6"><LoadingSkeleton className="h-full w-full" /></div>,
+    ssr: false
+  }
+)
+
+const Library = dynamic(
+  () => import('@/components/views/Library').then(mod => ({ default: mod.Library })),
+  {
+    loading: () => <div className="h-full w-full p-6"><LoadingSkeleton className="h-full w-full" /></div>,
+    ssr: false
+  }
 )
 
 export function Chat() {
@@ -229,7 +243,7 @@ export function Chat() {
   }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background text-foreground font-sans selection:bg-primary/20">
+    <div className="flex h-dvh w-full overflow-hidden bg-background text-foreground font-sans selection:bg-primary/20">
       {/* Sidebar */}
       <Sidebar
         isOpen={ui.sidebarOpen}
@@ -254,6 +268,7 @@ export function Chat() {
           onToggleSidebar={toggleSidebar}
           selectedModel={ui.selectedModel}
           onModelChange={setModel}
+          onOpenSettings={() => setSettings(true)}
           onToggleArtifacts={() => setMobileArtifacts(!ui.showMobileArtifacts)}
           hasArtifacts={artifacts.length > 0}
         />
