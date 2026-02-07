@@ -23,7 +23,6 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from langchain_core.messages import AIMessage
 from langchain_core.prompts import ChatPromptTemplate
@@ -45,6 +44,7 @@ from agent.workflows.query_strategy import (
 
 # Import tree-based research components
 from agent.workflows.research_tree import ResearchTree, TreeExplorer
+from agent.workflows.source_url_utils import compact_unique_sources
 from common.cancellation import check_cancellation as _check_cancel_token
 from common.config import settings
 from prompts.templates.deepsearch import (
@@ -66,20 +66,6 @@ _parse_list_output = parse_list_output
 _format_results = format_search_results
 
 _DEEPSEARCH_MODES = {"auto", "tree", "linear"}
-_TRACKING_QUERY_KEYS = {
-    "utm_source",
-    "utm_medium",
-    "utm_campaign",
-    "utm_term",
-    "utm_content",
-    "utm_id",
-    "gclid",
-    "fbclid",
-    "ref",
-    "ref_src",
-    "mc_cid",
-    "mc_eid",
-}
 
 
 def _check_cancel(state: Dict[str, Any]) -> None:
@@ -526,58 +512,7 @@ def _emit_event(emitter: Any, event_type: str, data: Dict[str, Any]) -> None:
 
 
 def _compact_search_results(results: List[Dict[str, Any]], limit: int = 5) -> List[Dict[str, Any]]:
-    compact: List[Dict[str, Any]] = []
-    seen_urls = set()
-    for item in results or []:
-        if not isinstance(item, dict):
-            continue
-        canonical_url = _canonicalize_source_url(item.get("url"))
-        if not canonical_url or canonical_url in seen_urls:
-            continue
-        seen_urls.add(canonical_url)
-        compact.append(
-            {
-                "title": item.get("title", ""),
-                "url": canonical_url,
-                "provider": item.get("provider", ""),
-                "published_date": item.get("published_date"),
-                "score": float(item.get("score", 0.0) or 0.0),
-            }
-        )
-        if len(compact) >= max(1, int(limit)):
-            break
-    return compact
-
-
-def _canonicalize_source_url(raw_url: Any) -> str:
-    url = str(raw_url or "").strip()
-    if not url:
-        return ""
-    try:
-        parsed = urlsplit(url)
-    except Exception:
-        return url
-    if not parsed.scheme or not parsed.netloc:
-        return url
-
-    normalized_query = urlencode(
-        [
-            (k, v)
-            for k, v in parse_qsl(parsed.query, keep_blank_values=True)
-            if str(k).lower() not in _TRACKING_QUERY_KEYS
-        ],
-        doseq=True,
-    )
-    normalized_path = parsed.path.rstrip("/")
-    return urlunsplit(
-        (
-            parsed.scheme.lower(),
-            parsed.netloc.lower(),
-            normalized_path,
-            normalized_query,
-            "",
-        )
-    )
+    return compact_unique_sources(results, limit=limit)
 
 
 def _provider_breakdown(results: List[Dict[str, Any]]) -> Dict[str, int]:

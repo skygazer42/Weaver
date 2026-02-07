@@ -5,7 +5,6 @@ import mimetypes
 import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, Union
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.prompts import ChatPromptTemplate
@@ -30,25 +29,11 @@ from tools.core.registry import get_global_registry, get_registered_tools
 from .agent_factory import build_tool_agent, build_writer_agent
 from .agent_tools import build_agent_tools
 from .deepsearch_optimized import run_deepsearch_auto
+from .source_url_utils import compact_unique_sources
 
 ENHANCED_TOOLS_AVAILABLE = True
 
 logger = logging.getLogger(__name__)
-
-_TRACKING_QUERY_KEYS = {
-    "utm_source",
-    "utm_medium",
-    "utm_campaign",
-    "utm_term",
-    "utm_content",
-    "utm_id",
-    "gclid",
-    "fbclid",
-    "ref",
-    "ref_src",
-    "mc_cid",
-    "mc_eid",
-}
 
 
 def check_cancellation(state: Union[AgentState, QueryState, Dict[str, Any]]) -> None:
@@ -88,76 +73,23 @@ def _build_compact_unique_source_preview(
     scraped_content: Any,
     limit: int,
 ) -> List[Dict[str, Any]]:
-    compact: List[Dict[str, Any]] = []
-    seen_urls = set()
-
-    def _append_source(item: Any) -> None:
-        if not isinstance(item, dict):
-            return
-        url = _canonicalize_source_url(item.get("url"))
-        if not url or url in seen_urls:
-            return
-        seen_urls.add(url)
-        compact.append(
-            {
-                "title": item.get("title", ""),
-                "url": url,
-                "provider": item.get("provider", ""),
-                "published_date": item.get("published_date"),
-                "score": float(item.get("score", 0.0) or 0.0),
-            }
-        )
+    candidates: List[Dict[str, Any]] = []
 
     for run in scraped_content or []:
-        if len(compact) >= limit:
-            break
         if not isinstance(run, dict):
             continue
 
         if run.get("url"):
-            _append_source(run)
+            candidates.append(run)
             continue
 
         results = run.get("results", [])
         if isinstance(results, list):
             for item in results:
-                _append_source(item)
-                if len(compact) >= limit:
-                    break
+                if isinstance(item, dict):
+                    candidates.append(item)
 
-    return compact
-
-
-def _canonicalize_source_url(raw_url: Any) -> str:
-    url = str(raw_url or "").strip()
-    if not url:
-        return ""
-    try:
-        parsed = urlsplit(url)
-    except Exception:
-        return url
-
-    if not parsed.scheme or not parsed.netloc:
-        return url
-
-    normalized_query = urlencode(
-        [
-            (k, v)
-            for k, v in parse_qsl(parsed.query, keep_blank_values=True)
-            if str(k).lower() not in _TRACKING_QUERY_KEYS
-        ],
-        doseq=True,
-    )
-    normalized_path = parsed.path.rstrip("/")
-    return urlunsplit(
-        (
-            parsed.scheme.lower(),
-            parsed.netloc.lower(),
-            normalized_path,
-            normalized_query,
-            "",
-        )
-    )
+    return compact_unique_sources(candidates, limit=limit)
 
 
 def _chat_model(
