@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, memo } from 'react'
+import Image from 'next/image'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import ReactMarkdown from 'react-markdown'
@@ -188,9 +189,12 @@ function ArtifactCard({ artifact, isFullscreen }: { artifact: Artifact, isFullsc
         {artifact.type === 'chart' && artifact.image ? (
           <div className="relative group/image">
              <div className="absolute inset-0 bg-black/0 group-hover/image:bg-black/5 transition-colors" />
-             <img
+             <Image
                 src={`data:image/png;base64,${artifact.image}`}
                 alt={artifact.title}
+                width={1400}
+                height={900}
+                unoptimized
                 className={cn("w-full object-contain bg-white", isFullscreen ? "h-auto max-h-[600px]" : "h-auto")}
              />
           </div>

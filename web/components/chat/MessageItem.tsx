@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, memo, useMemo, useCallback, useRef } from 'react'
+import Image from 'next/image'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
@@ -329,9 +330,12 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
                     {message.attachments.map((att, idx) => (
                       <div key={idx} className="rounded-md overflow-hidden border bg-background/60">
                         {att.preview ? (
-                          <img
+                          <Image
                             src={att.preview}
                             alt={att.name || `attachment-${idx}`}
+                            width={640}
+                            height={360}
+                            unoptimized
                             loading="lazy"
                             decoding="async"
                             className="w-full h-auto max-h-40 object-cover bg-white blur-sm transition-all duration-300"

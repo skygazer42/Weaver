@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { ArrowRight, Sparkles, TrendingUp, Code2, BookOpen } from 'lucide-react'
 import { useI18n } from '@/lib/i18n/i18n-context'
@@ -46,7 +47,7 @@ export function EmptyState({ selectedMode, onModeSelect, onStarterClick }: Empty
         <div className="relative group cursor-default">
             <div className="absolute inset-0 bg-primary/20 rounded-3xl blur-xl group-hover:blur-2xl transition-all duration-500 opacity-50" />
             <div className="relative h-24 w-24 rounded-3xl flex items-center justify-center shadow-xl shadow-primary/20 ring-1 ring-white/20 overflow-hidden bg-white">
-              <img src="/logo.png" alt="Weaver" className="h-20 w-20 object-contain" />
+              <Image src="/logo.png" alt="Weaver" width={80} height={80} className="h-20 w-20 object-contain" />
             </div>
         </div>
 

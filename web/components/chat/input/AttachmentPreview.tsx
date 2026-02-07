@@ -1,6 +1,7 @@
 'use client'
 
 import React, { memo } from 'react'
+import Image from 'next/image'
 import { X, File as FileIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -31,9 +32,12 @@ const PreviewItem = memo(function PreviewItem({
       <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-muted/50 border text-xs font-medium max-w-[200px] overflow-hidden">
         {isImage ? (
           <div className="h-8 w-8 rounded overflow-hidden flex-shrink-0 bg-background">
-            <img
+            <Image
               src={item.previewUrl}
               alt={`Preview of ${item.file.name}`}
+              width={32}
+              height={32}
+              unoptimized
               className="h-full w-full object-cover"
             />
           </div>

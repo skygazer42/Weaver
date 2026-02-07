@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useCallback } from 'react'
+import Image from 'next/image'
 import { Loader2, Globe, X, Maximize2, Minimize2, ExternalLink, Play, Pause, Camera } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { BrowserScreenshot } from '@/types/browser'
@@ -223,9 +224,12 @@ export function BrowserViewer({
             <div className="max-h-[60vh] min-h-[240px] overflow-auto">
               {/* Live stream mode */}
               {isLiveMode && liveImageUrl ? (
-                <img
+                <Image
                   src={liveImageUrl}
                   alt="Live browser view"
+                  width={1280}
+                  height={720}
+                  unoptimized
                   className="block w-full h-auto bg-white"
                 />
               ) : isLiveMode && isConnected ? (
@@ -237,9 +241,12 @@ export function BrowserViewer({
                 </div>
               ) : displayScreenshot ? (
                 /* Screenshot mode */
-                <img
+                <Image
                   src={displayScreenshot.url}
                   alt={`Browser screenshot - ${displayScreenshot.action || 'view'}`}
+                  width={1280}
+                  height={720}
+                  unoptimized
                   className="block w-full h-auto bg-white"
                   loading="lazy"
                 />
@@ -293,9 +300,12 @@ export function BrowserViewer({
                     )}
                     title={`${ss.action || 'Screenshot'} - ${new Date(ss.timestamp).toLocaleTimeString()}`}
                   >
-                    <img
+                    <Image
                       src={ss.url}
                       alt={`Screenshot ${index + 1}`}
+                      width={160}
+                      height={96}
+                      unoptimized
                       className="h-12 w-auto object-cover"
                       loading="lazy"
                     />
@@ -322,9 +332,12 @@ export function BrowserViewer({
           className="h-24 cursor-pointer hover:opacity-80 transition-opacity"
           onClick={toggleExpand}
         >
-          <img
-            src={isLiveMode && liveImageUrl ? liveImageUrl : displayScreenshot?.url || ''}
+          <Image
+            src={isLiveMode && liveImageUrl ? liveImageUrl : (displayScreenshot as BrowserScreenshot).url}
             alt="Browser preview"
+            width={480}
+            height={96}
+            unoptimized
             className="w-full h-full object-cover"
           />
         </div>
