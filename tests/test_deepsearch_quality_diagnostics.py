@@ -401,6 +401,129 @@ def test_deepsearch_search_event_respects_result_limit_setting(monkeypatch):
     assert len(search_events[0]["results"]) == 1
 
 
+def test_deepsearch_linear_complete_event_dedupes_canonical_source_urls(monkeypatch):
+    now = datetime.now(timezone.utc)
+    search_results = [
+        {
+            "title": "S1",
+            "url": "https://example.com/a?utm_source=mail",
+            "summary": "s1",
+            "score": 0.9,
+            "provider": "serper",
+            "published_date": (now - timedelta(days=1)).isoformat(),
+        },
+        {
+            "title": "S2",
+            "url": "https://EXAMPLE.com/a/",
+            "summary": "s2",
+            "score": 0.8,
+            "provider": "serper",
+            "published_date": (now - timedelta(days=2)).isoformat(),
+        },
+    ]
+
+    _patch_basics(monkeypatch, search_results)
+
+    emitted = []
+
+    class DummyEmitter:
+        def emit_sync(self, event_type, data):
+            event_name = event_type.value if hasattr(event_type, "value") else str(event_type)
+            emitted.append((event_name, data))
+
+    monkeypatch.setattr(
+        deepsearch_optimized, "_resolve_event_emitter", lambda state, config: DummyEmitter()
+    )
+
+    deepsearch_optimized.run_deepsearch_optimized(
+        {"input": "latest ai policy updates"},
+        config={"configurable": {"thread_id": "thread_test"}},
+    )
+
+    complete_events = [data for name, data in emitted if name == "research_node_complete"]
+    assert complete_events
+    urls = [src.get("url") for src in complete_events[-1].get("sources", [])]
+    assert urls == ["https://example.com/a"]
+
+
+def test_deepsearch_tree_complete_event_dedupes_canonical_source_urls(monkeypatch):
+    _patch_basics(monkeypatch, [])
+    monkeypatch.setattr(deepsearch_optimized.settings, "tree_parallel_branches", 0, raising=False)
+
+    class FakeNode:
+        def __init__(self):
+            self.id = "n1"
+            self.topic = "subtopic"
+            self.queries = ["tree query"]
+            self.findings = [
+                {
+                    "query": "tree query",
+                    "result": {
+                        "title": "Tree source A",
+                        "url": "https://example.com/tree?utm_source=feed",
+                        "provider": "serper",
+                        "published_date": datetime.now(timezone.utc).isoformat(),
+                    },
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                },
+                {
+                    "query": "tree query",
+                    "result": {
+                        "title": "Tree source B",
+                        "url": "https://EXAMPLE.com/tree/",
+                        "provider": "serper",
+                        "published_date": datetime.now(timezone.utc).isoformat(),
+                    },
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                },
+            ]
+
+    class FakeTree:
+        def __init__(self):
+            self.nodes = {"n1": FakeNode()}
+
+        def to_dict(self):
+            return {"id": "root", "children": ["n1"]}
+
+    class FakeTreeExplorer:
+        def __init__(self, *args, **kwargs):
+            self._tree = FakeTree()
+
+        def run(self, topic, state, decompose_root=True):
+            return self._tree
+
+        def get_final_summary(self):
+            return "tree summary"
+
+        def get_all_sources(self):
+            return ["https://example.com/tree?utm_source=feed", "https://EXAMPLE.com/tree/"]
+
+        def get_all_findings(self):
+            return self._tree.nodes["n1"].findings
+
+    emitted = []
+
+    class DummyEmitter:
+        def emit_sync(self, event_type, data):
+            event_name = event_type.value if hasattr(event_type, "value") else str(event_type)
+            emitted.append((event_name, data))
+
+    monkeypatch.setattr(deepsearch_optimized, "TreeExplorer", FakeTreeExplorer)
+    monkeypatch.setattr(
+        deepsearch_optimized, "_resolve_event_emitter", lambda state, config: DummyEmitter()
+    )
+
+    deepsearch_optimized.run_deepsearch_tree(
+        {"input": "latest ai policy updates"},
+        config={"configurable": {"thread_id": "thread_test"}},
+    )
+
+    complete_events = [data for name, data in emitted if name == "research_node_complete"]
+    assert complete_events
+    urls = [src.get("url") for src in complete_events[-1].get("sources", [])]
+    assert urls == ["https://example.com/tree"]
+
+
 def test_deepsearch_tree_budget_stop_includes_diagnostics(monkeypatch):
     _patch_basics(monkeypatch, [])
     monkeypatch.setattr(deepsearch_optimized.settings, "deepsearch_max_seconds", 0.0, raising=False)
