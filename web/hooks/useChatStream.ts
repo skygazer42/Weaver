@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { Message, Artifact, ToolInvocation, ImageAttachment } from '@/types/chat'
 import { getApiBaseUrl } from '@/lib/api'
 import { createAppError } from '@/lib/errors'
@@ -26,6 +26,13 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
   const pendingStatusRef = useRef<string>('')
   const statusTimerRef = useRef<NodeJS.Timeout | null>(null)
 
+  const clearPendingStatusTimer = useCallback(() => {
+    if (statusTimerRef.current) {
+      clearTimeout(statusTimerRef.current)
+      statusTimerRef.current = null
+    }
+  }, [])
+
   const throttledSetStatus = useCallback((text: string) => {
     const now = Date.now()
     if (now - lastStatusUpdateRef.current >= STATUS_THROTTLE_MS) {
@@ -44,6 +51,12 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
     }
   }, [])
 
+  useEffect(() => {
+    return () => {
+      clearPendingStatusTimer()
+    }
+  }, [clearPendingStatusTimer])
+
   // Use Set for O(1) artifact deduplication
   const artifactIdsRef = useRef(new Set<string>())
 
@@ -59,6 +72,7 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
         console.error('Cancel request failed', err)
       }
     }
+    clearPendingStatusTimer()
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
       abortControllerRef.current = null
@@ -66,7 +80,7 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
     setIsLoading(false)
     setCurrentStatus('Cancelled')
     setTimeout(() => setCurrentStatus(''), 3000)
-  }, [threadId])
+  }, [threadId, clearPendingStatusTimer])
 
   const processChat = useCallback(async (messageHistory: Message[], images?: ImageAttachment[]) => {
     setIsLoading(true)
@@ -100,13 +114,7 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
       }
 
       const threadHeader = response.headers.get('X-Thread-ID') || response.headers.get('x-thread-id')
-      console.log('[useChatStream] Response headers:', {
-        'X-Thread-ID': response.headers.get('X-Thread-ID'),
-        'x-thread-id': response.headers.get('x-thread-id'),
-        threadHeader
-      })
       if (threadHeader) {
-        console.log('[useChatStream] Setting threadId:', threadHeader)
         setThreadId(threadHeader)
       }
 
@@ -124,13 +132,29 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
         toolInvocations: [],
       }
 
-      console.log('[useChatStream] Creating assistant message:', {
-        id: assistantMessage.id,
-        role: assistantMessage.role,
-        currentMessagesCount: messages.length
-      })
-
       setMessages((prev) => [...prev, assistantMessage])
+
+      const upsertAssistantMessage = () => {
+        setMessages((prev) =>
+          prev.map((msg) => (msg.id === assistantMessage.id ? { ...assistantMessage } : msg)),
+        )
+      }
+      let assistantFlushTimer: NodeJS.Timeout | null = null
+      const flushAssistantMessage = () => {
+        if (assistantFlushTimer) {
+          clearTimeout(assistantFlushTimer)
+          assistantFlushTimer = null
+        }
+        upsertAssistantMessage()
+      }
+      const scheduleAssistantFlush = () => {
+        if (!assistantFlushTimer) {
+          assistantFlushTimer = setTimeout(() => {
+            assistantFlushTimer = null
+            upsertAssistantMessage()
+          }, 32)
+        }
+      }
 
       let interrupted = false
       while (true) {
@@ -149,24 +173,12 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
                 throttledSetStatus(data.data.text)
               } else if (data.type === 'text') {
                 assistantMessage.content += data.data.content
-                console.log('[useChatStream] Updating message (text):', {
-                  id: assistantMessage.id,
-                  role: assistantMessage.role,
-                  contentLength: assistantMessage.content.length
-                })
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === assistantMessage.id ? { ...assistantMessage } : msg
-                  )
-                )
+                scheduleAssistantFlush()
               } else if (data.type === 'message') {
                 assistantMessage.content = data.data.content
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === assistantMessage.id ? { ...assistantMessage } : msg
-                  )
-                )
+                flushAssistantMessage()
               } else if (data.type === 'interrupt') {
+                flushAssistantMessage()
                 interrupted = true
                 setPendingInterrupt(data.data)
                 const msg = data.data?.message || data.data?.prompts?.[0]?.message
@@ -193,18 +205,10 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
                   toolInvocation,
                 ]
 
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === assistantMessage.id ? { ...assistantMessage } : msg
-                  )
-                )
+                flushAssistantMessage()
               } else if (data.type === 'completion') {
                 assistantMessage.content = data.data.content
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === assistantMessage.id ? { ...assistantMessage } : msg
-                  )
-                )
+                flushAssistantMessage()
               } else if (data.type === 'artifact') {
                 const newArtifact = data.data as Artifact
                 // Use Set for O(1) deduplication
@@ -222,6 +226,8 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
         if (interrupted) break
       }
 
+      flushAssistantMessage()
+      clearPendingStatusTimer()
       setCurrentStatus('')
     } catch (error: unknown) {
       const appError = createAppError(error)
@@ -241,10 +247,11 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
 
       console.error('Chat error:', appError)
     } finally {
+      clearPendingStatusTimer()
       setIsLoading(false)
       abortControllerRef.current = null
     }
-  }, [selectedModel, searchMode])
+  }, [selectedModel, searchMode, throttledSetStatus, clearPendingStatusTimer])
 
   const handleApproveInterrupt = useCallback(async () => {
     if (!pendingInterrupt || !threadId) return

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef, useEffect, useMemo } from 'react'
+import React, { useState, useRef, useEffect, useMemo, memo } from 'react'
 import { Button } from '@/components/ui/button'
 import { PanelLeft, Sun, Moon, ChevronDown, Check, LayoutPanelLeft, Settings } from 'lucide-react'
 import { useTheme } from '@/components/theme-provider'
@@ -17,7 +17,7 @@ interface HeaderProps {
   hasArtifacts?: boolean
 }
 
-export function Header({
+export const Header = memo(function Header({
   sidebarOpen,
   onToggleSidebar,
   selectedModel,
@@ -163,4 +163,4 @@ export function Header({
       </div>
     </header>
   )
-}
+})

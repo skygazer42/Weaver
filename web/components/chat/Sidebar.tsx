@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useMemo, useState, useCallback } from 'react'
+import React, { useMemo, useState, useCallback, memo } from 'react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useI18n } from '@/lib/i18n/i18n-context'
@@ -28,7 +28,7 @@ interface SidebarProps {
   isLoading?: boolean
 }
 
-export function Sidebar({
+export const Sidebar = memo(function Sidebar({
     isOpen,
     onToggle,
     onNewChat,
@@ -270,7 +270,7 @@ export function Sidebar({
       </div>
     </>
   )
-}
+})
 
 function SidebarChatItem({
     item,
