@@ -38,6 +38,8 @@ def test_session_manager_build_resume_state_rehydrates_artifacts():
         "queries": ["q1", "q2", "q3"],
         "research_tree": {"nodes": {"root": {"topic": "AI"}}},
         "quality_summary": {"summary_count": 3},
+        "query_coverage": {"score": 0.75, "covered": 3, "total": 4},
+        "freshness_summary": {"known_count": 2, "fresh_count": 1, "fresh_ratio": 0.5},
     }
     state = {
         "route": "deep",
@@ -53,6 +55,8 @@ def test_session_manager_build_resume_state_rehydrates_artifacts():
     assert restored["research_plan"] == ["q1", "q2", "q3"]
     assert restored["research_tree"]["nodes"]["root"]["topic"] == "AI"
     assert restored["quality_summary"]["summary_count"] == 3
+    assert restored["query_coverage"]["score"] == 0.75
+    assert restored["freshness_summary"]["fresh_ratio"] == 0.5
     assert restored["resumed_from_checkpoint"] is True
 
 

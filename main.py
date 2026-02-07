@@ -1981,6 +1981,25 @@ async def resume_session(thread_id: str, request: ResumeRequest = None):
         queries = deepsearch_artifacts.get("queries", []) if isinstance(
             deepsearch_artifacts, dict
         ) else []
+        query_coverage = deepsearch_artifacts.get("query_coverage", {}) if isinstance(
+            deepsearch_artifacts, dict
+        ) else {}
+        freshness_summary = deepsearch_artifacts.get("freshness_summary", {}) if isinstance(
+            deepsearch_artifacts, dict
+        ) else {}
+        if not isinstance(query_coverage, dict):
+            query_coverage = {}
+        if not isinstance(freshness_summary, dict):
+            freshness_summary = {}
+        query_coverage_score = query_coverage.get("score")
+        if query_coverage_score is not None:
+            try:
+                query_coverage_score = float(query_coverage_score)
+            except (TypeError, ValueError):
+                query_coverage_score = None
+        freshness_warning = ""
+        if isinstance(quality_summary, dict):
+            freshness_warning = str(quality_summary.get("freshness_warning") or "")
 
         # Resume the graph execution
         # Note: Actual resumption depends on the graph implementation
@@ -2001,6 +2020,9 @@ async def resume_session(thread_id: str, request: ResumeRequest = None):
                 "artifacts_restored": bool(deepsearch_artifacts),
                 "mode": deepsearch_artifacts.get("mode") if isinstance(deepsearch_artifacts, dict) else None,
                 "quality_summary": quality_summary if isinstance(quality_summary, dict) else {},
+                "query_coverage_score": query_coverage_score,
+                "freshness_warning": freshness_warning,
+                "freshness_summary": freshness_summary,
             },
             "resume_state": {
                 "route": restored_state.get("route"),

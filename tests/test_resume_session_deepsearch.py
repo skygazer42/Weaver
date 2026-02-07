@@ -24,6 +24,8 @@ async def test_resume_session_returns_deepsearch_artifact_context(monkeypatch):
         "queries": ["q1", "q2"],
         "research_tree": {"nodes": {"root": {"topic": "AI"}}},
         "quality_summary": {"summary_count": 2, "source_count": 5},
+        "query_coverage": {"score": 0.8, "covered": 2, "total": 3},
+        "freshness_summary": {"known_count": 3, "fresh_count": 1, "fresh_ratio": 0.33},
     }
     state = SessionState(
         thread_id="thread-123",
@@ -72,4 +74,6 @@ async def test_resume_session_returns_deepsearch_artifact_context(monkeypatch):
     assert data["current_state"]["has_deepsearch_artifacts"] is True
     assert data["deepsearch_resume"]["artifacts_restored"] is True
     assert data["deepsearch_resume"]["mode"] == "tree"
+    assert data["deepsearch_resume"]["query_coverage_score"] == 0.8
+    assert data["deepsearch_resume"]["freshness_warning"] == ""
     assert data["resume_state"]["research_plan_count"] == 2

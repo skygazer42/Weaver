@@ -352,6 +352,10 @@ class SessionManager:
                 restored["research_tree"] = artifacts.get("research_tree")
             if artifacts.get("quality_summary") and not restored.get("quality_summary"):
                 restored["quality_summary"] = artifacts.get("quality_summary")
+            if artifacts.get("query_coverage") and not restored.get("query_coverage"):
+                restored["query_coverage"] = artifacts.get("query_coverage")
+            if artifacts.get("freshness_summary") and not restored.get("freshness_summary"):
+                restored["freshness_summary"] = artifacts.get("freshness_summary")
 
         restored["resumed_from_checkpoint"] = True
         restored["resumed_at"] = datetime.utcnow().isoformat()
@@ -427,7 +431,20 @@ class SessionManager:
                     "quality_overall_score": quality_overall_score,
                 }
 
-        if not queries and not research_tree and not quality_summary:
+        query_coverage = state.get("query_coverage")
+        if not isinstance(query_coverage, dict):
+            query_coverage = {}
+        freshness_summary = state.get("freshness_summary")
+        if not isinstance(freshness_summary, dict):
+            freshness_summary = {}
+
+        if (
+            not queries
+            and not research_tree
+            and not quality_summary
+            and not query_coverage
+            and not freshness_summary
+        ):
             return {}
 
         return {
@@ -437,6 +454,8 @@ class SessionManager:
             "queries": queries,
             "research_tree": research_tree,
             "quality_summary": quality_summary,
+            "query_coverage": query_coverage,
+            "freshness_summary": freshness_summary,
         }
 
 
