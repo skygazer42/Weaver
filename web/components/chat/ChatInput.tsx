@@ -1,15 +1,25 @@
 'use client'
 
 import React, { useRef, useEffect, useState, useCallback, memo } from 'react'
+import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { Send, Paperclip } from 'lucide-react'
 import { useI18n } from '@/lib/i18n/i18n-context'
 import { cn } from '@/lib/utils'
 import { createFilePreview } from '@/lib/file-utils'
-import { CommandPalette, getCommandTemplate } from './input/CommandPalette'
 import { ModeSelector } from './input/ModeSelector'
 import { AttachmentPreview } from './input/AttachmentPreview'
-import { AudioControls } from './input/AudioControls'
+import { getCommandTemplate } from './input/command-templates'
+
+const CommandPalette = dynamic(
+  () => import('./input/CommandPalette').then((mod) => ({ default: mod.CommandPalette })),
+  { ssr: false },
+)
+
+const AudioControls = dynamic(
+  () => import('./input/AudioControls').then((mod) => ({ default: mod.AudioControls })),
+  { ssr: false },
+)
 
 interface ChatInputProps {
   input: string
@@ -181,11 +191,13 @@ export const ChatInput = memo(function ChatInput({
     <div className="relative z-20 mx-auto w-full max-w-5xl px-4 pb-6">
       <div className="flex flex-col gap-2">
         {/* Command Menu */}
-        <CommandPalette
-          show={showCommandMenu}
-          onSelect={handleCommandSelect}
-          onClose={handleCommandClose}
-        />
+        {showCommandMenu ? (
+          <CommandPalette
+            show={showCommandMenu}
+            onSelect={handleCommandSelect}
+            onClose={handleCommandClose}
+          />
+        ) : null}
 
         {/* Mode Tabs */}
         <ModeSelector searchMode={searchMode} onModeChange={setSearchMode} />

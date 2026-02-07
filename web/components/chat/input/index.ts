@@ -1,4 +1,5 @@
 export { AudioControls } from './AudioControls'
-export { CommandPalette, getCommandTemplate } from './CommandPalette'
+export { CommandPalette } from './CommandPalette'
+export { getCommandTemplate } from './command-templates'
 export { ModeSelector } from './ModeSelector'
 export { AttachmentPreview } from './AttachmentPreview'

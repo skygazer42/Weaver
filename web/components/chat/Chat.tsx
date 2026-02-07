@@ -275,12 +275,14 @@ export function Chat() {
 
         {renderContent()}
 
-        <SettingsDialog
-          open={ui.showSettings}
-          onOpenChange={setSettings}
-          selectedModel={ui.selectedModel}
-          onModelChange={setModel}
-        />
+        {ui.showSettings ? (
+          <SettingsDialog
+            open={ui.showSettings}
+            onOpenChange={setSettings}
+            selectedModel={ui.selectedModel}
+            onModelChange={setModel}
+          />
+        ) : null}
 
         {/* Chat overlays - only in dashboard view */}
         {ui.currentView === 'dashboard' && (
