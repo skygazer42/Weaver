@@ -1343,7 +1343,7 @@ def run_deepsearch_auto(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[s
     mode = _resolve_deepsearch_mode(config)
 
     def _with_event_marker(result: Dict[str, Any]) -> Dict[str, Any]:
-        if isinstance(result, dict):
+        if isinstance(result, dict) and not bool(result.get("is_cancelled")):
             result.setdefault("_deepsearch_events_emitted", True)
         return result
 

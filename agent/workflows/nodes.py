@@ -596,7 +596,10 @@ def deepsearch_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]
 
         if emitter and isinstance(result, dict):
             try:
-                if not bool(result.get("_deepsearch_events_emitted")):
+                runner_events_emitted = bool(result.get("_deepsearch_events_emitted")) and not bool(
+                    result.get("is_cancelled")
+                )
+                if not runner_events_emitted:
                     quality_summary = result.get("quality_summary", {})
                     if isinstance(quality_summary, dict) and quality_summary:
                         payload = {"stage": "final", **quality_summary}
