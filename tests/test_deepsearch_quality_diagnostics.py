@@ -208,3 +208,68 @@ def test_deepsearch_emits_search_and_quality_update_events(monkeypatch):
     assert search_events[0]["count"] == len(search_results)
     assert search_events[0]["provider"] == "serper"
     assert "query_coverage_score" in quality_events[-1]
+
+
+def test_deepsearch_emits_epoch_lifecycle_events(monkeypatch):
+    now = datetime.now(timezone.utc)
+    search_results = [
+        {
+            "title": "Recent",
+            "url": "https://example.com/recent",
+            "summary": "recent",
+            "score": 0.8,
+            "provider": "serper",
+            "published_date": (now - timedelta(days=3)).isoformat(),
+        }
+    ]
+
+    _patch_basics(monkeypatch, search_results)
+
+    emitted = []
+
+    class DummyEmitter:
+        def emit_sync(self, event_type, data):
+            event_name = event_type.value if hasattr(event_type, "value") else str(event_type)
+            emitted.append((event_name, data))
+
+    monkeypatch.setattr(
+        deepsearch_optimized, "_resolve_event_emitter", lambda state, config: DummyEmitter()
+    )
+
+    deepsearch_optimized.run_deepsearch_optimized(
+        {"input": "latest ai policy updates"},
+        config={"configurable": {"thread_id": "thread_test"}},
+    )
+
+    start_events = [data for name, data in emitted if name == "research_node_start"]
+    complete_events = [data for name, data in emitted if name == "research_node_complete"]
+
+    assert start_events
+    assert complete_events
+    assert start_events[0]["node_id"] == "deepsearch_epoch_1"
+    assert complete_events[0]["node_id"] == "deepsearch_epoch_1"
+
+
+def test_deepsearch_emits_quality_update_even_when_epoch_has_no_results(monkeypatch):
+    _patch_basics(monkeypatch, [])
+
+    emitted = []
+
+    class DummyEmitter:
+        def emit_sync(self, event_type, data):
+            event_name = event_type.value if hasattr(event_type, "value") else str(event_type)
+            emitted.append((event_name, data))
+
+    monkeypatch.setattr(
+        deepsearch_optimized, "_resolve_event_emitter", lambda state, config: DummyEmitter()
+    )
+
+    deepsearch_optimized.run_deepsearch_optimized(
+        {"input": "latest ai policy updates"},
+        config={"configurable": {"thread_id": "thread_test"}},
+    )
+
+    quality_events = [data for name, data in emitted if name == "quality_update"]
+
+    assert quality_events
+    assert quality_events[0]["epoch"] == 1

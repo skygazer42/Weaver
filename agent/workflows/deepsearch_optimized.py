@@ -638,6 +638,18 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
                     logger.info(f"[deepsearch] 预算触发提前停止: {budget_stop_reason}")
                     break
                 logger.info(f"[deepsearch] ===== Epoch {epoch + 1}/{max_epochs} =====")
+                epoch_node_id = f"deepsearch_epoch_{epoch + 1}"
+                _emit_event(
+                    emitter,
+                    "research_node_start",
+                    {
+                        "node_id": epoch_node_id,
+                        "topic": topic,
+                        "depth": 1,
+                        "parent_id": "deepsearch",
+                        "epoch": epoch + 1,
+                    },
+                )
 
                 # ⏱️ Step 1: 生成查询 (利用知识空白分析结果)
                 query_start = time.time()
@@ -725,6 +737,26 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
 
                 if not combined_results:
                     logger.info(f"[deepsearch] Epoch {epoch + 1}: 无搜索结果，跳过本轮")
+                    epoch_diagnostics = _build_quality_diagnostics(topic, have_query, search_runs)
+                    _emit_event(
+                        emitter,
+                        "quality_update",
+                        {
+                            "epoch": epoch + 1,
+                            **epoch_diagnostics,
+                        },
+                    )
+                    _emit_event(
+                        emitter,
+                        "research_node_complete",
+                        {
+                            "node_id": epoch_node_id,
+                            "summary": "",
+                            "sources": [],
+                            "quality": epoch_diagnostics,
+                            "epoch": epoch + 1,
+                        },
+                    )
                     continue
 
                 # Step 3: Pick most relevant URLs (excluding already selected)
@@ -742,6 +774,26 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
                 if not chosen_urls:
                     logger.warning(
                         f"[deepsearch] Epoch {epoch + 1}: No new URLs available, skipping"
+                    )
+                    epoch_diagnostics = _build_quality_diagnostics(topic, have_query, search_runs)
+                    _emit_event(
+                        emitter,
+                        "quality_update",
+                        {
+                            "epoch": epoch + 1,
+                            **epoch_diagnostics,
+                        },
+                    )
+                    _emit_event(
+                        emitter,
+                        "research_node_complete",
+                        {
+                            "node_id": epoch_node_id,
+                            "summary": "",
+                            "sources": [],
+                            "quality": epoch_diagnostics,
+                            "epoch": epoch + 1,
+                        },
                     )
                     continue
 
@@ -842,6 +894,17 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
                     {
                         "epoch": epoch + 1,
                         **epoch_diagnostics,
+                    },
+                )
+                _emit_event(
+                    emitter,
+                    "research_node_complete",
+                    {
+                        "node_id": epoch_node_id,
+                        "summary": summary_text[:1200] if isinstance(summary_text, str) else "",
+                        "sources": _compact_search_results(chosen_results, limit=5),
+                        "quality": epoch_diagnostics,
+                        "epoch": epoch + 1,
                     },
                 )
 
