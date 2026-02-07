@@ -301,6 +301,8 @@ class Settings(BaseSettings):
     deepsearch_mode: str = "auto"  # auto | tree | linear
     deepsearch_max_seconds: float = 0.0  # 0 = disabled
     deepsearch_max_tokens: int = 0  # 0 = disabled
+    deepsearch_freshness_warning_min_known: int = 3  # minimum dated results before warning checks
+    deepsearch_freshness_warning_min_ratio: float = 0.4  # warn if fresh_30_ratio drops below this
 
     # Multi-Search Engine Config
     search_strategy: str = "fallback"  # fallback | parallel | round_robin | best_first

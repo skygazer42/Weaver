@@ -113,3 +113,46 @@ def test_time_sensitive_topics_trigger_low_freshness_warning(monkeypatch):
     assert quality["freshness_summary"]["known_count"] == 3
     assert quality["freshness_warning"] == "low_freshness_for_time_sensitive_query"
     assert any("新鲜来源占比较低" in (msg.content or "") for msg in messages)
+
+
+def test_freshness_warning_respects_min_known_threshold(monkeypatch):
+    now = datetime.now(timezone.utc)
+    search_results = [
+        {
+            "title": "Old1",
+            "url": "https://example.com/old1",
+            "summary": "old1",
+            "score": 0.8,
+            "published_date": (now - timedelta(days=320)).isoformat(),
+        },
+        {
+            "title": "Old2",
+            "url": "https://example.com/old2",
+            "summary": "old2",
+            "score": 0.7,
+            "published_date": (now - timedelta(days=480)).isoformat(),
+        },
+        {
+            "title": "Old3",
+            "url": "https://example.com/old3",
+            "summary": "old3",
+            "score": 0.65,
+            "published_date": (now - timedelta(days=220)).isoformat(),
+        },
+    ]
+
+    _patch_basics(monkeypatch, search_results)
+    monkeypatch.setattr(
+        deepsearch_optimized.settings, "deepsearch_freshness_warning_min_known", 5, raising=False
+    )
+
+    result = deepsearch_optimized.run_deepsearch_optimized(
+        {"input": "latest ai regulation updates"},
+        config={},
+    )
+
+    quality = result["quality_summary"]
+
+    assert quality["time_sensitive_query"] is True
+    assert quality["freshness_summary"]["known_count"] == 3
+    assert quality["freshness_warning"] == ""

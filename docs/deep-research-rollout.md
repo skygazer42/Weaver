@@ -101,6 +101,9 @@ DeepSearch now emits additional diagnostics in `quality_summary` and `deepsearch
 - `query_coverage_score` + `query_dimensions_covered/missing`
 - `freshness_summary` (7d/30d/180d buckets + known/unknown date counts)
 - `freshness_warning` for time-sensitive prompts when fresh-source ratio is too low
+- configurable thresholds:
+  - `DEEPSEARCH_FRESHNESS_WARNING_MIN_KNOWN` (default: `3`)
+  - `DEEPSEARCH_FRESHNESS_WARNING_MIN_RATIO` (default: `0.4`)
 
 Operational use:
 - Track low query coverage as an early signal of shallow planning.

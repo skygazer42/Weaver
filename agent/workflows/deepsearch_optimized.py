@@ -453,12 +453,19 @@ def _build_quality_diagnostics(topic: str, queries: List[str], search_runs: List
     query_coverage = analyze_query_coverage(queries)
     freshness_summary = summarize_freshness(search_runs)
     time_sensitive_query = is_time_sensitive_topic(topic)
+    min_known_results = max(
+        1, int(getattr(settings, "deepsearch_freshness_warning_min_known", 3) or 3)
+    )
+    min_fresh_ratio = max(
+        0.0,
+        min(1.0, float(getattr(settings, "deepsearch_freshness_warning_min_ratio", 0.4) or 0.4)),
+    )
 
     freshness_warning = ""
     if (
         time_sensitive_query
-        and freshness_summary.get("known_count", 0) >= 3
-        and freshness_summary.get("fresh_30_ratio", 0.0) < 0.4
+        and freshness_summary.get("known_count", 0) >= min_known_results
+        and freshness_summary.get("fresh_30_ratio", 0.0) < min_fresh_ratio
     ):
         freshness_warning = "low_freshness_for_time_sensitive_query"
 

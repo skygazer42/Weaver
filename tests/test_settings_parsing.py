@@ -109,3 +109,16 @@ def test_deepsearch_mode_normalizes_to_supported_values(raw, expected):
 
     s = Settings(_env_file=None, deepsearch_mode=raw)
     assert s.deepsearch_mode == expected
+
+
+def test_deepsearch_freshness_warning_threshold_settings_parse():
+    from common.config import Settings
+
+    s = Settings(
+        _env_file=None,
+        deepsearch_freshness_warning_min_known=5,
+        deepsearch_freshness_warning_min_ratio=0.55,
+    )
+
+    assert s.deepsearch_freshness_warning_min_known == 5
+    assert s.deepsearch_freshness_warning_min_ratio == 0.55
