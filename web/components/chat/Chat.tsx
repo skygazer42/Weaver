@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState, useCallback } from 'react'
 import dynamic from 'next/dynamic'
-import { Sidebar } from './Sidebar'
 import { Header } from './Header'
 import { EmptyState } from './EmptyState'
 import { ChatInput } from './ChatInput'
@@ -61,6 +60,23 @@ const ChatMessages = dynamic(
           <LoadingSkeleton className="h-20 w-full" />
           <LoadingSkeleton className="h-24 w-full" />
           <LoadingSkeleton className="h-16 w-2/3" />
+        </div>
+      </div>
+    ),
+    ssr: false
+  }
+)
+
+const Sidebar = dynamic(
+  () => import('./Sidebar').then(mod => ({ default: mod.Sidebar })),
+  {
+    loading: () => (
+      <div className="hidden md:flex w-[260px] border-r bg-card">
+        <div className="w-full p-3 space-y-2">
+          <LoadingSkeleton className="h-10 w-full" />
+          <LoadingSkeleton className="h-8 w-full" />
+          <LoadingSkeleton className="h-8 w-5/6" />
+          <LoadingSkeleton className="h-8 w-4/5" />
         </div>
       </div>
     ),
