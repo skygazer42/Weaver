@@ -5,6 +5,7 @@ import mimetypes
 import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, Union
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.prompts import ChatPromptTemplate
@@ -33,6 +34,21 @@ from .deepsearch_optimized import run_deepsearch_auto
 ENHANCED_TOOLS_AVAILABLE = True
 
 logger = logging.getLogger(__name__)
+
+_TRACKING_QUERY_KEYS = {
+    "utm_source",
+    "utm_medium",
+    "utm_campaign",
+    "utm_term",
+    "utm_content",
+    "utm_id",
+    "gclid",
+    "fbclid",
+    "ref",
+    "ref_src",
+    "mc_cid",
+    "mc_eid",
+}
 
 
 def check_cancellation(state: Union[AgentState, QueryState, Dict[str, Any]]) -> None:
@@ -78,7 +94,7 @@ def _build_compact_unique_source_preview(
     def _append_source(item: Any) -> None:
         if not isinstance(item, dict):
             return
-        url = str(item.get("url") or "").strip()
+        url = _canonicalize_source_url(item.get("url"))
         if not url or url in seen_urls:
             return
         seen_urls.add(url)
@@ -110,6 +126,38 @@ def _build_compact_unique_source_preview(
                     break
 
     return compact
+
+
+def _canonicalize_source_url(raw_url: Any) -> str:
+    url = str(raw_url or "").strip()
+    if not url:
+        return ""
+    try:
+        parsed = urlsplit(url)
+    except Exception:
+        return url
+
+    if not parsed.scheme or not parsed.netloc:
+        return url
+
+    normalized_query = urlencode(
+        [
+            (k, v)
+            for k, v in parse_qsl(parsed.query, keep_blank_values=True)
+            if str(k).lower() not in _TRACKING_QUERY_KEYS
+        ],
+        doseq=True,
+    )
+    normalized_path = parsed.path.rstrip("/")
+    return urlunsplit(
+        (
+            parsed.scheme.lower(),
+            parsed.netloc.lower(),
+            normalized_path,
+            normalized_query,
+            "",
+        )
+    )
 
 
 def _chat_model(

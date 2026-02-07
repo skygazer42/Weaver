@@ -216,3 +216,77 @@ def test_run_deepsearch_auto_sets_events_emitted_marker(monkeypatch):
 
     result = deepsearch_optimized.run_deepsearch_auto({"input": "test"}, {"configurable": {}})
     assert result["_deepsearch_events_emitted"] is True
+
+
+def test_deepsearch_node_dedupes_preview_urls_after_tracking_normalization(monkeypatch):
+    emitted = []
+
+    class DummyEmitter:
+        def emit_sync(self, event_type, data):
+            event_name = event_type.value if hasattr(event_type, "value") else str(event_type)
+            emitted.append((event_name, data))
+
+    def fake_auto(state, config):
+        return {
+            "final_report": "final report",
+            "quality_summary": {"query_coverage_score": 0.8},
+            "scraped_content": [
+                {
+                    "query": "q1",
+                    "results": [
+                        {"title": "A", "url": "https://example.com/a?utm_source=newsletter"},
+                        {"title": "A2", "url": "https://example.com/a/"},
+                    ],
+                }
+            ],
+        }
+
+    monkeypatch.setattr(nodes, "run_deepsearch_auto", fake_auto, raising=False)
+    monkeypatch.setattr(nodes, "get_emitter_sync", lambda _thread_id: DummyEmitter(), raising=False)
+
+    nodes.deepsearch_node(
+        {"input": "test topic", "cancel_token_id": "thread_test"},
+        {"configurable": {"thread_id": "thread_test"}},
+    )
+
+    complete_events = [data for name, data in emitted if name == "research_node_complete"]
+    assert complete_events
+    urls = [src.get("url") for src in complete_events[0].get("sources", [])]
+    assert urls == ["https://example.com/a"]
+
+
+def test_deepsearch_node_dedupes_preview_urls_with_case_insensitive_host(monkeypatch):
+    emitted = []
+
+    class DummyEmitter:
+        def emit_sync(self, event_type, data):
+            event_name = event_type.value if hasattr(event_type, "value") else str(event_type)
+            emitted.append((event_name, data))
+
+    def fake_auto(state, config):
+        return {
+            "final_report": "final report",
+            "quality_summary": {"query_coverage_score": 0.8},
+            "scraped_content": [
+                {
+                    "query": "q1",
+                    "results": [
+                        {"title": "A", "url": "https://EXAMPLE.com/b"},
+                        {"title": "B", "url": "https://example.com/b"},
+                    ],
+                }
+            ],
+        }
+
+    monkeypatch.setattr(nodes, "run_deepsearch_auto", fake_auto, raising=False)
+    monkeypatch.setattr(nodes, "get_emitter_sync", lambda _thread_id: DummyEmitter(), raising=False)
+
+    nodes.deepsearch_node(
+        {"input": "test topic", "cancel_token_id": "thread_test"},
+        {"configurable": {"thread_id": "thread_test"}},
+    )
+
+    complete_events = [data for name, data in emitted if name == "research_node_complete"]
+    assert complete_events
+    urls = [src.get("url") for src in complete_events[0].get("sources", [])]
+    assert urls == ["https://example.com/b"]
