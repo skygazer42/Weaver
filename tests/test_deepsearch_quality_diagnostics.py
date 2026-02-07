@@ -342,3 +342,59 @@ def test_deepsearch_tree_emits_search_quality_and_tree_events(monkeypatch):
     assert "search" in event_types
     assert "quality_update" in event_types
     assert "research_tree_update" in event_types
+
+
+def test_deepsearch_search_event_respects_result_limit_setting(monkeypatch):
+    now = datetime.now(timezone.utc)
+    search_results = [
+        {
+            "title": "S1",
+            "url": "https://example.com/1",
+            "summary": "s1",
+            "score": 0.9,
+            "provider": "serper",
+            "published_date": (now - timedelta(days=1)).isoformat(),
+        },
+        {
+            "title": "S2",
+            "url": "https://example.com/2",
+            "summary": "s2",
+            "score": 0.8,
+            "provider": "serper",
+            "published_date": (now - timedelta(days=2)).isoformat(),
+        },
+        {
+            "title": "S3",
+            "url": "https://example.com/3",
+            "summary": "s3",
+            "score": 0.7,
+            "provider": "serper",
+            "published_date": (now - timedelta(days=3)).isoformat(),
+        },
+    ]
+
+    _patch_basics(monkeypatch, search_results)
+    monkeypatch.setattr(
+        deepsearch_optimized.settings, "deepsearch_event_results_limit", 1, raising=False
+    )
+
+    emitted = []
+
+    class DummyEmitter:
+        def emit_sync(self, event_type, data):
+            event_name = event_type.value if hasattr(event_type, "value") else str(event_type)
+            emitted.append((event_name, data))
+
+    monkeypatch.setattr(
+        deepsearch_optimized, "_resolve_event_emitter", lambda state, config: DummyEmitter()
+    )
+
+    deepsearch_optimized.run_deepsearch_optimized(
+        {"input": "latest ai policy updates"},
+        config={"configurable": {"thread_id": "thread_test"}},
+    )
+
+    search_events = [data for name, data in emitted if name == "search"]
+
+    assert search_events
+    assert len(search_events[0]["results"]) == 1

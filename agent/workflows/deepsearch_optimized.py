@@ -539,6 +539,10 @@ def _provider_breakdown(results: List[Dict[str, Any]]) -> Dict[str, int]:
     return counts
 
 
+def _event_results_limit() -> int:
+    return max(1, min(20, int(getattr(settings, "deepsearch_event_results_limit", 5) or 5)))
+
+
 def _save_deepsearch_data(
     topic: str,
     have_query: List[str],
@@ -713,7 +717,7 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
                             "query": q,
                             "provider": provider_name,
                             "provider_breakdown": provider_breakdown,
-                            "results": _compact_search_results(results, limit=5),
+                            "results": _compact_search_results(results, limit=_event_results_limit()),
                             "count": len(results),
                             "epoch": epoch + 1,
                         },
@@ -902,7 +906,10 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
                     {
                         "node_id": epoch_node_id,
                         "summary": summary_text[:1200] if isinstance(summary_text, str) else "",
-                        "sources": _compact_search_results(chosen_results, limit=5),
+                        "sources": _compact_search_results(
+                            chosen_results,
+                            limit=_event_results_limit(),
+                        ),
                         "quality": epoch_diagnostics,
                         "epoch": epoch + 1,
                     },
@@ -1217,7 +1224,7 @@ def run_deepsearch_tree(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[s
                     "provider_breakdown": provider_breakdown,
                     "results": _compact_search_results(
                         results if isinstance(results, list) else [],
-                        limit=5,
+                        limit=_event_results_limit(),
                     ),
                     "count": len(results) if isinstance(results, list) else 0,
                     "mode": "tree",
@@ -1258,7 +1265,10 @@ def run_deepsearch_tree(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[s
             {
                 "node_id": "deepsearch_tree",
                 "summary": final_report[:1200] if isinstance(final_report, str) else "",
-                "sources": _compact_search_results([r.get("result", {}) for r in all_findings], limit=5),
+                "sources": _compact_search_results(
+                    [r.get("result", {}) for r in all_findings],
+                    limit=_event_results_limit(),
+                ),
                 "quality": diagnostics,
             },
         )

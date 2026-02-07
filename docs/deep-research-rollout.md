@@ -104,6 +104,7 @@ DeepSearch now emits additional diagnostics in `quality_summary` and `deepsearch
 - configurable thresholds:
   - `DEEPSEARCH_FRESHNESS_WARNING_MIN_KNOWN` (default: `3`)
   - `DEEPSEARCH_FRESHNESS_WARNING_MIN_RATIO` (default: `0.4`)
+  - `DEEPSEARCH_EVENT_RESULTS_LIMIT` (default: `5`, range: `1-20`)
 
 Operational use:
 - Track low query coverage as an early signal of shallow planning.

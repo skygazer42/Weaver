@@ -122,3 +122,10 @@ def test_deepsearch_freshness_warning_threshold_settings_parse():
 
     assert s.deepsearch_freshness_warning_min_known == 5
     assert s.deepsearch_freshness_warning_min_ratio == 0.55
+
+
+def test_deepsearch_event_results_limit_setting_parse():
+    from common.config import Settings
+
+    s = Settings(_env_file=None, deepsearch_event_results_limit=7)
+    assert s.deepsearch_event_results_limit == 7
