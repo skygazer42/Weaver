@@ -13,6 +13,7 @@ from langchain_openai import ChatOpenAI
 from langgraph.types import Send, interrupt
 from pydantic import BaseModel, Field
 
+from agent.core.events import ToolEventType, get_emitter_sync
 from agent.core.middleware import async_retry_call, enforce_tool_call_limit, retry_call
 from agent.core.processor_config import AgentProcessorConfig
 from agent.core.state import AgentState, QueryState, ResearchPlan
@@ -468,11 +469,78 @@ def coordinator_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any
 def deepsearch_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     """Deep search pipeline that iterates query → search → summarize."""
     logger.info("Executing deepsearch node")
+    cfg = _configurable(config)
+    thread_id = str(
+        cfg.get("thread_id")
+        or state.get("cancel_token_id")
+        or ""
+    ).strip()
+    emitter = None
+
+    if thread_id:
+        try:
+            emitter = get_emitter_sync(thread_id)
+            emitter.emit_sync(
+                ToolEventType.RESEARCH_NODE_START,
+                {
+                    "node_id": "deepsearch",
+                    "topic": state.get("input", "") or "DeepSearch",
+                    "depth": 0,
+                    "parent_id": None,
+                },
+            )
+        except Exception as e:
+            logger.debug(f"[deepsearch_node] failed to emit start event: {e}")
+
     try:
         token_id = state.get("cancel_token_id")
         if token_id:
             _check_cancellation(token_id)
-        return run_deepsearch_auto(state, config)
+        result = run_deepsearch_auto(state, config)
+
+        if emitter and isinstance(result, dict):
+            try:
+                quality_summary = result.get("quality_summary", {})
+                if isinstance(quality_summary, dict) and quality_summary:
+                    emitter.emit_sync(ToolEventType.QUALITY_UPDATE, quality_summary)
+
+                artifacts = result.get("deepsearch_artifacts", {})
+                research_tree = (
+                    artifacts.get("research_tree")
+                    if isinstance(artifacts, dict)
+                    else None
+                )
+                if isinstance(research_tree, dict) and research_tree:
+                    emitter.emit_sync(
+                        ToolEventType.RESEARCH_TREE_UPDATE,
+                        {
+                            "tree": research_tree,
+                            "quality": quality_summary if isinstance(quality_summary, dict) else {},
+                        },
+                    )
+
+                report_text = (
+                    result.get("final_report")
+                    or result.get("draft_report")
+                    or ""
+                )
+                report_preview = str(report_text).strip()
+                if len(report_preview) > 1200:
+                    report_preview = report_preview[:1200] + "..."
+
+                emitter.emit_sync(
+                    ToolEventType.RESEARCH_NODE_COMPLETE,
+                    {
+                        "node_id": "deepsearch",
+                        "summary": report_preview,
+                        "sources": [],
+                        "quality": quality_summary if isinstance(quality_summary, dict) else {},
+                    },
+                )
+            except Exception as e:
+                logger.debug(f"[deepsearch_node] failed to emit completion events: {e}")
+
+        return result
     except asyncio.CancelledError as e:
         return handle_cancellation(state, e)
     except Exception as e:

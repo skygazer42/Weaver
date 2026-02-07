@@ -71,6 +71,7 @@ class ToolEventType(str, Enum):
     RESEARCH_NODE_COMPLETE = "research_node_complete"  # Research node completed
     RESEARCH_TREE_UPDATE = "research_tree_update"  # Research tree structure updated
     SEARCH = "search"  # Search query executed with results
+    QUALITY_UPDATE = "quality_update"  # Research quality/coverage metrics updated
 
     # System events
     ERROR = "error"  # General error
@@ -106,8 +107,9 @@ class Event:
     def to_sse(self) -> str:
         """Convert event to SSE format string."""
         data = json.dumps(self.to_dict(), ensure_ascii=False)
-        # Include SSE id for browser resume support (Last-Event-ID).
-        return f"id: {self.seq}\ndata: {data}\n\n"
+        event_name = self.type.value if isinstance(self.type, Enum) else str(self.type)
+        # Include SSE id and event name for browser resume + typed listeners.
+        return f"id: {self.seq}\nevent: {event_name}\ndata: {data}\n\n"
 
 
 # Type alias for event listeners
@@ -411,6 +413,10 @@ class EventEmitter:
                 "count": len(results) if results else 0,
             },
         )
+
+    async def emit_quality_update(self, quality: Dict[str, Any]) -> Event:
+        """Convenience method to emit quality metric updates."""
+        return await self.emit(ToolEvent.QUALITY_UPDATE, quality or {})
 
     def get_buffered_events(self) -> List[Event]:
         """Get all buffered events for replay."""

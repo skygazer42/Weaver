@@ -27,6 +27,18 @@ interface UseResearchProgressOptions {
   enabled?: boolean
 }
 
+function parseEventPayload(raw: string): any {
+  try {
+    const parsed = JSON.parse(raw)
+    if (parsed && typeof parsed === 'object' && parsed.data && typeof parsed.data === 'object') {
+      return parsed.data
+    }
+    return parsed
+  } catch {
+    return {}
+  }
+}
+
 export function useResearchProgress({
   threadId,
   enabled = true,
@@ -124,7 +136,7 @@ export function useResearchProgress({
       // Handle different event types
       eventSource.addEventListener('research_node_start', (e) => {
         try {
-          const data = JSON.parse(e.data)
+          const data = parseEventPayload(e.data)
           addTimelineStep({
             id: data.node_id || `step-${Date.now()}`,
             title: data.topic || 'Researching...',
@@ -139,7 +151,7 @@ export function useResearchProgress({
 
       eventSource.addEventListener('research_node_complete', (e) => {
         try {
-          const data = JSON.parse(e.data)
+          const data = parseEventPayload(e.data)
           updateTimelineStep(data.node_id, {
             status: 'completed',
             sources: data.sources,
@@ -157,7 +169,7 @@ export function useResearchProgress({
 
       eventSource.addEventListener('search', (e) => {
         try {
-          const data = JSON.parse(e.data)
+          const data = parseEventPayload(e.data)
           setStats(prev => ({
             ...prev,
             searchQueries: prev.searchQueries + 1,
@@ -175,7 +187,7 @@ export function useResearchProgress({
 
       eventSource.addEventListener('research_tree_update', (e) => {
         try {
-          const data = JSON.parse(e.data)
+          const data = parseEventPayload(e.data)
           if (data.tree) {
             setTree(data.tree)
           }
@@ -187,7 +199,7 @@ export function useResearchProgress({
 
       eventSource.addEventListener('quality_update', (e) => {
         try {
-          const data = JSON.parse(e.data)
+          const data = parseEventPayload(e.data)
           mergeQuality(data)
         } catch (err) {
           console.error('Failed to parse quality_update:', err)
@@ -200,7 +212,7 @@ export function useResearchProgress({
 
       eventSource.addEventListener('error', (e) => {
         try {
-          const data = JSON.parse((e as MessageEvent).data)
+          const data = parseEventPayload((e as MessageEvent).data)
           setError(data.message || 'Research failed')
           setStats(prev => ({ ...prev, status: 'failed' }))
         } catch {

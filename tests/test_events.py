@@ -33,3 +33,4 @@ def test_sse_includes_id_line_for_resume():
     assert events
     sse = events[-1].to_sse()
     assert sse.startswith(f"id: {events[-1].seq}\n")
+    assert "event: tool_progress\n" in sse
