@@ -64,6 +64,54 @@ def handle_cancellation(state: AgentState, error: Exception) -> Dict[str, Any]:
     }
 
 
+def _event_results_limit() -> int:
+    return max(1, min(20, int(getattr(settings, "deepsearch_event_results_limit", 5) or 5)))
+
+
+def _build_compact_unique_source_preview(
+    scraped_content: Any,
+    limit: int,
+) -> List[Dict[str, Any]]:
+    compact: List[Dict[str, Any]] = []
+    seen_urls = set()
+
+    def _append_source(item: Any) -> None:
+        if not isinstance(item, dict):
+            return
+        url = str(item.get("url") or "").strip()
+        if not url or url in seen_urls:
+            return
+        seen_urls.add(url)
+        compact.append(
+            {
+                "title": item.get("title", ""),
+                "url": url,
+                "provider": item.get("provider", ""),
+                "published_date": item.get("published_date"),
+                "score": float(item.get("score", 0.0) or 0.0),
+            }
+        )
+
+    for run in scraped_content or []:
+        if len(compact) >= limit:
+            break
+        if not isinstance(run, dict):
+            continue
+
+        if run.get("url"):
+            _append_source(run)
+            continue
+
+        results = run.get("results", [])
+        if isinstance(results, list):
+            for item in results:
+                _append_source(item)
+                if len(compact) >= limit:
+                    break
+
+    return compact
+
+
 def _chat_model(
     model: str,
     temperature: float,
@@ -528,13 +576,22 @@ def deepsearch_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]
                 report_preview = str(report_text).strip()
                 if len(report_preview) > 1200:
                     report_preview = report_preview[:1200] + "..."
+                source_preview = _build_compact_unique_source_preview(
+                    result.get("scraped_content", []),
+                    limit=_event_results_limit(),
+                )
+                if not source_preview:
+                    source_preview = _build_compact_unique_source_preview(
+                        result.get("sources", []),
+                        limit=_event_results_limit(),
+                    )
 
                 emitter.emit_sync(
                     ToolEventType.RESEARCH_NODE_COMPLETE,
                     {
                         "node_id": "deepsearch",
                         "summary": report_preview,
-                        "sources": [],
+                        "sources": source_preview,
                         "quality": quality_summary if isinstance(quality_summary, dict) else {},
                     },
                 )
