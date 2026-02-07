@@ -57,38 +57,46 @@ export const ChatInput = memo(function ChatInput({
   const [showCommandMenu, setShowCommandMenu] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [previews, setPreviews] = useState<AttachmentPreviewItem[]>([])
+  const previewMapRef = useRef<Map<File, AttachmentPreviewItem>>(new Map())
 
   // Manage attachment previews
   useEffect(() => {
-    const newPreviews: AttachmentPreviewItem[] = []
+    const map = previewMapRef.current
+    const attachmentSet = new Set(attachments)
+    const nextPreviews: AttachmentPreviewItem[] = []
 
-    attachments.forEach(file => {
-      const existing = previews.find(p => p.file === file)
+    for (const file of attachments) {
+      const existing = map.get(file)
       if (existing) {
-        newPreviews.push(existing)
-      } else {
-        const { url, revoke } = createFilePreview(file)
-        newPreviews.push({ file, previewUrl: url, revoke })
+        nextPreviews.push(existing)
+        continue
       }
-    })
 
-    // Clean up removed previews
-    previews.forEach(p => {
-      if (!attachments.includes(p.file)) {
-        p.revoke()
+      const { url, revoke } = createFilePreview(file)
+      const created = { file, previewUrl: url, revoke }
+      map.set(file, created)
+      nextPreviews.push(created)
+    }
+
+    for (const [file, preview] of map.entries()) {
+      if (!attachmentSet.has(file)) {
+        preview.revoke()
+        map.delete(file)
       }
-    })
+    }
 
-    setPreviews(newPreviews)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setPreviews(nextPreviews)
   }, [attachments])
 
   // Cleanup on unmount
   useEffect(() => {
+    const previewMap = previewMapRef.current
     return () => {
-      previews.forEach(p => p.revoke())
+      for (const preview of previewMap.values()) {
+        preview.revoke()
+      }
+      previewMap.clear()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Auto-resize textarea

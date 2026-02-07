@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { PanelLeft, Sun, Moon, ChevronDown, Check, LayoutPanelLeft, Settings } from 'lucide-react'
 import { useTheme } from '@/components/theme-provider'
@@ -58,31 +58,28 @@ export function Header({
     }
   }, [isModelOpen])
 
-  const models = [
-    // OpenAI 系列
-    { id: 'gpt-5', name: 'GPT-5', provider: 'OpenAI' },
-    { id: 'gpt-4.1', name: 'GPT-4.1', provider: 'OpenAI' },
-    { id: 'gpt-4o', name: 'GPT-4o', provider: 'OpenAI' },
+  const models = useMemo(
+    () => [
+      { id: 'gpt-5', name: 'GPT-5', provider: 'OpenAI' },
+      { id: 'gpt-4.1', name: 'GPT-4.1', provider: 'OpenAI' },
+      { id: 'gpt-4o', name: 'GPT-4o', provider: 'OpenAI' },
+      { id: 'claude-sonnet-4-5-20250514', name: 'Claude Sonnet 4.5', provider: 'Anthropic' },
+      { id: 'claude-opus-4-20250514', name: 'Claude Opus 4', provider: 'Anthropic' },
+      { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', provider: 'Anthropic' },
+      { id: 'deepseek-chat', name: 'deepseek-chat', provider: t('deepseek') },
+      { id: 'deepseek-reasoner', name: 'deepseek-reasoner', provider: t('deepseek') },
+      { id: 'qwen-plus', name: 'qwen-plus', provider: t('qwen') },
+      { id: 'qwen3-vl-flash', name: 'qwen3-vl-flash 🖼️', provider: t('qwen') },
+      { id: 'glm-4.6', name: 'GLM-4.6', provider: t('zhipu') },
+      { id: 'glm-4.6v', name: 'glm-4.6v 🖼️', provider: t('zhipu') },
+    ],
+    [t],
+  )
 
-    // Anthropic 系列
-    { id: 'claude-sonnet-4-5-20250514', name: 'Claude Sonnet 4.5', provider: 'Anthropic' },
-    { id: 'claude-opus-4-20250514', name: 'Claude Opus 4', provider: 'Anthropic' },
-    { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', provider: 'Anthropic' },
-
-    // DeepSeek 系列
-    { id: 'deepseek-chat', name: 'deepseek-chat', provider: t('deepseek') },
-    { id: 'deepseek-reasoner', name: 'deepseek-reasoner', provider: t('deepseek') },
-
-    // 通义千问系列
-    { id: 'qwen-plus', name: 'qwen-plus', provider: t('qwen') },
-    { id: 'qwen3-vl-flash', name: 'qwen3-vl-flash 🖼️', provider: t('qwen') },
-
-    // 智谱 GLM 系列
-    { id: 'glm-4.6', name: 'GLM-4.6', provider: t('zhipu') },
-    { id: 'glm-4.6v', name: 'glm-4.6v 🖼️', provider: t('zhipu') },
-  ]
-
-  const currentModelName = models.find(m => m.id === selectedModel)?.name || selectedModel
+  const currentModelName = useMemo(
+    () => models.find((m) => m.id === selectedModel)?.name || selectedModel,
+    [models, selectedModel],
+  )
 
   return (
     <header className="flex h-16 items-center justify-between border-b px-4 bg-background/80 backdrop-blur-md sticky top-0 z-30 transition-all">
