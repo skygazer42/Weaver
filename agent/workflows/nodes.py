@@ -548,53 +548,54 @@ def deepsearch_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]
 
         if emitter and isinstance(result, dict):
             try:
-                quality_summary = result.get("quality_summary", {})
-                if isinstance(quality_summary, dict) and quality_summary:
-                    payload = {"stage": "final", **quality_summary}
-                    emitter.emit_sync(ToolEventType.QUALITY_UPDATE, payload)
+                if not bool(result.get("_deepsearch_events_emitted")):
+                    quality_summary = result.get("quality_summary", {})
+                    if isinstance(quality_summary, dict) and quality_summary:
+                        payload = {"stage": "final", **quality_summary}
+                        emitter.emit_sync(ToolEventType.QUALITY_UPDATE, payload)
 
-                artifacts = result.get("deepsearch_artifacts", {})
-                research_tree = (
-                    artifacts.get("research_tree")
-                    if isinstance(artifacts, dict)
-                    else None
-                )
-                if isinstance(research_tree, dict) and research_tree:
+                    artifacts = result.get("deepsearch_artifacts", {})
+                    research_tree = (
+                        artifacts.get("research_tree")
+                        if isinstance(artifacts, dict)
+                        else None
+                    )
+                    if isinstance(research_tree, dict) and research_tree:
+                        emitter.emit_sync(
+                            ToolEventType.RESEARCH_TREE_UPDATE,
+                            {
+                                "tree": research_tree,
+                                "quality": quality_summary if isinstance(quality_summary, dict) else {},
+                            },
+                        )
+
+                    report_text = (
+                        result.get("final_report")
+                        or result.get("draft_report")
+                        or ""
+                    )
+                    report_preview = str(report_text).strip()
+                    if len(report_preview) > 1200:
+                        report_preview = report_preview[:1200] + "..."
+                    source_preview = _build_compact_unique_source_preview(
+                        result.get("scraped_content", []),
+                        limit=_event_results_limit(),
+                    )
+                    if not source_preview:
+                        source_preview = _build_compact_unique_source_preview(
+                            result.get("sources", []),
+                            limit=_event_results_limit(),
+                        )
+
                     emitter.emit_sync(
-                        ToolEventType.RESEARCH_TREE_UPDATE,
+                        ToolEventType.RESEARCH_NODE_COMPLETE,
                         {
-                            "tree": research_tree,
+                            "node_id": "deepsearch",
+                            "summary": report_preview,
+                            "sources": source_preview,
                             "quality": quality_summary if isinstance(quality_summary, dict) else {},
                         },
                     )
-
-                report_text = (
-                    result.get("final_report")
-                    or result.get("draft_report")
-                    or ""
-                )
-                report_preview = str(report_text).strip()
-                if len(report_preview) > 1200:
-                    report_preview = report_preview[:1200] + "..."
-                source_preview = _build_compact_unique_source_preview(
-                    result.get("scraped_content", []),
-                    limit=_event_results_limit(),
-                )
-                if not source_preview:
-                    source_preview = _build_compact_unique_source_preview(
-                        result.get("sources", []),
-                        limit=_event_results_limit(),
-                    )
-
-                emitter.emit_sync(
-                    ToolEventType.RESEARCH_NODE_COMPLETE,
-                    {
-                        "node_id": "deepsearch",
-                        "summary": report_preview,
-                        "sources": source_preview,
-                        "quality": quality_summary if isinstance(quality_summary, dict) else {},
-                    },
-                )
             except Exception as e:
                 logger.debug(f"[deepsearch_node] failed to emit completion events: {e}")
 

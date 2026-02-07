@@ -1342,18 +1342,23 @@ def run_deepsearch_auto(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[s
     """
     mode = _resolve_deepsearch_mode(config)
 
+    def _with_event_marker(result: Dict[str, Any]) -> Dict[str, Any]:
+        if isinstance(result, dict):
+            result.setdefault("_deepsearch_events_emitted", True)
+        return result
+
     if mode == "tree":
         logger.info("[deepsearch] Using tree-based exploration mode (override)")
-        return run_deepsearch_tree(state, config)
+        return _with_event_marker(run_deepsearch_tree(state, config))
 
     if mode == "linear":
         logger.info("[deepsearch] Using linear exploration mode (override)")
-        return run_deepsearch_optimized(state, config)
+        return _with_event_marker(run_deepsearch_optimized(state, config))
 
     use_tree = getattr(settings, "tree_exploration_enabled", True)
     if use_tree:
         logger.info("[deepsearch] Using tree-based exploration mode")
-        return run_deepsearch_tree(state, config)
+        return _with_event_marker(run_deepsearch_tree(state, config))
 
     logger.info("[deepsearch] Using linear exploration mode")
-    return run_deepsearch_optimized(state, config)
+    return _with_event_marker(run_deepsearch_optimized(state, config))
