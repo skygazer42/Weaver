@@ -747,6 +747,7 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
                         "quality_update",
                         {
                             "epoch": epoch + 1,
+                            "stage": "epoch",
                             **epoch_diagnostics,
                         },
                     )
@@ -785,6 +786,7 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
                         "quality_update",
                         {
                             "epoch": epoch + 1,
+                            "stage": "epoch",
                             **epoch_diagnostics,
                         },
                     )
@@ -897,6 +899,7 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
                     "quality_update",
                     {
                         "epoch": epoch + 1,
+                        "stage": "epoch",
                         **epoch_diagnostics,
                     },
                 )
@@ -1095,7 +1098,7 @@ def run_deepsearch_tree(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[s
             "elapsed_seconds": 0.0,
             **diagnostics,
         }
-        _emit_event(emitter, "quality_update", {"epoch": 0, **diagnostics})
+        _emit_event(emitter, "quality_update", {"epoch": 0, "stage": "budget_stop", **diagnostics})
         _emit_event(
             emitter,
             "research_node_complete",
@@ -1266,7 +1269,7 @@ def run_deepsearch_tree(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[s
             "query_coverage": diagnostics.get("query_coverage", {}),
             "freshness_summary": diagnostics.get("freshness_summary", {}),
         }
-        _emit_event(emitter, "quality_update", {"epoch": 1, **diagnostics})
+        _emit_event(emitter, "quality_update", {"epoch": 1, "stage": "final", **diagnostics})
         _emit_event(
             emitter,
             "research_tree_update",

@@ -502,7 +502,8 @@ def deepsearch_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]
             try:
                 quality_summary = result.get("quality_summary", {})
                 if isinstance(quality_summary, dict) and quality_summary:
-                    emitter.emit_sync(ToolEventType.QUALITY_UPDATE, quality_summary)
+                    payload = {"stage": "final", **quality_summary}
+                    emitter.emit_sync(ToolEventType.QUALITY_UPDATE, payload)
 
                 artifacts = result.get("deepsearch_artifacts", {})
                 research_tree = (

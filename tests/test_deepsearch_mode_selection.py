@@ -76,3 +76,6 @@ def test_deepsearch_node_emits_visualization_events(monkeypatch):
     assert "quality_update" in event_types
     assert "research_tree_update" in event_types
     assert event_types[-1] == "research_node_complete"
+    quality_events = [data for name, data in emitted if name == "quality_update"]
+    assert quality_events
+    assert quality_events[0].get("stage") == "final"

@@ -208,6 +208,7 @@ def test_deepsearch_emits_search_and_quality_update_events(monkeypatch):
     assert search_events[0]["count"] == len(search_results)
     assert search_events[0]["provider"] == "serper"
     assert "query_coverage_score" in quality_events[-1]
+    assert any(event.get("stage") == "epoch" for event in quality_events)
 
 
 def test_deepsearch_emits_epoch_lifecycle_events(monkeypatch):
@@ -443,6 +444,9 @@ def test_deepsearch_tree_budget_stop_emits_quality_event(monkeypatch):
     )
 
     event_types = [name for name, _ in emitted]
+    quality_events = [data for name, data in emitted if name == "quality_update"]
 
     assert "quality_update" in event_types
     assert "research_node_complete" in event_types
+    assert quality_events
+    assert quality_events[0].get("stage") == "budget_stop"
