@@ -1055,6 +1055,17 @@ def run_deepsearch_tree(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[s
         f"depth={max_depth} branches={max_branches} parallel={parallel_branches}"
     )
     provider_profile = _resolve_provider_profile(state)
+    emitter = _resolve_event_emitter(state, config)
+    _emit_event(
+        emitter,
+        "research_node_start",
+        {
+            "node_id": "deepsearch_tree",
+            "topic": topic,
+            "depth": 0,
+            "parent_id": "deepsearch",
+        },
+    )
 
     start_ts = time.time()
     budget_stop_reason = ""
@@ -1189,6 +1200,31 @@ def run_deepsearch_tree(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[s
             topic, have_query, summary_notes, search_runs, final_report, epoch=1,
         )
         diagnostics = _build_quality_diagnostics(topic, have_query, search_runs)
+        for run in search_runs:
+            results = run.get("results") if isinstance(run, dict) else []
+            provider_breakdown = _provider_breakdown(results if isinstance(results, list) else [])
+            provider_name = "unknown"
+            if len(provider_breakdown) > 1:
+                provider_name = "multi"
+            elif len(provider_breakdown) == 1:
+                provider_name = next(iter(provider_breakdown))
+            _emit_event(
+                emitter,
+                "search",
+                {
+                    "query": run.get("query", "") if isinstance(run, dict) else "",
+                    "provider": provider_name,
+                    "provider_breakdown": provider_breakdown,
+                    "results": _compact_search_results(
+                        results if isinstance(results, list) else [],
+                        limit=5,
+                    ),
+                    "count": len(results) if isinstance(results, list) else 0,
+                    "mode": "tree",
+                    "epoch": 1,
+                },
+            )
+
         quality_summary = {
             "epochs_completed": 1,
             "summary_count": len(summary_notes),
@@ -1207,6 +1243,25 @@ def run_deepsearch_tree(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[s
             "query_coverage": diagnostics.get("query_coverage", {}),
             "freshness_summary": diagnostics.get("freshness_summary", {}),
         }
+        _emit_event(emitter, "quality_update", {"epoch": 1, **diagnostics})
+        _emit_event(
+            emitter,
+            "research_tree_update",
+            {
+                "tree": tree.to_dict(),
+                "quality": diagnostics,
+            },
+        )
+        _emit_event(
+            emitter,
+            "research_node_complete",
+            {
+                "node_id": "deepsearch_tree",
+                "summary": final_report[:1200] if isinstance(final_report, str) else "",
+                "sources": _compact_search_results([r.get("result", {}) for r in all_findings], limit=5),
+                "quality": diagnostics,
+            },
+        )
 
         messages = [AIMessage(content=final_report)]
         if save_path:

@@ -273,3 +273,72 @@ def test_deepsearch_emits_quality_update_even_when_epoch_has_no_results(monkeypa
 
     assert quality_events
     assert quality_events[0]["epoch"] == 1
+
+
+def test_deepsearch_tree_emits_search_quality_and_tree_events(monkeypatch):
+    _patch_basics(monkeypatch, [])
+    monkeypatch.setattr(deepsearch_optimized.settings, "tree_parallel_branches", 0, raising=False)
+
+    class FakeNode:
+        def __init__(self):
+            self.id = "n1"
+            self.topic = "subtopic"
+            self.queries = ["tree query"]
+            self.findings = [
+                {
+                    "query": "tree query",
+                    "result": {
+                        "title": "Tree source",
+                        "url": "https://example.com/tree",
+                        "provider": "serper",
+                        "published_date": datetime.now(timezone.utc).isoformat(),
+                    },
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+            ]
+
+    class FakeTree:
+        def __init__(self):
+            self.nodes = {"n1": FakeNode()}
+
+        def to_dict(self):
+            return {"id": "root", "children": ["n1"]}
+
+    class FakeTreeExplorer:
+        def __init__(self, *args, **kwargs):
+            self._tree = FakeTree()
+
+        def run(self, topic, state, decompose_root=True):
+            return self._tree
+
+        def get_final_summary(self):
+            return "tree summary"
+
+        def get_all_sources(self):
+            return ["https://example.com/tree"]
+
+        def get_all_findings(self):
+            return self._tree.nodes["n1"].findings
+
+    emitted = []
+
+    class DummyEmitter:
+        def emit_sync(self, event_type, data):
+            event_name = event_type.value if hasattr(event_type, "value") else str(event_type)
+            emitted.append((event_name, data))
+
+    monkeypatch.setattr(deepsearch_optimized, "TreeExplorer", FakeTreeExplorer)
+    monkeypatch.setattr(
+        deepsearch_optimized, "_resolve_event_emitter", lambda state, config: DummyEmitter()
+    )
+
+    result = deepsearch_optimized.run_deepsearch_tree(
+        {"input": "latest ai policy updates"},
+        config={"configurable": {"thread_id": "thread_test"}},
+    )
+
+    event_types = [name for name, _ in emitted]
+    assert result["deepsearch_mode"] == "tree"
+    assert "search" in event_types
+    assert "quality_update" in event_types
+    assert "research_tree_update" in event_types
