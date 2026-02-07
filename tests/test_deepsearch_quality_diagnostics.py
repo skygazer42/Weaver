@@ -398,3 +398,51 @@ def test_deepsearch_search_event_respects_result_limit_setting(monkeypatch):
 
     assert search_events
     assert len(search_events[0]["results"]) == 1
+
+
+def test_deepsearch_tree_budget_stop_includes_diagnostics(monkeypatch):
+    _patch_basics(monkeypatch, [])
+    monkeypatch.setattr(deepsearch_optimized.settings, "deepsearch_max_seconds", 0.0, raising=False)
+    monkeypatch.setattr(deepsearch_optimized.settings, "deepsearch_max_tokens", 1, raising=False)
+
+    result = deepsearch_optimized.run_deepsearch_tree(
+        {"input": "latest ai policy updates"},
+        config={"configurable": {"thread_id": "thread_test"}},
+    )
+
+    quality = result["quality_summary"]
+    artifacts = result["deepsearch_artifacts"]
+
+    assert result["deepsearch_mode"] == "tree"
+    assert quality["budget_stop_reason"] == "token_budget_exceeded"
+    assert "query_coverage_score" in quality
+    assert "freshness_summary" in quality
+    assert "query_coverage" in artifacts
+    assert "freshness_summary" in artifacts
+
+
+def test_deepsearch_tree_budget_stop_emits_quality_event(monkeypatch):
+    _patch_basics(monkeypatch, [])
+    monkeypatch.setattr(deepsearch_optimized.settings, "deepsearch_max_seconds", 0.0, raising=False)
+    monkeypatch.setattr(deepsearch_optimized.settings, "deepsearch_max_tokens", 1, raising=False)
+
+    emitted = []
+
+    class DummyEmitter:
+        def emit_sync(self, event_type, data):
+            event_name = event_type.value if hasattr(event_type, "value") else str(event_type)
+            emitted.append((event_name, data))
+
+    monkeypatch.setattr(
+        deepsearch_optimized, "_resolve_event_emitter", lambda state, config: DummyEmitter()
+    )
+
+    deepsearch_optimized.run_deepsearch_tree(
+        {"input": "latest ai policy updates"},
+        config={"configurable": {"thread_id": "thread_test"}},
+    )
+
+    event_types = [name for name, _ in emitted]
+
+    assert "quality_update" in event_types
+    assert "research_node_complete" in event_types

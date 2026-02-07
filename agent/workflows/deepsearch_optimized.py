@@ -1085,6 +1085,7 @@ def run_deepsearch_tree(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[s
         max_tokens=max_tokens,
     )
     if budget_stop_reason:
+        diagnostics = _build_quality_diagnostics(topic, [], [])
         quality_summary = {
             "epochs_completed": 0,
             "summary_count": 0,
@@ -1092,7 +1093,20 @@ def run_deepsearch_tree(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[s
             "budget_stop_reason": budget_stop_reason,
             "tokens_used": tokens_used,
             "elapsed_seconds": 0.0,
+            **diagnostics,
         }
+        _emit_event(emitter, "quality_update", {"epoch": 0, **diagnostics})
+        _emit_event(
+            emitter,
+            "research_node_complete",
+            {
+                "node_id": "deepsearch_tree",
+                "summary": "",
+                "sources": [],
+                "quality": diagnostics,
+                "epoch": 0,
+            },
+        )
         return {
             "research_plan": [],
             "scraped_content": [],
@@ -1111,6 +1125,8 @@ def run_deepsearch_tree(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[s
                 "queries": [],
                 "research_tree": None,
                 "quality_summary": quality_summary,
+                "query_coverage": diagnostics.get("query_coverage", {}),
+                "freshness_summary": diagnostics.get("freshness_summary", {}),
             },
             "deepsearch_mode": "tree",
         }
