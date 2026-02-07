@@ -12,6 +12,8 @@ interface SourceInspectorProps {
   className?: string
 }
 
+type SortBy = 'fresh_new' | 'fresh_old' | 'domain'
+
 function normalizeDomain(url: string): string {
   try {
     const parsed = new URL(url)
@@ -44,6 +46,20 @@ function freshnessLabel(source: MessageSource): string {
   return 'stale'
 }
 
+function freshnessDays(source: MessageSource): number | null {
+  if (typeof source.freshnessDays === 'number' && Number.isFinite(source.freshnessDays)) {
+    return Math.max(0, source.freshnessDays)
+  }
+  if (!source.publishedDate) {
+    return null
+  }
+  const ts = Date.parse(source.publishedDate)
+  if (Number.isNaN(ts)) {
+    return null
+  }
+  return Math.max(0, (Date.now() - ts) / (1000 * 60 * 60 * 24))
+}
+
 export function SourceInspector({
   sources,
   activeCitation,
@@ -52,17 +68,20 @@ export function SourceInspector({
 }: SourceInspectorProps) {
   const [domainFilter, setDomainFilter] = useState('all')
   const [providerFilter, setProviderFilter] = useState('all')
+  const [sortBy, setSortBy] = useState<SortBy>('fresh_new')
 
   const normalizedSources = useMemo(() => {
     return sources.map((source, idx) => {
       const domain = source.domain || normalizeDomain(source.url)
       const provider = source.provider || 'unknown'
+      const ageDays = freshnessDays(source)
       return {
         ...source,
         domain,
         provider,
         citation: String(idx + 1),
         freshness: freshnessLabel(source),
+        freshnessValue: ageDays,
       }
     })
   }, [sources])
@@ -78,12 +97,26 @@ export function SourceInspector({
   }, [normalizedSources])
 
   const visibleSources = useMemo(() => {
-    return normalizedSources.filter(source => {
+    const filtered = normalizedSources.filter(source => {
       if (domainFilter !== 'all' && source.domain !== domainFilter) return false
       if (providerFilter !== 'all' && source.provider !== providerFilter) return false
       return true
     })
-  }, [normalizedSources, domainFilter, providerFilter])
+
+    return filtered.sort((a, b) => {
+      if (sortBy === 'domain') {
+        return a.domain.localeCompare(b.domain)
+      }
+
+      const av = typeof a.freshnessValue === 'number' ? a.freshnessValue : Number.POSITIVE_INFINITY
+      const bv = typeof b.freshnessValue === 'number' ? b.freshnessValue : Number.POSITIVE_INFINITY
+
+      if (sortBy === 'fresh_old') {
+        return bv - av
+      }
+      return av - bv
+    })
+  }, [normalizedSources, domainFilter, providerFilter, sortBy])
 
   if (!sources || sources.length === 0) {
     return null
@@ -117,6 +150,15 @@ export function SourceInspector({
               provider: {option}
             </option>
           ))}
+        </select>
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as SortBy)}
+          className="h-7 rounded-md border bg-background px-2 text-xs"
+        >
+          <option value="fresh_new">sort: newest</option>
+          <option value="fresh_old">sort: oldest</option>
+          <option value="domain">sort: domain</option>
         </select>
       </div>
 

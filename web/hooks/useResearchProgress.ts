@@ -52,6 +52,12 @@ export function useResearchProgress({
 
     const queryCoverage = asNumber(raw.queryCoverage ?? raw.query_coverage_score ?? raw.query_coverage?.score, -1)
     const freshness = asNumber(raw.freshness ?? raw.fresh_30_ratio ?? raw.freshness_summary?.fresh_30_ratio, -1)
+    const warning =
+      typeof raw.warning === 'string'
+        ? raw.warning
+        : (typeof raw.freshnessWarning === 'string'
+          ? raw.freshnessWarning
+          : (typeof raw.freshness_warning === 'string' ? raw.freshness_warning : ''))
 
     return {
       coverage: asNumber(raw.coverage ?? (queryCoverage >= 0 ? queryCoverage : 0)),
@@ -59,6 +65,7 @@ export function useResearchProgress({
       consistency: asNumber(raw.consistency ?? raw.contradiction_free ?? raw.coherence),
       freshness: freshness >= 0 ? freshness : undefined,
       queryCoverage: queryCoverage >= 0 ? queryCoverage : undefined,
+      warning: warning || undefined,
     }
   }, [])
 

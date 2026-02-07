@@ -86,6 +86,7 @@ export interface ResearchQualityMetrics {
   consistency: number
   freshness?: number
   queryCoverage?: number
+  warning?: string
 }
 
 export interface ResearchTree {

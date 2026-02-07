@@ -21,6 +21,7 @@ interface ProgressDashboardProps {
       consistency: number
       freshness?: number
       queryCoverage?: number
+      warning?: string
     }
   }
   className?: string
@@ -53,38 +54,45 @@ export function ProgressDashboard({
     <div className={cn("flex flex-col h-full", className)}>
       {/* Header with Stats Summary */}
       {stats && (
-        <div className="flex items-center gap-4 p-4 border-b bg-gradient-to-r from-muted/30 to-transparent">
-          <div className="flex items-center gap-2">
-            <div className={cn("status-indicator", stats.status)} />
-            <span className={cn("text-sm font-medium capitalize", statusColors[stats.status])}>
-              {stats.status.replace('_', ' ')}
-            </span>
-          </div>
-          <div className="flex-1 flex items-center gap-4 text-sm text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <FileText className="h-4 w-4" />
-              {stats.totalSources} sources
-            </span>
-            <span className="flex items-center gap-1">
-              <BarChart3 className="h-4 w-4" />
-              {stats.searchQueries} queries
-            </span>
-            <span className="flex items-center gap-1">
-              <Clock className="h-4 w-4" />
-              {stats.elapsedTime}
-            </span>
-          </div>
-          {stats.quality && (
+        <div className="border-b bg-gradient-to-r from-muted/30 to-transparent p-4">
+          <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <QualityBadge label="Coverage" value={stats.quality.coverage} />
-              <QualityBadge label="Citation" value={stats.quality.citation} />
-              <QualityBadge label="Consistency" value={stats.quality.consistency} />
-              {typeof stats.quality.freshness === 'number' && (
-                <QualityBadge label="Freshness" value={stats.quality.freshness} />
-              )}
-              {typeof stats.quality.queryCoverage === 'number' && (
-                <QualityBadge label="Query Plan" value={stats.quality.queryCoverage} />
-              )}
+              <div className={cn("status-indicator", stats.status)} />
+              <span className={cn("text-sm font-medium capitalize", statusColors[stats.status])}>
+                {stats.status.replace('_', ' ')}
+              </span>
+            </div>
+            <div className="flex-1 flex items-center gap-4 text-sm text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <FileText className="h-4 w-4" />
+                {stats.totalSources} sources
+              </span>
+              <span className="flex items-center gap-1">
+                <BarChart3 className="h-4 w-4" />
+                {stats.searchQueries} queries
+              </span>
+              <span className="flex items-center gap-1">
+                <Clock className="h-4 w-4" />
+                {stats.elapsedTime}
+              </span>
+            </div>
+            {stats.quality && (
+              <div className="flex items-center gap-2">
+                <QualityBadge label="Coverage" value={stats.quality.coverage} />
+                <QualityBadge label="Citation" value={stats.quality.citation} />
+                <QualityBadge label="Consistency" value={stats.quality.consistency} />
+                {typeof stats.quality.freshness === 'number' && (
+                  <QualityBadge label="Freshness" value={stats.quality.freshness} />
+                )}
+                {typeof stats.quality.queryCoverage === 'number' && (
+                  <QualityBadge label="Query Plan" value={stats.quality.queryCoverage} />
+                )}
+              </div>
+            )}
+          </div>
+          {stats.quality?.warning && (
+            <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+              Quality Warning: {stats.quality.warning}
             </div>
           )}
         </div>
@@ -164,6 +172,11 @@ export function ProgressDashboard({
                     <QualityBadge label="Query Plan" value={stats.quality.queryCoverage} />
                   )}
                 </div>
+                {stats.quality.warning && (
+                  <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+                    Quality Warning: {stats.quality.warning}
+                  </div>
+                )}
               </div>
             )}
           </div>
