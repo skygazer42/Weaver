@@ -17,6 +17,10 @@ def test_benchmark_script_supports_required_cli_args(tmp_path):
         "2",
         "--mode",
         "auto",
+        "--min-query-coverage",
+        "0.7",
+        "--min-freshness-ratio",
+        "0.5",
         "--output",
         str(output),
     ]
@@ -27,3 +31,6 @@ def test_benchmark_script_supports_required_cli_args(tmp_path):
     assert data["max_cases"] == 2
     assert len(data["cases"]) == 2
     assert data["summary"]["total_cases"] == 2
+    assert data["summary"]["quality_gate_defaults"]["min_query_coverage"] == 0.7
+    assert data["summary"]["quality_gate_defaults"]["min_freshness_ratio"] == 0.5
+    assert "quality_targets" in data["cases"][0]
