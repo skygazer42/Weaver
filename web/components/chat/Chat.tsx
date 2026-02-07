@@ -6,7 +6,6 @@ import { Sidebar } from './Sidebar'
 import { Header } from './Header'
 import { EmptyState } from './EmptyState'
 import { ChatInput } from './ChatInput'
-import { ChatMessages } from './ChatMessages'
 import { ScrollToBottomButton, InterruptBanner, MobileArtifactsOverlay } from './ChatOverlays'
 import { Monitor } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -49,6 +48,22 @@ const Library = dynamic(
   () => import('@/components/views/Library').then(mod => ({ default: mod.Library })),
   {
     loading: () => <div className="h-full w-full p-6"><LoadingSkeleton className="h-full w-full" /></div>,
+    ssr: false
+  }
+)
+
+const ChatMessages = dynamic(
+  () => import('./ChatMessages').then(mod => ({ default: mod.ChatMessages })),
+  {
+    loading: () => (
+      <div className="flex-1 p-4">
+        <div className="max-w-5xl mx-auto space-y-3">
+          <LoadingSkeleton className="h-20 w-full" />
+          <LoadingSkeleton className="h-24 w-full" />
+          <LoadingSkeleton className="h-16 w-2/3" />
+        </div>
+      </div>
+    ),
     ssr: false
   }
 )
