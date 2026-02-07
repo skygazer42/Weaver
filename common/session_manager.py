@@ -434,6 +434,17 @@ class SessionManager:
         query_coverage = state.get("query_coverage")
         if not isinstance(query_coverage, dict):
             query_coverage = {}
+        if not query_coverage and isinstance(quality_summary, dict):
+            nested_coverage = quality_summary.get("query_coverage")
+            if isinstance(nested_coverage, dict) and nested_coverage:
+                query_coverage = nested_coverage
+            else:
+                query_coverage_score = quality_summary.get("query_coverage_score")
+                if query_coverage_score is not None:
+                    try:
+                        query_coverage = {"score": float(query_coverage_score)}
+                    except (TypeError, ValueError):
+                        query_coverage = {}
         freshness_summary = state.get("freshness_summary")
         if not isinstance(freshness_summary, dict):
             freshness_summary = {}

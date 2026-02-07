@@ -77,3 +77,52 @@ async def test_resume_session_returns_deepsearch_artifact_context(monkeypatch):
     assert data["deepsearch_resume"]["query_coverage_score"] == 0.8
     assert data["deepsearch_resume"]["freshness_warning"] == ""
     assert data["resume_state"]["research_plan_count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_resume_session_uses_quality_summary_coverage_fallback(monkeypatch):
+    artifacts = {
+        "mode": "linear",
+        "queries": ["q1"],
+        "quality_summary": {"query_coverage_score": 0.6, "summary_count": 1},
+    }
+    state = SessionState(
+        thread_id="thread-coverage-fallback",
+        state={
+            "route": "deep",
+            "revision_count": 0,
+            "deepsearch_artifacts": artifacts,
+        },
+        checkpoint_ts="",
+        parent_checkpoint_id=None,
+        deepsearch_artifacts=artifacts,
+    )
+
+    class FakeManager:
+        @staticmethod
+        def can_resume(thread_id: str):
+            return True, "ok"
+
+        @staticmethod
+        def get_session_state(thread_id: str):
+            return state
+
+        @staticmethod
+        def build_resume_state(thread_id: str, additional_input=None, update_state=None):
+            restored = dict(state.state)
+            restored["resumed_from_checkpoint"] = True
+            return restored
+
+    monkeypatch.setattr(main, "checkpointer", object())
+    monkeypatch.setattr(
+        "common.session_manager.get_session_manager",
+        lambda checkpointer: FakeManager(),
+    )
+
+    transport = ASGITransport(app=main.app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        resp = await ac.post("/api/sessions/thread-coverage-fallback/resume", json={})
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["deepsearch_resume"]["query_coverage_score"] == 0.6

@@ -86,3 +86,17 @@ def test_session_manager_build_resume_state_does_not_inject_empty_artifacts():
     restored = manager.build_resume_state("thread-plain")
     assert restored is not None
     assert "deepsearch_artifacts" not in restored
+
+
+def test_session_manager_extracts_query_coverage_from_quality_summary_fallback():
+    state = {
+        "route": "deep",
+        "quality_summary": {"query_coverage_score": 0.6, "summary_count": 1},
+    }
+    checkpointer = SimpleNamespace(get_tuple=lambda config: _fake_checkpoint_tuple(state))
+    manager = SessionManager(checkpointer)
+
+    session_state = manager.get_session_state("thread-fallback")
+    assert session_state is not None
+    artifacts = session_state.deepsearch_artifacts
+    assert artifacts["query_coverage"]["score"] == 0.6

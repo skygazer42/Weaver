@@ -1997,6 +1997,17 @@ async def resume_session(thread_id: str, request: ResumeRequest = None):
                 query_coverage_score = float(query_coverage_score)
             except (TypeError, ValueError):
                 query_coverage_score = None
+        if query_coverage_score is None and isinstance(quality_summary, dict):
+            nested_coverage = quality_summary.get("query_coverage")
+            if isinstance(nested_coverage, dict):
+                query_coverage_score = nested_coverage.get("score")
+            if query_coverage_score is None:
+                query_coverage_score = quality_summary.get("query_coverage_score")
+            if query_coverage_score is not None:
+                try:
+                    query_coverage_score = float(query_coverage_score)
+                except (TypeError, ValueError):
+                    query_coverage_score = None
         freshness_warning = ""
         if isinstance(quality_summary, dict):
             freshness_warning = str(quality_summary.get("freshness_warning") or "")
