@@ -515,12 +515,20 @@ Start a new chat session with streaming response.
 | `tool_error` | Tool failed | `tool_name`, `error` |
 | `screenshot` | Screenshot available | `url`, `image` |
 | `task_update` | Task status changed | `task_id`, `status`, `progress` |
+| `research_node_start` | Deep research node started | `node_id`, `topic`, `depth` |
+| `research_node_complete` | Deep research node completed | `node_id`, `summary`, `quality` |
+| `research_tree_update` | Research tree snapshot updated | `tree`, `quality` |
+| `quality_update` | Research quality diagnostics updated | `query_coverage_score`, `freshness_summary`, etc. |
+| `search` | Search run update | `query`, `provider`, `results`, `count` |
 | `artifact` | Artifact generated | `id`, `type`, `title`, `content` |
 | `completion` | Final report | `content` |
 | `interrupt` | Requires approval | `thread_id`, `prompts` |
 | `cancelled` | Task cancelled | `message` |
 | `error` | Error occurred | `message` |
 | `done` | Stream completed | `timestamp`, `metrics` |
+
+`/api/events/{thread_id}` now emits typed SSE events (`event: <event_name>`) and includes
+resume cursor IDs (`id: <seq>`). Payload JSON keeps the `{type, data, ...}` envelope for backward compatibility.
 
 ### Cancel Endpoint
 

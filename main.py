@@ -947,6 +947,16 @@ async def stream_agent_events(
                         yield await format_stream_event("tool_error", tool_event.data)
                     elif tool_event.type == ToolEvent.TASK_UPDATE:
                         yield await format_stream_event("task_update", tool_event.data)
+                    elif tool_event.type == ToolEvent.RESEARCH_NODE_START:
+                        yield await format_stream_event("research_node_start", tool_event.data)
+                    elif tool_event.type == ToolEvent.RESEARCH_NODE_COMPLETE:
+                        yield await format_stream_event("research_node_complete", tool_event.data)
+                    elif tool_event.type == ToolEvent.RESEARCH_TREE_UPDATE:
+                        yield await format_stream_event("research_tree_update", tool_event.data)
+                    elif tool_event.type == ToolEvent.QUALITY_UPDATE:
+                        yield await format_stream_event("quality_update", tool_event.data)
+                    elif tool_event.type == ToolEvent.SEARCH:
+                        yield await format_stream_event("search", tool_event.data)
                 except asyncio.QueueEmpty:
                     break
 
