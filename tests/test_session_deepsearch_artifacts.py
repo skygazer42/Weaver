@@ -54,3 +54,31 @@ def test_session_manager_build_resume_state_rehydrates_artifacts():
     assert restored["research_tree"]["nodes"]["root"]["topic"] == "AI"
     assert restored["quality_summary"]["summary_count"] == 3
     assert restored["resumed_from_checkpoint"] is True
+
+
+def test_session_manager_extracts_empty_artifacts_without_deepsearch_signals():
+    state = {
+        "route": "general",
+        "revision_count": 0,
+        "summary_notes": [],
+        "scraped_content": [],
+    }
+    checkpointer = SimpleNamespace(get_tuple=lambda config: _fake_checkpoint_tuple(state))
+    manager = SessionManager(checkpointer)
+
+    session_state = manager.get_session_state("thread-plain")
+    assert session_state is not None
+    assert session_state.deepsearch_artifacts == {}
+
+
+def test_session_manager_build_resume_state_does_not_inject_empty_artifacts():
+    state = {
+        "route": "general",
+        "revision_count": 0,
+    }
+    checkpointer = SimpleNamespace(get_tuple=lambda config: _fake_checkpoint_tuple(state))
+    manager = SessionManager(checkpointer)
+
+    restored = manager.build_resume_state("thread-plain")
+    assert restored is not None
+    assert "deepsearch_artifacts" not in restored

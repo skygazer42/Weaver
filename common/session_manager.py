@@ -410,14 +410,22 @@ class SessionManager:
 
         queries = state.get("research_plan", []) if isinstance(state.get("research_plan", []), list) else []
         research_tree = state.get("research_tree")
-        quality_summary = state.get("quality_summary")
-        if not isinstance(quality_summary, dict):
-            quality_summary = {
-                "summary_count": len(state.get("summary_notes", []) or []),
-                "source_count": len(state.get("scraped_content", []) or []),
-                "revision_count": int(state.get("revision_count", 0) or 0),
-                "quality_overall_score": state.get("quality_overall_score"),
-            }
+
+        quality_summary: Dict[str, Any] = {}
+        raw_quality = state.get("quality_summary")
+        if isinstance(raw_quality, dict) and raw_quality:
+            quality_summary = raw_quality
+        else:
+            summary_count = len(state.get("summary_notes", []) or [])
+            source_count = len(state.get("scraped_content", []) or [])
+            quality_overall_score = state.get("quality_overall_score")
+            if summary_count > 0 or source_count > 0 or quality_overall_score is not None:
+                quality_summary = {
+                    "summary_count": summary_count,
+                    "source_count": source_count,
+                    "revision_count": int(state.get("revision_count", 0) or 0),
+                    "quality_overall_score": quality_overall_score,
+                }
 
         if not queries and not research_tree and not quality_summary:
             return {}
