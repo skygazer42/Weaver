@@ -44,7 +44,7 @@ from agent.workflows.query_strategy import (
 
 # Import tree-based research components
 from agent.workflows.research_tree import ResearchTree, TreeExplorer
-from agent.workflows.source_url_utils import compact_unique_sources
+from agent.workflows.source_url_utils import canonicalize_source_url, compact_unique_sources
 from common.cancellation import check_cancellation as _check_cancel_token
 from common.config import settings
 from prompts.templates.deepsearch import (
@@ -336,7 +336,16 @@ def _pick_relevant_urls(
         return []
 
     # Filter already selected URLs with O(1) set lookup
-    available_results = [r for r in results if r.get("url") and r.get("url") not in selected_urls_set]
+    available_results = []
+    for r in results:
+        if not isinstance(r, dict):
+            continue
+        canonical_url = canonicalize_source_url(r.get("url"))
+        if not canonical_url or canonical_url in selected_urls_set:
+            continue
+        enriched = dict(r)
+        enriched["_canonical_url"] = canonical_url
+        available_results.append(enriched)
 
     if not available_results:
         logger.info("All URLs have been selected, no new URLs available")
@@ -355,7 +364,7 @@ def _pick_relevant_urls(
     # Fallback: top scores
     if not urls:
         sorted_results = sorted(available_results, key=lambda r: r.get("score", 0), reverse=True)
-        urls = [r.get("url") for r in sorted_results if r.get("url")]
+        urls = [r.get("_canonical_url") for r in sorted_results if r.get("_canonical_url")]
 
     # Clamp and dedupe
     deduped: List[str] = []
@@ -363,7 +372,7 @@ def _pick_relevant_urls(
     for u in urls:
         if not isinstance(u, str):
             continue
-        u = u.strip()
+        u = canonicalize_source_url(u)
         if not u or u in seen or u in selected_urls_set:
             continue
         seen.add(u)
@@ -711,7 +720,7 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
 
                     # Record all searched URLs (dedupe with O(1) set lookup)
                     for r in results:
-                        url = r.get("url")
+                        url = canonicalize_source_url(r.get("url"))
                         if url and url not in all_searched_urls_set:
                             all_searched_urls.append(url)
                             all_searched_urls_set.add(url)
@@ -761,6 +770,19 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
                     config,
                     selected_urls_set,  # Pass set for O(1) lookup
                 )
+                normalized_chosen_urls: List[str] = []
+                normalized_chosen_set = set()
+                for url in chosen_urls:
+                    canonical_url = canonicalize_source_url(url)
+                    if (
+                        not canonical_url
+                        or canonical_url in normalized_chosen_set
+                        or canonical_url in selected_urls_set
+                    ):
+                        continue
+                    normalized_chosen_urls.append(canonical_url)
+                    normalized_chosen_set.add(canonical_url)
+                chosen_urls = normalized_chosen_urls
 
                 if not chosen_urls:
                     logger.warning(
@@ -794,7 +816,11 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
                 selected_urls_set.update(chosen_urls)
 
                 chosen_urls_set = set(chosen_urls)
-                chosen_results = [r for r in combined_results if r.get("url") in chosen_urls_set]
+                chosen_results = [
+                    r
+                    for r in combined_results
+                    if canonicalize_source_url(r.get("url")) in chosen_urls_set
+                ]
                 if not chosen_results:
                     chosen_results = sorted(
                         combined_results, key=lambda r: r.get("score", 0), reverse=True
@@ -1162,7 +1188,14 @@ def run_deepsearch_tree(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[s
 
         # Get merged summary from all branches
         merged_summary = explorer.get_final_summary()
-        all_sources = explorer.get_all_sources()
+        raw_sources = explorer.get_all_sources()
+        all_sources: List[str] = []
+        all_sources_set = set()
+        for source in raw_sources:
+            canonical_source = canonicalize_source_url(source)
+            if canonical_source and canonical_source not in all_sources_set:
+                all_sources.append(canonical_source)
+                all_sources_set.add(canonical_source)
         all_findings = explorer.get_all_findings()
 
         # Generate final report using the comprehensive summary

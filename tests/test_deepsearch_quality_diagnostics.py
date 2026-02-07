@@ -524,6 +524,100 @@ def test_deepsearch_tree_complete_event_dedupes_canonical_source_urls(monkeypatc
     assert urls == ["https://example.com/tree"]
 
 
+def test_deepsearch_linear_quality_counts_use_canonical_url_dedup(monkeypatch):
+    now = datetime.now(timezone.utc)
+    search_results = [
+        {
+            "title": "S1",
+            "url": "https://example.com/a?utm_source=mail",
+            "summary": "s1",
+            "score": 0.9,
+            "provider": "serper",
+            "published_date": (now - timedelta(days=1)).isoformat(),
+        },
+        {
+            "title": "S2",
+            "url": "https://EXAMPLE.com/a/",
+            "summary": "s2",
+            "score": 0.8,
+            "provider": "serper",
+            "published_date": (now - timedelta(days=2)).isoformat(),
+        },
+    ]
+
+    _patch_basics(monkeypatch, search_results)
+
+    result = deepsearch_optimized.run_deepsearch_optimized(
+        {"input": "latest ai policy updates"},
+        config={},
+    )
+
+    quality = result["quality_summary"]
+    assert quality["source_count"] == 1
+    assert quality["selected_url_count"] == 1
+
+
+def test_deepsearch_tree_quality_source_count_uses_canonical_dedup(monkeypatch):
+    _patch_basics(monkeypatch, [])
+    monkeypatch.setattr(deepsearch_optimized.settings, "tree_parallel_branches", 0, raising=False)
+
+    class FakeNode:
+        def __init__(self):
+            self.id = "n1"
+            self.topic = "subtopic"
+            self.queries = ["tree query"]
+            self.findings = [
+                {
+                    "query": "tree query",
+                    "result": {
+                        "title": "Tree source A",
+                        "url": "https://example.com/tree?utm_source=feed",
+                    },
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                },
+                {
+                    "query": "tree query",
+                    "result": {
+                        "title": "Tree source B",
+                        "url": "https://EXAMPLE.com/tree/",
+                    },
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                },
+            ]
+
+    class FakeTree:
+        def __init__(self):
+            self.nodes = {"n1": FakeNode()}
+
+        def to_dict(self):
+            return {"id": "root", "children": ["n1"]}
+
+    class FakeTreeExplorer:
+        def __init__(self, *args, **kwargs):
+            self._tree = FakeTree()
+
+        def run(self, topic, state, decompose_root=True):
+            return self._tree
+
+        def get_final_summary(self):
+            return "tree summary"
+
+        def get_all_sources(self):
+            return ["https://example.com/tree?utm_source=feed", "https://EXAMPLE.com/tree/"]
+
+        def get_all_findings(self):
+            return self._tree.nodes["n1"].findings
+
+    monkeypatch.setattr(deepsearch_optimized, "TreeExplorer", FakeTreeExplorer)
+
+    result = deepsearch_optimized.run_deepsearch_tree(
+        {"input": "latest ai policy updates"},
+        config={},
+    )
+
+    assert result["quality_summary"]["source_count"] == 1
+
+
 def test_deepsearch_tree_budget_stop_includes_diagnostics(monkeypatch):
     _patch_basics(monkeypatch, [])
     monkeypatch.setattr(deepsearch_optimized.settings, "deepsearch_max_seconds", 0.0, raising=False)
