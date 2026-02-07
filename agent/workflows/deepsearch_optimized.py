@@ -481,6 +481,64 @@ def _build_quality_diagnostics(topic: str, queries: List[str], search_runs: List
     }
 
 
+def _resolve_event_emitter(state: Dict[str, Any], config: Dict[str, Any]) -> Any:
+    """Resolve thread-scoped emitter if available (best effort)."""
+    cfg = config.get("configurable") if isinstance(config, dict) else {}
+    thread_id = ""
+    if isinstance(cfg, dict):
+        thread_id = str(cfg.get("thread_id") or "").strip()
+    if not thread_id:
+        thread_id = str(state.get("cancel_token_id") or "").strip()
+    if not thread_id:
+        return None
+
+    try:
+        from agent.core.events import get_emitter_sync
+
+        return get_emitter_sync(thread_id)
+    except Exception:
+        return None
+
+
+def _emit_event(emitter: Any, event_type: str, data: Dict[str, Any]) -> None:
+    """Emit an event from sync context without interrupting deepsearch flow."""
+    if emitter is None:
+        return
+    try:
+        emitter.emit_sync(event_type, data or {})
+    except Exception as e:
+        logger.debug(f"[deepsearch] failed to emit event '{event_type}': {e}")
+
+
+def _compact_search_results(results: List[Dict[str, Any]], limit: int = 5) -> List[Dict[str, Any]]:
+    compact: List[Dict[str, Any]] = []
+    for item in results or []:
+        if not isinstance(item, dict):
+            continue
+        compact.append(
+            {
+                "title": item.get("title", ""),
+                "url": item.get("url", ""),
+                "provider": item.get("provider", ""),
+                "published_date": item.get("published_date"),
+                "score": float(item.get("score", 0.0) or 0.0),
+            }
+        )
+        if len(compact) >= max(1, int(limit)):
+            break
+    return compact
+
+
+def _provider_breakdown(results: List[Dict[str, Any]]) -> Dict[str, int]:
+    counts: Dict[str, int] = {}
+    for item in results or []:
+        if not isinstance(item, dict):
+            continue
+        provider = str(item.get("provider") or "unknown").strip() or "unknown"
+        counts[provider] = counts.get(provider, 0) + 1
+    return counts
+
+
 def _save_deepsearch_data(
     topic: str,
     have_query: List[str],
@@ -563,6 +621,7 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
     start_ts = time.time()
     tokens_used = _estimate_tokens_from_text(topic)
     budget_stop_reason = ""
+    emitter = _resolve_event_emitter(state, config)
 
     try:
         for epoch in range(max_epochs):
@@ -628,6 +687,24 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
                             "results": results,
                             "timestamp": datetime.now().isoformat(),
                         }
+                    )
+                    provider_breakdown = _provider_breakdown(results)
+                    provider_name = "unknown"
+                    if len(provider_breakdown) > 1:
+                        provider_name = "multi"
+                    elif len(provider_breakdown) == 1:
+                        provider_name = next(iter(provider_breakdown))
+                    _emit_event(
+                        emitter,
+                        "search",
+                        {
+                            "query": q,
+                            "provider": provider_name,
+                            "provider_breakdown": provider_breakdown,
+                            "results": _compact_search_results(results, limit=5),
+                            "count": len(results),
+                            "epoch": epoch + 1,
+                        },
                     )
 
                     # Record all searched URLs (dedupe with O(1) set lookup)
@@ -758,6 +835,15 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
 
                 epoch_duration = time.time() - epoch_start
                 logger.info(f"[deepsearch] Epoch {epoch + 1}: 总耗时 {epoch_duration:.2f}s")
+                epoch_diagnostics = _build_quality_diagnostics(topic, have_query, search_runs)
+                _emit_event(
+                    emitter,
+                    "quality_update",
+                    {
+                        "epoch": epoch + 1,
+                        **epoch_diagnostics,
+                    },
+                )
 
                 # 如果信息足够，提前结束
                 if enough:

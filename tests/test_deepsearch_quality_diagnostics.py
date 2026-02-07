@@ -156,3 +156,55 @@ def test_freshness_warning_respects_min_known_threshold(monkeypatch):
     assert quality["time_sensitive_query"] is True
     assert quality["freshness_summary"]["known_count"] == 3
     assert quality["freshness_warning"] == ""
+
+
+def test_deepsearch_emits_search_and_quality_update_events(monkeypatch):
+    now = datetime.now(timezone.utc)
+    search_results = [
+        {
+            "title": "Recent",
+            "url": "https://example.com/recent",
+            "summary": "recent",
+            "score": 0.8,
+            "provider": "serper",
+            "published_date": (now - timedelta(days=3)).isoformat(),
+        },
+        {
+            "title": "Older",
+            "url": "https://example.com/older",
+            "summary": "older",
+            "score": 0.7,
+            "provider": "serper",
+            "published_date": (now - timedelta(days=90)).isoformat(),
+        },
+    ]
+
+    _patch_basics(monkeypatch, search_results)
+
+    emitted = []
+
+    class DummyEmitter:
+        def emit_sync(self, event_type, data):
+            event_name = event_type.value if hasattr(event_type, "value") else str(event_type)
+            emitted.append((event_name, data))
+
+    monkeypatch.setattr(
+        deepsearch_optimized, "_resolve_event_emitter", lambda state, config: DummyEmitter()
+    )
+
+    result = deepsearch_optimized.run_deepsearch_optimized(
+        {"input": "latest ai policy updates"},
+        config={"configurable": {"thread_id": "thread_test"}},
+    )
+
+    event_types = [name for name, _ in emitted]
+    search_events = [data for name, data in emitted if name == "search"]
+    quality_events = [data for name, data in emitted if name == "quality_update"]
+
+    assert result["quality_summary"]["time_sensitive_query"] is True
+    assert "search" in event_types
+    assert "quality_update" in event_types
+    assert search_events
+    assert search_events[0]["count"] == len(search_results)
+    assert search_events[0]["provider"] == "serper"
+    assert "query_coverage_score" in quality_events[-1]

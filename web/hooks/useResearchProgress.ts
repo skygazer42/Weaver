@@ -39,6 +39,18 @@ function parseEventPayload(raw: string): any {
   }
 }
 
+function normalizeSourceUrl(input: any): string {
+  const raw = String(input || '').trim()
+  if (!raw) return ''
+  try {
+    const parsed = new URL(raw)
+    parsed.hash = ''
+    return parsed.toString()
+  } catch {
+    return raw
+  }
+}
+
 export function useResearchProgress({
   threadId,
   enabled = true,
@@ -58,6 +70,23 @@ export function useResearchProgress({
         : (typeof raw.freshnessWarning === 'string'
           ? raw.freshnessWarning
           : (typeof raw.freshness_warning === 'string' ? raw.freshness_warning : ''))
+    const missingDimensions = Array.isArray(raw.query_dimensions_missing)
+      ? raw.query_dimensions_missing.filter((item: any) => typeof item === 'string')
+      : []
+    const freshnessRatio = asNumber(
+      raw.freshness_summary?.fresh_30_ratio ?? raw.freshness ?? raw.freshnessRatio,
+      -1
+    )
+    let warningText = warning || ''
+    if (warning === 'low_freshness_for_time_sensitive_query') {
+      const pct = freshnessRatio >= 0 ? Math.round(freshnessRatio * 100) : null
+      const missingHint = missingDimensions.length
+        ? ` Missing dimensions: ${missingDimensions.slice(0, 3).join(', ')}.`
+        : ''
+      warningText = `Fresh sources are limited for this time-sensitive query${
+        pct !== null ? ` (${pct}% within 30 days).` : '.'
+      }${missingHint}`
+    }
 
     return {
       coverage: asNumber(raw.coverage ?? (queryCoverage >= 0 ? queryCoverage : 0)),
@@ -65,7 +94,7 @@ export function useResearchProgress({
       consistency: asNumber(raw.consistency ?? raw.contradiction_free ?? raw.coherence),
       freshness: freshness >= 0 ? freshness : undefined,
       queryCoverage: queryCoverage >= 0 ? queryCoverage : undefined,
-      warning: warning || undefined,
+      warning: warningText || undefined,
     }
   }, [])
 
@@ -99,6 +128,40 @@ export function useResearchProgress({
 
   const eventSourceRef = useRef<EventSource | null>(null)
   const startTimeRef = useRef<number>(Date.now())
+  const seenSourceUrlsRef = useRef<Set<string>>(new Set())
+
+  const collectNewSourceCount = useCallback((items: any[]): number => {
+    if (!Array.isArray(items) || items.length === 0) {
+      return 0
+    }
+    let added = 0
+    for (const item of items) {
+      if (!item || typeof item !== 'object') {
+        continue
+      }
+      const url = normalizeSourceUrl((item as any).rawUrl || (item as any).url)
+      if (!url || seenSourceUrlsRef.current.has(url)) {
+        continue
+      }
+      seenSourceUrlsRef.current.add(url)
+      added += 1
+    }
+    return added
+  }, [])
+
+  useEffect(() => {
+    // Reset counters/state when switching thread.
+    seenSourceUrlsRef.current = new Set()
+    setTimeline([])
+    setTree(null)
+    setStats({
+      totalSources: 0,
+      searchQueries: 0,
+      elapsedTime: '0s',
+      status: 'pending',
+    })
+    setError(null)
+  }, [threadId])
 
   // Update elapsed time
   useEffect(() => {
@@ -165,9 +228,10 @@ export function useResearchProgress({
             description: data.summary,
           })
           mergeQuality(data.quality || data.eval_dimensions)
+          const newSources = collectNewSourceCount(data.sources || [])
           setStats(prev => ({
             ...prev,
-            totalSources: prev.totalSources + (data.sources?.length || 0),
+            totalSources: prev.totalSources + newSources,
           }))
         } catch (err) {
           console.error('Failed to parse research_node_complete:', err)
@@ -177,16 +241,12 @@ export function useResearchProgress({
       eventSource.addEventListener('search', (e) => {
         try {
           const data = parseEventPayload(e.data)
+          const newSources = collectNewSourceCount(data.results || [])
           setStats(prev => ({
             ...prev,
             searchQueries: prev.searchQueries + 1,
+            totalSources: prev.totalSources + newSources,
           }))
-          if (data.results?.length) {
-            setStats(prev => ({
-              ...prev,
-              totalSources: prev.totalSources + data.results.length,
-            }))
-          }
         } catch (err) {
           console.error('Failed to parse search event:', err)
         }
@@ -235,7 +295,7 @@ export function useResearchProgress({
       setError('Failed to connect to event stream')
       console.error('SSE connection error:', err)
     }
-  }, [threadId, enabled, mergeQuality])
+  }, [threadId, enabled, mergeQuality, collectNewSourceCount])
 
   const addTimelineStep = useCallback((step: TimelineStep) => {
     setTimeline(prev => [...prev, step])
