@@ -4,6 +4,7 @@ import "./globals.css"
 import "katex/dist/katex.min.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { I18nProvider } from "@/lib/i18n/i18n-context"
+import { ChatErrorBoundary } from "@/components/ui/error-boundary"
 import { cn } from "@/lib/utils"
 import { Toaster } from "@/components/ui/sonner"
 
@@ -102,7 +103,9 @@ export default function RootLayout({
         >
           <I18nProvider>
             <main id="main-content">
-              {children}
+              <ChatErrorBoundary>
+                {children}
+              </ChatErrorBoundary>
             </main>
             <Toaster />
           </I18nProvider>

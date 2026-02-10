@@ -15,6 +15,7 @@ import { useChatHistory } from '@/hooks/useChatHistory'
 import { useChatStream } from '@/hooks/useChatStream'
 import { filesToImageAttachments } from '@/lib/file-utils'
 import { LoadingSkeleton } from '@/components/ui/loading'
+import { ChatErrorBoundary } from '@/components/ui/error-boundary'
 
 // Dynamic imports for heavy components
 const ArtifactsPanel = dynamic(
@@ -261,13 +262,24 @@ export function Chat() {
             />
           </div>
         ) : (
-          <ChatMessages
-            messages={messages}
-            isLoading={isLoading}
-            currentStatus={currentStatus}
-            onEditMessage={handleEditMessage}
-            onAtBottomChange={handleAtBottomChange}
-          />
+          <ChatErrorBoundary
+            onError={(error, errorInfo) => {
+              console.error('[ChatMessages] Render crash:', {
+                component: 'ChatMessages',
+                error: error.message,
+                stack: errorInfo.componentStack,
+                timestamp: new Date().toISOString(),
+              })
+            }}
+          >
+            <ChatMessages
+              messages={messages}
+              isLoading={isLoading}
+              currentStatus={currentStatus}
+              onEditMessage={handleEditMessage}
+              onAtBottomChange={handleAtBottomChange}
+            />
+          </ChatErrorBoundary>
         )}
       </div>
     )
@@ -359,11 +371,22 @@ export function Chat() {
           "border-l hidden xl:flex flex-col bg-card animate-in slide-in-from-right duration-500 shadow-2xl z-20 transition-all",
           ui.isArtifactsOpen ? "w-[400px]" : "w-[50px]"
         )}>
-          <ArtifactsPanel
-            artifacts={artifacts}
-            isOpen={ui.isArtifactsOpen}
-            onToggle={toggleArtifacts}
-          />
+          <ChatErrorBoundary
+            onError={(error, errorInfo) => {
+              console.error('[ArtifactsPanel] Render crash:', {
+                component: 'ArtifactsPanel',
+                error: error.message,
+                stack: errorInfo.componentStack,
+                timestamp: new Date().toISOString(),
+              })
+            }}
+          >
+            <ArtifactsPanel
+              artifacts={artifacts}
+              isOpen={ui.isArtifactsOpen}
+              onToggle={toggleArtifacts}
+            />
+          </ChatErrorBoundary>
         </div>
       )}
 
@@ -392,16 +415,27 @@ export function Chat() {
               // Mobile/Tablet: sticky at bottom, full width
               "max-xl:fixed max-xl:bottom-0 max-xl:left-0 max-xl:right-0 max-xl:max-h-[50vh]"
             )}>
-              <BrowserViewer
-                threadId={threadId}
-                className={cn(
-                  "shadow-2xl",
-                  "max-xl:rounded-b-none max-xl:w-full"
-                )}
-                defaultExpanded={true}
-                alwaysShow={true}
-                onClose={() => setBrowserViewer(false)}
-              />
+              <ChatErrorBoundary
+                onError={(error, errorInfo) => {
+                  console.error('[BrowserViewer] Render crash:', {
+                    component: 'BrowserViewer',
+                    error: error.message,
+                    stack: errorInfo.componentStack,
+                    timestamp: new Date().toISOString(),
+                  })
+                }}
+              >
+                <BrowserViewer
+                  threadId={threadId}
+                  className={cn(
+                    "shadow-2xl",
+                    "max-xl:rounded-b-none max-xl:w-full"
+                  )}
+                  defaultExpanded={true}
+                  alwaysShow={true}
+                  onClose={() => setBrowserViewer(false)}
+                />
+              </ChatErrorBoundary>
             </div>
           )}
         </>

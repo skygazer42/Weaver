@@ -1,7 +1,7 @@
 'use client'
 
-import React, { Component, ReactNode } from 'react'
-import { AlertCircle, RotateCcw } from 'lucide-react'
+import React, { Component, ReactNode, useState as useStateImport } from 'react'
+import { AlertCircle, RotateCcw, Copy, Check } from 'lucide-react'
 import { Button } from './button'
 import { cn } from '@/lib/utils'
 
@@ -15,6 +15,25 @@ interface ErrorFallbackProps {
  * Functional error fallback component
  */
 export function ErrorFallback({ error, resetError, className }: ErrorFallbackProps) {
+  const [copied, setCopied] = useStateImport(false)
+
+  const handleCopyError = async () => {
+    const details = [
+      `Error: ${error.message}`,
+      `Timestamp: ${new Date().toISOString()}`,
+      `Stack: ${error.stack || 'N/A'}`,
+      `URL: ${typeof window !== 'undefined' ? window.location.href : 'N/A'}`,
+    ].join('\n')
+    try {
+      await navigator.clipboard.writeText(details)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // Fallback: select text
+      console.warn('Clipboard API not available')
+    }
+  }
+
   return (
     <div
       className={cn(
@@ -30,15 +49,27 @@ export function ErrorFallback({ error, resetError, className }: ErrorFallbackPro
           <p className="text-sm text-muted-foreground mt-1 break-words">
             {error.message || 'An unexpected error occurred'}
           </p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={resetError}
-            className="mt-3"
-          >
-            <RotateCcw className="h-3 w-3 mr-2" />
-            Try again
-          </Button>
+          <div className="flex items-center gap-2 mt-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={resetError}
+            >
+              <RotateCcw className="h-3 w-3 mr-2" />
+              Try again
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleCopyError}
+            >
+              {copied ? (
+                <><Check className="h-3 w-3 mr-2" /> Copied</>
+              ) : (
+                <><Copy className="h-3 w-3 mr-2" /> Copy error details</>
+              )}
+            </Button>
+          </div>
         </div>
       </div>
     </div>
@@ -70,7 +101,12 @@ export class ChatErrorBoundary extends Component<ErrorBoundaryProps, ErrorBounda
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('Error boundary caught error:', error, errorInfo)
+    console.error('[ErrorBoundary] Render crash:', {
+      component: this.constructor.name,
+      error: error.message,
+      stack: errorInfo.componentStack,
+      timestamp: new Date().toISOString(),
+    })
     this.props.onError?.(error, errorInfo)
   }
 

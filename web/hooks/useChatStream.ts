@@ -8,8 +8,12 @@ interface UseChatStreamProps {
   searchMode: string
 }
 
+export type ConnectionState = 'connected' | 'reconnecting' | 'disconnected'
+
 // Throttle status updates to reduce re-renders
 const STATUS_THROTTLE_MS = 150
+const MAX_STREAM_RETRIES = 3
+const RETRY_BASE_DELAY_MS = 1000
 
 export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps) {
   const [messages, setMessages] = useState<Message[]>([])
@@ -18,6 +22,7 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
   const [artifacts, setArtifacts] = useState<Artifact[]>([])
   const [pendingInterrupt, setPendingInterrupt] = useState<PendingInterrupt | null>(null)
   const [threadId, setThreadId] = useState<string | null>(null)
+  const [connectionState, setConnectionState] = useState<ConnectionState>('connected')
 
   const abortControllerRef = useRef<AbortController | null>(null)
 
@@ -84,168 +89,205 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
 
   const processChat = useCallback(async (messageHistory: Message[], images?: ImageAttachment[]) => {
     setIsLoading(true)
-    abortControllerRef.current = new AbortController()
+    setConnectionState('connected')
+    let retryCount = 0
 
-    try {
-      const response = await fetch(
-        `${getApiBaseUrl()}/api/chat`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            messages: messageHistory.map(m => ({ role: m.role, content: m.content })),
-            stream: true,
-            model: selectedModel,
-            search_mode: searchMode,
-            images: (images || []).map(img => ({
-              name: img.name,
-              mime: img.mime,
-              data: img.data
-            }))
-          }),
-          signal: abortControllerRef.current.signal
-        }
-      )
+    const attemptStream = async (): Promise<void> => {
+      abortControllerRef.current = new AbortController()
 
-      if (!response.ok) {
-        throw new Error('Failed to get response')
-      }
-
-      const threadHeader = response.headers.get('X-Thread-ID') || response.headers.get('x-thread-id')
-      if (threadHeader) {
-        setThreadId(threadHeader)
-      }
-
-      const reader = response.body?.getReader()
-      const decoder = new TextDecoder()
-
-      if (!reader) {
-        throw new Error('No reader available')
-      }
-
-      let assistantMessage: Message = {
-        id: `assistant-${Date.now()}`,
-        role: 'assistant',
-        content: '',
-        toolInvocations: [],
-      }
-
-      setMessages((prev) => [...prev, assistantMessage])
-
-      const upsertAssistantMessage = () => {
-        setMessages((prev) =>
-          prev.map((msg) => (msg.id === assistantMessage.id ? { ...assistantMessage } : msg)),
+      try {
+        const response = await fetch(
+          `${getApiBaseUrl()}/api/chat`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              messages: messageHistory.map(m => ({ role: m.role, content: m.content })),
+              stream: true,
+              model: selectedModel,
+              search_mode: searchMode,
+              images: (images || []).map(img => ({
+                name: img.name,
+                mime: img.mime,
+                data: img.data
+              }))
+            }),
+            signal: abortControllerRef.current.signal
+          }
         )
-      }
-      let assistantFlushTimer: NodeJS.Timeout | null = null
-      const flushAssistantMessage = () => {
-        if (assistantFlushTimer) {
-          clearTimeout(assistantFlushTimer)
-          assistantFlushTimer = null
+
+        // Transient server errors — retry with backoff
+        if (response.status >= 500 && retryCount < MAX_STREAM_RETRIES) {
+          retryCount++
+          setConnectionState('reconnecting')
+          const delay = RETRY_BASE_DELAY_MS * Math.pow(2, retryCount - 1)
+          throttledSetStatus(`Reconnecting... (attempt ${retryCount}/${MAX_STREAM_RETRIES})`)
+          await new Promise(r => setTimeout(r, delay))
+          return attemptStream()
         }
-        upsertAssistantMessage()
-      }
-      const scheduleAssistantFlush = () => {
-        if (!assistantFlushTimer) {
-          assistantFlushTimer = setTimeout(() => {
+
+        if (!response.ok) {
+          throw new Error('Failed to get response')
+        }
+
+        setConnectionState('connected')
+
+        const threadHeader = response.headers.get('X-Thread-ID') || response.headers.get('x-thread-id')
+        if (threadHeader) {
+          setThreadId(threadHeader)
+        }
+
+        const reader = response.body?.getReader()
+        const decoder = new TextDecoder()
+
+        if (!reader) {
+          throw new Error('No reader available')
+        }
+
+        let assistantMessage: Message = {
+          id: `assistant-${Date.now()}`,
+          role: 'assistant',
+          content: '',
+          toolInvocations: [],
+        }
+
+        setMessages((prev: Message[]) => [...prev, assistantMessage])
+
+        const upsertAssistantMessage = () => {
+          setMessages((prev: Message[]) =>
+            prev.map((msg: Message) => (msg.id === assistantMessage.id ? { ...assistantMessage } : msg)),
+          )
+        }
+        let assistantFlushTimer: NodeJS.Timeout | null = null
+        const flushAssistantMessage = () => {
+          if (assistantFlushTimer) {
+            clearTimeout(assistantFlushTimer)
             assistantFlushTimer = null
-            upsertAssistantMessage()
-          }, 32)
+          }
+          upsertAssistantMessage()
         }
-      }
-
-      let interrupted = false
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        const chunk = decoder.decode(value)
-        const lines = chunk.split('\n').filter((line) => line.trim())
-
-        for (const line of lines) {
-          if (line.startsWith('0:')) {
-            try {
-              const data = JSON.parse(line.slice(2)) as StreamEvent
-
-              if (data.type === 'status') {
-                throttledSetStatus(data.data.text)
-              } else if (data.type === 'text') {
-                assistantMessage.content += data.data.content
-                scheduleAssistantFlush()
-              } else if (data.type === 'message') {
-                assistantMessage.content = data.data.content
-                flushAssistantMessage()
-              } else if (data.type === 'interrupt') {
-                flushAssistantMessage()
-                interrupted = true
-                setPendingInterrupt(data.data)
-                const msg = data.data?.message || data.data?.prompts?.[0]?.message
-                setCurrentStatus(msg || 'Approval required before continuing')
-                setMessages((prev) => [
-                  ...prev,
-                  {
-                    id: `interrupt-${Date.now()}`,
-                    role: 'assistant',
-                    content: msg || 'Approval required before running a tool.',
-                  },
-                ])
-                break
-              } else if (data.type === 'tool') {
-                const toolInvocation: ToolInvocation = {
-                  toolCallId: `tool-${Date.now()}-${Math.random()}`,
-                  toolName: data.data.name,
-                  state: data.data.status === 'completed' ? 'completed' : 'running',
-                  args: data.data.query ? { query: data.data.query } : {},
-                }
-
-                assistantMessage.toolInvocations = [
-                  ...(assistantMessage.toolInvocations || []),
-                  toolInvocation,
-                ]
-
-                flushAssistantMessage()
-              } else if (data.type === 'completion') {
-                assistantMessage.content = data.data.content
-                flushAssistantMessage()
-              } else if (data.type === 'artifact') {
-                const newArtifact = data.data as Artifact
-                // Use Set for O(1) deduplication
-                if (!artifactIdsRef.current.has(newArtifact.id)) {
-                  artifactIdsRef.current.add(newArtifact.id)
-                  setArtifacts((prev) => [...prev, newArtifact])
-                }
-              }
-            } catch (err) {
-              console.error('Error parsing stream data:', err)
-            }
+        const scheduleAssistantFlush = () => {
+          if (!assistantFlushTimer) {
+            assistantFlushTimer = setTimeout(() => {
+              assistantFlushTimer = null
+              upsertAssistantMessage()
+            }, 32)
           }
         }
 
-        if (interrupted) break
+        let interrupted = false
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          const chunk = decoder.decode(value)
+          const lines = chunk.split('\n').filter((line) => line.trim())
+
+          for (const line of lines) {
+            if (line.startsWith('0:')) {
+              try {
+                const data = JSON.parse(line.slice(2)) as StreamEvent
+
+                if (data.type === 'status') {
+                  throttledSetStatus(data.data.text)
+                } else if (data.type === 'text') {
+                  assistantMessage.content += data.data.content
+                  scheduleAssistantFlush()
+                } else if (data.type === 'message') {
+                  assistantMessage.content = data.data.content
+                  flushAssistantMessage()
+                } else if (data.type === 'interrupt') {
+                  flushAssistantMessage()
+                  interrupted = true
+                  setPendingInterrupt(data.data)
+                  const msg = data.data?.message || data.data?.prompts?.[0]?.message
+                  setCurrentStatus(msg || 'Approval required before continuing')
+                  setMessages((prev: Message[]) => [
+                    ...prev,
+                    {
+                      id: `interrupt-${Date.now()}`,
+                      role: 'assistant',
+                      content: msg || 'Approval required before running a tool.',
+                    },
+                  ])
+                  break
+                } else if (data.type === 'tool') {
+                  const toolInvocation: ToolInvocation = {
+                    toolCallId: `tool-${Date.now()}-${Math.random()}`,
+                    toolName: data.data.name,
+                    state: data.data.status === 'completed' ? 'completed' : 'running',
+                    args: data.data.query ? { query: data.data.query } : {},
+                  }
+
+                  assistantMessage.toolInvocations = [
+                    ...(assistantMessage.toolInvocations || []),
+                    toolInvocation,
+                  ]
+
+                  flushAssistantMessage()
+                } else if (data.type === 'completion') {
+                  assistantMessage.content = data.data.content
+                  flushAssistantMessage()
+                } else if (data.type === 'artifact') {
+                  const newArtifact = data.data as Artifact
+                  // Use Set for O(1) deduplication
+                  if (!artifactIdsRef.current.has(newArtifact.id)) {
+                    artifactIdsRef.current.add(newArtifact.id)
+                    setArtifacts((prev: Artifact[]) => [...prev, newArtifact])
+                  }
+                }
+              } catch (err) {
+                console.error('Error parsing stream data:', err)
+              }
+            }
+          }
+
+          if (interrupted) break
+        }
+
+        flushAssistantMessage()
+        clearPendingStatusTimer()
+        setCurrentStatus('')
+      } catch (error: unknown) {
+        // Skip retry on user-initiated abort
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          return
+        }
+
+        // Retry on network errors
+        if (retryCount < MAX_STREAM_RETRIES) {
+          retryCount++
+          setConnectionState('reconnecting')
+          const delay = RETRY_BASE_DELAY_MS * Math.pow(2, retryCount - 1)
+          throttledSetStatus(`Connection lost. Reconnecting... (${retryCount}/${MAX_STREAM_RETRIES})`)
+          await new Promise(r => setTimeout(r, delay))
+          return attemptStream()
+        }
+
+        setConnectionState('disconnected')
+        const appError = createAppError(error)
+
+        if (appError.code !== 'TIMEOUT') {
+          setMessages((prev: Message[]) => [
+            ...prev,
+            {
+              id: `error-${Date.now()}`,
+              role: 'assistant',
+              content: appError.message,
+              isError: true,
+              retryable: appError.retryable,
+            } as Message,
+          ])
+        }
+
+        console.error('Chat error:', appError)
       }
+    }
 
-      flushAssistantMessage()
-      clearPendingStatusTimer()
-      setCurrentStatus('')
-    } catch (error: unknown) {
-      const appError = createAppError(error)
-
-      if (appError.code !== 'TIMEOUT') {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `error-${Date.now()}`,
-            role: 'assistant',
-            content: appError.message,
-            isError: true,
-            retryable: appError.retryable,
-          } as Message,
-        ])
-      }
-
-      console.error('Chat error:', appError)
+    try {
+      await attemptStream()
     } finally {
       clearPendingStatusTimer()
       setIsLoading(false)
@@ -274,7 +316,7 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
       )
       if (!res.ok) throw new Error('Failed to resume')
       const data = await res.json()
-      setMessages(prev => [
+      setMessages((prev: Message[]) => [
         ...prev,
         {
           id: `assistant-${Date.now()}`,
@@ -284,7 +326,7 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
       ])
     } catch (err) {
       console.error('Failed to resume interrupt', err)
-      setMessages(prev => [
+      setMessages((prev: Message[]) => [
         ...prev,
         {
           id: `error-${Date.now()}`,
@@ -312,6 +354,7 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
     setPendingInterrupt,
     threadId,
     setThreadId,
+    connectionState,
     processChat,
     handleStop,
     handleApproveInterrupt
