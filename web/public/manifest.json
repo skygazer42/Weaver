@@ -1,12 +1,18 @@
 {
-  "name": "Weaver AI",
+  "name": "Weaver - AI Agent Platform",
   "short_name": "Weaver",
-  "description": "Deep Research AI Agent",
+  "description": "Enterprise-grade AI Agent platform with deep research, code execution, and browser automation",
   "start_url": "/",
   "display": "standalone",
-  "background_color":="#ffffff",
-  "theme_color": "#000000",
+  "background_color": "#0f172a",
+  "theme_color": "#6366f1",
+  "orientation": "portrait-primary",
   "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    },
     {
       "src": "/icon.png",
       "sizes": "192x192",
@@ -17,5 +23,10 @@
       "sizes": "512x512",
       "type": "image/png"
     }
+  ],
+  "categories": [
+    "productivity",
+    "developer-tools",
+    "ai"
   ]
 }

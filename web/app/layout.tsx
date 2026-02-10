@@ -24,12 +24,61 @@ const jetbrainsMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "Weaver - Deep Research AI Agent",
-  description: "AI-powered research assistant with deep search and code execution",
+  title: {
+    default: "Weaver - Deep Research AI Agent",
+    template: "%s | Weaver AI",
+  },
+  description:
+    "Enterprise-grade AI Agent platform powered by LangGraph. Deep research, code execution, browser automation, and multi-modal interaction.",
+  keywords: [
+    "AI Agent",
+    "LangGraph",
+    "Deep Research",
+    "Code Execution",
+    "Browser Automation",
+    "LLM",
+    "FastAPI",
+    "Next.js",
+  ],
+  authors: [{ name: "Weaver Team" }],
+  creator: "Weaver",
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL || "https://weaver-demo.vercel.app"
+  ),
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    title: "Weaver - Deep Research AI Agent",
+    description:
+      "Enterprise-grade AI Agent platform with deep research, code execution, and browser automation.",
+    siteName: "Weaver AI",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Weaver - Deep Research AI Agent",
+    description:
+      "Enterprise-grade AI Agent platform with deep research, code execution, and browser automation.",
+  },
   icons: {
-    icon: '/favicon.ico',
-  }
+    icon: "/favicon.ico",
+  },
+  manifest: "/manifest.json",
+  robots: {
+    index: true,
+    follow: true,
+  },
 }
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0f172a" },
+  ],
+}
+
 
 export default function RootLayout({
   children,
