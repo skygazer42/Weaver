@@ -16,6 +16,8 @@ import { useChatStream } from '@/hooks/useChatStream'
 import { filesToImageAttachments } from '@/lib/file-utils'
 import { LoadingSkeleton } from '@/components/ui/loading'
 import { ChatErrorBoundary } from '@/components/ui/error-boundary'
+import { useSwipeGesture } from '@/hooks/useSwipeGesture'
+import { useRef } from 'react'
 
 // Dynamic imports for heavy components
 const ArtifactsPanel = dynamic(
@@ -285,8 +287,20 @@ export function Chat() {
     )
   }
 
+  // Swipe gestures for mobile sidebar
+  const containerRef = useRef<HTMLDivElement>(null)
+  useSwipeGesture(containerRef, {
+    onSwipeRight: () => {
+      if (!ui.sidebarOpen) toggleSidebar()
+    },
+    onSwipeLeft: () => {
+      if (ui.sidebarOpen) toggleSidebar()
+    },
+    threshold: 60
+  })
+
   return (
-    <div className="flex h-dvh w-full overflow-hidden bg-background text-foreground font-sans selection:bg-primary/20">
+    <div ref={containerRef} className="flex h-dvh w-full overflow-hidden bg-background text-foreground font-sans selection:bg-primary/20">
       {/* Sidebar */}
       <Sidebar
         isOpen={ui.sidebarOpen}

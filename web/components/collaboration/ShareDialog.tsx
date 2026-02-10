@@ -83,7 +83,7 @@ export function ShareDialog({ threadId, isOpen, onClose, className }: ShareDialo
         aria-modal="true"
         aria-labelledby="share-dialog-title"
         className={cn(
-          "w-full max-w-md mx-4 rounded-2xl glass-strong p-6 shadow-2xl animate-scale-in",
+          "w-full max-w-md mx-4 rounded-2xl glass-strong p-6 shadow-2xl animate-scale-in max-h-[90vh] overflow-y-auto",
           className
         )}
       >

@@ -136,7 +136,7 @@ export function BrowserViewer({
     <div
       className={cn(
         'border rounded-lg overflow-hidden bg-background shadow-lg transition-all duration-200',
-        isExpanded ? 'w-[480px] max-w-[calc(100vw-3rem)]' : 'w-80',
+        isExpanded ? 'w-full md:w-[480px] max-w-[calc(100vw-2rem)]' : 'w-80',
         className
       )}
     >
@@ -256,7 +256,7 @@ export function BrowserViewer({
         <>
           {/* Main Screenshot/Frame Display */}
           <div className="relative bg-muted/30">
-            <div className="max-h-[60vh] min-h-[240px] overflow-auto">
+            <div className="max-h-[50vh] md:max-h-[60vh] min-h-[240px] overflow-auto">
               {/* Live stream mode */}
               {isLiveMode && liveImageUrl ? (
                 <Image
@@ -419,12 +419,16 @@ export function FloatingBrowserViewer({
 
   return (
     <div
-      className="fixed z-50"
+      className="fixed z-50 touch-none"
       style={{ left: position.x, top: position.y }}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseUp}
+      onTouchStart={(e) => {
+        if ((e.target as HTMLElement).closest('button, a, img')) return
+        // Simple touch drag support could be added here similar to mouse
+      }}
     >
       <BrowserViewer
         threadId={threadId}
