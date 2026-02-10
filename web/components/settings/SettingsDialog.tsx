@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { useI18n } from '@/lib/i18n/i18n-context'
+import { TranslationKey, Language } from '@/lib/i18n/translations'
 import { cn } from '@/lib/utils'
 import { Check, ChevronDown, Plug, RefreshCw, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -32,7 +33,7 @@ interface ModelProvider {
   models: { id: string; name: string }[]
 }
 
-const getModelProviders = (t: (key: any) => string): ModelProvider[] => [
+const getModelProviders = (t: (key: TranslationKey) => string): ModelProvider[] => [
   {
     id: 'openai',
     name: 'OpenAI',
@@ -193,7 +194,7 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
 
   const handleSave = async () => {
     onModelChange(tempModel)
-    setLanguage(tempLanguage as any)
+    setLanguage(tempLanguage as Language)
     localStorage.setItem('weaver-api-keys', JSON.stringify(apiKeys))
     await saveMcpConfig()
     onOpenChange(false)
@@ -233,7 +234,7 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
               {languages.map((lang) => (
                 <button
                   key={lang.id}
-                  onClick={() => setTempLanguage(lang.id as any)}
+                  onClick={() => setTempLanguage(lang.id as Language)}
                   className={cn(
                     'flex items-center justify-between rounded-lg border-2 p-3 text-left transition-all hover:bg-muted/50',
                     tempLanguage === lang.id

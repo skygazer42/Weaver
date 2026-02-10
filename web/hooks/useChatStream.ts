@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { Message, Artifact, ToolInvocation, ImageAttachment } from '@/types/chat'
+import { Message, Artifact, ToolInvocation, ImageAttachment, PendingInterrupt, StreamEvent } from '@/types/chat'
 import { getApiBaseUrl } from '@/lib/api'
 import { createAppError } from '@/lib/errors'
 
@@ -16,7 +16,7 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
   const [isLoading, setIsLoading] = useState(false)
   const [currentStatus, setCurrentStatus] = useState<string>('')
   const [artifacts, setArtifacts] = useState<Artifact[]>([])
-  const [pendingInterrupt, setPendingInterrupt] = useState<any>(null)
+  const [pendingInterrupt, setPendingInterrupt] = useState<PendingInterrupt | null>(null)
   const [threadId, setThreadId] = useState<string | null>(null)
 
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -167,7 +167,7 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
         for (const line of lines) {
           if (line.startsWith('0:')) {
             try {
-              const data = JSON.parse(line.slice(2))
+              const data = JSON.parse(line.slice(2)) as StreamEvent
 
               if (data.type === 'status') {
                 throttledSetStatus(data.data.text)

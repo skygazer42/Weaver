@@ -2,8 +2,8 @@ export interface ToolInvocation {
   toolName: string
   toolCallId: string
   state: 'running' | 'completed' | 'failed'
-  args?: any
-  result?: any
+  args?: Record<string, unknown>
+  result?: Record<string, unknown>
 }
 
 export interface MessageSource {
@@ -61,7 +61,37 @@ export interface Artifact {
   tags?: string[]
 }
 
+// ──────────────────────────────────────────────
+// Interrupt Types (replaces scattered `any`)
+// ──────────────────────────────────────────────
+
+export interface InterruptPrompt {
+  message?: string
+  tool_calls?: Array<{ id: string; name: string; args?: Record<string, unknown> }>
+}
+
+export interface PendingInterrupt {
+  message?: string
+  prompts?: InterruptPrompt[]
+}
+
+// ──────────────────────────────────────────────
+// Stream Event Discriminated Union
+// ──────────────────────────────────────────────
+
+export type StreamEvent =
+  | { type: 'status'; data: { text: string } }
+  | { type: 'text'; data: { content: string } }
+  | { type: 'message'; data: { content: string } }
+  | { type: 'completion'; data: { content: string } }
+  | { type: 'interrupt'; data: PendingInterrupt }
+  | { type: 'tool'; data: { name: string; status: string; query?: string } }
+  | { type: 'artifact'; data: Artifact }
+
+// ──────────────────────────────────────────────
 // Research Visualization Types
+// ──────────────────────────────────────────────
+
 export interface ResearchNode {
   id: string
   topic: string
@@ -96,6 +126,7 @@ export interface ResearchTree {
 
 export interface ResearchEvent {
   type: 'research_node_start' | 'research_node_complete' | 'research_tree_update' | 'search'
-  data: any
+  data: Record<string, unknown>
   timestamp: number
 }
+

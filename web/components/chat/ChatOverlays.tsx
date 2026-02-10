@@ -5,7 +5,7 @@ import { ArrowDown, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { ArtifactsPanel } from './ArtifactsPanel'
-import { Artifact } from '@/types/chat'
+import { Artifact, PendingInterrupt } from '@/types/chat'
 
 interface ScrollButtonProps {
   visible: boolean
@@ -34,7 +34,7 @@ export function ScrollToBottomButton({ visible, onClick }: ScrollButtonProps) {
 }
 
 interface InterruptBannerProps {
-  pendingInterrupt: any
+  pendingInterrupt: PendingInterrupt | null
   isLoading: boolean
   onApprove: () => void
   onDismiss: () => void
