@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils'
 import { Check, ChevronDown, Plug, RefreshCw, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { getApiBaseUrl } from '@/lib/api'
+import { StorageService } from '@/lib/storage-service'
 
 interface SettingsDialogProps {
   open: boolean
@@ -158,16 +159,9 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
     }
   }
 
-  // Load API keys from localStorage
+  // Load API keys from StorageService
   useEffect(() => {
-    const savedKeys = localStorage.getItem('weaver-api-keys')
-    if (savedKeys) {
-      try {
-        setApiKeys(JSON.parse(savedKeys))
-      } catch (e) {
-        console.error('Failed to parse API keys', e)
-      }
-    }
+    setApiKeys(StorageService.getApiKeys())
   }, [])
 
   // Fetch MCP config when dialog opens
@@ -195,7 +189,9 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
   const handleSave = async () => {
     onModelChange(tempModel)
     setLanguage(tempLanguage as Language)
-    localStorage.setItem('weaver-api-keys', JSON.stringify(apiKeys))
+    onModelChange(tempModel)
+    setLanguage(tempLanguage as Language)
+    StorageService.saveApiKeys(apiKeys)
     await saveMcpConfig()
     onOpenChange(false)
   }
@@ -203,15 +199,10 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
   const handleCancel = () => {
     setTempModel(selectedModel)
     setTempLanguage(language)
+    setTempModel(selectedModel)
+    setTempLanguage(language)
     // Reload saved API keys
-    const savedKeys = localStorage.getItem('weaver-api-keys')
-    if (savedKeys) {
-      try {
-        setApiKeys(JSON.parse(savedKeys))
-      } catch (e) {
-        console.error('Failed to parse API keys', e)
-      }
-    }
+    setApiKeys(StorageService.getApiKeys())
     onOpenChange(false)
   }
 

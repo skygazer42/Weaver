@@ -13,6 +13,11 @@ export interface CleanupResult {
 export class StorageService {
   // Estimated localStorage quota (5MB is typical)
   private static readonly ESTIMATED_QUOTA = 5 * 1024 * 1024
+  private static readonly KEYS = {
+    API_KEYS: 'weaver-api-keys',
+    HISTORY: 'weaver-history',
+    ARTIFACTS: 'weaver-artifacts'
+  }
 
   private static getItem<T>(key: string): T | null {
     if (typeof window === 'undefined') return null
@@ -124,19 +129,27 @@ export class StorageService {
   }
 
   static getHistory<T>(): T[] {
-    return this.getItem<T[]>('weaver-history') || []
+    return this.getItem<T[]>(this.KEYS.HISTORY) || []
   }
 
   static saveHistory<T>(history: T[]): void {
-    this.setItem('weaver-history', history)
+    this.setItem(this.KEYS.HISTORY, history)
   }
 
   static getArtifacts<T>(): T[] {
-    return this.getItem<T[]>('weaver-artifacts') || []
+    return this.getItem<T[]>(this.KEYS.ARTIFACTS) || []
   }
 
   static saveArtifacts<T>(artifacts: T[]): void {
-    this.setItem('weaver-artifacts', artifacts)
+    this.setItem(this.KEYS.ARTIFACTS, artifacts)
+  }
+
+  static getApiKeys(): Record<string, string> {
+    return this.getItem<Record<string, string>>(this.KEYS.API_KEYS) || {}
+  }
+
+  static saveApiKeys(keys: Record<string, string>): void {
+    this.setItem(this.KEYS.API_KEYS, keys)
   }
 
   static getSessionMessages<T>(sessionId: string): T[] {
@@ -173,11 +186,11 @@ export class StorageService {
     // This is tricky without a list. We rely on the history list usually.
     // A robust way is to iterate all keys.
     Object.keys(window.localStorage).forEach(key => {
-        if (key.startsWith('session_') || key === 'weaver-history' || key === 'weaver-artifacts') {
-             if (!keysToKeep.includes(key)) {
-                 window.localStorage.removeItem(key)
-             }
+      if (key.startsWith('session_') || key === this.KEYS.HISTORY || key === this.KEYS.ARTIFACTS) {
+        if (!keysToKeep.includes(key)) {
+          window.localStorage.removeItem(key)
         }
+      }
     })
   }
 

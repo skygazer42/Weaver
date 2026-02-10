@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useReducer } from 'react'
 import Image from 'next/image'
 import { Loader2, Globe, X, Maximize2, Minimize2, ExternalLink, Play, Pause, Camera } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -17,6 +17,36 @@ interface BrowserViewerProps {
   alwaysShow?: boolean  // Always show the viewer, even without screenshots
 }
 
+interface BrowserViewerState {
+  isExpanded: boolean
+  selectedScreenshot: BrowserScreenshot | null
+  viewerMode: 'events' | 'stream'
+}
+
+type BrowserViewerAction =
+  | { type: 'SET_EXPANDED'; payload: boolean }
+  | { type: 'TOGGLE_EXPAND' }
+  | { type: 'SET_SELECTED_SCREENSHOT'; payload: BrowserScreenshot | null }
+  | { type: 'SET_MODE'; payload: 'events' | 'stream' }
+  | { type: 'TOGGLE_MODE' }
+
+function browserViewerReducer(state: BrowserViewerState, action: BrowserViewerAction): BrowserViewerState {
+  switch (action.type) {
+    case 'SET_EXPANDED':
+      return { ...state, isExpanded: action.payload }
+    case 'TOGGLE_EXPAND':
+      return { ...state, isExpanded: !state.isExpanded }
+    case 'SET_SELECTED_SCREENSHOT':
+      return { ...state, selectedScreenshot: action.payload }
+    case 'SET_MODE':
+      return { ...state, viewerMode: action.payload }
+    case 'TOGGLE_MODE':
+      return { ...state, viewerMode: state.viewerMode === 'events' ? 'stream' : 'events' }
+    default:
+      return state
+  }
+}
+
 /**
  * Real-time browser viewer component
  * Displays browser screenshots as they're captured during agent operations
@@ -29,9 +59,14 @@ export function BrowserViewer({
   mode = 'events',
   alwaysShow = false
 }: BrowserViewerProps) {
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded)
-  const [selectedScreenshot, setSelectedScreenshot] = useState<BrowserScreenshot | null>(null)
-  const [viewerMode, setViewerMode] = useState<'events' | 'stream'>(mode)
+  const initialState: BrowserViewerState = {
+    isExpanded: defaultExpanded,
+    selectedScreenshot: null,
+    viewerMode: mode,
+  }
+
+  const [state, dispatch] = useReducer(browserViewerReducer, initialState)
+  const { isExpanded, selectedScreenshot, viewerMode } = state
   const isLiveMode = viewerMode === 'stream'
 
   // SSE-based screenshot events
@@ -76,11 +111,11 @@ export function BrowserViewer({
   }, [isLiveMode, stopStream, clearScreenshots, onClose])
 
   const toggleExpand = useCallback(() => {
-    setIsExpanded(prev => !prev)
+    dispatch({ type: 'TOGGLE_EXPAND' })
   }, [])
 
   const toggleMode = useCallback(() => {
-    setViewerMode(prev => (prev === 'events' ? 'stream' : 'events'))
+    dispatch({ type: 'TOGGLE_MODE' })
   }, [])
 
   // Determine what to display
@@ -115,7 +150,7 @@ export function BrowserViewer({
             title="Close"
           />
           <button
-            onClick={() => setIsExpanded(false)}
+            onClick={() => dispatch({ type: 'SET_EXPANDED', payload: false })}
             className="w-3 h-3 rounded-full bg-yellow-500 hover:bg-yellow-600 transition-colors"
             title="Minimize"
           />
@@ -293,7 +328,7 @@ export function BrowserViewer({
                 {screenshots.map((ss, index) => (
                   <button
                     key={ss.id}
-                    onClick={() => setSelectedScreenshot(ss)}
+                    onClick={() => dispatch({ type: 'SET_SELECTED_SCREENSHOT', payload: ss })}
                     className={cn(
                       'relative flex-shrink-0 rounded border-2 overflow-hidden transition-all',
                       'hover:border-primary/50',
