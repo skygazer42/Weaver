@@ -29,19 +29,19 @@ interface SidebarProps {
 }
 
 export const Sidebar = memo(function Sidebar({
-    isOpen,
-    onToggle,
-    onNewChat,
-    onSelectChat,
-    onDeleteChat,
-    onTogglePin,
-    onRenameChat,
-    onClearHistory,
-    onOpenSettings,
-    activeView,
-    onViewChange,
-    history,
-    isLoading = false
+  isOpen,
+  onToggle,
+  onNewChat,
+  onSelectChat,
+  onDeleteChat,
+  onTogglePin,
+  onRenameChat,
+  onClearHistory,
+  onOpenSettings,
+  activeView,
+  onViewChange,
+  history,
+  isLoading = false
 }: SidebarProps) {
   const { t } = useI18n()
   const [deleteId, setDeleteId] = useState<string | null>(null)
@@ -58,14 +58,14 @@ export const Sidebar = memo(function Sidebar({
     const sevenDaysAgo = today - 86400000 * 7
 
     unpinnedItems.forEach(item => {
-        const time = item.updatedAt || item.createdAt || Date.now()
-        let key = 'Older'
-        if (time >= today) key = 'Today'
-        else if (time >= yesterday) key = 'Yesterday'
-        else if (time >= sevenDaysAgo) key = 'Previous 7 Days'
+      const time = item.updatedAt || item.createdAt || Date.now()
+      let key = 'Older'
+      if (time >= today) key = 'Today'
+      else if (time >= yesterday) key = 'Yesterday'
+      else if (time >= sevenDaysAgo) key = 'Previous 7 Days'
 
-        if (!groups[key]) groups[key] = []
-        groups[key].push(item)
+      if (!groups[key]) groups[key] = []
+      groups[key].push(item)
     })
     return groups
   }, [unpinnedItems])
@@ -156,37 +156,37 @@ export const Sidebar = memo(function Sidebar({
 
           {/* Sidebar Header */}
           <div className="flex items-center justify-between px-2 mb-2 pt-1">
-             <div className="flex items-center gap-2 select-none">
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg gradient-accent text-white text-xs font-bold shadow-glow-sm">
-                    W
-                </div>
-                <span className="font-bold text-base tracking-tight gradient-text">{t('weaver')}</span>
-             </div>
-             <Button
-               variant="ghost"
-               size="icon"
-               onClick={onToggle}
-               aria-label={isOpen ? "Close sidebar" : "Open sidebar"}
-               aria-expanded={isOpen}
-               className="h-7 w-7 text-muted-foreground hover:text-foreground"
-             >
-                <PanelLeft className="h-4 w-4" />
-             </Button>
+            <div className="flex items-center gap-2 select-none">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg gradient-accent text-white text-xs font-bold shadow-glow-sm">
+                W
+              </div>
+              <span className="font-bold text-base tracking-tight gradient-text">{t('weaver')}</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onToggle}
+              aria-label={isOpen ? "Close sidebar" : "Open sidebar"}
+              aria-expanded={isOpen}
+              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+            >
+              <PanelLeft className="h-4 w-4" />
+            </Button>
           </div>
 
           {/* Top Actions */}
           <div className="mb-2">
-             <Button
-                className={cn(
-                    "w-full justify-start gap-2 h-10 shadow-sm transition-all font-medium text-sm",
-                    !isOpen && "px-2"
-                )}
-                variant="gradient"
-                onClick={onNewChat}
-             >
-                <Plus className="h-4 w-4" />
-                <span className={cn("truncate", !isOpen && "md:hidden")}>{t('newInvestigation')}</span>
-             </Button>
+            <Button
+              className={cn(
+                "w-full justify-start gap-2 h-10 shadow-sm transition-all font-medium text-sm",
+                !isOpen && "px-2"
+              )}
+              variant="gradient"
+              onClick={onNewChat}
+            >
+              <Plus className="h-4 w-4" />
+              <span className={cn("truncate", !isOpen && "md:hidden")}>{t('newInvestigation')}</span>
+            </Button>
           </div>
 
           {/* Navigation Groups */}
@@ -194,75 +194,78 @@ export const Sidebar = memo(function Sidebar({
 
             {/* Workspace */}
             <div className="space-y-1" role="group" aria-labelledby="workspace-heading">
-               <div id="workspace-heading" className="px-3 text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-widest mb-1">
-                 {t('workspace')}
-               </div>
-               <SidebarItem icon={LayoutGrid} label={t('dashboard')} active={activeView === 'dashboard'} onClick={() => onViewChange('dashboard')} />
-               <SidebarItem icon={Compass} label={t('discover')} active={activeView === 'discover'} onClick={() => onViewChange('discover')} />
-               <SidebarItem icon={FolderOpen} label={t('library')} active={activeView === 'library'} onClick={() => onViewChange('library')} />
+              <div id="workspace-heading" className="px-3 text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-widest mb-1">
+                {t('workspace')}
+              </div>
+              <SidebarItem icon={LayoutGrid} label={t('dashboard')} active={activeView === 'dashboard'} onClick={() => onViewChange('dashboard')} />
+              <SidebarItem icon={Compass} label={t('discover')} active={activeView === 'discover'} onClick={() => onViewChange('discover')} />
+              <SidebarItem icon={FolderOpen} label={t('library')} active={activeView === 'library'} onClick={() => onViewChange('library')} />
             </div>
 
             {/* History Section */}
             {isLoading ? (
-                  <div className="space-y-2 px-1">
-                      {[1,2,3].map(i => (
-                          <div key={i} className="h-8 w-full rounded-md bg-muted/40 animate-pulse" />
+              <div className="space-y-4 px-2 py-2">
+                {[1, 2, 3, 4, 5, 6].map(i => (
+                  <div key={i} className="space-y-2 animate-pulse">
+                    <div className="h-3 w-20 bg-muted/40 rounded" />
+                    <div className="h-8 w-full bg-muted/30 rounded-lg" />
+                  </div>
+                ))}
+              </div>
+            ) : history.length === 0 ? (
+              <div className="px-3 text-xs text-muted-foreground italic py-2">{t('noRecentChats')}</div>
+            ) : flatItems.length > 20 ? (
+              // Virtual scrolling for large history lists
+              <Virtuoso
+                style={{ height: 'calc(100vh - 280px)' }}
+                totalCount={flatItems.length}
+                itemContent={renderFlatItem}
+                className="scrollbar-thin scrollbar-thumb-muted/50"
+              />
+            ) : (
+              <div className="space-y-4">
+                {/* Pinned Section */}
+                {pinnedItems.length > 0 && (
+                  <div className="space-y-1">
+                    <div className="px-3 text-[10px] font-semibold text-primary uppercase tracking-widest mb-1 flex items-center gap-1">
+                      <Pin className="h-3 w-3 fill-primary" /> Pinned
+                    </div>
+                    {pinnedItems.map(item => (
+                      <SidebarChatItem
+                        key={item.id}
+                        item={item}
+                        onSelect={onSelectChat}
+                        onDelete={setDeleteId}
+                        onTogglePin={onTogglePin}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {/* Grouped Recent Section */}
+                {GROUP_ORDER.map(dateLabel => {
+                  const items = groupedHistory[dateLabel]
+                  if (!items || items.length === 0) return null
+
+                  return (
+                    <div key={dateLabel} className="space-y-1">
+                      <div className="px-3 text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-widest mb-1">
+                        {dateLabel}
+                      </div>
+                      {items.map((item) => (
+                        <SidebarChatItem
+                          key={item.id}
+                          item={item}
+                          onSelect={onSelectChat}
+                          onDelete={setDeleteId}
+                          onTogglePin={onTogglePin}
+                        />
                       ))}
-                  </div>
-              ) : history.length === 0 ? (
-                  <div className="px-3 text-xs text-muted-foreground italic py-2">{t('noRecentChats')}</div>
-              ) : flatItems.length > 20 ? (
-                  // Virtual scrolling for large history lists
-                  <Virtuoso
-                    style={{ height: 'calc(100vh - 280px)' }}
-                    totalCount={flatItems.length}
-                    itemContent={renderFlatItem}
-                    className="scrollbar-thin scrollbar-thumb-muted/50"
-                  />
-              ) : (
-                  <div className="space-y-4">
-                      {/* Pinned Section */}
-                      {pinnedItems.length > 0 && (
-                          <div className="space-y-1">
-                              <div className="px-3 text-[10px] font-semibold text-primary uppercase tracking-widest mb-1 flex items-center gap-1">
-                                  <Pin className="h-3 w-3 fill-primary" /> Pinned
-                              </div>
-                              {pinnedItems.map(item => (
-                                  <SidebarChatItem
-                                    key={item.id}
-                                    item={item}
-                                    onSelect={onSelectChat}
-                                    onDelete={setDeleteId}
-                                    onTogglePin={onTogglePin}
-                                  />
-                              ))}
-                          </div>
-                      )}
-
-                      {/* Grouped Recent Section */}
-                      {GROUP_ORDER.map(dateLabel => {
-                          const items = groupedHistory[dateLabel]
-                          if (!items || items.length === 0) return null
-
-                          return (
-                              <div key={dateLabel} className="space-y-1">
-                                  <div className="px-3 text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-widest mb-1">
-                                      {dateLabel}
-                                  </div>
-                                  {items.map((item) => (
-                                      <SidebarChatItem
-                                        key={item.id}
-                                        item={item}
-                                        onSelect={onSelectChat}
-                                        onDelete={setDeleteId}
-                                        onTogglePin={onTogglePin}
-                                      />
-                                  ))}
-                              </div>
-                          )
-                      })}
-                  </div>
-              )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </nav>
 
           {/* Bottom Actions - Removed Settings and Clear History as requested */}
@@ -273,68 +276,68 @@ export const Sidebar = memo(function Sidebar({
 })
 
 function SidebarChatItem({
-    item,
-    onSelect,
-    onDelete,
-    onTogglePin
+  item,
+  onSelect,
+  onDelete,
+  onTogglePin
 }: {
-    item: ChatSession,
-    onSelect: (id: string) => void,
-    onDelete: (id: string) => void,
-    onTogglePin: (id: string) => void
+  item: ChatSession,
+  onSelect: (id: string) => void,
+  onDelete: (id: string) => void,
+  onTogglePin: (id: string) => void
 }) {
-    return (
-        <div className="group relative" role="listitem">
-            <button
-                onClick={() => onSelect(item.id)}
-                aria-label={`Open chat: ${item.title}`}
-                className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm transition-all duration-200 text-muted-foreground hover:bg-muted/60 hover:text-foreground text-left pr-12"
-            >
-                <MessageSquare className="h-4 w-4 shrink-0 transition-colors group-hover:text-primary" aria-hidden="true" />
-                <span className="truncate">{item.title}</span>
-            </button>
-            <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 flex items-center transition-all bg-gradient-to-l from-muted/60 pl-2">
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation()
-                        onTogglePin(item.id)
-                    }}
-                    aria-label={item.isPinned ? `Unpin ${item.title}` : `Pin ${item.title}`}
-                    aria-pressed={item.isPinned}
-                    className={cn(
-                        "p-1 text-muted-foreground hover:text-primary transition-all",
-                        item.isPinned && "text-primary"
-                    )}
-                >
-                    {item.isPinned ? <PinOff className="h-3.5 w-3.5" aria-hidden="true" /> : <Pin className="h-3.5 w-3.5" aria-hidden="true" />}
-                </button>
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation()
-                        onDelete(item.id)
-                    }}
-                    aria-label={`Delete ${item.title}`}
-                    className="p-1 text-muted-foreground hover:text-destructive transition-all"
-                >
-                    <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                </button>
-            </div>
-        </div>
-    )
+  return (
+    <div className="group relative" role="listitem">
+      <button
+        onClick={() => onSelect(item.id)}
+        aria-label={`Open chat: ${item.title}`}
+        className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm transition-all duration-200 text-muted-foreground hover:bg-muted/60 hover:text-foreground text-left pr-12"
+      >
+        <MessageSquare className="h-4 w-4 shrink-0 transition-colors group-hover:text-primary" aria-hidden="true" />
+        <span className="truncate">{item.title}</span>
+      </button>
+      <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 flex items-center transition-all bg-gradient-to-l from-muted/60 pl-2">
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onTogglePin(item.id)
+          }}
+          aria-label={item.isPinned ? `Unpin ${item.title}` : `Pin ${item.title}`}
+          aria-pressed={item.isPinned}
+          className={cn(
+            "p-1 text-muted-foreground hover:text-primary transition-all",
+            item.isPinned && "text-primary"
+          )}
+        >
+          {item.isPinned ? <PinOff className="h-3.5 w-3.5" aria-hidden="true" /> : <Pin className="h-3.5 w-3.5" aria-hidden="true" />}
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onDelete(item.id)
+          }}
+          aria-label={`Delete ${item.title}`}
+          className="p-1 text-muted-foreground hover:text-destructive transition-all"
+        >
+          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+      </div>
+    </div>
+  )
 }
 
 
 function SidebarItem({ icon: Icon, label, active, onClick }: { icon: any, label: string, active?: boolean, onClick?: () => void }) {
-    return (
-        <button
-            onClick={onClick}
-            aria-current={active ? 'page' : undefined}
-            className={cn(
-            "sidebar-item",
-            active && "active"
-        )}>
-            <Icon className={cn("h-4 w-4 transition-colors", active ? "text-blue-500" : "text-muted-foreground group-hover:text-foreground")} aria-hidden="true" />
-            <span className="truncate">{label}</span>
-        </button>
-    )
+  return (
+    <button
+      onClick={onClick}
+      aria-current={active ? 'page' : undefined}
+      className={cn(
+        "sidebar-item",
+        active && "active"
+      )}>
+      <Icon className={cn("h-4 w-4 transition-colors", active ? "text-blue-500" : "text-muted-foreground group-hover:text-foreground")} aria-hidden="true" />
+      <span className="truncate">{label}</span>
+    </button>
+  )
 }

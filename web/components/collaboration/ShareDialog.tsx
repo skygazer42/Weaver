@@ -4,7 +4,7 @@ import React, { useState, useRef } from 'react'
 import { cn } from '@/lib/utils'
 import { Copy, Check, Link, X, Clock, Eye, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { toast } from 'sonner'
+import { showSuccess, showError } from '@/lib/toast-utils'
 import { getApiBaseUrl } from '@/lib/api'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 
@@ -46,10 +46,10 @@ export function ShareDialog({ threadId, isOpen, onClose, className }: ShareDialo
       const data = await response.json()
       if (data.success) {
         setShareLinks(prev => [data.share, ...prev])
-        toast.success('Share link created')
+        showSuccess('Share link created', 'share-create')
       }
     } catch (error) {
-      toast.error('Failed to create share link')
+      showError('Failed to create share link', 'share-create')
     } finally {
       setIsCreating(false)
     }
@@ -59,7 +59,7 @@ export function ShareDialog({ threadId, isOpen, onClose, className }: ShareDialo
     const url = `${window.location.origin}/share/${shareId}`
     navigator.clipboard.writeText(url)
     setCopied(shareId)
-    toast.success('Link copied')
+    showSuccess('Link copied', 'share-link')
     setTimeout(() => setCopied(null), 2000)
   }
 
@@ -67,9 +67,9 @@ export function ShareDialog({ threadId, isOpen, onClose, className }: ShareDialo
     try {
       await fetch(`${getApiBaseUrl()}/api/share/${shareId}`, { method: 'DELETE' })
       setShareLinks(prev => prev.filter(l => l.id !== shareId))
-      toast.success('Share link deleted')
+      showSuccess('Share link deleted')
     } catch {
-      toast.error('Failed to delete share link')
+      showError('Failed to delete share link')
     }
   }
 

@@ -353,15 +353,24 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
 
             <div className="space-y-2">
               <Label className="text-xs font-medium">{t('serversConfiguration')}</Label>
-              <Textarea
-                value={mcpConfig}
-                onChange={(e) => setMcpConfig(e.target.value)}
-                className="font-mono text-xs min-h-[120px]"
-                placeholder='{ "server-name": { "command": "...", "args": [...] } }'
-              />
-              <p className="text-xs text-muted-foreground">
-                {t('serversConfigHint')}
-              </p>
+              {mcpLoading ? (
+                <div className="space-y-2 animate-pulse">
+                  <div className="h-[120px] w-full bg-muted/30 rounded-lg" />
+                  <div className="h-4 w-2/3 bg-muted/20 rounded" />
+                </div>
+              ) : (
+                <>
+                  <Textarea
+                    value={mcpConfig}
+                    onChange={(e) => setMcpConfig(e.target.value)}
+                    className="font-mono text-xs min-h-[120px]"
+                    placeholder='{ "server-name": { "command": "...", "args": [...] } }'
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {t('serversConfigHint')}
+                  </p>
+                </>
+              )}
             </div>
 
             <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 p-2 rounded">

@@ -4,7 +4,7 @@ import React, { useState, useRef } from 'react'
 import { cn } from '@/lib/utils'
 import { Download, FileText, File, X, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { toast } from 'sonner'
+import { showSuccess, showError } from '@/lib/toast-utils'
 import { getApiBaseUrl } from '@/lib/api'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 
@@ -98,10 +98,10 @@ export function ExportDialog({ threadId, isOpen, onClose, className }: ExportDia
       document.body.removeChild(a)
       window.URL.revokeObjectURL(url)
 
-      toast.success('Report exported successfully')
+      showSuccess('Report exported successfully', 'export')
       onClose()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Export failed')
+      showError(error instanceof Error ? error.message : 'Export failed', 'export')
     } finally {
       setIsExporting(false)
     }

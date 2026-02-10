@@ -3,7 +3,8 @@
 import React, { useState, useMemo, useCallback, memo } from 'react'
 import { Check, Copy, ChevronDown, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { toast } from 'sonner'
+import { showSuccess } from '@/lib/toast-utils'
+import { toast } from 'sonner' // Keep toast for other usages if any, but actually CodeBlock only uses success? Check.
 import dynamic from 'next/dynamic'
 import { Virtuoso } from 'react-virtuoso'
 import { cn } from '@/lib/utils'
@@ -83,7 +84,9 @@ export function CodeBlock({ language, value, defaultCollapsed = false }: CodeBlo
     e.stopPropagation()
     navigator.clipboard.writeText(value)
     setCopied(true)
-    toast.success('Code copied')
+    setCopied(true)
+    showSuccess('Code copied', 'code-copy')
+    setTimeout(() => setCopied(false), 2000)
     setTimeout(() => setCopied(false), 2000)
   }
 

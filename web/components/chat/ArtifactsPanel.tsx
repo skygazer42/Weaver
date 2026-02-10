@@ -11,7 +11,17 @@ import { cn } from '@/lib/utils'
 import { Artifact } from '@/types/chat'
 
 // Lazy-load ReactMarkdown + remarkGfm (heavy deps, not needed on first paint)
-const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false })
+const ReactMarkdown = dynamic(() => import('react-markdown'), {
+  ssr: false,
+  loading: () => (
+    <div className="space-y-3 p-4 animate-pulse">
+      <div className="h-6 w-2/3 bg-muted/50 rounded" />
+      <div className="h-4 w-full bg-muted/30 rounded" />
+      <div className="h-4 w-5/6 bg-muted/30 rounded" />
+      <div className="h-32 w-full bg-muted/20 rounded-lg mt-4" />
+    </div>
+  )
+})
 import remarkGfm from 'remark-gfm'
 import { CodeBlock } from './message/CodeBlock'
 
