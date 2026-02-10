@@ -1,7 +1,9 @@
 services:
+  # ---------- PostgreSQL (pgvector) ----------
   postgres:
     image: pgvector/pgvector:pg16
     container_name: weaver_postgres
+    restart: unless-stopped
     environment:
       POSTGRES_USER: manus
       POSTGRES_PASSWORD: manus_dev_password
@@ -15,26 +17,65 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - weaver-net
 
+  # ---------- Redis (cache / long-term memory store) ----------
+  redis:
+    image: redis:7-alpine
+    container_name: weaver_redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - weaver-net
+
+  # ---------- Backend (FastAPI) ----------
   backend:
     build:
       context: ..
       dockerfile: docker/Dockerfile
     container_name: weaver_backend
+    restart: unless-stopped
     ports:
       - "8000:8000"
     environment:
       DATABASE_URL: postgresql://manus:manus_dev_password@postgres:5432/manus_db
+      MEMORY_STORE_BACKEND: redis
+      MEMORY_STORE_URL: redis://redis:6379/0
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       TAVILY_API_KEY: ${TAVILY_API_KEY}
       E2B_API_KEY: ${E2B_API_KEY}
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
     volumes:
       - ..:/app
       - ../web:/app/web
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - weaver-net
 
 volumes:
   postgres_data:
+  redis_data:
+
+networks:
+  weaver-net:
+    driver: bridge
