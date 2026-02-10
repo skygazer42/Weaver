@@ -92,12 +92,18 @@ export default function RootLayout({
         inter.variable,
         jetbrainsMono.variable
       )}>
+        {/* Skip-to-content link for keyboard/screen-reader users (WCAG 2.4.1) */}
+        <a href="#main-content" className="skip-to-content">
+          Skip to main content
+        </a>
         <ThemeProvider
           defaultTheme="system"
           storageKey="weaver-theme"
         >
           <I18nProvider>
-            {children}
+            <main id="main-content">
+              {children}
+            </main>
             <Toaster />
           </I18nProvider>
         </ThemeProvider>

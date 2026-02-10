@@ -400,3 +400,66 @@
 .dark ::selection {
   background: hsla(var(--accent-blue), 0.3);
 }
+
+/* ==============================================================
+   Accessibility Enhancements (WCAG 2.2 AA)
+   ============================================================== */
+
+/* Focus-visible ring — clear keyboard focus indicator */
+@layer base {
+  *:focus-visible {
+    @apply outline-none ring-2 ring-offset-2 ring-offset-background;
+    ring-color: hsl(var(--ring));
+  }
+}
+
+/* Reduced motion — respect user preference */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Skip-to-content link for keyboard navigators */
+@layer components {
+  .skip-to-content {
+    @apply sr-only focus:not-sr-only;
+    @apply fixed top-4 left-4 z-[9999] px-4 py-2 rounded-lg;
+    @apply bg-primary text-primary-foreground font-medium text-sm;
+    @apply focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2;
+    transition: transform 0.2s;
+  }
+}
+
+/* Screen-reader only utility */
+@layer utilities {
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+}
+
+/* High-contrast mode enhancements */
+@media (prefers-contrast: high) {
+  :root {
+    --border: 0 0% 30%;
+    --ring: 0 0% 0%;
+  }
+  .dark {
+    --border: 0 0% 70%;
+    --ring: 0 0% 100%;
+  }
+}
+

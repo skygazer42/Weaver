@@ -10,10 +10,35 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-# Start small: prevent obvious runtime errors + keep imports consistently organized.
+# Comprehensive rule set for production-grade Python code
 select = [
-  "F821",  # undefined-name
-  "I",     # import sorting
+  "E",    # pycodestyle errors
+  "W",    # pycodestyle warnings
+  "F",    # pyflakes (full suite — includes F821)
+  "I",    # isort (import sorting)
+  "UP",   # pyupgrade — modernize syntax for Python 3.11+
+  "B",    # flake8-bugbear — common programming pitfalls
+  "SIM",  # flake8-simplify — code simplification suggestions
+  "RUF",  # Ruff-specific rules (e.g. unnecessary f-string, mutable defaults)
+]
+
+# Rules to ignore project-wide — keep the list intentionally small
+ignore = [
+  "E501",   # line-too-long — handled by formatter, allow occasional overflows
+  "B008",   # do-not-perform-function-call-in-default-argument — allow Depends()
+  "UP007",  # non-pep604-annotation — keep Optional[X] for readability
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests may use assert, magic values, and broader patterns
+"tests/**/*.py" = [
+  "B011",  # do-not-assert-false
+  "B017",  # assert-raises-exception
+  "SIM",   # don't enforce simplification in tests
+]
+# Main monolith has acceptable complexity while being refactored
+"main.py" = [
+  "E402",  # module-level-import-not-at-top — mid-file imports exist
 ]
 
 [tool.ruff.lint.isort]
