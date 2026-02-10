@@ -7,6 +7,7 @@ import { I18nProvider } from "@/lib/i18n/i18n-context"
 import { ChatErrorBoundary } from "@/components/ui/error-boundary"
 import { cn } from "@/lib/utils"
 import { Toaster } from "@/components/ui/sonner"
+import { WebVitals } from "@/components/analytics/WebVitals"
 
 const inter = Inter({
   subsets: ["latin"],
@@ -108,6 +109,7 @@ export default function RootLayout({
               </ChatErrorBoundary>
             </main>
             <Toaster />
+            <WebVitals />
           </I18nProvider>
         </ThemeProvider>
       </body>
