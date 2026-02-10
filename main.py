@@ -628,6 +628,68 @@ def _serialize_interrupts(interrupts: Any) -> List[Any]:
     return result
 
 
+# ---------------------------------------------------------------------------
+# Global Exception Handlers — consistent JSON error responses
+# ---------------------------------------------------------------------------
+from fastapi.exceptions import RequestValidationError
+from starlette.responses import JSONResponse as StarletteJSONResponse
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Return human-readable validation errors instead of raw Pydantic output."""
+    request_id = (request.headers.get("X-Request-ID") or "").strip() or str(uuid.uuid4())[:8]
+    errors = []
+    for err in exc.errors():
+        field = " → ".join(str(loc) for loc in err.get("loc", []))
+        errors.append({"field": field, "message": err.get("msg", ""), "type": err.get("type", "")})
+    logger.warning(f"Validation error | ID: {request_id} | Errors: {errors}")
+    return StarletteJSONResponse(
+        status_code=422,
+        content={
+            "error": "Validation Error",
+            "detail": errors,
+            "request_id": request_id,
+            "timestamp": datetime.now().isoformat(),
+        },
+    )
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """Consistent JSON format for all HTTP exceptions."""
+    request_id = (request.headers.get("X-Request-ID") or "").strip() or str(uuid.uuid4())[:8]
+    return StarletteJSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": exc.detail if isinstance(exc.detail, str) else "HTTP Error",
+            "status_code": exc.status_code,
+            "request_id": request_id,
+            "timestamp": datetime.now().isoformat(),
+        },
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """Catch-all handler — never leak stack traces in production."""
+    request_id = (request.headers.get("X-Request-ID") or "").strip() or str(uuid.uuid4())[:8]
+    logger.error(
+        f"Unhandled exception | ID: {request_id} | {type(exc).__name__}: {exc}",
+        exc_info=True,
+    )
+    detail = str(exc) if settings.debug else "An internal server error occurred."
+    return StarletteJSONResponse(
+        status_code=500,
+        content={
+            "error": "Internal Server Error",
+            "detail": detail,
+            "request_id": request_id,
+            "timestamp": datetime.now().isoformat(),
+        },
+    )
+
+
 @app.get("/")
 async def root():
     """Health check endpoint."""
