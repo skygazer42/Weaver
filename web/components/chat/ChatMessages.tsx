@@ -85,6 +85,8 @@ export function ChatMessages({
       className="scrollbar-thin scrollbar-thumb-muted/20"
       itemContent={itemContent}
       components={{ Footer }}
+      overscan={{ main: 400, reverse: 400 }}
+      increaseViewportBy={200}
     />
   )
 }
