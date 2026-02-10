@@ -194,6 +194,98 @@ app.add_middleware(
     expose_headers=["X-Thread-ID", "X-Request-ID"],  # Allow frontend to read these headers
 )
 
+
+# ---------------------------------------------------------------------------
+# Rate Limiting Middleware (in-memory token bucket)
+# ---------------------------------------------------------------------------
+_rate_limit_buckets: Dict[str, Dict[str, Any]] = {}
+_RATE_LIMIT_GENERAL = 60  # requests per minute for general endpoints
+_RATE_LIMIT_CHAT = 20  # requests per minute for chat endpoints
+_RATE_LIMIT_WINDOW = 60  # seconds
+_RATE_LIMIT_EXEMPT = {"/", "/health", "/metrics", "/docs", "/openapi.json", "/redoc"}
+
+
+def _get_client_ip(request: Request) -> str:
+    """Extract client IP, respecting X-Forwarded-For behind a reverse proxy."""
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    """Token-bucket rate limiter per client IP."""
+    path = request.url.path
+
+    # Skip exempt paths
+    if path in _RATE_LIMIT_EXEMPT:
+        return await call_next(request)
+
+    client_ip = _get_client_ip(request)
+    is_chat = path.startswith("/api/chat")
+    limit = _RATE_LIMIT_CHAT if is_chat else _RATE_LIMIT_GENERAL
+    bucket_key = f"{client_ip}:{'chat' if is_chat else 'general'}"
+    now = time.time()
+
+    bucket = _rate_limit_buckets.get(bucket_key)
+    if bucket is None or now - bucket["window_start"] >= _RATE_LIMIT_WINDOW:
+        # New window
+        bucket = {"tokens": limit - 1, "window_start": now}
+        _rate_limit_buckets[bucket_key] = bucket
+    else:
+        if bucket["tokens"] <= 0:
+            retry_after = int(_RATE_LIMIT_WINDOW - (now - bucket["window_start"])) + 1
+            logger.warning(
+                f"Rate limit exceeded | IP: {client_ip} | Path: {path} | "
+                f"Limit: {limit}/min"
+            )
+            from fastapi.responses import JSONResponse
+
+            return JSONResponse(
+                status_code=429,
+                content={
+                    "detail": "Too many requests. Please slow down.",
+                    "retry_after": retry_after,
+                },
+                headers={
+                    "Retry-After": str(retry_after),
+                    "X-RateLimit-Limit": str(limit),
+                    "X-RateLimit-Remaining": "0",
+                    "X-RateLimit-Reset": str(int(bucket["window_start"] + _RATE_LIMIT_WINDOW)),
+                },
+            )
+        bucket["tokens"] -= 1
+
+    response = await call_next(request)
+
+    # Attach rate limit headers to successful responses
+    remaining = max(bucket["tokens"], 0)
+    response.headers["X-RateLimit-Limit"] = str(limit)
+    response.headers["X-RateLimit-Remaining"] = str(remaining)
+    response.headers["X-RateLimit-Reset"] = str(int(bucket["window_start"] + _RATE_LIMIT_WINDOW))
+
+    return response
+
+
+# Periodic cleanup of stale rate-limit buckets (runs every 5 minutes)
+async def _cleanup_rate_limit_buckets():
+    while True:
+        await asyncio.sleep(300)
+        now = time.time()
+        stale_keys = [
+            k for k, v in _rate_limit_buckets.items()
+            if now - v["window_start"] > _RATE_LIMIT_WINDOW * 2
+        ]
+        for k in stale_keys:
+            _rate_limit_buckets.pop(k, None)
+
+
+@app.on_event("startup")
+async def _start_rate_limit_cleanup():
+    asyncio.create_task(_cleanup_rate_limit_buckets())
+
+
 # Initialize agent graphs with short-term memory (checkpointer)
 if settings.database_url:
     checkpointer = create_checkpointer(settings.database_url)
