@@ -41,6 +41,22 @@ export const translations = {
     mcp: 'MCP',
     web: 'Web',
 
+    // Search mode selector
+    searchMode: 'Search Mode',
+    searchModeSettings: 'Search Mode Settings',
+    searchModeSubtitle: 'Choose the AI assistant\'s work mode',
+    webSearch: 'Web Search',
+    webSearchDesc: 'Real-time web search powered by Tavily',
+    agentMode: 'Agent Mode',
+    agentModeDesc: 'Intelligent planning with LangGraph Agent',
+    deepSearchLabel: 'Deep Search',
+    deepSearchDesc: 'Multi-step in-depth research (requires Agent)',
+    deepSearchRequiresAgent: 'Deep Search requires Agent mode to be enabled',
+    tipLabel: 'Tips:',
+    tipOnlyWeb: 'Web search only: quick information lookup',
+    tipAgent: 'Enable Agent: intelligent planning & multi-step reasoning',
+    tipDeep: 'Enable Deep Search: comprehensive research reports',
+
     // Empty state
     emptyStateTitle: 'Weaver AI',
     emptyStateSubtitle: 'Your deep research companion.',
@@ -147,6 +163,22 @@ export const translations = {
     ultra: '深度研究',
     mcp: 'MCP',
     web: '网络',
+
+    // Search mode selector
+    searchMode: '搜索模式',
+    searchModeSettings: '搜索模式设置',
+    searchModeSubtitle: '选择 AI 助手的工作模式',
+    webSearch: '网络搜索',
+    webSearchDesc: '使用 Tavily 进行实时网络搜索',
+    agentMode: 'Agent 模式',
+    agentModeDesc: '使用 LangGraph Agent 进行规划',
+    deepSearchLabel: '深度搜索',
+    deepSearchDesc: '多步骤深度研究（需要 Agent）',
+    deepSearchRequiresAgent: '深度搜索需要启用 Agent 模式',
+    tipLabel: '提示：',
+    tipOnlyWeb: '只启用网络搜索：快速查找信息',
+    tipAgent: '启用 Agent：智能规划和多步推理',
+    tipDeep: '启用深度搜索：全面深入的研究报告',
 
     // Empty state
     emptyStateTitle: 'Weaver AI',
@@ -255,6 +287,22 @@ export const translations = {
     mcp: 'MCP',
     web: 'ウェブ',
 
+    // Search mode selector
+    searchMode: '検索モード',
+    searchModeSettings: '検索モード設定',
+    searchModeSubtitle: 'AIアシスタントの動作モードを選択',
+    webSearch: 'ウェブ検索',
+    webSearchDesc: 'Tavilyによるリアルタイムウェブ検索',
+    agentMode: 'エージェントモード',
+    agentModeDesc: 'LangGraph Agentによるインテリジェントな計画',
+    deepSearchLabel: 'ディープサーチ',
+    deepSearchDesc: '多段階の深層調査（エージェントが必要）',
+    deepSearchRequiresAgent: 'ディープサーチにはエージェントモードが必要です',
+    tipLabel: 'ヒント：',
+    tipOnlyWeb: 'ウェブ検索のみ：素早い情報検索',
+    tipAgent: 'エージェント有効：インテリジェントな計画と多段階推論',
+    tipDeep: 'ディープサーチ有効：包括的な研究レポート',
+
     // Empty state
     emptyStateTitle: 'Weaver AI',
     emptyStateSubtitle: 'あなたの深層研究パートナー',
@@ -349,6 +397,22 @@ export const translations = {
     ultra: '딥 리서치',
     mcp: 'MCP',
     web: '웹',
+
+    // Search mode selector
+    searchMode: '검색 모드',
+    searchModeSettings: '검색 모드 설정',
+    searchModeSubtitle: 'AI 어시스턴트의 작동 모드를 선택하세요',
+    webSearch: '웹 검색',
+    webSearchDesc: 'Tavily를 통한 실시간 웹 검색',
+    agentMode: '에이전트 모드',
+    agentModeDesc: 'LangGraph Agent로 지능적인 계획 수립',
+    deepSearchLabel: '딥 서치',
+    deepSearchDesc: '다단계 심층 연구 (에이전트 필요)',
+    deepSearchRequiresAgent: '딥 서치에는 에이전트 모드가 필요합니다',
+    tipLabel: '팁:',
+    tipOnlyWeb: '웹 검색만: 빠른 정보 검색',
+    tipAgent: '에이전트 활성화: 지능적인 계획 및 다단계 추론',
+    tipDeep: '딥 서치 활성화: 포괄적인 연구 보고서',
 
     // Empty state
     emptyStateTitle: 'Weaver AI',

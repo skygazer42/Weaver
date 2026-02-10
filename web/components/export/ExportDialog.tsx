@@ -1,11 +1,12 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { cn } from '@/lib/utils'
 import { Download, FileText, File, X, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { getApiBaseUrl } from '@/lib/api'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 
 interface ExportDialogProps {
   threadId: string
@@ -23,31 +24,31 @@ const TEMPLATES: Array<{
   description: string
   preview: string
 }> = [
-  {
-    id: 'default',
-    name: 'Default',
-    description: 'Standard research report format',
-    preview: '📄',
-  },
-  {
-    id: 'academic',
-    name: 'Academic',
-    description: 'Formal style for research papers',
-    preview: '📚',
-  },
-  {
-    id: 'business',
-    name: 'Business',
-    description: 'Professional business report',
-    preview: '💼',
-  },
-  {
-    id: 'minimal',
-    name: 'Minimal',
-    description: 'Clean, simple formatting',
-    preview: '📋',
-  },
-]
+    {
+      id: 'default',
+      name: 'Default',
+      description: 'Standard research report format',
+      preview: '📄',
+    },
+    {
+      id: 'academic',
+      name: 'Academic',
+      description: 'Formal style for research papers',
+      preview: '📚',
+    },
+    {
+      id: 'business',
+      name: 'Business',
+      description: 'Professional business report',
+      preview: '💼',
+    },
+    {
+      id: 'minimal',
+      name: 'Minimal',
+      description: 'Clean, simple formatting',
+      preview: '📋',
+    },
+  ]
 
 const FORMATS: Array<{
   id: ExportFormat
@@ -55,16 +56,18 @@ const FORMATS: Array<{
   icon: React.ComponentType<{ className?: string }>
   description: string
 }> = [
-  { id: 'html', name: 'HTML', icon: FileText, description: 'Web page format' },
-  { id: 'pdf', name: 'PDF', icon: File, description: 'Print-ready document' },
-  { id: 'docx', name: 'Word', icon: File, description: 'Microsoft Word' },
-]
+    { id: 'html', name: 'HTML', icon: FileText, description: 'Web page format' },
+    { id: 'pdf', name: 'PDF', icon: File, description: 'Print-ready document' },
+    { id: 'docx', name: 'Word', icon: File, description: 'Microsoft Word' },
+  ]
 
 export function ExportDialog({ threadId, isOpen, onClose, className }: ExportDialogProps) {
   const [format, setFormat] = useState<ExportFormat>('pdf')
   const [template, setTemplate] = useState<TemplateStyle>('default')
   const [title, setTitle] = useState('Research Report')
   const [isExporting, setIsExporting] = useState(false)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(dialogRef, isOpen, onClose)
 
   const handleExport = async () => {
     setIsExporting(true)
@@ -108,10 +111,16 @@ export function ExportDialog({ threadId, isOpen, onClose, className }: ExportDia
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in">
-      <div className={cn(
-        "w-full max-w-lg mx-4 rounded-2xl glass-strong p-6 shadow-2xl animate-scale-in",
-        className
-      )}>
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="export-dialog-title"
+        className={cn(
+          "w-full max-w-lg mx-4 rounded-2xl glass-strong p-6 shadow-2xl animate-scale-in",
+          className
+        )}
+      >
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
@@ -119,7 +128,7 @@ export function ExportDialog({ threadId, isOpen, onClose, className }: ExportDia
               <Download className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h3 className="font-semibold text-lg">Export Report</h3>
+              <h3 id="export-dialog-title" className="font-semibold text-lg">Export Report</h3>
               <p className="text-xs text-muted-foreground">Choose format and style</p>
             </div>
           </div>
@@ -154,6 +163,7 @@ export function ExportDialog({ threadId, isOpen, onClose, className }: ExportDia
                 <button
                   key={f.id}
                   onClick={() => setFormat(f.id)}
+                  aria-label={`Export as ${f.name}: ${f.description}`}
                   className={cn(
                     "flex flex-col items-center gap-1.5 p-3 rounded-xl border transition-all",
                     format === f.id
@@ -182,6 +192,7 @@ export function ExportDialog({ threadId, isOpen, onClose, className }: ExportDia
               <button
                 key={t.id}
                 onClick={() => setTemplate(t.id)}
+                aria-label={`Template: ${t.name} — ${t.description}`}
                 className={cn(
                   "flex items-center gap-3 p-3 rounded-xl border transition-all text-left",
                   template === t.id

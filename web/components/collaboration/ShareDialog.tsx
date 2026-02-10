@@ -1,11 +1,12 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { cn } from '@/lib/utils'
 import { Copy, Check, Link, X, Clock, Eye, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { getApiBaseUrl } from '@/lib/api'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 
 interface ShareDialogProps {
   threadId: string
@@ -28,6 +29,8 @@ export function ShareDialog({ threadId, isOpen, onClose, className }: ShareDialo
   const [copied, setCopied] = useState<string | null>(null)
   const [permissions, setPermissions] = useState<'view' | 'comment'>('view')
   const [expiresHours, setExpiresHours] = useState(72)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(dialogRef, isOpen, onClose)
 
   const createShareLink = async () => {
     setIsCreating(true)
@@ -74,10 +77,16 @@ export function ShareDialog({ threadId, isOpen, onClose, className }: ShareDialo
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in">
-      <div className={cn(
-        "w-full max-w-md mx-4 rounded-2xl glass-strong p-6 shadow-2xl animate-scale-in",
-        className
-      )}>
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="share-dialog-title"
+        className={cn(
+          "w-full max-w-md mx-4 rounded-2xl glass-strong p-6 shadow-2xl animate-scale-in",
+          className
+        )}
+      >
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
@@ -85,7 +94,7 @@ export function ShareDialog({ threadId, isOpen, onClose, className }: ShareDialo
               <Link className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h3 className="font-semibold text-lg">Share Research</h3>
+              <h3 id="share-dialog-title" className="font-semibold text-lg">Share Research</h3>
               <p className="text-xs text-muted-foreground">Create a link to share this session</p>
             </div>
           </div>

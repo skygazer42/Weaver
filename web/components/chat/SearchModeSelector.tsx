@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Settings2, Search, Bot, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useI18n } from '@/lib/i18n/i18n-context'
 
 export interface SearchMode {
   useWebSearch: boolean
@@ -24,6 +25,8 @@ interface SearchModeSelectorProps {
 }
 
 export function SearchModeSelector({ mode, onChange }: SearchModeSelectorProps) {
+  const { t } = useI18n()
+
   const updateMode = (key: keyof SearchMode, value: boolean) => {
     onChange({ ...mode, [key]: value })
   }
@@ -42,7 +45,7 @@ export function SearchModeSelector({ mode, onChange }: SearchModeSelectorProps) 
           )}
         >
           <Settings2 className="h-4 w-4" />
-          <span className="hidden sm:inline">搜索模式</span>
+          <span className="hidden sm:inline">{t('searchMode')}</span>
           {activeCount > 0 && (
             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
               {activeCount}
@@ -53,9 +56,9 @@ export function SearchModeSelector({ mode, onChange }: SearchModeSelectorProps) 
       <PopoverContent className="w-80" align="start">
         <div className="space-y-4">
           <div className="space-y-2">
-            <h4 className="font-medium leading-none">搜索模式设置</h4>
+            <h4 className="font-medium leading-none">{t('searchModeSettings')}</h4>
             <p className="text-sm text-muted-foreground">
-              选择 AI 助手的工作模式
+              {t('searchModeSubtitle')}
             </p>
           </div>
 
@@ -68,10 +71,10 @@ export function SearchModeSelector({ mode, onChange }: SearchModeSelectorProps) 
                 </div>
                 <div className="space-y-0.5">
                   <Label htmlFor="web-search" className="cursor-pointer">
-                    网络搜索
+                    {t('webSearch')}
                   </Label>
                   <p className="text-xs text-muted-foreground">
-                    使用 Tavily 进行实时网络搜索
+                    {t('webSearchDesc')}
                   </p>
                 </div>
               </div>
@@ -90,10 +93,10 @@ export function SearchModeSelector({ mode, onChange }: SearchModeSelectorProps) 
                 </div>
                 <div className="space-y-0.5">
                   <Label htmlFor="agent" className="cursor-pointer">
-                    Agent 模式
+                    {t('agentMode')}
                   </Label>
                   <p className="text-xs text-muted-foreground">
-                    使用 LangGraph Agent 进行规划
+                    {t('agentModeDesc')}
                   </p>
                 </div>
               </div>
@@ -112,10 +115,10 @@ export function SearchModeSelector({ mode, onChange }: SearchModeSelectorProps) 
                 </div>
                 <div className="space-y-0.5">
                   <Label htmlFor="deep-search" className="cursor-pointer">
-                    深度搜索
+                    {t('deepSearchLabel')}
                   </Label>
                   <p className="text-xs text-muted-foreground">
-                    多步骤深度研究（需要 Agent）
+                    {t('deepSearchDesc')}
                   </p>
                 </div>
               </div>
@@ -130,16 +133,16 @@ export function SearchModeSelector({ mode, onChange }: SearchModeSelectorProps) 
 
           {mode.useDeepSearch && !mode.useAgent && (
             <div className="rounded-lg bg-amber-500/10 p-3 text-sm text-amber-600">
-              深度搜索需要启用 Agent 模式
+              {t('deepSearchRequiresAgent')}
             </div>
           )}
 
           <div className="rounded-lg bg-muted p-3 text-xs text-muted-foreground">
-            <strong>提示：</strong>
+            <strong>{t('tipLabel')}</strong>
             <ul className="mt-1 ml-4 list-disc space-y-1">
-              <li>只启用网络搜索：快速查找信息</li>
-              <li>启用 Agent：智能规划和多步推理</li>
-              <li>启用深度搜索：全面深入的研究报告</li>
+              <li>{t('tipOnlyWeb')}</li>
+              <li>{t('tipAgent')}</li>
+              <li>{t('tipDeep')}</li>
             </ul>
           </div>
         </div>
