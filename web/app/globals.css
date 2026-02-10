@@ -74,6 +74,7 @@
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground antialiased transition-colors duration-300;
     font-feature-settings: "rlig" 1, "calt" 1;
@@ -85,9 +86,11 @@
   width: 6px;
   height: 6px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
   @apply bg-muted-foreground/20 rounded-full hover:bg-muted-foreground/40 transition-colors;
 }
@@ -188,6 +191,7 @@
 @layer utilities {
   .animate-fade-in {
     animation: fadeIn 0.5s ease-out forwards;
+    will-change: transform, opacity;
   }
 
   .animate-fade-in-up {
@@ -196,6 +200,7 @@
 
   .animate-slide-in-right {
     animation: slideInRight 0.3s ease-out forwards;
+    will-change: transform, opacity;
   }
 
   .animate-slide-in-left {
@@ -221,6 +226,7 @@
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -231,6 +237,7 @@
     opacity: 0;
     transform: translateY(10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -242,6 +249,7 @@
     opacity: 0;
     transform: translateX(20px);
   }
+
   to {
     opacity: 1;
     transform: translateX(0);
@@ -253,6 +261,7 @@
     opacity: 0;
     transform: translateX(-20px);
   }
+
   to {
     opacity: 1;
     transform: translateX(0);
@@ -264,6 +273,7 @@
     opacity: 0;
     transform: scale(0.95);
   }
+
   to {
     opacity: 1;
     transform: scale(1);
@@ -271,9 +281,12 @@
 }
 
 @keyframes pulseGlow {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow: 0 0 20px hsla(var(--accent-purple), 0.3);
   }
+
   50% {
     box-shadow: 0 0 40px hsla(var(--accent-purple), 0.5);
   }
@@ -283,6 +296,7 @@
   0% {
     background-position: -200% 0;
   }
+
   100% {
     background-position: 200% 0;
   }
@@ -292,6 +306,7 @@
 @layer components {
   .research-card {
     @apply glass rounded-xl p-4 transition-all duration-300;
+    contain: strict;
   }
 
   .research-card:hover {
@@ -358,6 +373,7 @@
     @apply flex items-center gap-3 px-3 py-2 rounded-lg;
     @apply text-muted-foreground hover:text-foreground;
     @apply hover:bg-accent/50 transition-all duration-200;
+    content-visibility: auto;
   }
 
   .sidebar-item.active {
@@ -371,10 +387,12 @@
   .message-user {
     @apply bg-gradient-to-r from-blue-500/10 to-purple-500/10;
     @apply border border-blue-500/20 rounded-2xl rounded-br-md;
+    contain: content;
   }
 
   .message-assistant {
     @apply glass rounded-2xl rounded-bl-md;
+    contain: content;
   }
 
   .message-thinking {
@@ -386,10 +404,9 @@
 /* Dark mode gradient background */
 .dark .gradient-bg {
   background: linear-gradient(135deg,
-    hsl(222 47% 6%) 0%,
-    hsl(230 40% 10%) 50%,
-    hsl(222 47% 6%) 100%
-  );
+      hsl(222 47% 6%) 0%,
+      hsl(230 40% 10%) 50%,
+      hsl(222 47% 6%) 100%);
 }
 
 /* Selection styling */
@@ -415,6 +432,7 @@
 
 /* Reduced motion — respect user preference */
 @media (prefers-reduced-motion: reduce) {
+
   *,
   *::before,
   *::after {
@@ -457,9 +475,9 @@
     --border: 0 0% 30%;
     --ring: 0 0% 0%;
   }
+
   .dark {
     --border: 0 0% 70%;
     --ring: 0 0% 100%;
   }
 }
-

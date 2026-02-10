@@ -199,6 +199,8 @@ function ArtifactCard({ artifact, isFullscreen }: { artifact: Artifact, isFullsc
               height={900}
               unoptimized
               className={cn("w-full object-contain bg-white", isFullscreen ? "h-auto max-h-[600px]" : "h-auto")}
+              sizes="(max-width: 1024px) 100vw, 600px"
+              loading="lazy"
             />
           </div>
         ) : artifact.type === 'code' ? (

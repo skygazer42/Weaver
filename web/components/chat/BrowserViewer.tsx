@@ -231,6 +231,8 @@ export function BrowserViewer({
                   height={720}
                   unoptimized
                   className="block w-full h-auto bg-white"
+                  sizes="(max-width: 768px) 100vw, 1280px"
+                  priority
                 />
               ) : isLiveMode && isConnected ? (
                 <div className="flex items-center justify-center min-h-[240px] text-muted-foreground">
@@ -249,6 +251,7 @@ export function BrowserViewer({
                   unoptimized
                   className="block w-full h-auto bg-white"
                   loading="lazy"
+                  sizes="(max-width: 768px) 100vw, 1280px"
                 />
               ) : (
                 <div className="flex items-center justify-center min-h-[240px] text-muted-foreground">
@@ -308,6 +311,7 @@ export function BrowserViewer({
                       unoptimized
                       className="h-12 w-auto object-cover"
                       loading="lazy"
+                      sizes="160px"
                     />
                     {/* Action label */}
                     {ss.action && (
@@ -339,6 +343,7 @@ export function BrowserViewer({
             height={96}
             unoptimized
             className="w-full h-full object-cover"
+            sizes="(max-width: 768px) 100vw, 480px"
           />
         </div>
       )}
