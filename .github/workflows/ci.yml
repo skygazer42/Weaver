@@ -112,7 +112,7 @@ jobs:
             --output /tmp/benchmark_smoke.json
 
       - name: Upload benchmark artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: benchmark-smoke-report
           path: /tmp/benchmark_smoke.json
