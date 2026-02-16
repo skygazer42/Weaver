@@ -60,9 +60,11 @@ from common.agents_store import (
     upsert_agent as upsert_agent_profile,
 )
 from common.cancellation import cancellation_manager
+from common.chat_stream_translate import translate_legacy_line_to_sse
 from common.config import settings
 from common.logger import LogContext, get_logger, setup_logging
 from common.metrics import metrics_registry
+from common.sse import format_sse_event
 from support_agent import create_support_graph
 from tools.browser.browser_session import browser_sessions
 from tools.core.memory_client import add_memory_entry, fetch_memories, store_interaction
@@ -1351,6 +1353,68 @@ async def stream_agent_events(
                 sandbox_browser_sessions.reset(thread_id)
             except Exception:
                 pass
+
+
+@app.post("/api/chat/sse")
+async def chat_sse(request: ChatRequest):
+    """
+    Standard SSE chat endpoint.
+
+    This endpoint translates the existing legacy `0:{json}\\n` stream protocol
+    into standard SSE frames (`event:` / `data:`) so the frontend can use an
+    off-the-shelf SSE parser.
+    """
+    # Get the last user message (same rule as /api/chat).
+    user_messages = [msg for msg in request.messages if msg.role == "user"]
+    if not user_messages:
+        raise HTTPException(status_code=400, detail="No user message found")
+
+    last_message = user_messages[-1].content
+    user_id = request.user_id or settings.memory_user_id
+    mode_info = _normalize_search_mode(request.search_mode)
+    model = (request.model or settings.primary_model).strip()
+    thread_id = f"thread_{uuid.uuid4().hex}"
+
+    async def _sse_generator():
+        seq = 0
+
+        # Deterministic failure mode when no API key is configured.
+        # We keep this fast and side-effect free (no graph compilation/run).
+        if not (settings.openai_api_key or "").strip():
+            seq += 1
+            yield format_sse_event(
+                event="error",
+                data={"message": "OPENAI_API_KEY is not configured", "thread_id": thread_id},
+                event_id=seq,
+            )
+            seq += 1
+            yield format_sse_event(event="done", data={"thread_id": thread_id}, event_id=seq)
+            return
+
+        async for legacy_line in stream_agent_events(
+            last_message,
+            thread_id=thread_id,
+            model=model,
+            search_mode=mode_info,
+            agent_id=request.agent_id,
+            images=_normalize_images_payload(request.images),
+            user_id=user_id,
+        ):
+            seq += 1
+            sse = translate_legacy_line_to_sse(legacy_line, seq=seq)
+            if sse:
+                yield sse
+
+    return StreamingResponse(
+        _sse_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+            "X-Thread-ID": thread_id,
+        },
+    )
 
 
 @app.post("/api/chat")
