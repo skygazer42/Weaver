@@ -242,12 +242,12 @@ export function ChatInterface({ selectedModel }: ChatInterfaceProps) {
             {(searchMode.useWebSearch || searchMode.useAgent || searchMode.useDeepSearch) && (
               <div className="flex gap-2 text-xs">
                 {searchMode.useWebSearch && (
-                  <span className="rounded-full bg-blue-500/10 px-2 py-1 text-blue-600">
+                  <span className="rounded-full bg-primary/10 px-2 py-1 text-primary">
                     网络搜索
                   </span>
                 )}
                 {searchMode.useAgent && (
-                  <span className="rounded-full bg-purple-500/10 px-2 py-1 text-purple-600">
+                  <span className="rounded-full bg-primary/10 px-2 py-1 text-primary">
                     Agent
                   </span>
                 )}

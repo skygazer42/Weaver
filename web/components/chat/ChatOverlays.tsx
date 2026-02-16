@@ -24,7 +24,7 @@ export function ScrollToBottomButton({ visible, onClick }: ScrollButtonProps) {
       <Button
         variant="outline"
         size="icon"
-        className="rounded-full shadow-lg bg-background/80 backdrop-blur border-primary/20 hover:bg-background"
+        className="rounded-full bg-background border border-border/60 shadow-md hover:bg-accent"
         onClick={onClick}
         aria-label="Scroll to bottom"
       >
@@ -47,7 +47,7 @@ export function InterruptBanner({ pendingInterrupt, isLoading, onApprove, onDism
   return (
     <div
       className={cn(
-        "mx-4 mb-3 p-3 rounded-xl border shadow-sm flex flex-col gap-2 backdrop-blur-sm",
+        "mx-4 mb-3 p-3 rounded-xl border shadow-sm flex flex-col gap-2",
         "bg-amber-50/80 text-amber-950 border-amber-200/70",
         "dark:bg-amber-950/30 dark:text-amber-50 dark:border-amber-900/40"
       )}
@@ -79,10 +79,10 @@ export function MobileArtifactsOverlay({ show, artifacts, onClose }: MobileArtif
   if (!show) return null
 
   return (
-    <div className="fixed inset-0 z-50 bg-background xl:hidden flex flex-col animate-in slide-in-from-right duration-300">
-      <div className="flex items-center justify-between p-4 border-b">
+    <div className="fixed inset-0 z-50 bg-background xl:hidden flex flex-col">
+      <div className="flex items-center justify-between p-4 border-b border-border/60">
         <h2 className="font-semibold">Artifacts</h2>
-        <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close artifacts">
+        <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close artifacts">
           <X className="h-5 w-5" />
         </Button>
       </div>

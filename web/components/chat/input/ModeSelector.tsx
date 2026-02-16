@@ -14,9 +14,6 @@ interface ModeOption {
   id: string
   label: string
   icon: React.ComponentType<{ className?: string }>
-  color: string
-  bg: string
-  border: string
 }
 
 interface McpOption {
@@ -30,9 +27,9 @@ export function ModeSelector({ searchMode, onModeChange }: ModeSelectorProps) {
   const [selectedMcp, setSelectedMcp] = useState('filesystem')
 
   const modes: ModeOption[] = [
-    { id: 'web', label: t('web'), icon: Globe, color: 'text-blue-500', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
-    { id: 'agent', label: t('agent'), icon: Bot, color: 'text-purple-500', bg: 'bg-purple-500/10', border: 'border-purple-500/20' },
-    { id: 'ultra', label: t('ultra'), icon: Rocket, color: 'text-indigo-500', bg: 'bg-indigo-500/10', border: 'border-indigo-500/20' },
+    { id: 'web', label: t('web'), icon: Globe },
+    { id: 'agent', label: t('agent'), icon: Bot },
+    { id: 'ultra', label: t('ultra'), icon: Rocket },
   ]
 
   const mcpOptions: McpOption[] = [
@@ -80,13 +77,13 @@ export function ModeSelector({ searchMode, onModeChange }: ModeSelectorProps) {
             aria-checked={isActive}
             onClick={() => handleModeClick(mode.id)}
             className={cn(
-              "relative flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition duration-200 border",
+              "relative flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border border-border/60 transition-colors duration-200",
               isActive
-                ? cn("text-foreground shadow-sm", mode.bg, mode.border)
-                : "text-muted-foreground border-transparent hover:bg-muted/50"
+                ? "bg-primary/10 text-foreground border-primary/30 shadow-sm"
+                : "bg-background text-muted-foreground hover:bg-accent"
             )}
           >
-            <Icon className={cn("h-3.5 w-3.5 transition-colors", isActive ? mode.color : "text-muted-foreground")} />
+            <Icon className={cn("h-3.5 w-3.5 transition-colors", isActive ? "text-primary" : "text-muted-foreground")} />
             {mode.label}
           </button>
         )
@@ -100,13 +97,13 @@ export function ModeSelector({ searchMode, onModeChange }: ModeSelectorProps) {
           aria-expanded={isMcpOpen}
           onClick={handleMcpToggle}
           className={cn(
-            "relative flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition duration-200 border",
+            "relative flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border border-border/60 transition-colors duration-200",
             searchMode === 'mcp'
-              ? "bg-pink-500/10 text-foreground border-pink-500/20 shadow-sm"
-              : "text-muted-foreground border-transparent hover:bg-muted/50"
+              ? "bg-primary/10 text-foreground border-primary/30 shadow-sm"
+              : "bg-background text-muted-foreground hover:bg-accent"
           )}
         >
-          <Plug className={cn("h-3.5 w-3.5 transition-colors", searchMode === 'mcp' ? "text-pink-500" : "text-muted-foreground")} />
+          <Plug className={cn("h-3.5 w-3.5 transition-colors", searchMode === 'mcp' ? "text-primary" : "text-muted-foreground")} />
           {searchMode === 'mcp' ? (mcpOptions.find(o => o.id === selectedMcp)?.label || 'MCP') : 'MCP'}
           <ChevronDown className="h-3 w-3 opacity-50" />
         </button>
@@ -115,7 +112,7 @@ export function ModeSelector({ searchMode, onModeChange }: ModeSelectorProps) {
           <div
             role="listbox"
             aria-label="MCP providers"
-            className="absolute bottom-full left-0 mb-2 w-40 bg-popover border rounded-xl shadow-lg animate-in fade-in zoom-in-95 z-50 overflow-hidden"
+            className="absolute bottom-full left-0 mb-2 w-40 bg-popover border border-border/60 rounded-xl shadow-lg z-50 overflow-hidden"
           >
             <div className="p-1">
               {mcpOptions.map(opt => (
@@ -126,7 +123,7 @@ export function ModeSelector({ searchMode, onModeChange }: ModeSelectorProps) {
                   onClick={() => handleMcpSelect(opt.id)}
                   className={cn(
                     "flex w-full items-center justify-between rounded-lg px-2 py-2 text-xs transition-colors hover:bg-muted",
-                    selectedMcp === opt.id && searchMode === 'mcp' && "bg-muted font-medium text-pink-500"
+                    selectedMcp === opt.id && searchMode === 'mcp' && "bg-muted font-medium text-primary"
                   )}
                 >
                   {opt.label}

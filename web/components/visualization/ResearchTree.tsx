@@ -50,16 +50,16 @@ export function ResearchTree({ root, onNodeClick, className }: ResearchTreeProps
 
     const statusColors = {
       pending: 'bg-yellow-500',
-      in_progress: 'bg-blue-500 animate-pulse',
+      in_progress: 'bg-primary',
       completed: 'bg-green-500',
       failed: 'bg-red-500',
     }
 
-    const statusBorderColors = {
-      pending: 'border-yellow-500/30',
-      in_progress: 'border-blue-500/30',
-      completed: 'border-green-500/30',
-      failed: 'border-red-500/30',
+    const statusLeftBorderColors = {
+      pending: 'border-l-yellow-500/40',
+      in_progress: 'border-l-primary/40',
+      completed: 'border-l-green-500/40',
+      failed: 'border-l-red-500/40',
     }
 
     return (
@@ -67,18 +67,17 @@ export function ResearchTree({ root, onNodeClick, className }: ResearchTreeProps
         {/* Node Card */}
         <div
           className={cn(
-            "relative flex items-start gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200",
-            "border hover:shadow-glow-sm",
-            statusBorderColors[node.status],
-            "bg-gradient-to-r from-card to-transparent"
+            "relative flex items-start gap-3 p-3 rounded-xl cursor-pointer border border-border/60 border-l-4 bg-card transition-colors duration-200 hover:bg-accent",
+            statusLeftBorderColors[node.status],
           )}
           onClick={() => onNodeClick?.(node)}
         >
           {/* Expand/Collapse Button */}
           {hasChildren && (
             <button
+              type="button"
               onClick={(e) => toggleExpand(node.id, e)}
-              className="flex-shrink-0 p-1 rounded hover:bg-muted/50 transition-colors"
+              className="flex-shrink-0 p-1 rounded hover:bg-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               {isExpanded ? (
                 <ChevronDown className="h-4 w-4 text-muted-foreground" />
@@ -124,7 +123,7 @@ export function ResearchTree({ root, onNodeClick, className }: ResearchTreeProps
 
         {/* Children */}
         {hasChildren && isExpanded && (
-          <div className="pl-6 mt-2 space-y-2 border-l border-dashed border-muted/30 ml-4">
+          <div className="pl-6 mt-2 space-y-2 border-l border-dashed border-border/60 ml-4">
             {node.children.map(child => renderNode(child))}
           </div>
         )}

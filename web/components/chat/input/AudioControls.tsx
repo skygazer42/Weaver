@@ -166,8 +166,8 @@ export function AudioControls({ onTranscript, disabled }: AudioControlsProps) {
       aria-pressed={isListening}
       className={cn(
         "h-8 w-8 rounded-full hover:bg-muted transition-colors duration-200",
-        isListening && "bg-red-500/10 text-red-500 animate-pulse hover:bg-red-500/20",
-        isProcessingAudio && "bg-blue-500/10 text-blue-500"
+        isListening && "bg-red-500/10 text-red-500 hover:bg-red-500/20",
+        isProcessingAudio && "bg-primary/10 text-primary"
       )}
     >
       {isProcessingAudio ? (

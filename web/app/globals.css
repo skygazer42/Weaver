@@ -123,7 +123,7 @@ html {
   }
 }
 
-/* (Removed) gradient/glass/glow utilities in Round 3 enterprise-minimal direction */
+/* (Round 3) Decorative utilities removed for enterprise-minimal direction */
 
 /* Animation Utilities */
 @layer utilities {
@@ -269,7 +269,7 @@ html {
   }
 
   .status-indicator.in-progress {
-    @apply bg-blue-500 animate-pulse;
+    @apply bg-primary;
   }
 
   .status-indicator.completed {

@@ -45,7 +45,7 @@ export function ProgressDashboard({
 
   const statusColors = {
     pending: 'text-yellow-500',
-    in_progress: 'text-blue-500',
+    in_progress: 'text-primary',
     completed: 'text-green-500',
     failed: 'text-red-500',
   }
@@ -54,7 +54,7 @@ export function ProgressDashboard({
     <div className={cn("flex flex-col h-full", className)}>
       {/* Header with Stats Summary */}
       {stats && (
-        <div className="border-b bg-gradient-to-r from-muted/30 to-transparent p-4">
+        <div className="border-b border-border/60 bg-card p-4">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <div className={cn("status-indicator", stats.status)} />
@@ -99,18 +99,19 @@ export function ProgressDashboard({
       )}
 
       {/* Tab Navigation */}
-      <div className="flex items-center gap-1 p-2 border-b">
+      <div className="flex items-center gap-1 p-2 border-b border-border/60 bg-background">
         {tabs.map(tab => {
           const Icon = tab.icon
           return (
             <button
               key={tab.id}
+              type="button"
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all duration-200",
+                "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors duration-200",
                 activeTab === tab.id
-                  ? "bg-gradient-to-r from-blue-500/10 to-purple-500/10 text-foreground font-medium"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                  ? "bg-primary/10 text-foreground font-medium"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent"
               )}
             >
               <Icon className="h-4 w-4" />
@@ -157,8 +158,8 @@ export function ProgressDashboard({
               color={stats.status === 'completed' ? 'green' : stats.status === 'failed' ? 'red' : 'blue'}
             />
             {stats.quality && (
-              <div className="col-span-2 rounded-xl border bg-gradient-to-r from-slate-500/5 to-slate-500/10 p-4">
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <div className="col-span-2 rounded-xl border border-border/60 bg-muted/10 p-4">
+                <p className="mb-3 text-xs font-semibold uppercase text-muted-foreground">
                   Quality Signals
                 </p>
                 <div className="flex flex-wrap items-center gap-2">
@@ -195,22 +196,22 @@ interface StatCardProps {
 
 function StatCard({ label, value, icon: Icon, color }: StatCardProps) {
   const colorClasses = {
-    blue: 'from-blue-500/10 to-blue-500/5 border-blue-500/20',
-    purple: 'from-purple-500/10 to-purple-500/5 border-purple-500/20',
-    green: 'from-green-500/10 to-green-500/5 border-green-500/20',
-    red: 'from-red-500/10 to-red-500/5 border-red-500/20',
+    blue: 'bg-primary/5 border-primary/15',
+    purple: 'bg-primary/5 border-primary/15',
+    green: 'bg-green-500/5 border-green-500/15',
+    red: 'bg-red-500/5 border-red-500/15',
   }
 
   const iconColors = {
-    blue: 'text-blue-500',
-    purple: 'text-purple-500',
-    green: 'text-green-500',
-    red: 'text-red-500',
+    blue: 'text-primary',
+    purple: 'text-primary',
+    green: 'text-green-600 dark:text-green-400',
+    red: 'text-red-600 dark:text-red-400',
   }
 
   return (
     <div className={cn(
-      "p-4 rounded-xl border bg-gradient-to-br",
+      "p-4 rounded-xl border",
       colorClasses[color]
     )}>
       <div className="flex items-center gap-3">

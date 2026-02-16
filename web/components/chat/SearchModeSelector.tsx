@@ -65,8 +65,8 @@ export function SearchModeSelector({ mode, onChange }: SearchModeSelectorProps) 
             {/* Web Search */}
             <div className="flex items-center justify-between space-x-2">
               <div className="flex items-center space-x-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10">
-                  <Search className="h-5 w-5 text-blue-500" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                  <Search className="h-5 w-5 text-primary" />
                 </div>
                 <div className="space-y-0.5">
                   <Label htmlFor="web-search" className="cursor-pointer">
@@ -87,8 +87,8 @@ export function SearchModeSelector({ mode, onChange }: SearchModeSelectorProps) 
             {/* Agent Mode */}
             <div className="flex items-center justify-between space-x-2">
               <div className="flex items-center space-x-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-500/10">
-                  <Bot className="h-5 w-5 text-purple-500" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                  <Bot className="h-5 w-5 text-primary" />
                 </div>
                 <div className="space-y-0.5">
                   <Label htmlFor="agent" className="cursor-pointer">
@@ -109,8 +109,8 @@ export function SearchModeSelector({ mode, onChange }: SearchModeSelectorProps) 
             {/* Deep Search */}
             <div className="flex items-center justify-between space-x-2">
               <div className="flex items-center space-x-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/10">
-                  <Sparkles className="h-5 w-5 text-amber-500" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                  <Sparkles className="h-5 w-5 text-primary" />
                 </div>
                 <div className="space-y-0.5">
                   <Label htmlFor="deep-search" className="cursor-pointer">

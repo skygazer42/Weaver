@@ -87,20 +87,19 @@ export function CommentsPanel({ threadId, isOpen, onClose, className }: Comments
   return (
     <div className={cn(
       "fixed right-0 top-0 h-full w-80 z-50 flex flex-col",
-      "glass-strong border-l shadow-2xl",
-      "animate-slide-in-right",
+      "bg-card border-l border-border/60 shadow-lg",
       className
     )}>
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b">
+      <div className="flex items-center justify-between p-4 border-b border-border/60">
         <div className="flex items-center gap-2">
-          <MessageSquare className="h-5 w-5 text-blue-500" />
+          <MessageSquare className="h-5 w-5 text-primary" />
           <h3 className="font-semibold">Comments</h3>
           <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">
             {comments.length}
           </span>
         </div>
-        <Button variant="ghost" size="icon-sm" onClick={onClose}>
+        <Button type="button" variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close comments" title="Close comments">
           <X className="h-4 w-4" />
         </Button>
       </div>
@@ -115,7 +114,7 @@ export function CommentsPanel({ threadId, isOpen, onClose, className }: Comments
           comments.map(comment => (
             <div
               key={comment.id}
-              className="p-3 rounded-xl bg-muted/30 border border-muted/50 space-y-1 animate-fade-in"
+              className="p-3 rounded-xl bg-muted/20 border border-border/60 space-y-1"
             >
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-foreground">
@@ -132,14 +131,14 @@ export function CommentsPanel({ threadId, isOpen, onClose, className }: Comments
       </div>
 
       {/* Input Area */}
-      <div className="p-4 border-t space-y-2">
+      <div className="p-4 border-t border-border/60 space-y-2">
         {!authorName && (
           <input
             type="text"
             placeholder="Your name (optional)"
             value={authorName}
             onChange={(e) => setAuthorName(e.target.value)}
-            className="w-full px-3 py-1.5 text-xs rounded-lg bg-muted/50 border border-muted focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+            className="w-full px-3 py-1.5 text-xs rounded-lg bg-background border border-border/60 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           />
         )}
         <div className="flex gap-2">
@@ -149,9 +148,10 @@ export function CommentsPanel({ threadId, isOpen, onClose, className }: Comments
             value={newComment}
             onChange={(e) => setNewComment(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && submitComment()}
-            className="flex-1 px-3 py-2 text-sm rounded-xl bg-muted/50 border border-muted focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+            className="flex-1 px-3 py-2 text-sm rounded-xl bg-background border border-border/60 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           />
           <Button
+            type="button"
             variant="default"
             size="icon"
             onClick={submitComment}

@@ -79,8 +79,15 @@ export function McpConfigDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" className="rounded-full hover:bg-muted/50" title="MCP Configuration">
-            <Plug className="h-5 w-5 text-muted-foreground transition-all" />
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="rounded-full hover:bg-accent"
+          aria-label="MCP configuration"
+          title="MCP configuration"
+        >
+            <Plug className="h-5 w-5 text-muted-foreground transition-colors" />
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[600px]">

@@ -52,6 +52,7 @@ const ArtifactTab = memo(function ArtifactTab({
 
   return (
     <button
+      type="button"
       onClick={onClick}
       className={cn(
         "flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap",
@@ -80,8 +81,9 @@ export function ArtifactsPanel({ artifacts, isOpen = true, onToggle }: Artifacts
   // If collapsed (and not fullscreen), render slim bar
   if (!isOpen && !isFullscreen) {
     return (
-      <div className="h-full w-[50px] border-l bg-muted/30 flex flex-col items-center py-4 gap-4 backdrop-blur-sm transition-colors duration-200">
+      <div className="h-full w-[50px] border-l border-border/60 bg-card flex flex-col items-center py-4 gap-4 transition-colors duration-200">
         <Button
+          type="button"
           variant="ghost"
           size="icon"
           onClick={onToggle}
@@ -91,7 +93,7 @@ export function ArtifactsPanel({ artifacts, isOpen = true, onToggle }: Artifacts
           <PanelRightOpen className="h-5 w-5 text-muted-foreground" />
         </Button>
         <div className="flex-1 w-full flex flex-col items-center gap-2 overflow-hidden py-2">
-          <div className="writing-mode-vertical text-xs font-semibold text-muted-foreground tracking-widest uppercase rotate-180 select-none">
+          <div className="writing-mode-vertical text-xs font-semibold text-muted-foreground uppercase rotate-180 select-none">
             Artifacts ({artifacts.length})
           </div>
         </div>
@@ -102,15 +104,15 @@ export function ArtifactsPanel({ artifacts, isOpen = true, onToggle }: Artifacts
   // If fullscreen, render as a fixed overlay (show all artifacts)
   if (isFullscreen) {
     return (
-      <div className="fixed inset-0 z-50 bg-background/90 backdrop-blur-md flex flex-col animate-in fade-in zoom-in-95 duration-200">
-        <div className="flex items-center justify-between p-4 border-b">
+      <div className="fixed inset-0 z-50 bg-background flex flex-col">
+        <div className="flex items-center justify-between p-4 border-b border-border/60">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center text-primary-foreground font-bold">
+            <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center text-primary-foreground font-semibold">
               A
             </div>
-            <h2 className="text-lg font-bold">Artifacts Viewer</h2>
+            <h2 className="text-lg font-semibold">Artifacts</h2>
           </div>
-          <Button variant="ghost" onClick={() => setIsFullscreen(false)}>
+          <Button type="button" variant="ghost" onClick={() => setIsFullscreen(false)}>
             <Minimize2 className="h-5 w-5 mr-2" />
             Close
           </Button>
@@ -127,11 +129,12 @@ export function ArtifactsPanel({ artifacts, isOpen = true, onToggle }: Artifacts
   }
 
   return (
-    <div className="flex flex-col h-full bg-muted/30 border-l backdrop-blur-sm transition-colors duration-200 w-full">
-      <div className="flex items-center justify-between p-4 border-b bg-background/50">
+    <div className="flex flex-col h-full bg-card border-l border-border/60 transition-colors duration-200 w-full">
+      <div className="flex items-center justify-between p-4 border-b border-border/60 bg-background">
         <div className="flex items-center gap-2">
           {onToggle && (
             <Button
+              type="button"
               variant="ghost"
               size="icon"
               className="h-7 w-7 -ml-2"
@@ -143,12 +146,13 @@ export function ArtifactsPanel({ artifacts, isOpen = true, onToggle }: Artifacts
             </Button>
           )}
           <div>
-            <h2 className="text-sm font-bold tracking-tight">Artifacts</h2>
+            <h2 className="text-sm font-semibold">Artifacts</h2>
             <p className="text-xs text-muted-foreground">{artifacts.length} generated</p>
           </div>
         </div>
         <div className="flex gap-1">
           <Button
+            type="button"
             variant="ghost"
             size="icon"
             className="h-7 w-7"
@@ -163,7 +167,7 @@ export function ArtifactsPanel({ artifacts, isOpen = true, onToggle }: Artifacts
 
       {/* Tab navigation for multiple artifacts */}
       {artifacts.length > 1 && (
-        <div className="px-3 py-2 border-b bg-muted/20 overflow-x-auto">
+        <div className="px-3 py-2 border-b border-border/60 bg-muted/20 overflow-x-auto">
           <div className="flex gap-1 min-w-max">
             {artifacts.map((artifact, index) => (
               <ArtifactTab
@@ -190,19 +194,19 @@ export function ArtifactsPanel({ artifacts, isOpen = true, onToggle }: Artifacts
 function ArtifactCard({ artifact, isFullscreen }: { artifact: Artifact, isFullscreen?: boolean }) {
   const getIcon = () => {
     switch (artifact.type) {
-      case 'report': return <FileText className="h-4 w-4 text-orange-500" />
-      case 'code': return <Code className="h-4 w-4 text-blue-500" />
-      case 'chart': return <BarChart className="h-4 w-4 text-green-500" />
+      case 'report': return <FileText className="h-4 w-4 text-primary" />
+      case 'code': return <Code className="h-4 w-4 text-primary" />
+      case 'chart': return <BarChart className="h-4 w-4 text-primary" />
       default: return <FileText className="h-4 w-4" />
     }
   }
 
   return (
     <Card className={cn(
-      "overflow-hidden border-none shadow-sm ring-1 ring-border/50 group hover:ring-primary/20 transition duration-200",
-      isFullscreen ? "shadow-md" : ""
+      "overflow-hidden border-border/60 group transition-colors duration-200 hover:border-border/80",
+      isFullscreen ? "shadow-md" : undefined
     )}>
-      <CardHeader className="p-3 bg-muted/30 border-b flex flex-row items-center justify-between space-y-0">
+      <CardHeader className="p-3 bg-muted/20 border-b border-border/60 flex flex-row items-center justify-between space-y-0">
         <div className="flex items-center gap-2 overflow-hidden">
           <div className="p-1.5 bg-background rounded-md shadow-sm">
             {getIcon()}
@@ -213,6 +217,7 @@ function ArtifactCard({ artifact, isFullscreen }: { artifact: Artifact, isFullsc
         </div>
         {artifact.type === 'chart' && (
           <Button
+            type="button"
             variant="ghost"
             size="icon"
             className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity duration-200"

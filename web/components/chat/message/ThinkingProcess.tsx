@@ -40,7 +40,7 @@ export function ThinkingProcess({ tools, isThinking }: ThinkingProcessProps) {
   ]
 
   return (
-    <Card className="w-full max-w-md my-3 border-border/60 bg-card/40 backdrop-blur-sm shadow-sm overflow-hidden transition duration-200 hover:shadow-md hover:border-border/80">
+    <Card className="w-full max-w-md my-3 overflow-hidden border-border/60 transition-shadow duration-200 hover:shadow-md">
       {/* Header */}
       <div
         className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors"
@@ -48,24 +48,27 @@ export function ThinkingProcess({ tools, isThinking }: ThinkingProcessProps) {
       >
          <div className="flex items-center gap-3">
             <div className={cn(
-                "flex items-center justify-center w-8 h-8 rounded-full ring-1 ring-border shadow-sm transition duration-200",
+                "flex items-center justify-center size-8 rounded-full ring-1 ring-border shadow-sm transition-colors duration-200",
                 isThinking ? "bg-primary/10 text-primary ring-primary/20" : "bg-muted text-muted-foreground"
             )}>
                 {isThinking ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
             </div>
             <div className="flex flex-col gap-0.5">
-                <span className="text-sm font-semibold tracking-tight text-foreground/90">
+                <span className="text-sm font-semibold text-foreground/90">
                     {isThinking ? "Deep Researching" : "Research Completed"}
                 </span>
-                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                <span className="text-[10px] font-medium text-muted-foreground uppercase">
                     {isThinking ? "Processing..." : `${tools.length} Steps Executed`}
                 </span>
             </div>
          </div>
          <Button
+            type="button"
             variant="ghost"
             size="icon"
             className="h-8 w-8 text-muted-foreground hover:text-foreground rounded-full"
+            aria-label={isOpen ? "Collapse thinking steps" : "Expand thinking steps"}
+            title={isOpen ? "Collapse" : "Expand"}
          >
             <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", isOpen && "rotate-180")} />
          </Button>
@@ -77,7 +80,7 @@ export function ThinkingProcess({ tools, isThinking }: ThinkingProcessProps) {
               {/* Connecting Line */}
               <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-[2px] bg-muted z-0 rounded-full" />
               <div
-                  className="absolute left-0 top-1/2 -translate-y-1/2 h-[2px] w-full bg-primary transition-transform duration-700 ease-in-out origin-left z-0 rounded-full"
+                  className="absolute left-0 top-1/2 -translate-y-1/2 h-[2px] w-full bg-primary origin-left z-0 rounded-full"
                   style={{ transform: `scaleX(${activeStep / (steps.length - 1)})` }}
               />
 
@@ -89,15 +92,15 @@ export function ThinkingProcess({ tools, isThinking }: ThinkingProcessProps) {
                   return (
                       <div key={step.label} className="relative z-10 flex flex-col items-center gap-2 group">
                           <div className={cn(
-                              "w-8 h-8 rounded-full flex items-center justify-center border-2 transition duration-200 bg-background shadow-sm",
-                              isActive ? "border-primary text-primary scale-110 ring-4 ring-primary/10" :
+                              "size-8 rounded-full flex items-center justify-center border-2 bg-background shadow-sm",
+                              isActive ? "border-primary text-primary ring-4 ring-primary/10" :
                               isCompleted ? "border-primary bg-primary text-primary-foreground border-transparent" :
-                              "border-muted-foreground/30 text-muted-foreground"
+                              "border-border/60 text-muted-foreground"
                           )}>
                               <Icon className="w-3.5 h-3.5" />
                           </div>
                           <span className={cn(
-                              "text-[10px] font-semibold transition-colors duration-200 absolute -bottom-6 whitespace-nowrap",
+                              "text-[10px] font-semibold absolute -bottom-6 whitespace-nowrap",
                               isActive ? "text-primary" :
                               isCompleted ? "text-foreground/80" :
                               "text-muted-foreground/60"
@@ -113,7 +116,7 @@ export function ThinkingProcess({ tools, isThinking }: ThinkingProcessProps) {
 
       {/* Logs (Collapsible) */}
       {isOpen && (
-        <div className="border-t border-border/50 bg-muted/10 animate-in slide-in-from-top-2 duration-300">
+        <div className="border-t border-border/60 bg-muted/10">
             <ScrollArea className="h-[240px]">
                 <div className="p-3 space-y-2">
                     {tools.map((tool) => (
@@ -138,7 +141,7 @@ function LogItem({ tool }: { tool: ToolInvocation }) {
        <div className="flex flex-col items-center gap-1">
            <div className={cn(
                "w-1.5 h-1.5 rounded-full mt-1.5",
-               isRunning ? "bg-blue-500 animate-pulse" : "bg-muted-foreground/40"
+               isRunning ? "bg-primary" : "bg-border/60"
            )} />
            <div className="w-[1px] h-full bg-border/40 group-last:hidden" />
        </div>
@@ -146,12 +149,10 @@ function LogItem({ tool }: { tool: ToolInvocation }) {
        <div className="flex-1 min-w-0">
            <div className="flex items-center justify-between mb-0.5">
                <div className="flex items-center gap-2">
-                   <Badge variant="outline" className={cn(
-                       "text-[10px] h-5 px-1.5 font-mono uppercase tracking-wider",
-                       tool.toolName.includes('search') ? "bg-blue-500/10 text-blue-600 border-blue-200 dark:border-blue-800" :
-                       tool.toolName.includes('code') ? "bg-purple-500/10 text-purple-600 border-purple-200 dark:border-purple-800" :
-                       "bg-zinc-500/10 text-zinc-600 border-zinc-200 dark:border-zinc-800"
-                   )}>
+                   <Badge
+                     variant="outline"
+                     className="text-[10px] h-5 px-1.5 font-mono uppercase bg-muted/20 border-border/60 text-muted-foreground"
+                   >
                        {tool.toolName.replace(/_/g, ' ')}
                    </Badge>
                    <span className="text-[10px] text-muted-foreground font-mono">
@@ -160,7 +161,7 @@ function LogItem({ tool }: { tool: ToolInvocation }) {
                </div>
                <span className={cn(
                    "text-[10px] font-medium px-1.5 py-0.5 rounded-full",
-                   isRunning ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800/50 dark:text-zinc-400"
+                   isRunning ? "bg-primary/10 text-primary" : "bg-muted/30 text-muted-foreground"
                )}>
                    {tool.state}
                </span>
