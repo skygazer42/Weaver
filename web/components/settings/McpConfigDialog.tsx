@@ -8,7 +8,7 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { Plug, RefreshCw, CheckCircle2 } from 'lucide-react'
-import { getApiBaseUrl } from '@/lib/api'
+import { getMcpConfig, updateMcpConfig } from '@/lib/api-client'
 
 export function McpConfigDialog() {
   const [open, setOpen] = useState(false)
@@ -20,11 +20,9 @@ export function McpConfigDialog() {
   const fetchConfig = async () => {
     try {
       setLoading(true)
-      const res = await fetch(`${getApiBaseUrl()}/api/mcp/config`)
-      if (!res.ok) throw new Error('Failed to fetch config')
-      const data = await res.json()
-      setEnabled(data.enabled)
-      setConfig(JSON.stringify(data.servers, null, 2))
+      const data = await getMcpConfig()
+      setEnabled(Boolean(data.enabled))
+      setConfig(JSON.stringify(data.servers || {}, null, 2))
       setLoadedTools(data.loaded_tools || 0)
     } catch (e) {
       console.error(e)
@@ -53,20 +51,12 @@ export function McpConfigDialog() {
         return
       }
 
-      const res = await fetch(`${getApiBaseUrl()}/api/mcp/config`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          enable: enabled,
-          servers: parsedServers
-        })
+      const data = await updateMcpConfig({
+        enable: enabled,
+        servers: parsedServers,
       })
-
-      if (!res.ok) throw new Error('Failed to save config')
-
-      const data = await res.json()
       setLoadedTools(data.loaded_tools || 0)
-      toast.success(data.message || 'Configuration saved')
+      toast.success('Configuration saved')
       setOpen(false)
     } catch (e) {
       console.error(e)

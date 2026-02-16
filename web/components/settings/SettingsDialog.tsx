@@ -18,6 +18,7 @@ import { TranslationKey, Language } from '@/lib/i18n/translations'
 import { cn } from '@/lib/utils'
 import { Check, ChevronDown, Plug, RefreshCw, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { getMcpConfig, updateMcpConfig } from '@/lib/api-client'
 import { getApiBaseUrl } from '@/lib/api'
 import { StorageService } from '@/lib/storage-service'
 
@@ -111,11 +112,9 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
     try {
       setMcpLoading(true)
       setMcpError(null)
-      const res = await fetch(`${getApiBaseUrl()}/api/mcp/config`)
-      if (!res.ok) throw new Error('Failed to fetch config')
-      const data = await res.json()
-      setMcpEnabled(data.enabled)
-      setMcpConfig(JSON.stringify(data.servers, null, 2))
+      const data = await getMcpConfig()
+      setMcpEnabled(Boolean(data.enabled))
+      setMcpConfig(JSON.stringify(data.servers || {}, null, 2))
       setMcpLoadedTools(data.loaded_tools || 0)
     } catch (e) {
       console.error(e)
@@ -140,20 +139,13 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
         return false
       }
 
-      const res = await fetch(`${getApiBaseUrl()}/api/mcp/config`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          enable: mcpEnabled,
-          servers: parsedServers
-        })
+      const data = await updateMcpConfig({
+        enable: mcpEnabled,
+        servers: parsedServers,
       })
 
-      if (!res.ok) throw new Error('Failed to save config')
-
-      const data = await res.json()
       setMcpLoadedTools(data.loaded_tools || 0)
-      toast.success(data.message || 'MCP configuration saved')
+      toast.success('MCP configuration saved')
       return true
     } catch (e) {
       console.error(e)

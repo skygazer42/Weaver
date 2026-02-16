@@ -6,6 +6,16 @@ export function getApiBaseUrl(): string {
   return raw.replace(/\/$/, '')
 }
 
+export function apiUrl(path: string): string {
+  const baseUrl = getApiBaseUrl()
+  const trimmed = (path || '').trim()
+  if (!trimmed) return baseUrl
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed
+
+  if (trimmed.startsWith('/')) return `${baseUrl}${trimmed}`
+  return `${baseUrl}/${trimmed}`
+}
+
 export function getApiWsBaseUrl(): string {
   return getApiBaseUrl().replace(/^http/, 'ws')
 }
