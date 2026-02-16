@@ -7,6 +7,11 @@ from pathlib import Path
 from typing import Any, Dict
 
 
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+
 def build_openapi_spec() -> Dict[str, Any]:
     from main import app
 
@@ -38,4 +43,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
