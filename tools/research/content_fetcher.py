@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ipaddress
 import re
+import threading
 from typing import Optional
 from urllib.parse import urlsplit
 
@@ -365,3 +366,57 @@ class ContentFetcher:
         final = reader_attempt or direct_attempt
         _maybe_cache(final)
         return final
+
+    def fetch_many(self, urls: list[str]) -> list[FetchedPage]:
+        candidates: list[str] = []
+        seen: set[str] = set()
+        for raw in urls or []:
+            canonical = self._registry.canonicalize_url(str(raw or "").strip())
+            if not canonical or canonical in seen:
+                continue
+            seen.add(canonical)
+            candidates.append(canonical)
+
+        if not candidates:
+            return []
+
+        try:
+            max_workers = max(1, int(getattr(settings, "research_fetch_concurrency", 6) or 6))
+        except Exception:
+            max_workers = 6
+
+        try:
+            per_domain = int(getattr(settings, "research_fetch_concurrency_per_domain", 2) or 2)
+        except Exception:
+            per_domain = 2
+
+        if per_domain <= 0:
+            from concurrent.futures import ThreadPoolExecutor
+
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                return list(executor.map(self.fetch, candidates))
+
+        sem_lock = threading.RLock()
+        semaphores: dict[str, threading.Semaphore] = {}
+
+        def _semaphore_for(domain: str) -> threading.Semaphore:
+            with sem_lock:
+                sem = semaphores.get(domain)
+                if sem is None:
+                    sem = threading.Semaphore(per_domain)
+                    semaphores[domain] = sem
+                return sem
+
+        def _fetch_with_domain_limit(target_url: str) -> FetchedPage:
+            domain = urlsplit(target_url).netloc.lower()
+            sem = _semaphore_for(domain)
+            sem.acquire()
+            try:
+                return self.fetch(target_url)
+            finally:
+                sem.release()
+
+        from concurrent.futures import ThreadPoolExecutor
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            return list(executor.map(_fetch_with_domain_limit, candidates))

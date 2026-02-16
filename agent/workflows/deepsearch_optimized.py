@@ -461,14 +461,16 @@ def _build_fetcher_evidence(urls: List[str]) -> Tuple[List[Dict[str, Any]], List
     fetcher = ContentFetcher()
     fetched_pages: List[Dict[str, Any]] = []
     passages: List[Dict[str, Any]] = []
+    canonical_urls: List[str] = []
     seen: set = set()
     for url in urls or []:
         canonical_url = canonicalize_source_url(url)
         if not canonical_url or canonical_url in seen:
             continue
         seen.add(canonical_url)
+        canonical_urls.append(canonical_url)
 
-        page = fetcher.fetch(canonical_url)
+    for page in fetcher.fetch_many(canonical_urls):
         fetched_pages.append(page.to_dict())
 
         text = page.text or page.markdown or ""
