@@ -92,20 +92,14 @@ export function CodeBlock({ language, value, defaultCollapsed = false }: CodeBlo
 
   return (
     <div className="relative w-full my-4 rounded-xl overflow-hidden border border-border/40 bg-[#282c34] shadow-sm group transition-shadow duration-200 hover:shadow-md">
-      {/* Header - Glassy MacOS Style */}
       <div
-        className="flex items-center justify-between px-4 py-2 bg-white/5 border-b border-white/10 backdrop-blur-sm select-none cursor-pointer hover:bg-white/10 transition-colors duration-200"
+        className="flex items-center justify-between px-4 py-2 bg-white/5 border-b border-white/10 select-none cursor-pointer hover:bg-white/10 transition-colors duration-200"
         onClick={toggleCollapse}
       >
         <div className="flex items-center gap-3">
-          <div className="flex gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
-            <div className="w-2.5 h-2.5 rounded-full bg-[#ff5f56]" />
-            <div className="w-2.5 h-2.5 rounded-full bg-[#ffbd2e]" />
-            <div className="w-2.5 h-2.5 rounded-full bg-[#27c93f]" />
-          </div>
-          <span className="text-xs font-medium text-white/50 font-mono lowercase flex items-center gap-2">
+          <span className="text-xs font-medium text-white/70 font-mono flex items-center gap-2">
             {language || 'text'}
-            {isCollapsed && <span className="text-xs text-white/30 italic">- collapsed</span>}
+            {isCollapsed && <span className="text-xs text-white/40">collapsed</span>}
           </span>
         </div>
         <div className="flex items-center gap-1">
@@ -139,7 +133,7 @@ export function CodeBlock({ language, value, defaultCollapsed = false }: CodeBlo
 
       {/* Code Content */}
       {!isCollapsed && (
-        <div className="overflow-x-auto animate-in slide-in-from-top-2 duration-200">
+        <div className="overflow-x-auto">
           {useVirtualization ? (
             // Virtual scrolling for large code blocks (>100 lines)
             <div className="px-4 py-4">
