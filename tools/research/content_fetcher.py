@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import ipaddress
 import re
 from typing import Optional
+from urllib.parse import urlsplit
 
 import requests
 
@@ -30,13 +32,41 @@ def _strip_html(html: str) -> str:
 def _content_type(headers: object) -> str:
     if not headers:
         return ""
-    if isinstance(headers, dict):
-        for key in ("content-type", "Content-Type", "CONTENT-TYPE"):
-            value = headers.get(key)
-            if value:
-                return str(value)
+    getter = getattr(headers, "get", None)
+    if not callable(getter):
         return ""
-    return ""
+    try:
+        value = getter("content-type") or getter("Content-Type") or getter("CONTENT-TYPE")
+    except Exception:
+        return ""
+    return str(value) if value else ""
+
+
+def _is_blocked_fetch_target(url: str) -> bool:
+    parsed = urlsplit(url)
+    scheme = (parsed.scheme or "").lower()
+    if scheme not in {"http", "https"}:
+        return True
+
+    host = (parsed.hostname or "").strip().lower().rstrip(".")
+    if not host:
+        return True
+    if host in {"localhost"}:
+        return True
+
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+
+    return bool(
+        ip.is_loopback
+        or ip.is_private
+        or ip.is_link_local
+        or ip.is_multicast
+        or ip.is_reserved
+        or ip.is_unspecified
+    )
 
 
 class ContentFetcher:
@@ -52,6 +82,14 @@ class ContentFetcher:
                 raw_url=raw_url,
                 method="direct_http",
                 error="url is required",
+                attempts=1,
+            )
+        if _is_blocked_fetch_target(canonical_url):
+            return FetchedPage(
+                url=canonical_url,
+                raw_url=raw_url,
+                method="direct_http",
+                error="blocked fetch target url",
                 attempts=1,
             )
 
