@@ -2,7 +2,9 @@
   "name": "weaver-frontend",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@10.26.2",
   "scripts": {
+    "preinstall": "node -e \"const ua=process.env.npm_config_user_agent||''; if(!ua.includes('pnpm')){console.error('This project uses pnpm. Install with: pnpm install (or from repo root: pnpm -C web install)'); process.exit(1)}\"",
     "dev": "next dev -H localhost -p 3100",
     "build": "next build",
     "start": "next start",
