@@ -218,6 +218,9 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
           } else if (data.type === 'completion') {
             assistantMessage.content = data.data.content
             flushAssistantMessage()
+          } else if (data.type === 'sources') {
+            assistantMessage.sources = data.data.items
+            flushAssistantMessage()
           } else if (data.type === 'artifact') {
             const newArtifact = data.data as Artifact
             if (!artifactIdsRef.current.has(newArtifact.id)) {

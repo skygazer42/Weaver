@@ -1190,6 +1190,25 @@ async def stream_agent_events(
                     if output.get("is_complete"):
                         final_report = output.get("final_report", "")
                         if final_report:
+                            try:
+                                from agent.workflows.evidence_extractor import extract_message_sources
+
+                                candidates: List[Dict[str, Any]] = []
+                                scraped_content = output.get("scraped_content")
+                                if isinstance(scraped_content, list):
+                                    candidates.extend(scraped_content)
+                                raw_sources = output.get("sources")
+                                if isinstance(raw_sources, list):
+                                    candidates.extend(raw_sources)
+
+                                sources = extract_message_sources(candidates)
+                                if sources:
+                                    yield await format_stream_event(
+                                        "sources", {"items": sources}
+                                    )
+                            except Exception:
+                                pass
+
                             yield await format_stream_event("completion", {"content": final_report})
 
                             # Also emit as artifact
