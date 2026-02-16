@@ -138,7 +138,7 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
       {/* Mobile Overlay */}
       <div
         className={cn(
-          "fixed inset-0 z-40 bg-background/80 backdrop-blur-sm md:hidden transition-opacity duration-500",
+          "fixed inset-0 z-40 bg-background/80 backdrop-blur-sm md:hidden transition-opacity duration-200",
           isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
         )}
         onClick={onToggle}
@@ -147,8 +147,8 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
       {/* Sidebar Container */}
       <div
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex flex-col sidebar transition-[transform,width] duration-300 ease-out md:relative",
-          isOpen ? "w-[260px] translate-x-0" : "-translate-x-full w-0 md:translate-x-0 md:w-0 md:border-r-0 overflow-hidden"
+          "fixed inset-y-0 left-0 z-50 flex flex-col sidebar w-[260px] transition-transform duration-200 ease-out md:relative",
+          isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0 md:w-0 md:border-r-0 overflow-hidden"
         )}
       >
         <div className="flex h-full flex-col p-3 gap-2">
@@ -295,7 +295,7 @@ function SidebarChatItem({
         <MessageSquare className="h-4 w-4 shrink-0 transition-colors group-hover:text-primary" aria-hidden="true" />
         <span className="truncate">{item.title}</span>
       </button>
-      <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 flex items-center transition-opacity duration-200 bg-gradient-to-l from-muted/60 pl-2">
+      <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 flex items-center transition-opacity duration-200 bg-gradient-to-l from-muted/60 pl-2">
         <button
           onClick={(e) => {
             e.stopPropagation()

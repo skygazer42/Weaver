@@ -411,7 +411,7 @@ html {
   .sidebar-item {
     @apply flex items-center gap-3 px-3 py-2 rounded-lg;
     @apply text-muted-foreground hover:text-foreground;
-    @apply hover:bg-accent/50 transition-all duration-200;
+    @apply hover:bg-accent/50 transition-colors duration-200;
     content-visibility: auto;
   }
 
