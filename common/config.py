@@ -305,6 +305,15 @@ class Settings(BaseSettings):
     deepsearch_freshness_warning_min_ratio: float = 0.4  # warn if fresh_30_ratio drops below this
     deepsearch_event_results_limit: int = 5  # max search results included in SSE event payloads
 
+    # Research Fetcher / Reader Settings
+    reader_fallback_mode: str = "both"
+    reader_public_base: str = "https://r.jina.ai"
+    reader_self_hosted_base: str = ""
+    research_fetch_timeout_s: float = 25.0
+    research_fetch_max_bytes: int = 2_000_000
+    research_fetch_concurrency: int = 6
+    research_fetch_concurrency_per_domain: int = 2
+
     # Multi-Search Engine Config
     search_strategy: str = "fallback"  # fallback | parallel | round_robin | best_first
     search_enable_freshness_ranking: bool = True  # Apply freshness boost for time-sensitive queries
