@@ -10,6 +10,7 @@ import requests
 from agent.workflows.source_registry import SourceRegistry
 from common.config import settings
 from tools.research.models import FetchedPage, truncate_bytes
+from tools.research.page_cache import get_fetched_page_cache
 from tools.research.reader_client import ReaderClient
 
 DEFAULT_UA = (
@@ -214,6 +215,17 @@ class ContentFetcher:
                 attempts=1,
             )
 
+        cache = get_fetched_page_cache()
+        cache_key = ""
+        if cache is not None:
+            reader_mode = (self._reader_mode or "").strip().lower()
+            render_mode = str(getattr(settings, "research_fetch_render_mode", "off") or "off").strip().lower()
+            cache_key = f"{canonical_url}::render={render_mode}::reader={reader_mode}"
+            cached = cache.get(cache_key)
+            if cached and (cached.text or cached.markdown or cached.error):
+                cached.raw_url = raw_url
+                return cached
+
         direct_attempt = FetchedPage(
             url=canonical_url,
             raw_url=raw_url,
@@ -230,13 +242,25 @@ class ContentFetcher:
         except Exception as exc:
             direct_attempt.error = str(exc)
             reader_attempt = self._fetch_via_reader(canonical_url, raw_url)
-            return reader_attempt or direct_attempt
+            final = reader_attempt or direct_attempt
+            if cache is not None and cache_key:
+                store_errors = bool(getattr(settings, "research_fetch_cache_store_errors", False))
+                if (final.http_status == 200 and (final.text or final.markdown)) or (store_errors and final.error):
+                    cache.set(cache_key, final)
+            return final
 
         text, status_code = _extract_text_from_response(resp)
         direct_attempt.text = text or None
         direct_attempt.http_status = status_code
         if status_code == 200 and (text or "").strip():
+            if cache is not None and cache_key:
+                cache.set(cache_key, direct_attempt)
             return direct_attempt
 
         reader_attempt = self._fetch_via_reader(canonical_url, raw_url)
-        return reader_attempt or direct_attempt
+        final = reader_attempt or direct_attempt
+        if cache is not None and cache_key:
+            store_errors = bool(getattr(settings, "research_fetch_cache_store_errors", False))
+            if (final.http_status == 200 and (final.text or final.markdown)) or (store_errors and final.error):
+                cache.set(cache_key, final)
+        return final
