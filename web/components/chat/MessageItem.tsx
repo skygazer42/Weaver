@@ -228,10 +228,8 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
     <div
       className={cn(
         'group flex w-full gap-2 py-4',
-        'animate-fade-in-up',
         isUser ? 'justify-end' : 'justify-start'
       )}
-      style={{ animationDelay: '0.05s' }}
     >
       {/* Bot Avatar - Removed */}
       <div className={cn(
@@ -259,11 +257,11 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
           </div>
         ) : (
           <div className={cn(
-            "relative px-5 pt-3.5 pb-3.5 shadow-sm transition-shadow duration-200",
+            "relative px-5 pt-3.5 pb-3.5",
             hasActionBar && "max-md:pb-12",
             isUser
               ? "message-user"
-              : "message-assistant hover:shadow-glow-sm"
+              : "message-assistant"
           )}
           >
             <div className={cn(
@@ -447,15 +445,15 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
               <div
                 role="toolbar"
                 aria-label="Message actions"
-                className={cn(
-                  "absolute flex items-center gap-1",
-                  "right-2 bottom-2 md:right-0 md:-bottom-6",
-                  "opacity-100 md:opacity-0",
-                  "md:group-hover:opacity-100 md:group-focus-within:opacity-100",
-                  "transition-opacity duration-200",
-                  "max-md:rounded-full max-md:border max-md:border-border/60 max-md:bg-background/70 max-md:backdrop-blur-sm max-md:px-1 max-md:py-1"
-                )}
-              >
+	                className={cn(
+	                  "absolute flex items-center gap-1",
+	                  "right-2 bottom-2 md:right-0 md:-bottom-6",
+	                  "opacity-100 md:opacity-0",
+	                  "md:group-hover:opacity-100 md:group-focus-within:opacity-100",
+	                  "transition-opacity duration-200",
+	                  "max-md:rounded-full max-md:border max-md:border-border/60 max-md:bg-background max-md:shadow-sm max-md:px-1 max-md:py-1"
+	                )}
+	              >
                 <Button
                   type="button"
                   variant="ghost"
