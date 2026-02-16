@@ -28,6 +28,7 @@ def test_openapi_has_key_paths_and_distinct_resume_schemas():
     assert "/api/sessions/{thread_id}/comments" in paths
     assert "/api/sessions/{thread_id}/versions" in paths
     assert "/api/sessions/{thread_id}/evidence" in paths
+    assert "/api/chat/sse" in paths
 
     schemas = (spec.get("components", {}) or {}).get("schemas", {}) or {}
     assert "GraphInterruptResumeRequest" in schemas

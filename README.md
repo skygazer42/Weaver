@@ -283,6 +283,11 @@ E2B_API_KEY=e2b_...                      # 从 https://e2b.dev 获取
 **可选配置项**：
 
 ```bash
+# 前端 Chat 流式协议（默认 sse；遇到代理/平台不兼容可切换 legacy）
+# - sse: 标准 SSE（推荐，/api/chat/sse）
+# - legacy: 兼容旧的 `0:{json}\n` 行协议（/api/chat）
+NEXT_PUBLIC_CHAT_STREAM_PROTOCOL=sse
+
 # 语音服务（阿里 DashScope）
 DASHSCOPE_API_KEY=sk-...                 # ASR + TTS
 
@@ -719,6 +724,7 @@ vercel deploy --prod
 
 ```bash
 NEXT_PUBLIC_API_URL=https://your-backend.com
+NEXT_PUBLIC_CHAT_STREAM_PROTOCOL=sse
 ```
 
 ### 后端部署（Railway/Render）

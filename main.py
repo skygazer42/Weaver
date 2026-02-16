@@ -64,7 +64,7 @@ from common.chat_stream_translate import translate_legacy_line_to_sse
 from common.config import settings
 from common.logger import LogContext, get_logger, setup_logging
 from common.metrics import metrics_registry
-from common.sse import format_sse_event
+from common.sse import format_sse_event, iter_with_sse_keepalive
 from support_agent import create_support_graph
 from tools.browser.browser_session import browser_sessions
 from tools.core.memory_client import add_memory_entry, fetch_memories, store_interaction
@@ -1410,17 +1410,25 @@ async def chat_sse(request: ChatRequest):
             yield format_sse_event(event="done", data={"thread_id": thread_id}, event_id=seq)
             return
 
-        async for legacy_line in stream_agent_events(
-            last_message,
-            thread_id=thread_id,
-            model=model,
-            search_mode=mode_info,
-            agent_id=request.agent_id,
-            images=_normalize_images_payload(request.images),
-            user_id=user_id,
+        async for maybe_line in iter_with_sse_keepalive(
+            stream_agent_events(
+                last_message,
+                thread_id=thread_id,
+                model=model,
+                search_mode=mode_info,
+                agent_id=request.agent_id,
+                images=_normalize_images_payload(request.images),
+                user_id=user_id,
+            ),
+            interval_s=15.0,
         ):
+            # Keepalive comments are already SSE frames.
+            if maybe_line.startswith(":"):
+                yield maybe_line
+                continue
+
             seq += 1
-            sse = translate_legacy_line_to_sse(legacy_line, seq=seq)
+            sse = translate_legacy_line_to_sse(maybe_line, seq=seq)
             if sse:
                 yield sse
 
