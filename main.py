@@ -568,7 +568,7 @@ class ChatResponse(BaseModel):
     timestamp: str
 
 
-class ResumeRequest(BaseModel):
+class GraphInterruptResumeRequest(BaseModel):
     thread_id: str
     payload: Any
     model: Optional[str] = None
@@ -1491,7 +1491,7 @@ async def chat(request: ChatRequest):
 
 
 @app.post("/api/interrupt/resume")
-async def resume_interrupt(request: ResumeRequest):
+async def resume_interrupt(request: GraphInterruptResumeRequest):
     """
     Resume a LangGraph execution after an interrupt.
     """
@@ -2091,14 +2091,14 @@ async def get_session_state(thread_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-class ResumeRequest(BaseModel):
+class SessionResumeRequest(BaseModel):
     """Request to resume a session."""
     additional_input: Optional[str] = None
     update_state: Optional[Dict[str, Any]] = None
 
 
 @app.post("/api/sessions/{thread_id}/resume")
-async def resume_session(thread_id: str, request: ResumeRequest = None):
+async def resume_session(thread_id: str, request: SessionResumeRequest | None = None):
     """
     Resume a paused or cancelled research session.
     """
