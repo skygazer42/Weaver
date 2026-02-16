@@ -13,6 +13,19 @@ def _json_safe(value: Any) -> Any:
     return str(value)
 
 
+def truncate_bytes(data: bytes, *, max_bytes: int) -> bytes:
+    """Truncate a bytes payload to at most max_bytes (0 disables truncation)."""
+    try:
+        limit = int(max_bytes)
+    except Exception:
+        limit = 0
+
+    if limit <= 0:
+        return data
+
+    return data[:limit]
+
+
 @dataclass
 class FetchedPage:
     url: str
