@@ -46,7 +46,7 @@ services:
     container_name: weaver_backend
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "8001:8000"
     environment:
       DATABASE_URL: postgresql://manus:manus_dev_password@postgres:5432/manus_db
       MEMORY_STORE_BACKEND: redis

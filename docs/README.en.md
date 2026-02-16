@@ -173,8 +173,8 @@ pnpm -C web dev
 
 **Access points:**
 -  **Web UI**: http://localhost:3100
--  **Backend API**: http://localhost:8000
--  **API Docs**: http://localhost:8000/docs
+-  **Backend API**: http://localhost:8001
+-  **API Docs**: http://localhost:8001/docs
 
 ### Common Dev Commands
 
@@ -789,7 +789,7 @@ docker compose -f docker/docker-compose.yml up -d postgres
 
 # Backend (with auto-reload)
 source .venv/bin/activate
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+uvicorn main:app --reload --host 0.0.0.0 --port 8001
 
 # Frontend
 pnpm -C web dev
@@ -806,7 +806,7 @@ docker build -t weaver-backend .
 
 **Run:**
 ```bash
-docker run -p 8000:8000 \
+docker run -p 8001:8000 \
   --env-file .env \
   --name weaver \
   weaver-backend
@@ -827,7 +827,7 @@ docker compose -f docker/docker-compose.yml down
 
 **Services:**
 - `postgres` - PostgreSQL database (port 5432)
-- `backend` - FastAPI backend (port 8000)
+- `backend` - FastAPI backend (port 8001)
   - Note: the frontend is started separately with `pnpm -C web dev` (not via compose by default).
 
 ### Vercel (Frontend)

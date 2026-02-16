@@ -38,7 +38,7 @@ if [ ! -d .venv ]; then
     exit 1
 fi
 source .venv/bin/activate
-uvicorn main:app --reload --host 0.0.0.0 --port 8000 &
+uvicorn main:app --reload --host 0.0.0.0 --port 8001 &
 BACKEND_PID=$!
 
 # Start web
@@ -51,8 +51,8 @@ echo "✅ Development servers started!"
 echo ""
 echo "📍 URLs:"
 echo "   Web:      http://localhost:3100"
-echo "   Backend:  http://localhost:8000"
-echo "   API Docs: http://localhost:8000/docs"
+echo "   Backend:  http://localhost:8001"
+echo "   API Docs: http://localhost:8001/docs"
 echo ""
 echo "Press Ctrl+C to stop all servers"
 

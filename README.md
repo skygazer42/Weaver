@@ -328,9 +328,9 @@ pnpm -C web dev
 ### 第五步：访问应用
 
 -  **前端界面**：http://localhost:3100
--  **后端 API**：http://localhost:8000
--  **API 文档**：http://localhost:8000/docs
--  **监控指标**：http://localhost:8000/metrics（需启用 Prometheus）
+-  **后端 API**：http://localhost:8001
+-  **API 文档**：http://localhost:8001/docs
+-  **监控指标**：http://localhost:8001/metrics（需启用 Prometheus）
 
 ### 开发常用命令
 
@@ -607,7 +607,7 @@ POST /api/tts/synthesize     # 文字转语音
 GET  /api/tts/voices         # 获取可用语音列表
 ```
 
-完整 API 文档：http://localhost:8000/docs
+完整 API 文档：http://localhost:8001/docs
 
 ---
 
@@ -628,7 +628,7 @@ docker compose -f docker/docker-compose.yml up -d postgres
 
 # 后端
 source .venv/bin/activate
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+uvicorn main:app --reload --host 0.0.0.0 --port 8001
 
 # 前端
 pnpm -C web dev
@@ -689,7 +689,7 @@ docker build -t weaver-backend .
 
 # 运行容器
 docker run -d \
-  -p 8000:8000 \
+  -p 8001:8000 \
   --env-file .env \
   --name weaver \
   weaver-backend
@@ -789,7 +789,7 @@ psql $DATABASE_URL -c "SELECT 1"
 
 ```javascript
 env: {
-  NEXT_PUBLIC_API_URL: 'http://127.0.0.1:8000',
+  NEXT_PUBLIC_API_URL: 'http://127.0.0.1:8001',
 }
 ```
 

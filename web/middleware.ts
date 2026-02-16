@@ -17,7 +17,7 @@ export function middleware(request: NextRequest) {
     // --- Content Security Policy ---
     // Allow self-hosted resources, inline styles (required by Tailwind / next-themes),
     // and connections to the backend API.
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8001'
     const cspDirectives = [
         "default-src 'self'",
         // Scripts: self + eval needed for Next.js dev mode; nonce preferred in prod

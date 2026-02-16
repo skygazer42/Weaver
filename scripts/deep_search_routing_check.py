@@ -13,7 +13,7 @@ from datetime import datetime
 
 import requests
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:8001"
 
 
 def run_deep_search_routing_check():

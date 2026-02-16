@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """CLI helper to call /api/research and stream events.
 Usage:
-  python scripts/cli_research.py "your question" --host http://localhost:8000
+  python scripts/cli_research.py "your question" --host http://localhost:8001
 """
 
 import argparse
@@ -32,7 +32,7 @@ def stream_research(query: str, host: str):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("query", help="Research query text")
-    parser.add_argument("--host", default="http://localhost:8000", help="Backend host")
+    parser.add_argument("--host", default="http://localhost:8001", help="Backend host")
     args = parser.parse_args()
     stream_research(args.query, args.host)
 
