@@ -1848,8 +1848,6 @@ async def export_report_endpoint(
         title: Optional custom title for the report
         template: Template style (default, academic, business, minimal)
     """
-    from tools.export import export_report as do_export
-
     if not checkpointer:
         raise HTTPException(status_code=400, detail="No checkpointer configured")
 
@@ -1864,23 +1862,82 @@ async def export_report_endpoint(
         if not final_report:
             raise HTTPException(status_code=404, detail="No report found for this thread")
 
-        sources = []
         scraped = state.get("scraped_content", [])
-        if isinstance(scraped, list):
-            for item in scraped:
-                if isinstance(item, dict):
-                    for r in item.get("results", []):
-                        url = r.get("url") if isinstance(r, dict) else None
-                        if url and url not in sources:
-                            sources.append(url)
+        extracted_sources = []
+        try:
+            from agent.workflows.evidence_extractor import extract_message_sources
+
+            if isinstance(scraped, list):
+                extracted_sources = extract_message_sources(scraped)
+        except Exception:
+            extracted_sources = []
+
+        source_urls = [
+            s.get("url")
+            for s in extracted_sources
+            if isinstance(s, dict) and isinstance(s.get("url"), str) and s.get("url")
+        ]
 
         report_title = title or "Research Report"
         format_lower = format.lower().strip()
 
+        if format_lower == "json":
+            deepsearch_artifacts = state.get("deepsearch_artifacts", {}) or {}
+            if not isinstance(deepsearch_artifacts, dict):
+                deepsearch_artifacts = {}
+
+            sources_payload = deepsearch_artifacts.get("sources")
+            if not isinstance(sources_payload, list):
+                sources_payload = extracted_sources
+
+            claims_payload = deepsearch_artifacts.get("claims")
+            if not isinstance(claims_payload, list):
+                claims_payload = []
+                try:
+                    from agent.workflows.claim_verifier import ClaimVerifier
+
+                    if isinstance(scraped, list) and scraped:
+                        verifier = ClaimVerifier()
+                        checks = verifier.verify_report(final_report, scraped)
+                        claims_payload = [
+                            {
+                                "claim": c.claim,
+                                "status": c.status.value,
+                                "evidence_urls": c.evidence_urls,
+                                "score": c.score,
+                                "notes": c.notes,
+                            }
+                            for c in checks
+                        ]
+                except Exception:
+                    claims_payload = []
+
+            quality_payload = deepsearch_artifacts.get("quality_summary")
+            if not isinstance(quality_payload, dict):
+                quality_payload = state.get("quality_summary", {}) or {}
+                if not isinstance(quality_payload, dict):
+                    quality_payload = {}
+
+            return StarletteJSONResponse(
+                status_code=200,
+                content={
+                    "thread_id": thread_id,
+                    "title": report_title,
+                    "report": final_report,
+                    "sources": sources_payload,
+                    "claims": claims_payload,
+                    "quality": quality_payload,
+                    "exported_at": datetime.now().isoformat(),
+                },
+                headers={"Content-Disposition": f'attachment; filename="report_{thread_id}.json"'},
+            )
+
         if format_lower == "html":
+            from tools.export import export_report as do_export
+
             html_content = do_export(
                 final_report, format="html", title=report_title,
-                thread_id=thread_id, sources=sources,
+                thread_id=thread_id, sources=source_urls,
             )
             return StreamingResponse(
                 iter([html_content.encode("utf-8") if isinstance(html_content, str) else html_content]),
@@ -1890,9 +1947,11 @@ async def export_report_endpoint(
 
         elif format_lower == "pdf":
             try:
+                from tools.export import export_report as do_export
+
                 pdf_bytes = do_export(
                     final_report, format="pdf", title=report_title,
-                    thread_id=thread_id, sources=sources,
+                    thread_id=thread_id, sources=source_urls,
                 )
                 return StreamingResponse(
                     iter([pdf_bytes if isinstance(pdf_bytes, bytes) else pdf_bytes.encode("utf-8")]),
@@ -1904,9 +1963,11 @@ async def export_report_endpoint(
 
         elif format_lower in ("docx", "doc"):
             try:
+                from tools.export import export_report as do_export
+
                 docx_bytes = do_export(
                     final_report, format="docx", title=report_title,
-                    thread_id=thread_id, sources=sources,
+                    thread_id=thread_id, sources=source_urls,
                 )
                 return StreamingResponse(
                     iter([docx_bytes if isinstance(docx_bytes, bytes) else docx_bytes.encode("utf-8")]),
