@@ -69,3 +69,28 @@ def test_non_time_sensitive_queries_keep_relevance_priority(monkeypatch):
     ranked = orchestrator._deduplicate_and_rank(results, max_results=2, query="history of ai")
 
     assert ranked[0].url == "https://example.com/old"
+
+
+def test_deduplication_canonicalizes_tracking_urls():
+    orchestrator = MultiSearchOrchestrator(providers=[])
+    results = [
+        SearchResult(
+            title="A1",
+            url="https://example.com/a?utm_source=x",
+            snippet="a1",
+            score=0.7,
+            provider="test",
+        ),
+        SearchResult(
+            title="A2",
+            url="https://example.com/a?utm_source=y",
+            snippet="a2",
+            score=0.6,
+            provider="test",
+        ),
+    ]
+
+    ranked = orchestrator._deduplicate_and_rank(results, max_results=10, query="ai")
+
+    assert len(ranked) == 1
+    assert ranked[0].url == "https://example.com/a"

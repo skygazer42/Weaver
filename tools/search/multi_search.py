@@ -23,13 +23,61 @@ from datetime import datetime, timezone
 from difflib import SequenceMatcher
 from enum import Enum
 from typing import Any, Dict, List, Optional
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlencode, urlparse, urlsplit, urlunsplit
 
 from agent.core.search_cache import get_search_cache
 from common.config import settings
 from tools.search.reliability import ProviderReliabilityManager, ReliabilityPolicy
 
 logger = logging.getLogger(__name__)
+
+_TRACKING_QUERY_KEYS = {
+    "fbclid",
+    "gclid",
+    "igshid",
+    "mc_cid",
+    "mc_eid",
+    "ref",
+    "ref_src",
+    "source",
+}
+
+
+def _canonicalize_result_url(raw_url: str) -> str:
+    raw = str(raw_url or "").strip()
+    if not raw:
+        return ""
+    if "://" not in raw:
+        raw = f"https://{raw}"
+
+    try:
+        parsed = urlsplit(raw)
+    except Exception:
+        return raw
+
+    scheme = (parsed.scheme or "https").lower()
+    netloc = (parsed.netloc or "").lower()
+    if not netloc:
+        return raw
+
+    path = parsed.path or "/"
+    if path != "/":
+        path = path.rstrip("/")
+        if not path:
+            path = "/"
+
+    query_items = []
+    for key, value in parse_qsl(parsed.query, keep_blank_values=True):
+        normalized_key = str(key).strip().lower()
+        if normalized_key.startswith("utm_"):
+            continue
+        if normalized_key in _TRACKING_QUERY_KEYS:
+            continue
+        query_items.append((key, value))
+    query_items.sort()
+    query = urlencode(query_items, doseq=True)
+
+    return urlunsplit((scheme, netloc, path, query, ""))
 
 
 class SearchStrategy(str, Enum):
@@ -51,6 +99,9 @@ class SearchResult:
     published_date: Optional[str] = None
     provider: str = ""
     raw_data: Dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        self.url = _canonicalize_result_url(self.url)
 
     @property
     def domain(self) -> str:
