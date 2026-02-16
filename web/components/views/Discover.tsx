@@ -12,7 +12,6 @@ type FeaturedTemplate = {
   title: string
   desc: string
   icon: React.ComponentType<{ className?: string }>
-  color: string
 }
 
 export function Discover() {
@@ -20,9 +19,9 @@ export function Discover() {
   const [addedIds, setAddedIds] = useState<string[]>([])
 
   const featured: FeaturedTemplate[] = [
-    { id: 't1', title: 'Market Trends 2025', desc: 'Deep dive into emerging tech markets', icon: TrendingUp, color: 'text-blue-500' },
-    { id: 't2', title: 'Academic Research', desc: 'Find latest papers on LLM agents', icon: Search, color: 'text-purple-500' },
-    { id: 't3', title: 'Creative Writing', desc: 'Story brainstorming with AI', icon: Sparkles, color: 'text-amber-500' },
+    { id: 't1', title: 'Market Trends 2025', desc: 'Deep dive into emerging tech markets', icon: TrendingUp },
+    { id: 't2', title: 'Academic Research', desc: 'Find latest papers on LLM agents', icon: Search },
+    { id: 't3', title: 'Creative Writing', desc: 'Story brainstorming with AI', icon: Sparkles },
   ]
 
   const handleAddTemplate = (item: FeaturedTemplate) => {
@@ -61,10 +60,10 @@ export function Discover() {
           {featured.map((item) => (
             <div
               key={item.id}
-              className="group relative p-6 rounded-2xl border bg-card hover:bg-muted/50 transition duration-200 cursor-pointer shadow-sm hover:shadow-md"
+              className="group relative rounded-2xl border border-border/60 bg-card p-6 transition-colors duration-200 hover:bg-accent"
             >
-              <div className={`h-12 w-12 rounded-xl bg-muted flex items-center justify-center mb-4 ${item.color} bg-opacity-10`}>
-                <item.icon className={`h-6 w-6 ${item.color}`} />
+              <div className="mb-4 flex size-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <item.icon className="h-6 w-6" />
               </div>
               <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">{item.title}</h3>
               <p className="text-sm text-muted-foreground mt-2 leading-relaxed">{item.desc}</p>
@@ -73,7 +72,7 @@ export function Discover() {
                 type="button"
                 size="icon"
                 variant="secondary"
-                className="absolute top-4 right-4 h-8 w-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute top-4 right-4 h-8 w-8 rounded-full opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100"
                 onClick={(e) => {
                     e.stopPropagation()
                     handleAddTemplate(item)
