@@ -228,6 +228,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/chat/sse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Chat Sse
+         * @description Standard SSE chat endpoint.
+         *
+         *     This endpoint translates the existing legacy `0:{json}\n` stream protocol
+         *     into standard SSE frames (`event:` / `data:`) so the frontend can use an
+         *     off-the-shelf SSE parser.
+         */
+        post: operations["chat_sse_api_chat_sse_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/documents/list": {
         parameters: {
             query?: never;
@@ -1244,6 +1268,49 @@ export interface components {
              */
             sample_rate: number;
         };
+        /**
+         * AgentProfile
+         * @description Lightweight “GPTs-like” agent profile.
+         *
+         *     Stored in a local JSON file (data/agents.json) to avoid DB migrations.
+         */
+        AgentProfile: {
+            /** Created At */
+            created_at?: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Enabled Tools */
+            enabled_tools?: {
+                [key: string]: boolean;
+            };
+            /** Id */
+            id: string;
+            /** Mcp Servers */
+            mcp_servers?: {
+                [key: string]: unknown;
+            } | null;
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Model
+             * @default
+             */
+            model: string;
+            /** Name */
+            name: string;
+            /**
+             * System Prompt
+             * @default
+             */
+            system_prompt: string;
+            /** Updated At */
+            updated_at?: string;
+        };
         /** AgentUpsertPayload */
         AgentUpsertPayload: {
             /**
@@ -1283,6 +1350,11 @@ export interface components {
              * @default
              */
             system_prompt: string;
+        };
+        /** AgentsListResponse */
+        AgentsListResponse: {
+            /** Agents */
+            agents: components["schemas"]["AgentProfile"][];
         };
         /** Body_recognize_speech_upload_api_asr_upload_post */
         Body_recognize_speech_upload_api_asr_upload_post: {
@@ -1347,6 +1419,13 @@ export interface components {
             content: string;
             /** Message Id */
             message_id?: string | null;
+        };
+        /** CommentsResponse */
+        CommentsResponse: {
+            /** Comments */
+            comments: components["schemas"]["SessionComment"][];
+            /** Count */
+            count: number;
         };
         /** CreateEventTriggerRequest */
         CreateEventTriggerRequest: {
@@ -1563,6 +1642,23 @@ export interface components {
              */
             useWebSearch: boolean;
         };
+        /** SessionComment */
+        SessionComment: {
+            /** Author */
+            author: string;
+            /** Content */
+            content: string;
+            /** Created At */
+            created_at: string;
+            /** Id */
+            id: string;
+            /** Message Id */
+            message_id?: string | null;
+            /** Thread Id */
+            thread_id: string;
+            /** Updated At */
+            updated_at: string;
+        };
         /**
          * SessionResumeRequest
          * @description Request to resume a session.
@@ -1574,6 +1670,49 @@ export interface components {
             update_state?: {
                 [key: string]: unknown;
             } | null;
+        };
+        /** SessionSummary */
+        SessionSummary: {
+            /** Created At */
+            created_at: string;
+            /** Has Report */
+            has_report: boolean;
+            /** Message Count */
+            message_count: number;
+            /** Revision Count */
+            revision_count: number;
+            /** Route */
+            route: string;
+            /** Status */
+            status: string;
+            /** Thread Id */
+            thread_id: string;
+            /** Topic */
+            topic: string;
+            /** Updated At */
+            updated_at: string;
+        };
+        /** SessionVersion */
+        SessionVersion: {
+            /** Created At */
+            created_at: string;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Snapshot Size */
+            snapshot_size: number;
+            /** Thread Id */
+            thread_id: string;
+            /** Version Number */
+            version_number: number;
+        };
+        /** SessionsListResponse */
+        SessionsListResponse: {
+            /** Count */
+            count: number;
+            /** Sessions */
+            sessions: components["schemas"]["SessionSummary"][];
         };
         /**
          * ShareRequest
@@ -1632,6 +1771,13 @@ export interface components {
             /** Error Type */
             type: string;
         };
+        /** VersionsResponse */
+        VersionsResponse: {
+            /** Count */
+            count: number;
+            /** Versions */
+            versions: components["schemas"]["SessionVersion"][];
+        };
     };
     responses: never;
     parameters: never;
@@ -1676,7 +1822,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["AgentsListResponse"];
                 };
             };
         };
@@ -2026,6 +2172,39 @@ export interface operations {
         requestBody?: {
             content: {
                 "application/json": components["schemas"]["CancelRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    chat_sse_api_chat_sse_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatRequest"];
             };
         };
         responses: {
@@ -2619,7 +2798,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["SessionsListResponse"];
                 };
             };
             /** @description Validation Error */
@@ -2714,7 +2893,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["CommentsResponse"];
                 };
             };
             /** @description Validation Error */
@@ -2913,7 +3092,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["VersionsResponse"];
                 };
             };
             /** @description Validation Error */
