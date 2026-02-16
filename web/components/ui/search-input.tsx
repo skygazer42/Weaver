@@ -42,8 +42,11 @@ export function SearchInput({
       />
       {value && (
         <button
+          type="button"
           onClick={handleClear}
-          className="absolute right-3 hover:text-foreground text-muted-foreground transition-colors"
+          aria-label="Clear search"
+          title="Clear search"
+          className="absolute right-3 rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           <X className="h-4 w-4" />
         </button>
