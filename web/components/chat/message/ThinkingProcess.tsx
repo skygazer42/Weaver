@@ -40,7 +40,7 @@ export function ThinkingProcess({ tools, isThinking }: ThinkingProcessProps) {
   ]
 
   return (
-    <Card className="w-full max-w-md my-3 border-border/60 bg-card/40 backdrop-blur-sm shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md hover:border-border/80">
+    <Card className="w-full max-w-md my-3 border-border/60 bg-card/40 backdrop-blur-sm shadow-sm overflow-hidden transition duration-200 hover:shadow-md hover:border-border/80">
       {/* Header */}
       <div
         className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors"
@@ -48,7 +48,7 @@ export function ThinkingProcess({ tools, isThinking }: ThinkingProcessProps) {
       >
          <div className="flex items-center gap-3">
             <div className={cn(
-                "flex items-center justify-center w-8 h-8 rounded-full ring-1 ring-border shadow-sm transition-all",
+                "flex items-center justify-center w-8 h-8 rounded-full ring-1 ring-border shadow-sm transition duration-200",
                 isThinking ? "bg-primary/10 text-primary ring-primary/20" : "bg-muted text-muted-foreground"
             )}>
                 {isThinking ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
@@ -67,7 +67,7 @@ export function ThinkingProcess({ tools, isThinking }: ThinkingProcessProps) {
             size="icon"
             className="h-8 w-8 text-muted-foreground hover:text-foreground rounded-full"
          >
-            <ChevronDown className={cn("h-4 w-4 transition-transform duration-300", isOpen && "rotate-180")} />
+            <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", isOpen && "rotate-180")} />
          </Button>
       </div>
 
@@ -89,7 +89,7 @@ export function ThinkingProcess({ tools, isThinking }: ThinkingProcessProps) {
                   return (
                       <div key={step.label} className="relative z-10 flex flex-col items-center gap-2 group">
                           <div className={cn(
-                              "w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all duration-300 bg-background shadow-sm",
+                              "w-8 h-8 rounded-full flex items-center justify-center border-2 transition duration-200 bg-background shadow-sm",
                               isActive ? "border-primary text-primary scale-110 ring-4 ring-primary/10" :
                               isCompleted ? "border-primary bg-primary text-primary-foreground border-transparent" :
                               "border-muted-foreground/30 text-muted-foreground"
@@ -97,7 +97,7 @@ export function ThinkingProcess({ tools, isThinking }: ThinkingProcessProps) {
                               <Icon className="w-3.5 h-3.5" />
                           </div>
                           <span className={cn(
-                              "text-[10px] font-semibold transition-colors duration-300 absolute -bottom-6 whitespace-nowrap",
+                              "text-[10px] font-semibold transition-colors duration-200 absolute -bottom-6 whitespace-nowrap",
                               isActive ? "text-primary" :
                               isCompleted ? "text-foreground/80" :
                               "text-muted-foreground/60"
@@ -134,7 +134,7 @@ function LogItem({ tool }: { tool: ToolInvocation }) {
   const hasPreview = !!(query || code)
 
   return (
-    <div className="group flex gap-3 p-2.5 rounded-lg hover:bg-muted/40 border border-transparent hover:border-border/40 transition-all duration-200">
+    <div className="group flex gap-3 p-2.5 rounded-lg hover:bg-muted/40 border border-transparent hover:border-border/40 transition-colors duration-200">
        <div className="flex flex-col items-center gap-1">
            <div className={cn(
                "w-1.5 h-1.5 rounded-full mt-1.5",

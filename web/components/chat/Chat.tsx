@@ -383,7 +383,7 @@ export function Chat() {
       {/* Desktop Artifacts Panel */}
       {artifacts.length > 0 && (
         <div className={cn(
-          "border-l hidden xl:flex flex-col bg-card animate-in slide-in-from-right duration-500 shadow-2xl z-20 transition-all",
+          "border-l hidden xl:flex flex-col bg-card animate-in slide-in-from-right duration-300 shadow-2xl z-20",
           ui.isArtifactsOpen ? "w-[400px]" : "w-[50px]"
         )}>
           <ChatErrorBoundary

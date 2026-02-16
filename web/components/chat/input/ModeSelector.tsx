@@ -80,7 +80,7 @@ export function ModeSelector({ searchMode, onModeChange }: ModeSelectorProps) {
             aria-checked={isActive}
             onClick={() => handleModeClick(mode.id)}
             className={cn(
-              "relative flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-300 border",
+              "relative flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition duration-200 border",
               isActive
                 ? cn("text-foreground shadow-sm", mode.bg, mode.border)
                 : "text-muted-foreground border-transparent hover:bg-muted/50"
@@ -100,7 +100,7 @@ export function ModeSelector({ searchMode, onModeChange }: ModeSelectorProps) {
           aria-expanded={isMcpOpen}
           onClick={handleMcpToggle}
           className={cn(
-            "relative flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-300 border",
+            "relative flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition duration-200 border",
             searchMode === 'mcp'
               ? "bg-pink-500/10 text-foreground border-pink-500/20 shadow-sm"
               : "text-muted-foreground border-transparent hover:bg-muted/50"

@@ -133,9 +133,9 @@ export function BrowserViewer({
   }
 
   return (
-    <div
+      <div
       className={cn(
-        'border rounded-lg overflow-hidden bg-background shadow-lg transition-all duration-200',
+        'border rounded-lg overflow-hidden bg-background shadow-lg',
         isExpanded ? 'w-full md:w-[480px] max-w-[calc(100vw-2rem)]' : 'w-80',
         className
       )}
@@ -330,7 +330,7 @@ export function BrowserViewer({
                     key={ss.id}
                     onClick={() => dispatch({ type: 'SET_SELECTED_SCREENSHOT', payload: ss })}
                     className={cn(
-                      'relative flex-shrink-0 rounded border-2 overflow-hidden transition-all',
+                      'relative flex-shrink-0 rounded border-2 overflow-hidden transition-colors duration-200',
                       'hover:border-primary/50',
                       (selectedScreenshot?.id === ss.id || (!selectedScreenshot && index === screenshots.length - 1))
                         ? 'border-primary ring-1 ring-primary/30'
