@@ -70,6 +70,48 @@ def _is_blocked_fetch_target(url: str) -> bool:
     )
 
 
+def _read_response_bytes(resp: object) -> bytes:
+    max_bytes = getattr(settings, "research_fetch_max_bytes", 0)
+    try:
+        limit = int(max_bytes)
+    except Exception:
+        limit = 0
+
+    iterator = getattr(resp, "iter_content", None)
+    if callable(iterator):
+        chunks: list[bytes] = []
+        total = 0
+        try:
+            for chunk in iterator(chunk_size=65536):
+                if not chunk:
+                    continue
+                if not isinstance(chunk, (bytes, bytearray)):
+                    chunk = str(chunk).encode("utf-8", errors="replace")
+                chunk_bytes = bytes(chunk)
+
+                if limit > 0:
+                    remaining = limit - total
+                    if remaining <= 0:
+                        break
+                    if len(chunk_bytes) > remaining:
+                        chunks.append(chunk_bytes[:remaining])
+                        total += remaining
+                        break
+
+                chunks.append(chunk_bytes)
+                total += len(chunk_bytes)
+        except Exception:
+            return b""
+        return b"".join(chunks)
+
+    data = getattr(resp, "content", b"") or b""
+    if isinstance(data, str):
+        data = data.encode("utf-8", errors="replace")
+    if not isinstance(data, (bytes, bytearray)):
+        data = str(data).encode("utf-8", errors="replace")
+    return truncate_bytes(bytes(data), max_bytes=limit)
+
+
 def _extract_text_from_response(resp: object) -> tuple[str, Optional[int]]:
     status_code: Optional[int]
     try:
@@ -80,8 +122,7 @@ def _extract_text_from_response(resp: object) -> tuple[str, Optional[int]]:
     headers = getattr(resp, "headers", None)
     content_type = _content_type(headers).lower()
 
-    raw_bytes = getattr(resp, "content", b"") or b""
-    raw_bytes = truncate_bytes(raw_bytes, max_bytes=settings.research_fetch_max_bytes)
+    raw_bytes = _read_response_bytes(resp)
 
     if raw_bytes:
         decoded = raw_bytes.decode("utf-8", errors="replace")

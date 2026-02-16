@@ -49,6 +49,39 @@ def test_content_fetcher_direct_uses_requests_and_strips_html(monkeypatch):
     assert calls["get"] == 1
 
 
+def test_content_fetcher_streams_and_caps_response_bytes(monkeypatch):
+    import tools.research.content_fetcher as mod
+
+    monkeypatch.setattr(mod.settings, "research_fetch_max_bytes", 4, raising=False)
+
+    class FakeResp:
+        status_code = 200
+        headers = _Headers({"Content-Type": "text/plain"})
+        text = "SHOULD NOT BE USED"
+
+        def __init__(self):
+            self._chunks = [b"aaa", b"bbb"]
+
+        @property
+        def content(self):
+            raise AssertionError("Response.content should not be read when streaming")
+
+        def iter_content(self, chunk_size=65536):
+            for chunk in self._chunks:
+                yield chunk
+
+        def close(self):
+            return None
+
+    def fake_get(url, timeout=None, headers=None, **kwargs):
+        return FakeResp()
+
+    monkeypatch.setattr(mod, "requests", types.SimpleNamespace(get=fake_get))
+
+    page = ContentFetcher().fetch("https://example.com/")
+    assert page.text == "aaab"
+
+
 def test_content_fetcher_blocks_localhost_without_network(monkeypatch):
     import tools.research.content_fetcher as mod
 
