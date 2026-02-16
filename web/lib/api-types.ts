@@ -726,6 +726,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/sessions/{thread_id}/evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Session Evidence
+         * @description Get evidence artifacts (sources + claims + quality summary) for a session.
+         */
+        get: operations["get_session_evidence_api_sessions__thread_id__evidence_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/sessions/{thread_id}/restore/{version_id}": {
         parameters: {
             query?: never;
@@ -1561,6 +1581,66 @@ export interface components {
             };
             /** User Id */
             user_id?: string | null;
+        };
+        /** EvidenceClaim */
+        EvidenceClaim: {
+            /** Claim */
+            claim: string;
+            /**
+             * Evidence Urls
+             * @default []
+             */
+            evidence_urls: string[];
+            /**
+             * Notes
+             * @default
+             */
+            notes: string;
+            /**
+             * Score
+             * @default 0
+             */
+            score: number;
+            /** Status */
+            status: string;
+        };
+        /** EvidenceResponse */
+        EvidenceResponse: {
+            /**
+             * Claims
+             * @default []
+             */
+            claims: components["schemas"]["EvidenceClaim"][];
+            /**
+             * Quality Summary
+             * @default {}
+             */
+            quality_summary: {
+                [key: string]: unknown;
+            };
+            /**
+             * Sources
+             * @default []
+             */
+            sources: components["schemas"]["EvidenceSource"][];
+        };
+        /** EvidenceSource */
+        EvidenceSource: {
+            /** Domain */
+            domain?: string | null;
+            /** Provider */
+            provider?: string | null;
+            /** Publisheddate */
+            publishedDate?: string | null;
+            /** Rawurl */
+            rawUrl?: string | null;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+            /** Url */
+            url: string;
         };
         /** GraphInterruptResumeRequest */
         GraphInterruptResumeRequest: {
@@ -2929,6 +3009,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_session_evidence_api_sessions__thread_id__evidence_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                thread_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvidenceResponse"];
                 };
             };
             /** @description Validation Error */

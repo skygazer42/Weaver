@@ -37,6 +37,15 @@ jobs:
       - name: Compile (compileall)
         run: python -m compileall -q .
 
+      - name: Export OpenAPI spec
+        run: python scripts/export_openapi.py --output /tmp/weaver-openapi.json
+
+      - name: Upload OpenAPI spec artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: weaver-openapi-spec
+          path: /tmp/weaver-openapi.json
+
       - name: Secret scan
         run: python scripts/secret_scan.py
 
@@ -47,6 +56,7 @@ jobs:
         run: pytest -q
 
   frontend:
+    needs: test
     runs-on: ubuntu-latest
 
     steps:
@@ -67,6 +77,15 @@ jobs:
 
       - name: Install dependencies
         run: pnpm -C web install --frozen-lockfile
+
+      - name: Download OpenAPI spec artifact
+        uses: actions/download-artifact@v6
+        with:
+          name: weaver-openapi-spec
+          path: .tmp/openapi
+
+      - name: OpenAPI → TS types drift guard
+        run: bash scripts/check_openapi_ts_types.sh --openapi-json .tmp/openapi/weaver-openapi.json
 
       - name: Lint (next lint)
         run: pnpm -C web lint
