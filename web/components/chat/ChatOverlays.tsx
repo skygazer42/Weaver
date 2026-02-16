@@ -15,11 +15,13 @@ interface ScrollButtonProps {
 export function ScrollToBottomButton({ visible, onClick }: ScrollButtonProps) {
   return (
     <div className={cn(
-      "absolute bottom-24 right-6 z-30 transition duration-300 ease-out",
+      "absolute right-6 z-30 transition duration-200 ease-out",
       visible
         ? "translate-y-0 opacity-100"
         : "translate-y-10 opacity-0 pointer-events-none"
-    )}>
+    )}
+    style={{ bottom: 'calc(6rem + env(safe-area-inset-bottom, 0px))' }}
+    >
       <Button
         variant="outline"
         size="icon"
@@ -45,11 +47,15 @@ export function InterruptBanner({ pendingInterrupt, isLoading, onApprove, onDism
 
   return (
     <div
-      className="mx-4 mb-3 p-3 border rounded-xl bg-amber-50 text-amber-900 shadow-sm flex flex-col gap-2"
+      className={cn(
+        "mx-4 mb-3 p-3 rounded-xl border shadow-sm flex flex-col gap-2 backdrop-blur-sm",
+        "bg-amber-50/80 text-amber-950 border-amber-200/70",
+        "dark:bg-amber-950/30 dark:text-amber-50 dark:border-amber-900/40"
+      )}
       role="alert"
     >
-      <div className="text-sm font-semibold">Tool approval required</div>
-      <div className="text-xs text-amber-800">
+      <div className="text-sm font-semibold text-balance">Tool approval required</div>
+      <div className="text-xs text-amber-900/80 dark:text-amber-100/80 text-pretty">
         {pendingInterrupt.message || pendingInterrupt?.prompts?.[0]?.message || 'Approve tool execution to continue.'}
       </div>
       <div className="flex gap-2">
