@@ -80,8 +80,14 @@ export function ArtifactsPanel({ artifacts, isOpen = true, onToggle }: Artifacts
   // If collapsed (and not fullscreen), render slim bar
   if (!isOpen && !isFullscreen) {
     return (
-      <div className="h-full w-[50px] border-l bg-muted/30 flex flex-col items-center py-4 gap-4 backdrop-blur-sm transition-all duration-300">
-        <Button variant="ghost" size="icon" onClick={onToggle} title="Expand Artifacts">
+      <div className="h-full w-[50px] border-l bg-muted/30 flex flex-col items-center py-4 gap-4 backdrop-blur-sm transition-colors duration-200">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onToggle}
+          aria-label="Expand artifacts"
+          title="Expand artifacts"
+        >
           <PanelRightOpen className="h-5 w-5 text-muted-foreground" />
         </Button>
         <div className="flex-1 w-full flex flex-col items-center gap-2 overflow-hidden py-2">
@@ -121,11 +127,18 @@ export function ArtifactsPanel({ artifacts, isOpen = true, onToggle }: Artifacts
   }
 
   return (
-    <div className="flex flex-col h-full bg-muted/30 border-l backdrop-blur-sm transition-all duration-300 w-full">
+    <div className="flex flex-col h-full bg-muted/30 border-l backdrop-blur-sm transition-colors duration-200 w-full">
       <div className="flex items-center justify-between p-4 border-b bg-background/50">
         <div className="flex items-center gap-2">
           {onToggle && (
-            <Button variant="ghost" size="icon" className="h-7 w-7 -ml-2" onClick={onToggle} title="Collapse">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 -ml-2"
+              onClick={onToggle}
+              aria-label="Collapse artifacts"
+              title="Collapse artifacts"
+            >
               <PanelRightClose className="h-4 w-4" />
             </Button>
           )}
@@ -135,7 +148,14 @@ export function ArtifactsPanel({ artifacts, isOpen = true, onToggle }: Artifacts
           </div>
         </div>
         <div className="flex gap-1">
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setIsFullscreen(true)}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => setIsFullscreen(true)}
+            aria-label="Open artifacts fullscreen"
+            title="Open fullscreen"
+          >
             <Maximize2 className="h-3.5 w-3.5" />
           </Button>
         </div>
@@ -179,7 +199,7 @@ function ArtifactCard({ artifact, isFullscreen }: { artifact: Artifact, isFullsc
 
   return (
     <Card className={cn(
-      "overflow-hidden border-none shadow-sm ring-1 ring-border/50 group hover:ring-primary/20 transition-all",
+      "overflow-hidden border-none shadow-sm ring-1 ring-border/50 group hover:ring-primary/20 transition duration-200",
       isFullscreen ? "shadow-md" : ""
     )}>
       <CardHeader className="p-3 bg-muted/30 border-b flex flex-row items-center justify-between space-y-0">
@@ -192,7 +212,13 @@ function ArtifactCard({ artifact, isFullscreen }: { artifact: Artifact, isFullsc
           </CardTitle>
         </div>
         {artifact.type === 'chart' && (
-          <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+            aria-label="Download chart"
+            title="Download chart"
+          >
             <Download className="h-3 w-3" />
           </Button>
         )}
