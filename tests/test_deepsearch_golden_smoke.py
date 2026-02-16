@@ -34,3 +34,6 @@ def test_benchmark_script_supports_required_cli_args(tmp_path):
     assert data["summary"]["quality_gate_defaults"]["min_query_coverage"] == 0.7
     assert data["summary"]["quality_gate_defaults"]["min_freshness_ratio"] == 0.5
     assert "quality_targets" in data["cases"][0]
+    assert "metrics" in data
+    assert isinstance(data["metrics"].get("citation_coverage"), (int, float))
+    assert isinstance(data["metrics"].get("unsupported_claims"), int)

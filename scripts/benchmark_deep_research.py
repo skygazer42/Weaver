@@ -164,6 +164,15 @@ def run_benchmark(
                 "min_freshness_ratio": min_freshness_ratio,
             },
         },
+        # Placeholder for future execution-mode benchmarks.
+        # When/if this runner is extended to actually run deepsearch, we will
+        # populate evidence metrics from sources/claims (e.g. citation coverage,
+        # unsupported/contradicted claims).
+        "metrics": {
+            "available": False,
+            "citation_coverage": 0.0,
+            "unsupported_claims": 0,
+        },
     }
 
     output.parent.mkdir(parents=True, exist_ok=True)
