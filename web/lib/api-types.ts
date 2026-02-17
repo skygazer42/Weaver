@@ -1608,6 +1608,14 @@ export interface components {
         EvidencePassageItem: {
             /** End Char */
             end_char: number;
+            /** Heading */
+            heading?: string | null;
+            /** Method */
+            method?: string | null;
+            /** Page Title */
+            page_title?: string | null;
+            /** Retrieved At */
+            retrieved_at?: string | null;
             /** Start Char */
             start_char: number;
             /** Text */
