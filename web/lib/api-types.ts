@@ -1610,12 +1610,18 @@ export interface components {
             end_char: number;
             /** Heading */
             heading?: string | null;
+            /** Heading Path */
+            heading_path?: string[] | null;
             /** Method */
             method?: string | null;
             /** Page Title */
             page_title?: string | null;
+            /** Quote */
+            quote?: string | null;
             /** Retrieved At */
             retrieved_at?: string | null;
+            /** Snippet Hash */
+            snippet_hash?: string | null;
             /** Start Char */
             start_char: number;
             /** Text */
