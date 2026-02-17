@@ -458,6 +458,73 @@ def _build_fetcher_evidence(urls: List[str]) -> Tuple[List[Dict[str, Any]], List
     if not bool(getattr(settings, "deepsearch_enable_research_fetcher", False)):
         return [], []
 
+    def _looks_like_cookie_banner(text: str) -> bool:
+        if not text:
+            return False
+        lowered = str(text).lower()
+        if "cookie" not in lowered:
+            return False
+        return bool(
+            "accept" in lowered
+            or "consent" in lowered
+            or "preferences" in lowered
+            or "manage cookies" in lowered
+            or "cookie settings" in lowered
+            or "reject" in lowered
+        )
+
+    def _looks_like_interstitial(text: str) -> bool:
+        if not text:
+            return False
+        lowered = str(text).lower()
+        if "please enable javascript" in lowered:
+            return True
+        if "enable javascript" in lowered and ("cookies" in lowered or "continue" in lowered):
+            return True
+        if "checking your browser" in lowered:
+            return True
+        if "verify you are human" in lowered:
+            return True
+        if "just a moment" in lowered and "checking your browser" in lowered:
+            return True
+        return False
+
+    def _passage_quality_score(passage: Dict[str, Any]) -> float:
+        text = passage.get("text") or ""
+        if not isinstance(text, str):
+            text = str(text)
+        stripped = text.strip()
+        if not stripped:
+            return -1e9
+        if _looks_like_interstitial(stripped) or _looks_like_cookie_banner(stripped):
+            return -1e9
+
+        length = len(stripped)
+        sentence_marks = sum(stripped.count(ch) for ch in (".", "?", "!", "。", "？", "！"))
+        pipes = stripped.count("|")
+        score = min(length, 800) / 800.0
+        score += min(sentence_marks, 12) / 12.0
+        if pipes >= 10:
+            score -= 0.5
+        return float(score)
+
+    def _select_passages(passages: List[Dict[str, Any]], *, max_count: int) -> List[Dict[str, Any]]:
+        if not passages:
+            return []
+        scored: List[tuple[float, Dict[str, Any]]] = [(_passage_quality_score(p), p) for p in passages]
+        candidates = [(s, p) for s, p in scored if s > -1e8]
+        if not candidates:
+            return passages[:max(1, max_count)]
+        candidates.sort(
+            key=lambda pair: (
+                -pair[0],
+                int((pair[1].get("start_char") or 0) if isinstance(pair[1], dict) else 0),
+            )
+        )
+        best = [p for _s, p in candidates[: max(1, max_count)]]
+        best.sort(key=lambda p: int((p.get("start_char") or 0) if isinstance(p, dict) else 0))
+        return best
+
     fetcher = ContentFetcher()
     fetched_pages: List[Dict[str, Any]] = []
     passages: List[Dict[str, Any]] = []
@@ -477,7 +544,8 @@ def _build_fetcher_evidence(urls: List[str]) -> Tuple[List[Dict[str, Any]], List
         if not isinstance(text, str) or not text.strip():
             continue
 
-        for passage in split_into_passages(text, max_chars=800)[:10]:
+        page_passages = split_into_passages(text, max_chars=800)
+        for passage in _select_passages(page_passages, max_count=10):
             enriched = {"url": page.url, **passage}
             page_title = getattr(page, "title", None)
             if page_title:
