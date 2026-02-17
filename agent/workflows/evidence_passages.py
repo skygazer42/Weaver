@@ -4,6 +4,9 @@ import re
 from typing import Dict, List, Tuple
 
 
+_MARKDOWN_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+(.+?)\s*$")
+
+
 def _paragraph_spans(text: str) -> List[Tuple[int, int]]:
     spans: List[Tuple[int, int]] = []
     if not text:
@@ -47,20 +50,36 @@ def split_into_passages(text: str, *, max_chars: int = 1200) -> List[Dict[str, o
 
     chunk_start: int | None = None
     chunk_end: int | None = None
+    chunk_heading: str | None = None
+    current_heading: str | None = None
 
     def flush() -> None:
-        nonlocal chunk_start, chunk_end
+        nonlocal chunk_start, chunk_end, chunk_heading
         if chunk_start is None or chunk_end is None:
             return
         snippet = text[chunk_start:chunk_end]
         if snippet.strip():
-            passages.append({"text": snippet, "start_char": chunk_start, "end_char": chunk_end})
+            item: Dict[str, object] = {"text": snippet, "start_char": chunk_start, "end_char": chunk_end}
+            if chunk_heading:
+                item["heading"] = chunk_heading
+            passages.append(item)
         chunk_start = None
         chunk_end = None
+        chunk_heading = None
 
     for start, end in spans:
         span_len = end - start
         if span_len <= 0:
+            continue
+
+        paragraph = text[start:end]
+        heading = _extract_markdown_heading(paragraph)
+        if heading:
+            flush()
+            current_heading = heading
+            chunk_start = start
+            chunk_end = end
+            chunk_heading = heading
             continue
 
         if span_len > budget:
@@ -69,12 +88,20 @@ def split_into_passages(text: str, *, max_chars: int = 1200) -> List[Dict[str, o
                 sub_end = min(sub_start + budget, end)
                 snippet = text[sub_start:sub_end]
                 if snippet.strip():
-                    passages.append({"text": snippet, "start_char": sub_start, "end_char": sub_end})
+                    item: Dict[str, object] = {
+                        "text": snippet,
+                        "start_char": sub_start,
+                        "end_char": sub_end,
+                    }
+                    if current_heading:
+                        item["heading"] = current_heading
+                    passages.append(item)
             continue
 
         if chunk_start is None:
             chunk_start = start
             chunk_end = end
+            chunk_heading = current_heading
             continue
 
         assert chunk_end is not None
@@ -85,6 +112,16 @@ def split_into_passages(text: str, *, max_chars: int = 1200) -> List[Dict[str, o
         flush()
         chunk_start = start
         chunk_end = end
+        chunk_heading = current_heading
 
     flush()
     return passages
+
+
+def _extract_markdown_heading(paragraph: str) -> str:
+    if not paragraph:
+        return ""
+    match = _MARKDOWN_HEADING_RE.match(paragraph.strip())
+    if not match:
+        return ""
+    return str(match.group(1) or "").strip()
