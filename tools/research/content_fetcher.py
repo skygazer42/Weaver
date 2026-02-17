@@ -79,6 +79,19 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _looks_like_javascript_interstitial(text: str) -> bool:
+    if not text:
+        return False
+
+    lowered = str(text).lower()
+    if "enable javascript" in lowered and ("continue" in lowered or "cookies" in lowered):
+        return True
+    if "please enable javascript" in lowered:
+        return True
+
+    return False
+
+
 def _is_blocked_fetch_target(url: str) -> bool:
     parsed = urlsplit(url)
     scheme = (parsed.scheme or "").lower()
@@ -374,6 +387,12 @@ class ContentFetcher:
         min_chars = int(getattr(settings, "research_fetch_render_min_chars", 200) or 200)
 
         if status_code == 200 and (text or "").strip():
+            if render_mode != "off" and "html" in content_type and _looks_like_javascript_interstitial(text):
+                render_attempt = self._fetch_via_crawler(canonical_url, raw_url, attempts=2)
+                if render_attempt:
+                    _maybe_cache(render_attempt)
+                    return render_attempt
+
             if (
                 render_mode != "off"
                 and "html" in content_type
