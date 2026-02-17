@@ -9,6 +9,7 @@ import { FileText, Code, BarChart, Download, Maximize2, Minimize2, PanelRightClo
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { Artifact } from '@/types/chat'
+import { InspectorEvidence } from './InspectorEvidence'
 
 // Lazy-load ReactMarkdown + remarkGfm (heavy deps, not needed on first paint)
 const ReactMarkdown = dynamic(() => import('react-markdown'), {
@@ -27,8 +28,12 @@ import { CodeBlock } from './message/CodeBlock'
 
 interface ArtifactsPanelProps {
   artifacts: Artifact[]
+  threadId?: string | null
   isOpen?: boolean
   onToggle?: () => void
+  toggleLabel?: string
+  toggleTitle?: string
+  allowFullscreen?: boolean
 }
 
 const ArtifactListItem = memo(function ArtifactListItem({
@@ -77,15 +82,81 @@ const ArtifactListItem = memo(function ArtifactListItem({
   )
 })
 
-export function ArtifactsPanel({ artifacts, isOpen = true, onToggle }: ArtifactsPanelProps) {
+export function ArtifactsPanel({
+  artifacts,
+  threadId = null,
+  isOpen = true,
+  onToggle,
+  toggleLabel,
+  toggleTitle,
+  allowFullscreen = true,
+}: ArtifactsPanelProps) {
+  const hasArtifacts = artifacts.length > 0
+  const hasEvidence = Boolean(threadId)
+
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
+  const [activeTab, setActiveTab] = useState<'artifacts' | 'evidence'>(() =>
+    hasArtifacts ? 'artifacts' : 'evidence'
+  )
 
-  if (artifacts.length === 0) return null
+  if (!hasArtifacts && !hasEvidence) return null
 
   // Ensure active index is valid
-  const currentIndex = Math.min(activeIndex, artifacts.length - 1)
-  const activeArtifact = artifacts[currentIndex]!
+  const currentIndex = hasArtifacts ? Math.min(activeIndex, artifacts.length - 1) : 0
+  const activeArtifact = hasArtifacts ? artifacts[currentIndex]! : null
+
+  const renderTabs = (size: 'sm' | 'lg' = 'sm') => {
+    const base = size === 'lg' ? 'h-9 text-sm' : 'h-8 text-xs'
+    const padding = size === 'lg' ? 'px-3' : 'px-2.5'
+    const countClass = size === 'lg' ? 'text-[11px]' : 'text-[10px]'
+
+    return (
+      <div
+        role="tablist"
+        aria-label="Inspector tabs"
+        className="inline-flex rounded-lg border border-border/60 bg-muted/20 p-1"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'artifacts'}
+          disabled={!hasArtifacts}
+          onClick={() => setActiveTab('artifacts')}
+          className={cn(
+            'inline-flex items-center gap-1.5 rounded-md font-semibold transition-colors',
+            base,
+            padding,
+            activeTab === 'artifacts'
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground hover:bg-accent/40',
+            !hasArtifacts && 'opacity-50 cursor-not-allowed hover:bg-transparent hover:text-muted-foreground'
+          )}
+        >
+          <span>Artifacts</span>
+          <span className={cn('tabular-nums text-muted-foreground', countClass)}>{artifacts.length}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'evidence'}
+          disabled={!hasEvidence}
+          onClick={() => setActiveTab('evidence')}
+          className={cn(
+            'inline-flex items-center gap-1.5 rounded-md font-semibold transition-colors',
+            base,
+            padding,
+            activeTab === 'evidence'
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground hover:bg-accent/40',
+            !hasEvidence && 'opacity-50 cursor-not-allowed hover:bg-transparent hover:text-muted-foreground'
+          )}
+        >
+          <span>Evidence</span>
+        </button>
+      </div>
+    )
+  }
 
   // If collapsed (and not fullscreen), render slim bar
   if (!isOpen && !isFullscreen) {
@@ -96,17 +167,17 @@ export function ArtifactsPanel({ artifacts, isOpen = true, onToggle }: Artifacts
           variant="ghost"
           size="icon"
           onClick={onToggle}
-          aria-label="Expand artifacts"
-          title="Expand artifacts"
+          aria-label="Expand inspector"
+          title="Expand inspector"
         >
           <PanelRightOpen className="h-5 w-5 text-muted-foreground" />
         </Button>
         <div className="flex-1 w-full flex flex-col items-center justify-center gap-2 overflow-hidden py-2">
           <div className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground tabular-nums">
-            {artifacts.length}
+            {hasArtifacts ? `A${artifacts.length}` : hasEvidence ? 'E' : '0'}
           </div>
           <div className="text-[10px] font-medium text-muted-foreground uppercase select-none">
-            Artifacts
+            Inspector
           </div>
         </div>
       </div>
@@ -118,11 +189,14 @@ export function ArtifactsPanel({ artifacts, isOpen = true, onToggle }: Artifacts
     return (
       <div className="fixed inset-0 z-50 bg-background flex flex-col">
         <div className="flex items-center justify-between p-4 border-b border-border/60">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3 min-w-0">
             <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center text-primary-foreground font-semibold">
-              A
+              I
             </div>
-            <h2 className="text-lg font-semibold">Artifacts</h2>
+            <h2 className="text-lg font-semibold">Inspector</h2>
+            <div className="hidden sm:block">
+              {renderTabs('lg')}
+            </div>
           </div>
           <Button type="button" variant="ghost" onClick={() => setIsFullscreen(false)}>
             <Minimize2 className="h-5 w-5 mr-2" />
@@ -130,11 +204,24 @@ export function ArtifactsPanel({ artifacts, isOpen = true, onToggle }: Artifacts
           </Button>
         </div>
         <ScrollArea className="flex-1 p-8">
-          <div className="max-w-5xl mx-auto space-y-8">
-            {artifacts.map((artifact) => (
-              <ArtifactCard key={artifact.id} artifact={artifact} isFullscreen />
-            ))}
-          </div>
+          {activeTab === 'evidence' ? (
+            <div className="max-w-4xl mx-auto">
+              <InspectorEvidence threadId={threadId} />
+            </div>
+          ) : hasArtifacts ? (
+            <div className="max-w-5xl mx-auto space-y-8">
+              {artifacts.map((artifact) => (
+                <ArtifactCard key={artifact.id} artifact={artifact} isFullscreen />
+              ))}
+            </div>
+          ) : (
+            <div className="max-w-3xl mx-auto rounded-lg border border-border/60 bg-muted/10 p-6">
+              <div className="text-sm font-semibold text-foreground">No artifacts yet</div>
+              <div className="mt-1 text-sm text-muted-foreground text-pretty">
+                Run a task that produces a report, code, or chart to see artifacts here.
+              </div>
+            </div>
+          )}
         </ScrollArea>
       </div>
     )
@@ -143,7 +230,7 @@ export function ArtifactsPanel({ artifacts, isOpen = true, onToggle }: Artifacts
   return (
     <div className="flex flex-col h-full bg-card border-l border-border/60 transition-colors duration-200 w-full">
       <div className="flex items-center justify-between p-4 border-b border-border/60 bg-background">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           {onToggle && (
             <Button
               type="button"
@@ -151,34 +238,41 @@ export function ArtifactsPanel({ artifacts, isOpen = true, onToggle }: Artifacts
               size="icon"
               className="h-7 w-7 -ml-2"
               onClick={onToggle}
-              aria-label="Collapse artifacts"
-              title="Collapse artifacts"
+              aria-label={toggleLabel || 'Collapse inspector'}
+              title={toggleTitle || 'Collapse inspector'}
             >
               <PanelRightClose className="h-4 w-4" />
             </Button>
           )}
-          <div>
-            <h2 className="text-sm font-semibold">Artifacts</h2>
-            <p className="text-xs text-muted-foreground">{artifacts.length} generated</p>
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold truncate">Inspector</h2>
+            <p className="text-xs text-muted-foreground truncate">
+              {activeTab === 'evidence'
+                ? 'Evidence view'
+                : `${artifacts.length} artifact${artifacts.length === 1 ? '' : 's'}`}
+            </p>
           </div>
         </div>
-        <div className="flex gap-1">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => setIsFullscreen(true)}
-            aria-label="Open artifacts fullscreen"
-            title="Open fullscreen"
-          >
-            <Maximize2 className="h-3.5 w-3.5" />
-          </Button>
+        <div className="flex items-center gap-2">
+          {renderTabs('sm')}
+          {allowFullscreen && activeTab === 'artifacts' && hasArtifacts ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => setIsFullscreen(true)}
+              aria-label="Open inspector fullscreen"
+              title="Open fullscreen"
+            >
+              <Maximize2 className="h-3.5 w-3.5" />
+            </Button>
+          ) : null}
         </div>
       </div>
 
       <div className="flex-1 min-h-0 flex">
-        {artifacts.length > 1 ? (
+        {activeTab === 'artifacts' && artifacts.length > 1 ? (
           <div className="w-[176px] shrink-0 border-r border-border/60 bg-muted/10">
             <ScrollArea className="h-full">
               <div className="p-2 space-y-1">
@@ -197,7 +291,11 @@ export function ArtifactsPanel({ artifacts, isOpen = true, onToggle }: Artifacts
 
         <ScrollArea className="flex-1 min-w-0">
           <div className="p-4">
-            <ArtifactPreview artifact={activeArtifact} />
+            {activeTab === 'evidence' ? (
+              <InspectorEvidence threadId={threadId} />
+            ) : (
+              <ArtifactPreview artifact={activeArtifact} />
+            )}
           </div>
         </ScrollArea>
       </div>
@@ -205,7 +303,18 @@ export function ArtifactsPanel({ artifacts, isOpen = true, onToggle }: Artifacts
   )
 }
 
-function ArtifactPreview({ artifact }: { artifact: Artifact }) {
+function ArtifactPreview({ artifact }: { artifact: Artifact | null }) {
+  if (!artifact) {
+    return (
+      <div className="rounded-lg border border-border/60 bg-muted/10 p-4">
+        <div className="text-xs font-semibold text-foreground">No artifacts yet</div>
+        <div className="mt-1 text-xs text-muted-foreground text-pretty">
+          Run a task that produces a report, code, or chart to see artifacts here.
+        </div>
+      </div>
+    )
+  }
+
   const icon = (() => {
     switch (artifact.type) {
       case 'report': return <FileText className="h-4 w-4 text-primary" />
