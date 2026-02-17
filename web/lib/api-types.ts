@@ -1587,6 +1587,11 @@ export interface components {
             /** Claim */
             claim: string;
             /**
+             * Evidence Passages
+             * @default []
+             */
+            evidence_passages: components["schemas"]["EvidenceClaimEvidence"][];
+            /**
              * Evidence Urls
              * @default []
              */
@@ -1603,6 +1608,17 @@ export interface components {
             score: number;
             /** Status */
             status: string;
+        };
+        /** EvidenceClaimEvidence */
+        EvidenceClaimEvidence: {
+            /** Heading Path */
+            heading_path?: string[] | null;
+            /** Quote */
+            quote?: string | null;
+            /** Snippet Hash */
+            snippet_hash?: string | null;
+            /** Url */
+            url: string;
         };
         /** EvidencePassageItem */
         EvidencePassageItem: {
