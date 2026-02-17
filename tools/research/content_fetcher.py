@@ -88,6 +88,12 @@ def _looks_like_javascript_interstitial(text: str) -> bool:
         return True
     if "please enable javascript" in lowered:
         return True
+    if "checking your browser" in lowered and ("before accessing" in lowered or "before you access" in lowered):
+        return True
+    if "just a moment" in lowered and "checking your browser" in lowered:
+        return True
+    if "verify you are human" in lowered:
+        return True
 
     return False
 
