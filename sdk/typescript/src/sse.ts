@@ -1,4 +1,4 @@
-import type { SseEvent } from './types.js'
+import type { SseEvent, StreamEvent } from './types.js'
 
 export function parseSseFrame(frame: string): SseEvent | null {
   const text = String(frame ?? '')
@@ -79,3 +79,47 @@ export async function* readSseEvents(response: Response): AsyncGenerator<SseEven
   }
 }
 
+export async function* readDataStreamEvents(response: Response): AsyncGenerator<StreamEvent> {
+  if (!response.body) return
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+
+    buffer += decoder.decode(value, { stream: true })
+
+    const lines = buffer.split('\n')
+    buffer = lines.pop() || ''
+
+    for (const rawLine of lines) {
+      const line = rawLine.trim()
+      if (!line) continue
+      if (!line.startsWith('0:')) continue
+
+      try {
+        const parsed = JSON.parse(line.slice(2)) as unknown
+        if (parsed && typeof parsed === 'object' && 'type' in parsed && 'data' in parsed) {
+          yield parsed as StreamEvent
+        }
+      } catch {
+        continue
+      }
+    }
+  }
+
+  const tail = buffer.trim()
+  if (tail.startsWith('0:')) {
+    try {
+      const parsed = JSON.parse(tail.slice(2)) as unknown
+      if (parsed && typeof parsed === 'object' && 'type' in parsed && 'data' in parsed) {
+        yield parsed as StreamEvent
+      }
+    } catch {
+      // ignore
+    }
+  }
+}

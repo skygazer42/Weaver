@@ -38,6 +38,10 @@ web/.env.local
 out/
 build/
 dist/
+
+# Allow committed build output for the internal TypeScript SDK.
+!sdk/typescript/dist/
+!sdk/typescript/dist/**
 web/.next/
 web/out/
 web/build/
