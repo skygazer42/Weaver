@@ -20,6 +20,7 @@ type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Respo
 
 type ChatRequest = components['schemas']['ChatRequest']
 type CancelRequest = components['schemas']['CancelRequest']
+type ResearchRequest = components['schemas']['ResearchRequest']
 type SessionsListResponse = components['schemas']['SessionsListResponse']
 type EvidenceResponse = components['schemas']['EvidenceResponse']
 
@@ -153,8 +154,47 @@ export class WeaverClient {
       signal: opts.signal,
     })
 
+    this.lastThreadId =
+      response.headers.get('X-Thread-ID') || response.headers.get('x-thread-id') || null
+
     for await (const ev of readDataStreamEvents(response)) {
       yield ev
+    }
+  }
+
+  async *researchSse(
+    payload: ResearchRequest,
+    opts: { signal?: AbortSignal } = {},
+  ): AsyncGenerator<StreamEvent> {
+    const response = await this.fetchImpl(this.url('/api/research/sse'), {
+      method: 'POST',
+      headers: mergeHeaders({ ...this.headers }, {
+        Accept: 'text/event-stream',
+        'Content-Type': 'application/json',
+      }),
+      body: JSON.stringify(payload),
+      signal: opts.signal,
+    })
+
+    if (!response.ok) {
+      const bodyText = await response.text().catch(() => '')
+      throw new WeaverApiError({ status: response.status, path: '/api/research/sse', bodyText })
+    }
+
+    this.lastThreadId =
+      response.headers.get('X-Thread-ID') || response.headers.get('x-thread-id') || null
+
+    for await (const event of readSseEvents(response)) {
+      const data = event.data
+
+      if (data && typeof data === 'object' && 'type' in data && 'data' in data) {
+        yield data as StreamEvent
+        continue
+      }
+
+      if (event.event) {
+        yield { type: event.event, data }
+      }
     }
   }
 

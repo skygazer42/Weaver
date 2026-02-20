@@ -13,6 +13,7 @@ export declare class WeaverApiError extends Error {
 type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 type ChatRequest = components['schemas']['ChatRequest'];
 type CancelRequest = components['schemas']['CancelRequest'];
+type ResearchRequest = components['schemas']['ResearchRequest'];
 type SessionsListResponse = components['schemas']['SessionsListResponse'];
 type EvidenceResponse = components['schemas']['EvidenceResponse'];
 export declare class WeaverClient {
@@ -36,6 +37,9 @@ export declare class WeaverClient {
     cancelChat(threadId: string, request?: CancelRequest | undefined): Promise<unknown>;
     cancelAllChats(): Promise<unknown>;
     researchStream(query: string, opts?: {
+        signal?: AbortSignal;
+    }): AsyncGenerator<StreamEvent>;
+    researchSse(payload: ResearchRequest, opts?: {
         signal?: AbortSignal;
     }): AsyncGenerator<StreamEvent>;
     listSessions(opts?: {
