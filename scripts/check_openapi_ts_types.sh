@@ -35,7 +35,7 @@ if [[ ! -f "$OPENAPI_JSON" ]]; then
 fi
 
 pnpm -C "$ROOT_DIR/web" exec openapi-typescript "$OPENAPI_JSON" -o "$ROOT_DIR/web/lib/api-types.ts"
+pnpm -C "$ROOT_DIR/web" exec openapi-typescript "$OPENAPI_JSON" -o "$ROOT_DIR/sdk/typescript/src/openapi-types.ts"
 
 # Fail if generation changed the committed file.
-git -C "$ROOT_DIR" diff --exit-code -- web/lib/api-types.ts
-
+git -C "$ROOT_DIR" diff --exit-code -- web/lib/api-types.ts sdk/typescript/src/openapi-types.ts

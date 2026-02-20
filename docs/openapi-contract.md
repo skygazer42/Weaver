@@ -3,6 +3,7 @@
 Weaver uses **FastAPI OpenAPI** as the single source of truth for the API contract.
 
 The frontend consumes generated TypeScript types in `web/lib/api-types.ts` (generated via `openapi-typescript`).
+The internal TypeScript SDK consumes generated types in `sdk/typescript/src/openapi-types.ts`.
 To prevent “silent drift” between backend responses and frontend assumptions, CI enforces that the generated types are up-to-date.
 
 ---
@@ -36,6 +37,7 @@ pnpm -C web api:types
 This writes:
 
 - `web/lib/api-types.ts`
+- `sdk/typescript/src/openapi-types.ts`
 
 ### 3) Verify drift guard (must be clean)
 
@@ -43,7 +45,7 @@ This writes:
 bash scripts/check_openapi_ts_types.sh
 ```
 
-Expected: exit code 0 and no `git diff` for `web/lib/api-types.ts`.
+Expected: exit code 0 and no `git diff` for `web/lib/api-types.ts` or `sdk/typescript/src/openapi-types.ts`.
 
 ---
 
@@ -81,4 +83,3 @@ Fix:
 Fix:
 
 - Run `make setup` first (or install requirements).
-

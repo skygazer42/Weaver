@@ -1,5 +1,6 @@
 import type { StreamEvent } from './types.js'
 import { readDataStreamEvents, readSseEvents } from './sse.js'
+import type { components } from './openapi-types.js'
 
 export class WeaverApiError extends Error {
   status: number
@@ -16,6 +17,11 @@ export class WeaverApiError extends Error {
 }
 
 type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+
+type ChatRequest = components['schemas']['ChatRequest']
+type CancelRequest = components['schemas']['CancelRequest']
+type SessionsListResponse = components['schemas']['SessionsListResponse']
+type EvidenceResponse = components['schemas']['EvidenceResponse']
 
 function normalizeBaseUrl(raw: string): string {
   const text = String(raw || '').trim()
@@ -86,14 +92,17 @@ export class WeaverClient {
     return response
   }
 
-  async *chatSse(payload: unknown, opts: { signal?: AbortSignal } = {}): AsyncGenerator<StreamEvent> {
+  async *chatSse(
+    payload: Omit<ChatRequest, 'stream'> & { stream?: boolean },
+    opts: { signal?: AbortSignal } = {}
+  ): AsyncGenerator<StreamEvent> {
     const response = await this.fetchImpl(this.url('/api/chat/sse'), {
       method: 'POST',
       headers: mergeHeaders({ ...this.headers }, {
         Accept: 'text/event-stream',
         'Content-Type': 'application/json',
       }),
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, stream: payload.stream ?? true }),
       signal: opts.signal,
     })
 
@@ -119,8 +128,15 @@ export class WeaverClient {
     }
   }
 
-  async cancelChat(threadId: string): Promise<unknown> {
+  async cancelChat(threadId: string, request: CancelRequest | undefined = undefined): Promise<unknown> {
     const safeId = encodeURIComponent(String(threadId))
+    if (request) {
+      return this.requestJson(`/api/chat/cancel/${safeId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+      })
+    }
     return this.requestJson(`/api/chat/cancel/${safeId}`, { method: 'POST' })
   }
 
@@ -142,13 +158,13 @@ export class WeaverClient {
     }
   }
 
-  async listSessions(opts: { limit?: number; status?: string } = {}): Promise<unknown> {
+  async listSessions(opts: { limit?: number; status?: string } = {}): Promise<SessionsListResponse> {
     const params = new URLSearchParams()
     if (opts.limit != null) params.set('limit', String(opts.limit))
     if (opts.status) params.set('status', String(opts.status))
     const query = params.toString()
     const path = query ? `/api/sessions?${query}` : '/api/sessions'
-    return this.requestJson(path)
+    return this.requestJson<SessionsListResponse>(path)
   }
 
   async getSession(threadId: string): Promise<unknown> {
@@ -156,9 +172,9 @@ export class WeaverClient {
     return this.requestJson(`/api/sessions/${safeId}`)
   }
 
-  async getEvidence(threadId: string): Promise<unknown> {
+  async getEvidence(threadId: string): Promise<EvidenceResponse> {
     const safeId = encodeURIComponent(String(threadId))
-    return this.requestJson(`/api/sessions/${safeId}/evidence`)
+    return this.requestJson<EvidenceResponse>(`/api/sessions/${safeId}/evidence`)
   }
 
   async listExportTemplates(): Promise<unknown> {

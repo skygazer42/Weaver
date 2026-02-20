@@ -1,4 +1,5 @@
 import type { StreamEvent } from './types.js';
+import type { components } from './openapi-types.js';
 export declare class WeaverApiError extends Error {
     status: number;
     path: string;
@@ -10,6 +11,10 @@ export declare class WeaverApiError extends Error {
     });
 }
 type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+type ChatRequest = components['schemas']['ChatRequest'];
+type CancelRequest = components['schemas']['CancelRequest'];
+type SessionsListResponse = components['schemas']['SessionsListResponse'];
+type EvidenceResponse = components['schemas']['EvidenceResponse'];
 export declare class WeaverClient {
     private baseUrl;
     private headers;
@@ -23,10 +28,12 @@ export declare class WeaverClient {
     private url;
     requestJson<T>(path: string, init?: RequestInit): Promise<T>;
     requestRaw(path: string, init?: RequestInit): Promise<Response>;
-    chatSse(payload: unknown, opts?: {
+    chatSse(payload: Omit<ChatRequest, 'stream'> & {
+        stream?: boolean;
+    }, opts?: {
         signal?: AbortSignal;
     }): AsyncGenerator<StreamEvent>;
-    cancelChat(threadId: string): Promise<unknown>;
+    cancelChat(threadId: string, request?: CancelRequest | undefined): Promise<unknown>;
     cancelAllChats(): Promise<unknown>;
     researchStream(query: string, opts?: {
         signal?: AbortSignal;
@@ -34,9 +41,9 @@ export declare class WeaverClient {
     listSessions(opts?: {
         limit?: number;
         status?: string;
-    }): Promise<unknown>;
+    }): Promise<SessionsListResponse>;
     getSession(threadId: string): Promise<unknown>;
-    getEvidence(threadId: string): Promise<unknown>;
+    getEvidence(threadId: string): Promise<EvidenceResponse>;
     listExportTemplates(): Promise<unknown>;
     exportReport(threadId: string, opts?: {
         format?: string;

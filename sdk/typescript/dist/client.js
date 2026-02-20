@@ -77,7 +77,7 @@ export class WeaverClient {
                 Accept: 'text/event-stream',
                 'Content-Type': 'application/json',
             }),
-            body: JSON.stringify(payload),
+            body: JSON.stringify({ ...payload, stream: payload.stream ?? true }),
             signal: opts.signal,
         });
         if (!response.ok) {
@@ -97,8 +97,15 @@ export class WeaverClient {
             }
         }
     }
-    async cancelChat(threadId) {
+    async cancelChat(threadId, request = undefined) {
         const safeId = encodeURIComponent(String(threadId));
+        if (request) {
+            return this.requestJson(`/api/chat/cancel/${safeId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(request),
+            });
+        }
         return this.requestJson(`/api/chat/cancel/${safeId}`, { method: 'POST' });
     }
     async cancelAllChats() {
