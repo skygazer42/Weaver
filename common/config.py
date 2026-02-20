@@ -186,6 +186,11 @@ class Settings(BaseSettings):
     tool_approval: bool = False  # require approval before executing tools
     max_revisions: int = 2
 
+    # Quality gates (evaluation)
+    citation_gate_min_coverage: float = Field(default=0.6, ge=0.0, le=1.0)
+    claim_verifier_gate_max_contradicted: int = Field(default=0, ge=0)
+    claim_verifier_gate_max_unsupported: int = Field(default=0, ge=0)
+
     # Environment
     app_env: str = "dev"  # dev | test | prod
     enable_prometheus: bool = False  # expose /metrics in Prometheus format

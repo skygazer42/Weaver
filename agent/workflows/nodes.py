@@ -1552,6 +1552,79 @@ Provide specific, actionable feedback and search queries to address gaps.""",
         except Exception as e:
             logger.warning(f"Quality assessment skipped: {e}")
 
+        claim_verifier_counts: Optional[Dict[str, Any]] = None
+        try:
+            from agent.workflows.claim_verifier import ClaimStatus, ClaimVerifier
+
+            scraped_content = state.get("scraped_content", [])
+            scraped_list = scraped_content if isinstance(scraped_content, list) else []
+            deepsearch_artifacts = state.get("deepsearch_artifacts", {}) or {}
+            if not isinstance(deepsearch_artifacts, dict):
+                deepsearch_artifacts = {}
+            passages_payload = deepsearch_artifacts.get("passages")
+            passages_list = passages_payload if isinstance(passages_payload, list) else None
+
+            if (scraped_list or passages_list) and isinstance(report, str) and report.strip():
+                verifier = ClaimVerifier()
+                checks = verifier.verify_report(
+                    report,
+                    scraped_list,
+                    passages=passages_list,
+                )
+
+                contradicted = [c for c in checks if c.status == ClaimStatus.CONTRADICTED]
+                unsupported = [c for c in checks if c.status == ClaimStatus.UNSUPPORTED]
+                verified = [c for c in checks if c.status == ClaimStatus.VERIFIED]
+
+                claim_verifier_counts = {
+                    "claim_verifier_total": len(checks),
+                    "claim_verifier_verified": len(verified),
+                    "claim_verifier_unsupported": len(unsupported),
+                    "claim_verifier_contradicted": len(contradicted),
+                }
+
+                max_contradicted = int(getattr(settings, "claim_verifier_gate_max_contradicted", 0) or 0)
+                max_unsupported = int(getattr(settings, "claim_verifier_gate_max_unsupported", 0) or 0)
+
+                if verdict == "pass" and (
+                    len(contradicted) > max_contradicted or len(unsupported) > max_unsupported
+                ):
+                    verdict = "revise"
+                    logger.info(
+                        "Adjusted verdict due to claim verifier gate: "
+                        f"contradicted={len(contradicted)} (max={max_contradicted}), "
+                        f"unsupported={len(unsupported)} (max={max_unsupported})"
+                    )
+                    eval_summary += (
+                        "\nClaim verifier gate: "
+                        f"{len(contradicted)} contradicted, {len(unsupported)} unsupported "
+                        f"(thresholds {max_contradicted}/{max_unsupported})."
+                    )
+
+        except Exception as e:
+            logger.warning(f"Claim verifier gate skipped: {e}")
+
+        thread_id = str(
+            _configurable(config).get("thread_id")
+            or state.get("cancel_token_id")
+            or ""
+        ).strip()
+        if thread_id:
+            try:
+                emitter = get_emitter_sync(thread_id)
+                payload: Dict[str, Any] = {
+                    "stage": "evaluation",
+                    "verdict": verdict,
+                    "quality_overall_score": quality_overall_score,
+                    "quality_gap_count": quality_gap_count,
+                    "citation_coverage": citation_coverage_score,
+                }
+                if claim_verifier_counts:
+                    payload.update(claim_verifier_counts)
+                emitter.emit_sync(ToolEventType.QUALITY_UPDATE, payload)
+            except Exception as e:
+                logger.debug(f"[evaluator] failed to emit quality_update: {e}")
+
         return {
             "evaluation": eval_summary,
             "verdict": verdict,
@@ -1561,6 +1634,7 @@ Provide specific, actionable feedback and search queries to address gaps.""",
             "quality_overall_score": quality_overall_score,
             "quality_gap_count": quality_gap_count,
             "citation_coverage_score": citation_coverage_score,
+            "claim_verifier_counts": claim_verifier_counts or {},
         }
 
     except Exception as e:
