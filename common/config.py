@@ -337,6 +337,12 @@ class Settings(BaseSettings):
     search_cache_max_size: int = 200  # session-level search cache capacity
     search_cache_ttl_seconds: float = 1800.0  # search cache TTL in seconds
     search_cache_similarity_threshold: float = 0.9  # fuzzy query match threshold
+    search_reliability_max_retries: int = 2  # retries per provider call (in addition to first attempt)
+    search_reliability_retry_backoff_seconds: float = 0.5  # exponential backoff base seconds
+    search_reliability_circuit_breaker_failures: int = 3  # open circuit after N consecutive failures
+    search_reliability_circuit_breaker_reset_seconds: float = 60.0  # reset circuit after N seconds
+    search_parallel_max_workers: int = 8  # cap threads for parallel provider fan-out
+    search_parallel_timeout_seconds: float = 30.0  # best-effort timeout for parallel fan-out
     brave_api_key: str = ""  # Brave Search API key
     serper_api_key: str = ""  # Serper.dev API key
     exa_api_key: str = ""  # Exa.ai API key

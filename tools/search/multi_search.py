@@ -549,9 +549,27 @@ class MultiSearchOrchestrator:
         self.freshness_weight = min(
             1.0, max(0.0, float(getattr(settings, "search_freshness_weight", 0.35)))
         )
-        self.reliability_manager = reliability_manager or ProviderReliabilityManager(
-            ReliabilityPolicy()
+        self.parallel_timeout_seconds = max(
+            0.0, float(getattr(settings, "search_parallel_timeout_seconds", 30.0))
         )
+        self.parallel_max_workers = max(
+            1, int(getattr(settings, "search_parallel_max_workers", 8))
+        )
+
+        policy = ReliabilityPolicy(
+            max_retries=max(0, int(getattr(settings, "search_reliability_max_retries", 2))),
+            retry_backoff_seconds=max(
+                0.0, float(getattr(settings, "search_reliability_retry_backoff_seconds", 0.5))
+            ),
+            circuit_breaker_failures=max(
+                1, int(getattr(settings, "search_reliability_circuit_breaker_failures", 3))
+            ),
+            circuit_breaker_reset_seconds=max(
+                0.0,
+                float(getattr(settings, "search_reliability_circuit_breaker_reset_seconds", 60.0)),
+            ),
+        )
+        self.reliability_manager = reliability_manager or ProviderReliabilityManager(policy)
 
     def _init_default_providers(self) -> List[SearchProvider]:
         """Initialize default providers based on available API keys."""
@@ -681,7 +699,17 @@ class MultiSearchOrchestrator:
         providers: List[SearchProvider],
         provider_profile: Optional[List[str]],
     ) -> List[SearchProvider]:
-        """Filter/reorder providers by requested profile while keeping safe fallback."""
+        """Filter/reorder providers by requested profile while keeping safe fallback.
+
+        Provider profiles are used as a preference signal (ordering + prioritization),
+        not a hard allow-list. In practice, a narrow profile can accidentally exclude
+        general providers (e.g., DuckDuckGo/Tavily) and cause empty results even when
+        a safe fallback exists.
+
+        To keep the system robust, we return:
+        - profile-matched providers first (in requested order)
+        - then append the remaining available providers (stable order)
+        """
         if not provider_profile:
             return providers
 
@@ -697,8 +725,10 @@ class MultiSearchOrchestrator:
                 selected.append(provider)
 
         if selected:
+            remaining = [p for p in providers if p not in selected]
+            ordered = selected + remaining
             logger.info(f"[MultiSearch] Provider profile selected: {[p.name for p in selected]}")
-            return selected
+            return ordered
 
         logger.warning(
             f"[MultiSearch] Provider profile had no available matches: {preferred}, "
@@ -713,9 +743,20 @@ class MultiSearchOrchestrator:
         max_results: int,
     ) -> List[SearchResult]:
         """Call provider through reliability layer (retry + circuit breaker)."""
-        result = self.reliability_manager.call(
-            provider.name, lambda: provider.search(query, max_results)
-        )
+        def call_once() -> List[SearchResult]:
+            # Many provider adapters swallow exceptions and return [] while recording
+            # error stats. Treat that as a failed attempt so the reliability layer can retry.
+            before_errors = int(getattr(provider.stats, "error_count", 0) or 0)
+            results = provider.search(query, max_results)
+            after_errors = int(getattr(provider.stats, "error_count", 0) or 0)
+
+            if isinstance(results, list) and not results and after_errors > before_errors:
+                msg = provider.stats.last_error or f"{provider.name} returned empty results due to error"
+                raise RuntimeError(msg)
+
+            return results if isinstance(results, list) else []
+
+        result = self.reliability_manager.call(provider.name, call_once)
         return result if isinstance(result, list) else []
 
     def _search_fallback(
@@ -746,20 +787,32 @@ class MultiSearchOrchestrator:
 
         all_results = []
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(providers)) as executor:
+        max_workers = min(len(providers), int(getattr(self, "parallel_max_workers", len(providers))))
+        max_workers = max(1, max_workers)
+        timeout_s = float(getattr(self, "parallel_timeout_seconds", 30.0))
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {
                 executor.submit(self._call_provider, p, query, max_results): p
                 for p in providers
             }
 
-            for future in concurrent.futures.as_completed(futures, timeout=30):
-                provider = futures[future]
-                try:
-                    results = future.result()
-                    all_results.extend(results)
-                    logger.info(f"[MultiSearch] {provider.name} returned {len(results)} results")
-                except Exception as e:
-                    logger.error(f"[MultiSearch] {provider.name} failed: {e}")
+            try:
+                for future in concurrent.futures.as_completed(futures, timeout=timeout_s):
+                    provider = futures[future]
+                    try:
+                        results = future.result()
+                        all_results.extend(results)
+                        logger.info(f"[MultiSearch] {provider.name} returned {len(results)} results")
+                    except Exception as e:
+                        logger.error(f"[MultiSearch] {provider.name} failed: {e}")
+            except concurrent.futures.TimeoutError:
+                # Best-effort: keep whatever results completed, cancel the rest.
+                logger.warning("[MultiSearch] parallel search timed out; returning partial results")
+            finally:
+                for f in futures:
+                    if not f.done():
+                        f.cancel()
 
         # Deduplicate and rank
         return self._deduplicate_and_rank(all_results, max_results, query=query)
