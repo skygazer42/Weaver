@@ -28,6 +28,21 @@ export function getChatStreamUrl(): string {
   return apiUrl(protocol === 'legacy' ? '/api/chat' : '/api/chat/sse')
 }
 
+export type ResearchStreamProtocol = 'sse' | 'legacy'
+
+export function getResearchStreamProtocol(): ResearchStreamProtocol {
+  const raw = (process.env.NEXT_PUBLIC_RESEARCH_STREAM_PROTOCOL || 'sse').trim().toLowerCase()
+  return raw === 'legacy' ? 'legacy' : 'sse'
+}
+
+export function getResearchStreamUrl(query?: string): string {
+  const protocol = getResearchStreamProtocol()
+  if (protocol === 'sse') return apiUrl('/api/research/sse')
+
+  const params = new URLSearchParams({ query: String(query || '').trim() })
+  return apiUrl(`/api/research?${params.toString()}`)
+}
+
 export function getApiWsBaseUrl(): string {
   return getApiBaseUrl().replace(/^http/, 'ws')
 }

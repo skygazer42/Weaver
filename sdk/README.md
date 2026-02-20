@@ -7,7 +7,7 @@ Internal-only SDKs for calling Weaver from scripts/services (no npm/PyPI publish
 - **Research-core coverage**: chat streaming, research stream, sessions, evidence, export
 - **Protocol support**
   - Chat: standard **SSE** via `POST /api/chat/sse`
-  - Research: legacy stream via `POST /api/research` (Vercel AI “0:{json}\\n”)
+  - Research: standard **SSE** via `POST /api/research/sse` (recommended), legacy via `POST /api/research` (Vercel AI “0:{json}\\n”)
 - **Contract alignment**: TypeScript SDK types are generated from FastAPI OpenAPI
   - Drift guard: `bash scripts/check_openapi_ts_types.sh`
 
@@ -59,4 +59,3 @@ bash scripts/check_openapi_ts_types.sh
 ```bash
 bash sdk/typescript/scripts/build.sh
 ```
-

@@ -22,6 +22,7 @@ interface CommandPaletteProps {
 const ALL_COMMANDS: Command[] = [
   { id: 'agent', label: 'Agent Mode', icon: Bot, desc: 'Plan & web search' },
   { id: 'ultra', label: 'Deep Research', icon: Rocket, desc: 'Deep research (agent + deep search)' },
+  { id: 'research', label: 'Research', icon: Search, desc: 'Run a research job (SSE)' },
   { id: 'web', label: 'Web Mode', icon: Globe, desc: 'Web search only' },
   { id: 'fix', label: 'Fix Code', icon: Bug, desc: 'Debug & Fix' },
   { id: 'explain', label: 'Explain', icon: BookOpen, desc: 'Explain concept' },

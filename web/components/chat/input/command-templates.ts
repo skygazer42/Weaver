@@ -1,5 +1,7 @@
 export function getCommandTemplate(commandId: string): string | null {
   switch (commandId) {
+    case 'research':
+      return '/research '
     case 'fix':
       return 'Please fix the following code:\n\n'
     case 'explain':

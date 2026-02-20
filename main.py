@@ -563,6 +563,15 @@ class ChatRequest(BaseModel):
     images: Optional[List[ImagePayload]] = None  # Base64 images for multimodal input
 
 
+class ResearchRequest(BaseModel):
+    query: str
+    model: Optional[str] = None
+    search_mode: Optional[SearchMode | Dict[str, Any] | str] = None
+    agent_id: Optional[str] = None
+    user_id: Optional[str] = None
+    images: Optional[List[ImagePayload]] = None
+
+
 class ChatResponse(BaseModel):
     id: str
     content: str
@@ -3114,7 +3123,86 @@ async def research(query: str):
 
     Returns streaming response with research progress.
     """
-    return StreamingResponse(stream_agent_events(query), media_type="text/event-stream")
+    thread_id = f"thread_{uuid.uuid4().hex}"
+
+    return StreamingResponse(
+        stream_agent_events(query, thread_id=thread_id),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+            "X-Thread-ID": thread_id,
+        },
+    )
+
+
+@app.post("/api/research/sse")
+async def research_sse(request: ResearchRequest):
+    """
+    Standard SSE research endpoint.
+
+    This endpoint translates the existing legacy `0:{json}\\n` stream protocol
+    into standard SSE frames (`event:` / `data:`) so the frontend can use the
+    same SSE parser as `/api/chat/sse`.
+    """
+    query = (request.query or "").strip()
+    if not query:
+        raise HTTPException(status_code=400, detail="Query is required")
+
+    user_id = request.user_id or settings.memory_user_id
+    mode_info = _normalize_search_mode(request.search_mode)
+    model = (request.model or settings.primary_model).strip()
+    thread_id = f"thread_{uuid.uuid4().hex}"
+
+    async def _sse_generator():
+        seq = 0
+
+        # Deterministic failure mode when no API key is configured.
+        # We keep this fast and side-effect free (no graph compilation/run).
+        if not (settings.openai_api_key or "").strip():
+            seq += 1
+            yield format_sse_event(
+                event="error",
+                data={"message": "OPENAI_API_KEY is not configured", "thread_id": thread_id},
+                event_id=seq,
+            )
+            seq += 1
+            yield format_sse_event(event="done", data={"thread_id": thread_id}, event_id=seq)
+            return
+
+        async for maybe_line in iter_with_sse_keepalive(
+            stream_agent_events(
+                query,
+                thread_id=thread_id,
+                model=model,
+                search_mode=mode_info,
+                agent_id=request.agent_id,
+                images=_normalize_images_payload(request.images),
+                user_id=user_id,
+            ),
+            interval_s=15.0,
+        ):
+            # Keepalive comments are already SSE frames.
+            if maybe_line.startswith(":"):
+                yield maybe_line
+                continue
+
+            seq += 1
+            sse = translate_legacy_line_to_sse(maybe_line, seq=seq)
+            if sse:
+                yield sse
+
+    return StreamingResponse(
+        _sse_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+            "X-Thread-ID": thread_id,
+        },
+    )
 
 
 # ==================== Screenshot API ====================

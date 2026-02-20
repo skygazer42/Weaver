@@ -547,6 +547,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/research/sse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Research Sse
+         * @description Standard SSE research endpoint.
+         *
+         *     This endpoint translates the existing legacy `0:{json}\n` stream protocol
+         *     into standard SSE frames (`event:` / `data:`) so the frontend can use the
+         *     same SSE parser as `/api/chat/sse`.
+         */
+        post: operations["research_sse_api_research_sse_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/runs": {
         parameters: {
             query?: never;
@@ -1783,6 +1807,23 @@ export interface components {
             /** Role */
             role: string;
         };
+        /** ResearchRequest */
+        ResearchRequest: {
+            /** Agent Id */
+            agent_id?: string | null;
+            /** Images */
+            images?: components["schemas"]["ImagePayload"][] | null;
+            /** Model */
+            model?: string | null;
+            /** Query */
+            query: string;
+            /** Search Mode */
+            search_mode?: components["schemas"]["SearchMode"] | {
+                [key: string]: unknown;
+            } | string | null;
+            /** User Id */
+            user_id?: string | null;
+        };
         /** RunEvidenceSummary */
         RunEvidenceSummary: {
             /** Freshness Ratio 30D */
@@ -2826,6 +2867,39 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    research_sse_api_research_sse_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResearchRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

@@ -143,6 +143,7 @@ export function Chat() {
     threadId,
     setThreadId,
     processChat,
+    processResearch,
     handleStop,
     handleApproveInterrupt
   } = useChatStream({ selectedModel: ui.selectedModel, searchMode: ui.searchMode })
@@ -207,11 +208,14 @@ export function Chat() {
     if ((!input.trim() && attachments.length === 0) || isLoading) return
 
     const imagePayloads = await filesToImageAttachments(attachments)
+    const rawText = input.trim()
+    const researchMatch = rawText.match(/^\/research\b([\s\S]*)$/i)
+    const researchQuery = researchMatch ? (researchMatch[1] || '').trim() : null
 
     const userMessage: Message = {
       id: `user-${Date.now()}`,
       role: 'user',
-      content: input.trim(),
+      content: rawText,
       attachments: imagePayloads
     }
 
@@ -227,8 +231,13 @@ export function Chat() {
       saveToHistory(newHistory, currentSessionId)
     }
 
+    if (researchQuery !== null) {
+      await processResearch(researchQuery, imagePayloads)
+      return
+    }
+
     await processChat(newHistory, imagePayloads)
-  }, [input, attachments, isLoading, messages, currentSessionId, setMessages, saveToHistory, processChat])
+  }, [input, attachments, isLoading, messages, currentSessionId, setMessages, saveToHistory, processChat, processResearch])
 
   const handleEditMessage = useCallback(async (id: string, newContent: string) => {
     const index = messages.findIndex(m => m.id === id)
@@ -241,9 +250,18 @@ export function Chat() {
     setMessages(newHistory)
 
     if (updatedMessage.role === 'user') {
+      const rawText = updatedMessage.content.trim()
+      const researchMatch = rawText.match(/^\/research\b([\s\S]*)$/i)
+      const researchQuery = researchMatch ? (researchMatch[1] || '').trim() : null
+
+      if (researchQuery !== null) {
+        await processResearch(researchQuery, updatedMessage.attachments)
+        return
+      }
+
       await processChat(newHistory, updatedMessage.attachments)
     }
-  }, [messages, setMessages, processChat])
+  }, [messages, setMessages, processChat, processResearch])
 
   const handleStarterClick = useCallback((text: string, mode: string) => {
     setInput(text)
