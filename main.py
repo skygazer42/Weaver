@@ -1991,14 +1991,23 @@ async def export_report_endpoint(
                 try:
                     from agent.workflows.claim_verifier import ClaimVerifier
 
-                    if isinstance(scraped, list) and scraped:
+                    scraped_list = scraped if isinstance(scraped, list) else []
+                    passages_payload = deepsearch_artifacts.get("passages")
+                    passages_list = passages_payload if isinstance(passages_payload, list) else None
+
+                    if (scraped_list or passages_list) and isinstance(final_report, str) and final_report.strip():
                         verifier = ClaimVerifier()
-                        checks = verifier.verify_report(final_report, scraped)
+                        checks = verifier.verify_report(
+                            final_report,
+                            scraped_list,
+                            passages=passages_list,
+                        )
                         claims_payload = [
                             {
                                 "claim": c.claim,
                                 "status": c.status.value,
                                 "evidence_urls": c.evidence_urls,
+                                "evidence_passages": c.evidence_passages,
                                 "score": c.score,
                                 "notes": c.notes,
                             }

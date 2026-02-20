@@ -423,15 +423,27 @@ class SessionManager:
                 return []
 
         def _maybe_extract_claims() -> List[Dict[str, Any]]:
-            if not isinstance(scraped_content, list) or not scraped_content:
-                return []
             if not isinstance(final_report, str) or not final_report.strip():
                 return []
+            scraped_list = scraped_content if isinstance(scraped_content, list) else []
+            passages_list: Optional[List[Dict[str, Any]]] = None
             try:
                 from agent.workflows.claim_verifier import ClaimVerifier
 
                 verifier = ClaimVerifier()
-                checks = verifier.verify_report(final_report, scraped_content)
+                if isinstance(artifacts, dict):
+                    raw_passages = artifacts.get("passages")
+                    if isinstance(raw_passages, list) and raw_passages:
+                        passages_list = raw_passages
+
+                if not scraped_list and not passages_list:
+                    return []
+
+                checks = verifier.verify_report(
+                    final_report,
+                    scraped_list,
+                    passages=passages_list,
+                )
                 claims: List[Dict[str, Any]] = []
                 for check in checks:
                     claims.append(
@@ -439,6 +451,7 @@ class SessionManager:
                             "claim": check.claim,
                             "status": check.status.value,
                             "evidence_urls": check.evidence_urls,
+                            "evidence_passages": check.evidence_passages,
                             "score": check.score,
                             "notes": check.notes,
                         }
