@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { Artifact } from '@/types/chat'
 import { InspectorEvidence } from './InspectorEvidence'
+import { useResearchProgress } from '@/hooks/useResearchProgress'
+import { ProgressDashboard } from '@/components/visualization'
 
 // Lazy-load ReactMarkdown + remarkGfm (heavy deps, not needed on first paint)
 const ReactMarkdown = dynamic(() => import('react-markdown'), {
@@ -93,12 +95,18 @@ export function ArtifactsPanel({
 }: ArtifactsPanelProps) {
   const hasArtifacts = artifacts.length > 0
   const hasEvidence = Boolean(threadId)
+  const hasProgress = Boolean(threadId)
 
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
-  const [activeTab, setActiveTab] = useState<'artifacts' | 'evidence'>(() =>
-    hasArtifacts ? 'artifacts' : 'evidence'
+  const [activeTab, setActiveTab] = useState<'artifacts' | 'evidence' | 'progress'>(() =>
+    hasArtifacts ? 'artifacts' : (hasProgress ? 'progress' : 'evidence')
   )
+
+  const progress = useResearchProgress({
+    threadId,
+    enabled: activeTab === 'progress' && hasProgress,
+  })
 
   if (!hasArtifacts && !hasEvidence) return null
 
@@ -154,6 +162,24 @@ export function ArtifactsPanel({
         >
           <span>Evidence</span>
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'progress'}
+          disabled={!hasProgress}
+          onClick={() => setActiveTab('progress')}
+          className={cn(
+            'inline-flex items-center gap-1.5 rounded-md font-semibold transition-colors',
+            base,
+            padding,
+            activeTab === 'progress'
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground hover:bg-accent/40',
+            !hasProgress && 'opacity-50 cursor-not-allowed hover:bg-transparent hover:text-muted-foreground'
+          )}
+        >
+          <span>Progress</span>
+        </button>
       </div>
     )
   }
@@ -204,7 +230,20 @@ export function ArtifactsPanel({
           </Button>
         </div>
         <ScrollArea className="flex-1 p-8">
-          {activeTab === 'evidence' ? (
+          {activeTab === 'progress' ? (
+            <div className="max-w-5xl mx-auto h-[calc(100vh-100px)]">
+              <ProgressDashboard
+                timeline={progress.timeline}
+                tree={progress.tree}
+                stats={progress.stats}
+              />
+              {!progress.isConnected && progress.error ? (
+                <div className="mt-3 max-w-5xl mx-auto rounded-lg border border-border/60 bg-muted/10 p-3 text-xs text-muted-foreground">
+                  {progress.error}
+                </div>
+              ) : null}
+            </div>
+          ) : activeTab === 'evidence' ? (
             <div className="max-w-4xl mx-auto">
               <InspectorEvidence threadId={threadId} />
             </div>
@@ -291,7 +330,13 @@ export function ArtifactsPanel({
 
         <ScrollArea className="flex-1 min-w-0">
           <div className="p-4">
-            {activeTab === 'evidence' ? (
+            {activeTab === 'progress' ? (
+              <ProgressDashboard
+                timeline={progress.timeline}
+                tree={progress.tree}
+                stats={progress.stats}
+              />
+            ) : activeTab === 'evidence' ? (
               <InspectorEvidence threadId={threadId} />
             ) : (
               <ArtifactPreview artifact={activeArtifact} />
