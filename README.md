@@ -255,14 +255,19 @@ cd weaver
 ### 第二步：配置环境变量
 
 ```bash
-# 复制环境变量模板
+# 后端环境变量（根目录）
 cp .env.example .env
 
-# 编辑 .env 文件，填写必需的 API Keys
+# 编辑 .env 文件，填写后端必需的 API Keys
 nano .env  # 或使用其他编辑器
+
+# 前端环境变量（web/ 目录）
+cp web/.env.local.example web/.env.local
+# 如有需要，修改 NEXT_PUBLIC_API_URL 等
+nano web/.env.local
 ```
 
-**必需配置项**：
+**后端必需配置项**（写在根目录 `.env`）：
 
 ```bash
 # LLM 服务（三选一）
@@ -280,14 +285,9 @@ TAVILY_API_KEY=tvly-...                  # 从 https://tavily.com 获取
 E2B_API_KEY=e2b_...                      # 从 https://e2b.dev 获取
 ```
 
-**可选配置项**：
+**后端可选配置项**（写在根目录 `.env`）：
 
 ```bash
-# 前端 Chat 流式协议（默认 sse；遇到代理/平台不兼容可切换 legacy）
-# - sse: 标准 SSE（推荐，/api/chat/sse）
-# - legacy: 兼容旧的 `0:{json}\n` 行协议（/api/chat）
-NEXT_PUBLIC_CHAT_STREAM_PROTOCOL=sse
-
 # 语音服务（阿里 DashScope）
 DASHSCOPE_API_KEY=sk-...                 # ASR + TTS
 
@@ -316,6 +316,23 @@ WEAVER_AUTH_USER_HEADER=X-Weaver-User
 
 # 深度研究模式（auto|tree|linear）
 DEEPSEARCH_MODE=auto
+```
+
+**前端可选配置项**（写在 `web/.env.local`；仅影响浏览器端）：
+
+```bash
+# 后端 API 地址（浏览器可访问的地址）
+NEXT_PUBLIC_API_URL=http://127.0.0.1:8001
+
+# Chat 流式协议（默认 sse；遇到代理/平台不兼容可切换 legacy）
+# - sse: 标准 SSE（推荐，/api/chat/sse）
+# - legacy: 兼容旧的 `0:{json}\n` 行协议（/api/chat）
+NEXT_PUBLIC_CHAT_STREAM_PROTOCOL=sse
+
+# Research 流式协议（默认 sse；遇到代理/平台不兼容可切换 legacy）
+# - sse: 标准 SSE（推荐，/api/research/sse）
+# - legacy: 兼容旧协议（/api/research）
+NEXT_PUBLIC_RESEARCH_STREAM_PROTOCOL=sse
 ```
 
 #### （可选）企业内网鉴权 + 多用户隔离
@@ -847,12 +864,22 @@ psql $DATABASE_URL -c "SELECT 1"
 
 ### 5. 前端无法连接后端
 
-检查 `web/next.config.js` 中的 API 地址：
+1) 确认你已创建前端 env 文件：
 
-```javascript
-env: {
-  NEXT_PUBLIC_API_URL: 'http://127.0.0.1:8001',
-}
+```bash
+cp web/.env.local.example web/.env.local
+```
+
+2) 检查 `web/.env.local` 中的 API 地址是否正确：
+
+```bash
+NEXT_PUBLIC_API_URL=http://127.0.0.1:8001
+```
+
+3) 修改后重启前端开发服务器：
+
+```bash
+pnpm -C web dev
 ```
 
 ---

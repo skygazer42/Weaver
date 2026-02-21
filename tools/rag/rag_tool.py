@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 
 from langchain_core.tools import tool
 
-from tools.rag.document_loader import Document, DocumentLoader
+from tools.rag.document_loader import DocumentLoader
 from tools.rag.embedder import Embedder
 from tools.rag.vector_store import VectorStore
 

@@ -293,6 +293,7 @@ _RATE_LIMIT_GENERAL = 60  # requests per minute for general endpoints
 _RATE_LIMIT_CHAT = 20  # requests per minute for chat endpoints
 _RATE_LIMIT_WINDOW = 60  # seconds
 _RATE_LIMIT_EXEMPT = {"/", "/health", "/metrics", "/docs", "/openapi.json", "/redoc"}
+_rate_limit_cleanup_task: asyncio.Task | None = None
 
 
 def _get_client_ip(request: Request) -> str:
@@ -353,20 +354,18 @@ def _require_thread_owner(request: Request, thread_id: str) -> None:
 
 # Periodic cleanup of stale rate-limit buckets (runs every 5 minutes)
 async def _cleanup_rate_limit_buckets():
-    while True:
-        await asyncio.sleep(300)
-        now = time.time()
-        stale_keys = [
-            k for k, v in _rate_limit_buckets.items()
-            if now - v["window_start"] > _RATE_LIMIT_WINDOW * 2
-        ]
-        for k in stale_keys:
-            _rate_limit_buckets.pop(k, None)
-
-
-@app.on_event("startup")
-async def _start_rate_limit_cleanup():
-    asyncio.create_task(_cleanup_rate_limit_buckets())
+    try:
+        while True:
+            await asyncio.sleep(300)
+            now = time.time()
+            stale_keys = [
+                k for k, v in _rate_limit_buckets.items()
+                if now - v["window_start"] > _RATE_LIMIT_WINDOW * 2
+            ]
+            for k in stale_keys:
+                _rate_limit_buckets.pop(k, None)
+    except asyncio.CancelledError:
+        return
 
 
 # Initialize agent graphs with short-term memory (checkpointer)
@@ -448,6 +447,14 @@ async def startup_event():
     logger.info("=" * 80)
     logger.info("Weaver Research Agent Starting...")
     logger.info("=" * 80)
+
+    # Ensure the rate-limit bucket cleanup task is running (lifespan-managed).
+    global _rate_limit_cleanup_task
+    if _rate_limit_cleanup_task is None or _rate_limit_cleanup_task.done():
+        _rate_limit_cleanup_task = asyncio.create_task(
+            _cleanup_rate_limit_buckets(),
+            name="weaver-rate-limit-cleanup",
+        )
 
     # Log configuration
     logger.info(f"Environment: {'DEBUG' if settings.debug else 'PRODUCTION'}")
@@ -585,6 +592,17 @@ async def shutdown_event():
     logger.info("=" * 80)
     logger.info("Weaver Research Agent Shutting Down...")
     logger.info("=" * 80)
+
+    # Stop lifespan-managed background tasks.
+    global _rate_limit_cleanup_task
+    cleanup_task = _rate_limit_cleanup_task
+    if cleanup_task and not cleanup_task.done():
+        cleanup_task.cancel()
+        try:
+            await cleanup_task
+        except asyncio.CancelledError:
+            pass
+    _rate_limit_cleanup_task = None
 
     try:
         logger.info("Closing MCP tools...")

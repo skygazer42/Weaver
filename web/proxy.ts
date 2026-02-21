@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 /**
- * Next.js Middleware — Security Headers & CSP
+ * Next.js Proxy (Middleware replacement) — Security Headers & CSP
  *
  * Injects production-grade HTTP security headers into every response to
  * mitigate XSS, clickjacking, MIME-sniffing, and other common web attacks.
@@ -10,7 +10,7 @@ import type { NextRequest } from 'next/server'
  * Reference: OWASP Secure Headers Project (2025)
  */
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
     const response = NextResponse.next()
     void request
 
