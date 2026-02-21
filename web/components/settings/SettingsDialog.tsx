@@ -91,6 +91,21 @@ interface ApiKeys {
   [key: string]: string
 }
 
+type McpServersPreset = Record<string, unknown>
+
+const MCP_PRESET_FILESYSTEM_MEMORY: McpServersPreset = {
+  filesystem: {
+    type: 'stdio',
+    command: 'npx',
+    args: ['-y', '@modelcontextprotocol/server-filesystem', '/ABS/PATH/TO/ALLOW'],
+  },
+  memory: {
+    type: 'stdio',
+    command: 'npx',
+    args: ['-y', '@modelcontextprotocol/server-memory'],
+  },
+}
+
 export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChange }: SettingsDialogProps) {
   const { language, setLanguage, t } = useI18n()
   const [tempModel, setTempModel] = useState(selectedModel)
@@ -142,6 +157,29 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
     } finally {
       setSearchProvidersLoading(false)
     }
+  }, [t])
+
+  const applyMcpPreset = useCallback((preset: McpServersPreset) => {
+    setMcpEnabled(true)
+    setMcpConfig((prev) => {
+      const raw = String(prev || '').trim()
+      if (!raw || raw === '{}' || raw === 'null') {
+        return JSON.stringify(preset, null, 2)
+      }
+
+      try {
+        const parsed = JSON.parse(raw)
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          // Merge without overwriting existing server ids.
+          return JSON.stringify({ ...preset, ...(parsed as Record<string, unknown>) }, null, 2)
+        }
+      } catch {
+        // Ignore invalid JSON; replace with preset.
+      }
+
+      return JSON.stringify(preset, null, 2)
+    })
+    toast.success(t('mcpPresetApplied'))
   }, [t])
 
   // Save MCP config
@@ -391,6 +429,23 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
                 </div>
               ) : (
                 <>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <Label className="text-xs font-medium">{t('mcpPresets')}</Label>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => applyMcpPreset(MCP_PRESET_FILESYSTEM_MEMORY)}
+                      >
+                        {t('mcpPresetFsMemory')}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {t('mcpPresetsHint')}
+                    </p>
+                  </div>
                   <Textarea
                     value={mcpConfig}
                     onChange={(e) => setMcpConfig(e.target.value)}

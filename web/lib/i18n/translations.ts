@@ -105,6 +105,10 @@ export const translations = {
     mcpLoadHint: 'Make sure the backend is running and NEXT_PUBLIC_API_URL matches.',
     serversConfiguration: 'Servers Configuration (JSON)',
     serversConfigHint: 'Define servers with transport, command, and args.',
+    mcpPresets: 'Presets',
+    mcpPresetsHint: 'Quick templates to get started. Update paths before saving.',
+    mcpPresetFsMemory: 'Filesystem + Memory',
+    mcpPresetApplied: 'Preset applied',
     loadedTools: 'Loaded Tools',
     supportedModels: 'Supported Models',
 
@@ -246,6 +250,10 @@ export const translations = {
     mcpLoadHint: '请确认后端服务已启动，并检查 NEXT_PUBLIC_API_URL 是否正确。',
     serversConfiguration: '服务器配置 (JSON)',
     serversConfigHint: '定义服务器的传输方式、命令和参数。',
+    mcpPresets: '预设',
+    mcpPresetsHint: '快速模板，保存前请替换路径等参数。',
+    mcpPresetFsMemory: '文件系统 + 记忆',
+    mcpPresetApplied: '已应用预设',
     loadedTools: '已加载工具',
     supportedModels: '支持模型',
 
@@ -384,6 +392,10 @@ export const translations = {
     mcpDisabled: 'MCP は無効です。',
     serversConfiguration: 'サーバー設定 (JSON)',
     serversConfigHint: 'トランスポート、コマンド、引数でサーバーを定義します。',
+    mcpPresets: 'プリセット',
+    mcpPresetsHint: '開始用のテンプレートです。保存前にパス等を更新してください。',
+    mcpPresetFsMemory: 'ファイル + メモリ',
+    mcpPresetApplied: 'プリセットを適用しました',
     loadedTools: '読み込み済みツール',
     supportedModels: 'サポートモデル',
 
@@ -494,6 +506,10 @@ export const translations = {
     mcpDisabled: 'MCP가 비활성화되어 있습니다.',
     serversConfiguration: '서버 설정 (JSON)',
     serversConfigHint: '전송 방식, 명령어, 인자로 서버를 정의합니다.',
+    mcpPresets: '프리셋',
+    mcpPresetsHint: '시작용 템플릿입니다. 저장 전에 경로 등을 수정하세요.',
+    mcpPresetFsMemory: '파일시스템 + 메모리',
+    mcpPresetApplied: '프리셋이 적용되었습니다',
     loadedTools: '로드된 도구',
     supportedModels: '지원 모델',
 
