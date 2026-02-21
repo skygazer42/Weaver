@@ -5,9 +5,9 @@
 
 <div align="center">
 
-# Weaver - AI 智能体平台模板
+# Weaver - AI 智能体平台
 
-**基于 LangGraph 的开源 AI Agent 平台模板 · Deep Research · 工具调用 · 代码执行 · 浏览器自动化 · 多模态交互**
+**基于 LangGraph 的开源 AI Agent 平台 · Deep Research · 工具调用 · 代码执行 · 浏览器自动化 · 多模态交互**
 
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat&logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688?style=flat&logo=fastapi&logoColor=white)
