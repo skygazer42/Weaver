@@ -9,6 +9,13 @@ if [[ "${1:-}" == "--openapi-json" ]]; then
   shift 2
 fi
 
+# If a relative path is provided, interpret it relative to the repo root.
+# (The generator runs with `pnpm -C web`, so keeping this relative would
+# accidentally resolve it under `web/`.)
+if [[ -n "$OPENAPI_JSON" && "$OPENAPI_JSON" != /* ]]; then
+  OPENAPI_JSON="$ROOT_DIR/$OPENAPI_JSON"
+fi
+
 if [[ -z "$OPENAPI_JSON" ]]; then
   OPENAPI_JSON="/tmp/weaver-openapi.json"
 
