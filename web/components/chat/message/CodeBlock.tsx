@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useRef, useState, useMemo, useCallback, memo } from 'react'
+import React, { useEffect, useRef, useState, useMemo, useCallback, memo } from 'react'
 import { Check, Copy, ChevronDown, ChevronRight, WrapText, Download, MoreHorizontal, ArrowUp, ArrowDown, Maximize2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { showSuccess } from '@/lib/toast-utils'
@@ -30,6 +30,31 @@ interface CodeBlockProps {
 // Threshold for enabling virtual scrolling
 const VIRTUAL_SCROLL_THRESHOLD = 100
 
+const CODEBLOCK_PREF_WRAP = 'weaver:codeblock:wrap'
+const CODEBLOCK_PREF_LINE_NUMBERS = 'weaver:codeblock:line_numbers'
+
+function readStoredBoolean(key: string, fallback: boolean): boolean {
+  if (typeof window === 'undefined') return fallback
+  try {
+    const raw = window.localStorage.getItem(key)
+    if (raw === null) return fallback
+    if (raw === '1' || raw === 'true') return true
+    if (raw === '0' || raw === 'false') return false
+    return fallback
+  } catch {
+    return fallback
+  }
+}
+
+function writeStoredBoolean(key: string, value: boolean): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(key, value ? '1' : '0')
+  } catch {
+    // Ignore; storage may be unavailable (privacy mode) and should not break UI.
+  }
+}
+
 function extensionForLanguage(language: string): string {
   const lang = String(language || '').trim().toLowerCase()
   if (!lang || lang === 'text' || lang === 'plain') return 'txt'
@@ -52,6 +77,34 @@ function extensionForLanguage(language: string): string {
   return 'txt'
 }
 
+function buildHighlightedParts(text: string, query: string) {
+  const q = String(query || '')
+  if (!q) return [{ text, match: false }]
+
+  const lowerText = text.toLowerCase()
+  const lowerQuery = q.toLowerCase()
+
+  const parts: Array<{ text: string; match: boolean }> = []
+  let cursor = 0
+  while (cursor < text.length) {
+    const idx = lowerText.indexOf(lowerQuery, cursor)
+    if (idx === -1) break
+
+    if (idx > cursor) {
+      parts.push({ text: text.slice(cursor, idx), match: false })
+    }
+
+    parts.push({ text: text.slice(idx, idx + q.length), match: true })
+    cursor = idx + q.length
+  }
+
+  if (cursor < text.length) {
+    parts.push({ text: text.slice(cursor), match: false })
+  }
+
+  return parts.length > 0 ? parts : [{ text, match: false }]
+}
+
 // Memoized line component for virtual scrolling
 const CodeLine = memo(function CodeLine({
   line,
@@ -60,6 +113,7 @@ const CodeLine = memo(function CodeLine({
   showLineNumbers,
   isMatch,
   isActiveMatch,
+  highlightQuery,
 }: {
   line: string
   lineNumber: number
@@ -67,7 +121,12 @@ const CodeLine = memo(function CodeLine({
   showLineNumbers: boolean
   isMatch: boolean
   isActiveMatch: boolean
+  highlightQuery?: string
 }) {
+  const query = String(highlightQuery || '').trim()
+  const text = line || ' '
+  const parts = query ? buildHighlightedParts(text, query) : null
+
   return (
     <div
       className={cn(
@@ -88,7 +147,21 @@ const CodeLine = memo(function CodeLine({
           wrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre',
         )}
       >
-        {line || ' '}
+        {parts
+          ? parts.map((p, idx) =>
+            p.match ? (
+              <mark
+                // Mark has better semantics for "find highlight"
+                key={idx}
+                className="rounded-sm bg-primary/35 text-white/95 px-0.5"
+              >
+                {p.text}
+              </mark>
+            ) : (
+              <span key={idx}>{p.text}</span>
+            )
+          )
+          : text}
       </code>
     </div>
   )
@@ -101,8 +174,8 @@ export function CodeBlock({ language, value, defaultCollapsed = false }: CodeBlo
   const [copied, setCopied] = useState(false)
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed)
   const [isFullscreenOpen, setIsFullscreenOpen] = useState(false)
-  const [wrapLines, setWrapLines] = useState(false)
-  const [showLineNumbers, setShowLineNumbers] = useState(false)
+  const [wrapLines, setWrapLines] = useState(() => readStoredBoolean(CODEBLOCK_PREF_WRAP, false))
+  const [showLineNumbers, setShowLineNumbers] = useState(() => readStoredBoolean(CODEBLOCK_PREF_LINE_NUMBERS, false))
   const [findQuery, setFindQuery] = useState('')
   const [activeMatchCursor, setActiveMatchCursor] = useState(0)
 
@@ -140,8 +213,17 @@ export function CodeBlock({ language, value, defaultCollapsed = false }: CodeBlo
       showLineNumbers={showLineNumbers}
       isMatch={matchLineSet.has(index)}
       isActiveMatch={activeMatchLineIndex === index}
+      highlightQuery={normalizedFindQuery}
     />
-  ), [lines, wrapLines, showLineNumbers, matchLineSet, activeMatchLineIndex])
+  ), [lines, wrapLines, showLineNumbers, matchLineSet, activeMatchLineIndex, normalizedFindQuery])
+
+  useEffect(() => {
+    writeStoredBoolean(CODEBLOCK_PREF_WRAP, wrapLines)
+  }, [wrapLines])
+
+  useEffect(() => {
+    writeStoredBoolean(CODEBLOCK_PREF_LINE_NUMBERS, showLineNumbers)
+  }, [showLineNumbers])
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -287,6 +369,27 @@ export function CodeBlock({ language, value, defaultCollapsed = false }: CodeBlo
       )
     }
 
+    if (normalizedFindQuery) {
+      return (
+        <div className={cn(codeViewportClassName, 'overflow-y-auto')}>
+          <div className="px-4 py-4 space-y-0.5">
+            {lines.map((line, idx) => (
+              <CodeLine
+                key={idx}
+                line={line ?? ''}
+                lineNumber={idx + 1}
+                wrap={wrapLines}
+                showLineNumbers={showLineNumbers}
+                isMatch={matchLineSet.has(idx)}
+                isActiveMatch={activeMatchLineIndex === idx}
+                highlightQuery={normalizedFindQuery}
+              />
+            ))}
+          </div>
+        </div>
+      )
+    }
+
     return (
       <div className={cn(codeViewportClassName, 'overflow-y-auto')}>
         <div ref={codeContainerRef}>
@@ -313,7 +416,6 @@ export function CodeBlock({ language, value, defaultCollapsed = false }: CodeBlo
             }}
             showLineNumbers={showLineNumbers}
             wrapLongLines={wrapLines}
-            wrapLines={Boolean(normalizedFindQuery)}
             lineProps={(lineNumber: number) => {
               const idx = lineNumber - 1
               const isMatch = matchLineSet.has(idx)
@@ -337,7 +439,7 @@ export function CodeBlock({ language, value, defaultCollapsed = false }: CodeBlo
   }, [
     useVirtualization,
     codeViewportClassName,
-    lines.length,
+    lines,
     itemContent,
     virtualizationComponents,
     codeViewportHeight,
