@@ -15,8 +15,8 @@ from tools.rag.vector_store import VectorStore
 
 logger = logging.getLogger(__name__)
 
-# Global RAG instance (lazy initialized)
-_global_rag: Optional["RAGTool"] = None
+# Global RAG instances (lazy initialized, keyed by collection name)
+_RAG_BY_COLLECTION: dict[str, "RAGTool"] = {}
 
 
 class RAGTool:
@@ -178,12 +178,14 @@ class RAGTool:
         return self.vector_store.count()
 
 
-def get_rag_tool() -> Optional[RAGTool]:
-    """Get the global RAG tool instance."""
-    global _global_rag
+def get_rag_tool(*, collection_name: Optional[str] = None) -> Optional[RAGTool]:
+    """
+    Get a cached RAG tool instance.
 
-    if _global_rag is not None:
-        return _global_rag
+    Weaver can run in either:
+    - single-user/dev mode: a single global collection
+    - enterprise-internal mode: per-principal isolated collections (caller chooses collection_name)
+    """
 
     from common.config import settings
 
@@ -191,14 +193,22 @@ def get_rag_tool() -> Optional[RAGTool]:
         return None
 
     try:
-        _global_rag = RAGTool(
-            collection_name=getattr(settings, "rag_collection_name", "weaver_documents"),
+        base_collection = getattr(settings, "rag_collection_name", "weaver_documents")
+        resolved_collection = (collection_name or base_collection or "weaver_documents").strip()
+
+        existing = _RAG_BY_COLLECTION.get(resolved_collection)
+        if existing is not None:
+            return existing
+
+        rag = RAGTool(
+            collection_name=resolved_collection,
             persist_directory=getattr(settings, "rag_store_path", None),
             embedding_model=getattr(settings, "rag_embedding_model", "text-embedding-3-small"),
             chunk_size=getattr(settings, "rag_chunk_size", 1000),
             chunk_overlap=getattr(settings, "rag_chunk_overlap", 200),
         )
-        return _global_rag
+        _RAG_BY_COLLECTION[resolved_collection] = rag
+        return rag
     except Exception as e:
         logger.error(f"Failed to initialize RAG tool: {e}")
         return None

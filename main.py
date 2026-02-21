@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import hashlib
 import hmac
 import json
 import logging
@@ -2509,8 +2510,26 @@ async def list_export_templates():
 # ==================== RAG Document API ====================
 
 
+def _rag_collection_for_request(request: Request) -> str:
+    """
+    Resolve the Chroma collection name for RAG documents.
+
+    Hybrid behavior:
+    - Default/dev (internal auth disabled): single shared collection
+    - Enterprise internal (internal auth enabled): per-principal isolated collection
+    """
+    base = (getattr(settings, "rag_collection_name", "") or "weaver_documents").strip() or "weaver_documents"
+    internal_key = (getattr(settings, "internal_api_key", "") or "").strip()
+    if not internal_key:
+        return base
+
+    principal_id = (getattr(request.state, "principal_id", "") or "").strip() or "internal"
+    suffix = hashlib.sha256(principal_id.encode("utf-8")).hexdigest()[:12]
+    return f"{base}__u_{suffix}"
+
+
 @app.post("/api/documents/upload")
-async def upload_document(file: UploadFile = File(...)):
+async def upload_document(request: Request, file: UploadFile = File(...)):
     """
     Upload a document to the RAG knowledge base.
 
@@ -2535,7 +2554,7 @@ async def upload_document(file: UploadFile = File(...)):
     try:
         from tools.rag.rag_tool import get_rag_tool
 
-        rag = get_rag_tool()
+        rag = get_rag_tool(collection_name=_rag_collection_for_request(request))
         if rag is None:
             raise HTTPException(status_code=500, detail="Failed to initialize RAG tool")
 
@@ -2559,7 +2578,7 @@ async def upload_document(file: UploadFile = File(...)):
 
 
 @app.get("/api/documents/list")
-async def list_documents(limit: int = 100):
+async def list_documents(request: Request, limit: int = 100):
     """
     List all documents in the RAG knowledge base.
     """
@@ -2569,7 +2588,7 @@ async def list_documents(limit: int = 100):
     try:
         from tools.rag.rag_tool import get_rag_tool
 
-        rag = get_rag_tool()
+        rag = get_rag_tool(collection_name=_rag_collection_for_request(request))
         if rag is None:
             raise HTTPException(status_code=500, detail="Failed to initialize RAG tool")
 
@@ -2587,7 +2606,7 @@ async def list_documents(limit: int = 100):
 
 
 @app.delete("/api/documents/{source:path}")
-async def delete_document(source: str):
+async def delete_document(source: str, request: Request):
     """
     Delete a document from the RAG knowledge base by source path.
     """
@@ -2597,7 +2616,7 @@ async def delete_document(source: str):
     try:
         from tools.rag.rag_tool import get_rag_tool
 
-        rag = get_rag_tool()
+        rag = get_rag_tool(collection_name=_rag_collection_for_request(request))
         if rag is None:
             raise HTTPException(status_code=500, detail="Failed to initialize RAG tool")
 
@@ -2615,7 +2634,7 @@ async def delete_document(source: str):
 
 
 @app.post("/api/documents/search")
-async def search_documents(query: str, n_results: int = 5):
+async def search_documents(request: Request, query: str, n_results: int = 5):
     """
     Search the RAG knowledge base.
     """
@@ -2625,7 +2644,7 @@ async def search_documents(query: str, n_results: int = 5):
     try:
         from tools.rag.rag_tool import get_rag_tool
 
-        rag = get_rag_tool()
+        rag = get_rag_tool(collection_name=_rag_collection_for_request(request))
         if rag is None:
             raise HTTPException(status_code=500, detail="Failed to initialize RAG tool")
 
