@@ -43,7 +43,7 @@ jobs:
         run: python scripts/export_openapi.py --output /tmp/weaver-openapi.json
 
       - name: Upload OpenAPI spec artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: weaver-openapi-spec
           path: /tmp/weaver-openapi.json
@@ -133,7 +133,7 @@ jobs:
             --output /tmp/benchmark_smoke.json
 
       - name: Upload benchmark artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: benchmark-smoke-report
           path: /tmp/benchmark_smoke.json

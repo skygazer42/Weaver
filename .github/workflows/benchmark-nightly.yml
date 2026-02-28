@@ -35,7 +35,7 @@ jobs:
             --output /tmp/benchmark_nightly.json
 
       - name: Upload benchmark artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: benchmark-nightly-report
           path: /tmp/benchmark_nightly.json
