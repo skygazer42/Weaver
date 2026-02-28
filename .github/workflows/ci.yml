@@ -81,7 +81,7 @@ jobs:
         run: pnpm -C web install --frozen-lockfile
 
       - name: Download OpenAPI spec artifact
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           name: weaver-openapi-spec
           path: .tmp/openapi
