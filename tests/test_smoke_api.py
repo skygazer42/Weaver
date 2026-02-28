@@ -20,13 +20,19 @@ from main import app
 @pytest.mark.asyncio
 async def test_chat_stream_smoke():
     """Basic smoke test for /api/chat streaming endpoint."""
-    pytest.skip("Chat smoke requires real OpenAI key; skipped in CI/local without creds.")
+    live = (os.getenv("WEAVER_LIVE_TESTS") or "").strip().lower() in {"1", "true", "yes", "y", "on"}
+    if not live:
+        pytest.skip("Set WEAVER_LIVE_TESTS=1 to run the live /api/chat smoke test.")
+
+    if not settings.openai_api_key:
+        pytest.skip("OPENAI_API_KEY is not configured; skipping live /api/chat smoke test.")
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        model = (os.getenv("WEAVER_SMOKE_MODEL") or "").strip() or settings.primary_model
         payload = {
             "messages": [{"role": "user", "content": "Hello, just say hi."}],
             "stream": False,
-            "model": "gpt-4o-mini",
+            "model": model,
         }
         resp = await ac.post("/api/chat", json=payload)
         assert resp.status_code == 200

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { Download, FileText, File, X, Check } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
@@ -16,14 +16,16 @@ interface ExportDialogProps {
 }
 
 type ExportFormat = 'html' | 'pdf' | 'docx'
-type TemplateStyle = 'default' | 'academic' | 'business' | 'minimal'
+type TemplateStyle = string
 
-const TEMPLATES: Array<{
+type TemplateOption = {
   id: TemplateStyle
   name: string
   description: string
   preview: string
-}> = [
+}
+
+const LOCAL_TEMPLATES: TemplateOption[] = [
     {
       id: 'default',
       name: 'Default',
@@ -50,6 +52,13 @@ const TEMPLATES: Array<{
     },
   ]
 
+const TEMPLATE_PREVIEWS: Record<string, string> = {
+  default: '📄',
+  academic: '📚',
+  business: '💼',
+  minimal: '📋',
+}
+
 const FORMATS: Array<{
   id: ExportFormat
   name: string
@@ -66,8 +75,51 @@ export function ExportDialog({ threadId, isOpen, onClose, className }: ExportDia
   const [template, setTemplate] = useState<TemplateStyle>('default')
   const [title, setTitle] = useState('Research Report')
   const [isExporting, setIsExporting] = useState(false)
+  const [templates, setTemplates] = useState<TemplateOption[]>(LOCAL_TEMPLATES)
   const dialogRef = useRef<HTMLDivElement>(null)
   useFocusTrap(dialogRef, isOpen, onClose)
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    let cancelled = false
+
+    const loadTemplates = async () => {
+      try {
+        const res = await fetch(`${getApiBaseUrl()}/api/export/templates`)
+        if (!res.ok) return
+
+        const data = await res.json()
+        const remote = Array.isArray(data?.templates) ? data.templates : null
+        if (!remote) return
+
+        const normalized: TemplateOption[] = remote
+          .filter((t: any) => t && typeof t === 'object' && typeof t.id === 'string')
+          .map((t: any): TemplateOption => ({
+            id: String(t.id),
+            name: String(t.name || t.id),
+            description: String(t.description || ''),
+            preview: TEMPLATE_PREVIEWS[String(t.id)] || '📄',
+          }))
+
+        if (!cancelled && normalized.length) {
+          setTemplates(normalized)
+          // Keep selection valid if backend template list changed.
+          setTemplate((prev) =>
+            normalized.some((t) => t.id === prev) ? prev : normalized[0]!.id
+          )
+        }
+      } catch {
+        // Non-fatal: keep local templates when backend is unreachable.
+      }
+    }
+
+    loadTemplates()
+
+    return () => {
+      cancelled = true
+    }
+  }, [isOpen])
 
   const handleExport = async () => {
     setIsExporting(true)
@@ -83,8 +135,22 @@ export function ExportDialog({ threadId, isOpen, onClose, className }: ExportDia
       )
 
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.detail || 'Export failed')
+        let message = 'Export failed'
+        try {
+          const error = await response.json()
+          if (typeof error?.error === 'string' && error.error.trim()) message = error.error
+          else if (typeof error?.detail === 'string' && error.detail.trim()) message = error.detail
+          else if (typeof error?.message === 'string' && error.message.trim()) message = error.message
+          else if (Array.isArray(error?.detail)) {
+            const parts = error.detail
+              .map((item: any) => (typeof item?.message === 'string' ? item.message : ''))
+              .filter(Boolean)
+            if (parts.length) message = parts.join('; ')
+          }
+        } catch {
+          // ignore JSON parse errors
+        }
+        throw new Error(message)
       }
 
       // Get the blob and download
@@ -196,7 +262,7 @@ export function ExportDialog({ threadId, isOpen, onClose, className }: ExportDia
             Template Style
           </label>
           <div className="grid grid-cols-2 gap-2">
-            {TEMPLATES.map(t => (
+            {templates.map(t => (
               <button
                 key={t.id}
                 type="button"

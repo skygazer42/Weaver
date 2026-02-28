@@ -1,0 +1,22 @@
+{
+  "smoke_thread": [
+    {
+      "id": "fffdde3e-dfa",
+      "thread_id": "smoke_thread",
+      "message_id": null,
+      "author": "smoke",
+      "content": "smoke comment",
+      "created_at": "2026-02-28T15:30:22.077193",
+      "updated_at": "2026-02-28T15:30:22.077193"
+    },
+    {
+      "id": "05a8ce49-10a",
+      "thread_id": "smoke_thread",
+      "message_id": null,
+      "author": "smoke",
+      "content": "smoke comment",
+      "created_at": "2026-02-28T17:03:34.639049",
+      "updated_at": "2026-02-28T17:03:34.639049"
+    }
+  ]
+}

@@ -92,7 +92,7 @@ export function useBrowserEvents({
         console.log('[useBrowserEvents] Connected')
       }
 
-      es.onmessage = (event) => {
+      const handleEvent = (event: MessageEvent) => {
         try {
           // Handle keepalive messages
           if (event.data.trim() === '' || event.data.startsWith(':')) {
@@ -217,6 +217,23 @@ export function useBrowserEvents({
           }
         }
       }
+
+      // Prefer typed events (backend sends `event: tool_*`), but keep onmessage
+      // as a fallback in case proxies strip `event:` lines.
+      for (const eventType of [
+        'tool_start',
+        'tool_progress',
+        'tool_screenshot',
+        'tool_result',
+        'tool_error',
+        'task_update',
+        'error',
+        'done',
+      ]) {
+        es.addEventListener(eventType, handleEvent as any)
+      }
+
+      es.onmessage = handleEvent
 
       es.onerror = (error) => {
         console.error('[useBrowserEvents] EventSource error:', error)

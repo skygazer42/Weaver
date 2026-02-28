@@ -143,6 +143,32 @@ export function ChatInterface({ selectedModel }: ChatInterfaceProps) {
                     msg.id === assistantMessage.id ? { ...assistantMessage } : msg
                   )
                 )
+              } else if (data.type === 'error') {
+                const message =
+                  typeof data.data?.message === 'string' && data.data.message.trim()
+                    ? data.data.message
+                    : 'Server error'
+                setMessages((prev) => [
+                  ...prev,
+                  {
+                    id: `error-${Date.now()}`,
+                    role: 'assistant',
+                    content: message,
+                  },
+                ])
+              } else if (data.type === 'cancelled') {
+                const message =
+                  typeof data.data?.message === 'string' && data.data.message.trim()
+                    ? data.data.message
+                    : 'Cancelled'
+                setMessages((prev) => [
+                  ...prev,
+                  {
+                    id: `cancelled-${Date.now()}`,
+                    role: 'assistant',
+                    content: message,
+                  },
+                ])
               }
             } catch (err) {
               console.error('Error parsing stream data:', err)

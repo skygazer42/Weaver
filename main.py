@@ -2432,6 +2432,41 @@ class ExportRequest(BaseModel):
     title: Optional[str] = None
 
 
+@app.get("/api/export/templates")
+async def list_export_templates():
+    """
+    List available export templates.
+
+    Note: This route must be registered before `/api/export/{thread_id}`.
+    Otherwise, the dynamic route will capture `templates` as a thread_id and
+    this endpoint becomes unreachable.
+    """
+    return {
+        "templates": [
+            {
+                "id": "default",
+                "name": "Default",
+                "description": "Standard research report format with Weaver branding",
+            },
+            {
+                "id": "academic",
+                "name": "Academic",
+                "description": "Formal serif font style for research papers with proper citations",
+            },
+            {
+                "id": "business",
+                "name": "Business",
+                "description": "Professional business report with gradient header and modern layout",
+            },
+            {
+                "id": "minimal",
+                "name": "Minimal",
+                "description": "Clean, distraction-free formatting focused on content",
+            },
+        ]
+    }
+
+
 @app.get("/api/export/{thread_id}")
 async def export_report_endpoint(
     thread_id: str,
@@ -2594,35 +2629,6 @@ async def export_report_endpoint(
     except Exception as e:
         logger.error(f"Export error for thread {thread_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/api/export/templates")
-async def list_export_templates():
-    """List available export templates."""
-    return {
-        "templates": [
-            {
-                "id": "default",
-                "name": "Default",
-                "description": "Standard research report format with Weaver branding",
-            },
-            {
-                "id": "academic",
-                "name": "Academic",
-                "description": "Formal serif font style for research papers with proper citations",
-            },
-            {
-                "id": "business",
-                "name": "Business",
-                "description": "Professional business report with gradient header and modern layout",
-            },
-            {
-                "id": "minimal",
-                "name": "Minimal",
-                "description": "Clean, distraction-free formatting focused on content",
-            },
-        ]
-    }
 
 
 # ==================== RAG Document API ====================

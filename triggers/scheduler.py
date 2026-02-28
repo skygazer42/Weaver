@@ -7,6 +7,7 @@ Handles cron-based scheduling using APScheduler or simple time-based scheduling.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import re
 from datetime import datetime, timedelta
@@ -361,7 +362,9 @@ class TriggerScheduler:
             if asyncio.iscoroutinefunction(callback):
                 await callback(trigger)
             else:
-                callback(trigger)
+                result = callback(trigger)
+                if inspect.isawaitable(result):
+                    await result
 
         except Exception as e:
             logger.error(f"[scheduler] Trigger execution failed for '{trigger.name}': {e}")

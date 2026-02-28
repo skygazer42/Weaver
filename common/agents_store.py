@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
 import uuid
 from dataclasses import dataclass
@@ -51,6 +52,21 @@ _LOCK = threading.Lock()
 
 
 def default_store_paths(project_root: Optional[Path] = None) -> AgentsStorePaths:
+    """
+    Compute default storage locations for agent profiles.
+
+    By default this stores under the project repository `data/agents.json`.
+
+    For integration tests / ephemeral runs, set `WEAVER_DATA_DIR` to override
+    the data directory (e.g. to a temp folder) without touching repo files.
+    """
+    override = (os.getenv("WEAVER_DATA_DIR") or "").strip()
+    if override:
+        data_dir = Path(override).expanduser()
+        if not data_dir.is_absolute():
+            data_dir = (Path.cwd() / data_dir).resolve()
+        return AgentsStorePaths(root=data_dir, file=data_dir / "agents.json")
+
     root = project_root or Path(__file__).resolve().parents[1]
     data_dir = root / "data"
     return AgentsStorePaths(root=data_dir, file=data_dir / "agents.json")

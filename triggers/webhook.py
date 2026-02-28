@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import hmac
+import inspect
 import logging
 import time
 from collections import defaultdict
@@ -226,6 +227,8 @@ class WebhookHandler:
                 result = await callback(trigger, exec_params)
             else:
                 result = callback(trigger, exec_params)
+                if inspect.isawaitable(result):
+                    result = await result
 
             return {
                 "success": True,
