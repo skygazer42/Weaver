@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import functools
+import logging
 import os
 import threading
 import time
@@ -14,6 +15,7 @@ from common.config import settings
 from common.e2b_env import prepare_e2b_env
 
 _T = TypeVar("_T")
+logger = logging.getLogger(__name__)
 
 
 def _env(name: str, default: str = "") -> str:
@@ -252,6 +254,14 @@ class SandboxBrowserSession:
         self.thread_id = (thread_id or "").strip() or "default"
         self._lock = threading.Lock()
         self._handles: Optional[SandboxBrowserHandles] = None
+        self._screencast_lock = threading.Lock()
+        self._screencast_running = False
+        self._screencast_cdp_session: Optional[Any] = None
+        self._screencast_latest_frame: Optional[str] = None  # base64 JPEG/PNG from CDP
+        self._screencast_latest_metadata: Dict[str, Any] = {}
+        self._screencast_latest_ts: float = 0.0
+        self._screencast_frame_id: int = 0
+        self._screencast_error: Optional[str] = None
 
     def _ensure_sandbox_and_page(self) -> SandboxBrowserHandles:
         with self._lock:
@@ -417,6 +427,168 @@ class SandboxBrowserSession:
             "cdp_endpoint": h.cdp_endpoint,
         }
 
+    def start_screencast(
+        self,
+        *,
+        quality: int = 70,
+        max_width: int = 1280,
+        max_height: int = 720,
+        format: str = "jpeg",
+    ) -> bool:
+        """
+        Start a CDP screencast on the current page.
+
+        This is designed to be cheap for the WebSocket viewer: once running,
+        the WS loop can poll `get_screencast_frame()` at its own max FPS without
+        taking screenshots every tick.
+        """
+        h = self._ensure_sandbox_and_page()
+
+        q = max(1, min(100, int(quality or 70)))
+        fmt = (format or "jpeg").strip().lower()
+        if fmt not in {"jpeg", "png"}:
+            fmt = "jpeg"
+
+        # Restart if already running (quality/size changes should take effect).
+        self.stop_screencast()
+
+        try:
+            cdp = h.context.new_cdp_session(h.page)
+
+            with self._screencast_lock:
+                self._screencast_running = True
+                self._screencast_cdp_session = cdp
+                self._screencast_latest_frame = None
+                self._screencast_latest_metadata = {}
+                self._screencast_latest_ts = 0.0
+                self._screencast_frame_id = 0
+                self._screencast_error = None
+
+            def _handle_frame(params: Dict[str, Any]) -> None:
+                # NOTE: this callback is invoked by Playwright's internal event
+                # dispatch. Keep it fast and never touch asyncio here.
+                with self._screencast_lock:
+                    if not self._screencast_running:
+                        return
+
+                try:
+                    session_id = params.get("sessionId")
+                    if session_id:
+                        try:
+                            cdp.send("Page.screencastFrameAck", {"sessionId": session_id})
+                        except Exception:
+                            pass
+
+                    frame_data = params.get("data")
+                    if not frame_data:
+                        return
+
+                    metadata = params.get("metadata") or {}
+                    if not isinstance(metadata, dict):
+                        metadata = {}
+
+                    with self._screencast_lock:
+                        self._screencast_latest_frame = frame_data
+                        self._screencast_latest_metadata = metadata
+                        self._screencast_latest_ts = time.time()
+                        self._screencast_frame_id += 1
+                except Exception as e:
+                    with self._screencast_lock:
+                        self._screencast_error = str(e)
+
+            try:
+                cdp.on("Page.screencastFrame", _handle_frame)
+            except Exception:
+                # If event subscription fails, we can't stream.
+                raise
+
+            try:
+                cdp.send("Page.enable")
+            except Exception:
+                pass
+
+            cdp.send(
+                "Page.startScreencast",
+                {
+                    "format": fmt,
+                    "quality": q if fmt == "jpeg" else 100,
+                    "maxWidth": int(max_width or 1280),
+                    "maxHeight": int(max_height or 720),
+                    "everyNthFrame": 1,
+                },
+            )
+
+            logger.info(
+                f"[sandbox_browser] CDP screencast started thread={self.thread_id} "
+                f"format={fmt} quality={q} size<=({max_width}x{max_height})"
+            )
+            return True
+        except Exception:
+            # Best-effort cleanup on failure.
+            try:
+                self.stop_screencast()
+            except Exception:
+                pass
+            raise
+
+    def stop_screencast(self) -> None:
+        """Stop an active CDP screencast (best-effort)."""
+        with self._screencast_lock:
+            was_running = self._screencast_running
+            cdp = self._screencast_cdp_session
+            self._screencast_running = False
+            self._screencast_cdp_session = None
+            self._screencast_latest_frame = None
+            self._screencast_latest_metadata = {}
+            self._screencast_latest_ts = 0.0
+            self._screencast_error = None
+
+        if not was_running or not cdp:
+            return
+
+        try:
+            try:
+                cdp.send("Page.stopScreencast")
+            except Exception:
+                pass
+            try:
+                cdp.detach()
+            except Exception:
+                pass
+        finally:
+            logger.info(f"[sandbox_browser] CDP screencast stopped thread={self.thread_id}")
+
+    def get_screencast_frame(self) -> Optional[Dict[str, Any]]:
+        """
+        Get the latest screencast frame (base64 image), if available.
+
+        Returns None if screencast isn't running or no frame received yet.
+        """
+        with self._screencast_lock:
+            if not self._screencast_running:
+                return None
+            data = self._screencast_latest_frame
+            if not data:
+                return None
+            frame_id = self._screencast_frame_id
+            metadata = dict(self._screencast_latest_metadata or {})
+            ts = self._screencast_latest_ts or time.time()
+            err = self._screencast_error
+
+        # Attach minimal, browser-friendly metadata outside of the hot callback path.
+        try:
+            metadata.setdefault("url", self.get_page().url)
+        except Exception:
+            pass
+
+        return {
+            "frame_id": frame_id,
+            "data": data,
+            "timestamp": ts,
+            "metadata": metadata,
+            "error": err,
+        }
+
     def close(self) -> None:
         with self._lock:
             h = self._handles
@@ -426,6 +598,10 @@ class SandboxBrowserSession:
             return
 
         try:
+            try:
+                self.stop_screencast()
+            except Exception:
+                pass
             try:
                 h.page.close()
             except Exception:

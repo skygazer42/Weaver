@@ -2,11 +2,6 @@
 const nextConfig = {
   reactStrictMode: true,
 
-  // --- Environment Variables ---
-  env: {
-    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8001',
-  },
-
   // --- Performance ---
   // Hide X-Powered-By header (security best practice)
   poweredByHeader: false,

@@ -4170,20 +4170,74 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
             "metadata": metadata,
         }
 
+    async def _start_cdp_screencast(*, quality: int) -> bool:
+        def _start():
+            session = sandbox_browser_sessions.get(thread_id)
+            return session.start_screencast(
+                quality=int(quality or 70),
+                max_width=1280,
+                max_height=720,
+                format="jpeg",
+            )
+
+        try:
+            return bool(await sandbox_browser_sessions.run_async(thread_id, _start))
+        except Exception:
+            return False
+
+    async def _stop_cdp_screencast() -> None:
+        def _stop():
+            session = sandbox_browser_sessions.get(thread_id)
+            session.stop_screencast()
+
+        try:
+            await sandbox_browser_sessions.run_async(thread_id, _stop)
+        except Exception:
+            pass
+
+    async def _get_cdp_frame() -> Optional[Dict[str, Any]]:
+        def _get():
+            session = sandbox_browser_sessions.get(thread_id)
+            return session.get_screencast_frame()
+
+        try:
+            return await sandbox_browser_sessions.run_async(thread_id, _get)
+        except Exception:
+            return None
+
     async def stream_frames(*, quality: int, max_fps: int):
         nonlocal streaming
         interval = 1.0 / max(1, int(max_fps or 5))
+        last_frame_id: Optional[int] = None
         while streaming:
             try:
-                frame = await capture_frame(quality=quality)
-                await websocket.send_json(
-                    {
-                        "type": "frame",
-                        "data": frame["data"],
-                        "timestamp": time.time(),
-                        "metadata": frame.get("metadata") or {},
-                    }
-                )
+                # Prefer CDP screencast frames (smooth, low overhead). Fall back to screenshots.
+                cdp_frame = await _get_cdp_frame()
+                if cdp_frame and cdp_frame.get("data"):
+                    frame_id = cdp_frame.get("frame_id")
+                    if isinstance(frame_id, int) and frame_id == last_frame_id:
+                        await asyncio.sleep(interval)
+                        continue
+                    if isinstance(frame_id, int):
+                        last_frame_id = frame_id
+                    await websocket.send_json(
+                        {
+                            "type": "frame",
+                            "data": cdp_frame["data"],
+                            "timestamp": float(cdp_frame.get("timestamp") or time.time()),
+                            "metadata": cdp_frame.get("metadata") or {},
+                        }
+                    )
+                else:
+                    frame = await capture_frame(quality=quality)
+                    await websocket.send_json(
+                        {
+                            "type": "frame",
+                            "data": frame["data"],
+                            "timestamp": time.time(),
+                            "metadata": frame.get("metadata") or {},
+                        }
+                    )
             except Exception as e:
                 streaming = False
                 await websocket.send_json(
@@ -4222,6 +4276,11 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
                     quality = data.get("quality", 70)
                     max_fps = data.get("max_fps", 5)
 
+                    # Kick off a CDP screencast (best-effort). If it fails we still
+                    # stream via screenshots, but CDP makes the viewer feel like a
+                    # real browser (continuous frames).
+                    await _start_cdp_screencast(quality=int(quality or 70))
+
                     streaming = True
                     stream_task = asyncio.create_task(
                         stream_frames(quality=int(quality or 70), max_fps=int(max_fps or 5))
@@ -4240,6 +4299,7 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
                     if stream_task:
                         stream_task.cancel()
                         stream_task = None
+                    await _stop_cdp_screencast()
                     await websocket.send_json(
                         {
                             "type": "status",
@@ -4249,6 +4309,20 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
 
                 elif action == "capture":
                     try:
+                        # If a CDP screencast is running, reuse its latest frame;
+                        # otherwise force a screenshot capture.
+                        frame_payload = await _get_cdp_frame()
+                        if frame_payload and frame_payload.get("data"):
+                            await websocket.send_json(
+                                {
+                                    "type": "frame",
+                                    "data": frame_payload["data"],
+                                    "timestamp": float(frame_payload.get("timestamp") or time.time()),
+                                    "metadata": frame_payload.get("metadata") or {},
+                                }
+                            )
+                            continue
+
                         frame = await capture_frame(quality=int(data.get("quality", 70) or 70))
                         await websocket.send_json(
                             {
@@ -4281,6 +4355,7 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
         streaming = False
         if stream_task:
             stream_task.cancel()
+        await _stop_cdp_screencast()
         logger.info(f"Browser stream WebSocket closed for thread {thread_id}")
 
 
