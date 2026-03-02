@@ -2379,7 +2379,7 @@ async def memory_status():
 
 
 @app.get("/api/sandbox/browser/diagnose")
-async def sandbox_browser_diagnose():
+async def sandbox_browser_diagnose(deep: bool = False):
     """
     Diagnose whether the E2B sandbox-backed browser tools are configured.
 
@@ -2410,6 +2410,51 @@ async def sandbox_browser_diagnose():
             missing.append(f"pip:{dep}")
 
     ready = not missing
+
+    deep_result: Dict[str, Any] | None = None
+    if deep and ready:
+        diag_thread = f"diagnose_{uuid.uuid4().hex[:8]}"
+        started = time.time()
+
+        def _capture_one_frame() -> int:
+            session = sandbox_browser_sessions.get(diag_thread)
+            page = session.get_page()
+            try:
+                page.goto("about:blank")
+            except Exception:
+                pass
+
+            try:
+                jpg = page.screenshot(
+                    type="jpeg",
+                    quality=50,
+                    full_page=False,
+                    animations="disabled",
+                    caret="hide",
+                )
+            except TypeError:
+                jpg = page.screenshot(type="jpeg", quality=50, full_page=False)
+            return len(jpg or b"")
+
+        try:
+            frame_bytes = await sandbox_browser_sessions.run_async(diag_thread, _capture_one_frame)
+            deep_result = {
+                "ok": True,
+                "latency_ms": int((time.time() - started) * 1000),
+                "frame_bytes": int(frame_bytes or 0),
+            }
+        except Exception as e:
+            deep_result = {
+                "ok": False,
+                "latency_ms": int((time.time() - started) * 1000),
+                "error": str(e),
+            }
+        finally:
+            try:
+                sandbox_browser_sessions.reset(diag_thread)
+            except Exception:
+                pass
+
     return {
         "ready": ready,
         "missing": missing,
@@ -2420,6 +2465,7 @@ async def sandbox_browser_diagnose():
             "sandbox_template_browser": bool(template),
             **deps,
         },
+        "deep": deep_result,
     }
 
 
