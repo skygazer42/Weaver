@@ -58,6 +58,10 @@ const backendPort = (
 const backendBaseUrl = `http://127.0.0.1:${backendPort}`
 const webBaseUrl = process.env.E2E_WEB_BASE_URL?.trim() || 'http://localhost:3100'
 
+const reuseExistingServer = ['1', 'true', 'yes', 'y', 'on'].includes(
+  (process.env.E2E_REUSE_EXISTING_SERVER || '').trim().toLowerCase()
+)
+
 // Keep backend side-effects (data/, collaboration store, etc.) out of the repo.
 // This makes `pnpm -C web e2e` reproducible and keeps `git status` clean.
 const e2eDataDir =
@@ -84,7 +88,7 @@ export default defineConfig({
       command: `python -m uvicorn main:app --host 127.0.0.1 --port ${backendPort}`,
       url: `${backendBaseUrl}/health`,
       timeout: 180_000,
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer,
       env: {
         ...stripProxyEnv(process.env),
         PORT: backendPort,
@@ -97,7 +101,7 @@ export default defineConfig({
       command: 'pnpm dev',
       url: webBaseUrl,
       timeout: 180_000,
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer,
       env: {
         ...stripProxyEnv(process.env),
         NEXT_PUBLIC_API_URL: backendBaseUrl,
