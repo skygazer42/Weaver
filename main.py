@@ -69,7 +69,12 @@ from common.config import settings
 from common.logger import get_logger, setup_logging
 from common.metrics import metrics_registry
 from common.proxy_env import normalize_socks_proxy_env
-from common.sse import format_sse_event, iter_abort_on_disconnect, iter_with_sse_keepalive
+from common.sse import (
+    format_sse_event,
+    format_sse_retry,
+    iter_abort_on_disconnect,
+    iter_with_sse_keepalive,
+)
 from common.thread_ownership import get_thread_owner, set_thread_owner
 from support_agent import create_support_graph
 from tools.browser.browser_session import browser_sessions
@@ -1770,6 +1775,13 @@ async def chat_sse(request: Request, payload: ChatRequest):
 
     async def _sse_generator():
         seq = 0
+        # Hint clients (EventSource) how long to wait before attempting reconnects.
+        try:
+            if await request.is_disconnected():
+                return
+        except Exception:
+            pass
+        yield format_sse_retry(2000)
 
         # Deterministic failure mode when no API key is configured.
         # We keep this fast and side-effect free (no graph compilation/run).
@@ -3828,6 +3840,13 @@ async def research_sse(request: Request, payload: ResearchRequest):
 
     async def _sse_generator():
         seq = 0
+        # Hint clients (EventSource) how long to wait before attempting reconnects.
+        try:
+            if await request.is_disconnected():
+                return
+        except Exception:
+            pass
+        yield format_sse_retry(2000)
 
         # Deterministic failure mode when no API key is configured.
         # We keep this fast and side-effect free (no graph compilation/run).

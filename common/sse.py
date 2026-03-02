@@ -31,6 +31,21 @@ def format_sse_comment(comment: str = "keepalive") -> str:
     return f": {text}\n\n"
 
 
+def format_sse_retry(retry_ms: int) -> str:
+    """
+    Format an SSE `retry:` control frame.
+
+    This hints the client how long to wait (in milliseconds) before reconnecting.
+    """
+    try:
+        value = int(retry_ms)
+    except Exception:
+        value = 0
+    if value < 0:
+        value = 0
+    return f"retry: {value}\n\n"
+
+
 async def iter_with_sse_keepalive(
     source: AsyncIterable[str],
     *,
