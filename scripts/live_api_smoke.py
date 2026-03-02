@@ -26,7 +26,7 @@ import socket
 import sys
 import tempfile
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
@@ -654,6 +654,56 @@ async def _scenario_calls(
             _SERVICE_FLAGS["tts_enabled"] = bool(data.get("enabled")) if isinstance(data, dict) else True
         except Exception:
             pass
+
+    # Diagnostics endpoints (should be fast + always return JSON)
+    res, resp = await _raw_request(
+        client,
+        method="GET",
+        path="/api/config/public",
+        timeout_s=timeout_s,
+    )
+    if resp is not None and resp.status_code == 200:
+        try:
+            data = resp.json()
+            if not isinstance(data, dict) or "streaming" not in data or "defaults" not in data:
+                res = replace(res, ok=False, note="invalid public config shape")
+        except Exception:
+            res = replace(res, ok=False, note="invalid public config JSON")
+    results.append(res)
+    done.add(("GET", "/api/config/public"))
+
+    res, resp = await _raw_request(
+        client,
+        method="GET",
+        path="/api/sandbox/browser/diagnose",
+        timeout_s=timeout_s,
+    )
+    if resp is not None and resp.status_code == 200:
+        try:
+            data = resp.json()
+            if not isinstance(data, dict) or "ready" not in data or "missing" not in data:
+                res = replace(res, ok=False, note="invalid sandbox diagnose shape")
+        except Exception:
+            res = replace(res, ok=False, note="invalid sandbox diagnose JSON")
+    results.append(res)
+    done.add(("GET", "/api/sandbox/browser/diagnose"))
+
+    res, resp = await _raw_request(
+        client,
+        method="GET",
+        path="/api/search/cache/stats",
+        timeout_s=timeout_s,
+    )
+    if resp is not None and resp.status_code == 200:
+        try:
+            data = resp.json()
+            stats = data.get("stats") if isinstance(data, dict) else None
+            if not isinstance(stats, dict) or "size" not in stats:
+                res = replace(res, ok=False, note="invalid cache stats shape")
+        except Exception:
+            res = replace(res, ok=False, note="invalid cache stats JSON")
+    results.append(res)
+    done.add(("GET", "/api/search/cache/stats"))
 
     # Agents CRUD
     create_agent, resp = await _raw_request(
