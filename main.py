@@ -2116,6 +2116,24 @@ async def get_search_providers():
     return {"providers": providers}
 
 
+@app.get("/api/search/cache/stats")
+async def get_search_cache_stats():
+    """Return in-memory search cache statistics (LRU + TTL)."""
+    from agent.core.search_cache import get_search_cache
+
+    cache = get_search_cache()
+    return {"stats": cache.stats()}
+
+
+@app.post("/api/search/cache/clear")
+async def clear_search_cache_endpoint():
+    """Clear the in-memory search cache (best-effort)."""
+    from agent.core.search_cache import clear_search_cache
+
+    clear_search_cache()
+    return {"cleared": True}
+
+
 # ==================== Agents (GPTs-like profiles) ====================
 
 
