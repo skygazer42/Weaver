@@ -212,6 +212,11 @@ class Settings(BaseSettings):
         validation_alias="PORT",
         description="Backend listen port (used by `python main.py`).",
     )
+    weaver_reload: bool = Field(
+        default=False,
+        validation_alias="WEAVER_RELOAD",
+        description="Enable uvicorn hot reload when running `python main.py` (only in DEBUG).",
+    )
     internal_api_key: str = Field(default="", validation_alias="WEAVER_INTERNAL_API_KEY")
     auth_user_header: str = Field(
         default="X-Weaver-User",

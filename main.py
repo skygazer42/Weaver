@@ -828,6 +828,18 @@ class ToolRegistryRefreshResponse(BaseModel):
     total_tools: int
 
 
+class AgentHealthResponse(BaseModel):
+    agents_count: int
+    agent_ids: List[str]
+    tool_registry_total_tools: int
+    enhanced_tool_discovery_enabled: bool
+    enhanced_tool_discovery_recursive: bool
+    rag_enabled: bool
+    search_strategy: str
+    search_engines: List[str]
+    search_providers_available: List[str]
+
+
 class PublicConfigDefaults(BaseModel):
     port: int
     primary_model: str
@@ -1088,6 +1100,41 @@ async def health():
         "version": app.version,
         "uptime_seconds": time.monotonic() - APP_STARTED_AT,
         "timestamp": datetime.now().isoformat(),
+    }
+
+
+@app.get("/api/health/agent", response_model=AgentHealthResponse)
+async def agent_health():
+    """Lightweight agent subsystem health snapshot (no sandbox side effects)."""
+    from tools.core.registry import get_global_registry
+
+    profiles = load_agents()
+    agent_ids = []
+    try:
+        agent_ids = [str(p.id) for p in profiles if getattr(p, "id", None)]
+    except Exception:
+        agent_ids = []
+
+    registry = get_global_registry()
+
+    orchestrator = get_search_orchestrator()
+    try:
+        available = [p.name for p in orchestrator.get_available_providers()]
+    except Exception:
+        available = []
+
+    return {
+        "agents_count": len(profiles),
+        "agent_ids": sorted(agent_ids),
+        "tool_registry_total_tools": len(registry.list_names()),
+        "enhanced_tool_discovery_enabled": bool(getattr(settings, "enhanced_tool_discovery_enabled", True)),
+        "enhanced_tool_discovery_recursive": bool(
+            getattr(settings, "enhanced_tool_discovery_recursive", False)
+        ),
+        "rag_enabled": bool(getattr(settings, "rag_enabled", False)),
+        "search_strategy": str(getattr(settings, "search_strategy", "fallback") or "fallback"),
+        "search_engines": list(getattr(settings, "search_engines_list", [])),
+        "search_providers_available": sorted([str(n) for n in available if str(n).strip()]),
     }
 
 
@@ -5334,10 +5381,9 @@ if __name__ == "__main__":
     # and crashes reload with "OS file watch limit reached".
     #
     # Keep reload opt-in to make `python main.py` reliable out-of-the-box.
-    raw_reload = (os.getenv("WEAVER_RELOAD") or "").strip().lower()
-    reload_enabled = bool(settings.debug) and raw_reload in {"1", "true", "yes", "y", "on"}
+    reload_enabled = bool(settings.debug) and bool(getattr(settings, "weaver_reload", False))
     if settings.debug and not reload_enabled:
-        logger.info("Hot reload disabled (set WEAVER_RELOAD=1 to enable).")
+        logger.info("Hot reload disabled (set WEAVER_RELOAD=true to enable).")
 
     reload_dirs = None
     reload_excludes = None
