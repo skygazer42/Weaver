@@ -4360,6 +4360,8 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
                 "type": "status",
                 "message": "Connected to browser stream",
                 "thread_id": thread_id,
+                "mode": "e2b",
+                "streaming": False,
             }
         )
 
