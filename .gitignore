@@ -92,6 +92,10 @@ desktop.ini
 coverage/
 .nyc_output/
 *.lcov
+playwright-report/
+test-results/
+web/playwright-report/
+web/test-results/
 
 # Misc
 .turbo/

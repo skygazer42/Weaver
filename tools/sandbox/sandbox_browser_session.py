@@ -446,6 +446,28 @@ class SandboxBrowserSession:
     def get_page(self) -> Any:
         return self._ensure_sandbox_and_page().page
 
+    def is_active(self) -> bool:
+        """
+        Return whether this session already has an active browser handle.
+
+        This does *not* create a sandbox or start Playwright. It's safe to call
+        from health/status endpoints that should remain fast.
+        """
+        with self._lock:
+            return self._handles is not None
+
+    def peek_info(self) -> Optional[Dict[str, str]]:
+        """
+        Best-effort: return lightweight info if the session is already active.
+
+        Unlike `get_info()`, this will NOT create a sandbox or connect to CDP.
+        """
+        with self._lock:
+            h = self._handles
+        if not h:
+            return None
+        return {"cdp_endpoint": h.cdp_endpoint}
+
     def get_info(self) -> Dict[str, str]:
         h = self._ensure_sandbox_and_page()
         return {

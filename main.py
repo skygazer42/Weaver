@@ -3251,12 +3251,53 @@ async def get_share(share_id: str):
             from common.session_manager import get_session_manager
 
             manager = get_session_manager(checkpointer)
-            session = manager.get_session(link["thread_id"])
-            if session:
+            session_state = manager.get_session_state(link["thread_id"])
+            if session_state and isinstance(session_state.state, dict):
+                state = session_state.state
+                raw_messages = state.get("messages", [])
+                messages = []
+                if isinstance(raw_messages, list) and raw_messages:
+                    # Keep payload bounded for share views.
+                    for m in raw_messages[-50:]:
+                        try:
+                            role = None
+                            content = None
+
+                            if isinstance(m, dict):
+                                role = m.get("role") or m.get("type") or m.get("name")
+                                content = m.get("content")
+                            else:
+                                role = getattr(m, "role", None) or getattr(m, "type", None)
+                                content = getattr(m, "content", None)
+
+                            if content is None:
+                                content = str(m)
+
+                            role_norm = str(role or "unknown").strip().lower()
+                            if role_norm in {"human", "user"}:
+                                role_norm = "user"
+                            elif role_norm in {"ai", "assistant"}:
+                                role_norm = "assistant"
+                            elif role_norm in {"system"}:
+                                role_norm = "system"
+
+                            messages.append(
+                                {
+                                    "role": role_norm,
+                                    "content": str(content),
+                                }
+                            )
+                        except Exception:
+                            continue
+
+                title = state.get("title") or state.get("topic") or state.get("input") or link["thread_id"]
+                if not isinstance(title, str) or not title.strip():
+                    title = link["thread_id"]
+
                 session_data = {
-                    "id": session.thread_id,
-                    "title": session.title,
-                    "messages": session.messages,
+                    "id": link["thread_id"],
+                    "title": title.strip(),
+                    "messages": messages,
                 }
 
         return {
@@ -3967,16 +4008,20 @@ async def get_browser_session_info(thread_id: str, request: Request):
         "current_url": None,
     }
 
-    # Check sandbox browser session first
+    # Check sandbox browser session first.
+    #
+    # Important: this endpoint should be *fast* and must not create a sandbox
+    # as a side-effect (cold-starting E2B can take tens of seconds). The live
+    # stream WS endpoint is responsible for starting a session when needed.
     try:
         info = await sandbox_browser_sessions.run_async(
             thread_id,
-            lambda: sandbox_browser_sessions.get(thread_id).get_info(),
+            lambda: sandbox_browser_sessions.get(thread_id).peek_info(),
         )
-        result["active"] = True
-        result["mode"] = "e2b"
-        result["cdp_endpoint"] = info.get("cdp_endpoint") if isinstance(info, dict) else None
-        result["current_url"] = info.get("url") if isinstance(info, dict) else None
+        if info and isinstance(info, dict):
+            result["active"] = True
+            result["mode"] = "e2b"
+            result["cdp_endpoint"] = info.get("cdp_endpoint")
     except Exception:
         pass
 
@@ -4000,6 +4045,20 @@ async def trigger_browser_screenshot(thread_id: str, request: Request):
     Trigger a manual screenshot capture for the browser session.
     """
     _require_thread_owner(request, thread_id)
+
+    # Avoid cold-starting a sandbox here: manual screenshots should only be
+    # available once a live session already exists (e.g. via the WS viewer or
+    # a tool that opened a browser). This keeps the endpoint responsive.
+    try:
+        sandbox_active = await sandbox_browser_sessions.run_async(
+            thread_id,
+            lambda: sandbox_browser_sessions.get(thread_id).is_active(),
+        )
+    except Exception:
+        sandbox_active = False
+
+    if not sandbox_active:
+        return {"success": False, "error": "No active browser session"}
 
     # Try sandbox browser first
     try:

@@ -71,7 +71,7 @@ const FORMATS: Array<{
   ]
 
 export function ExportDialog({ threadId, isOpen, onClose, className }: ExportDialogProps) {
-  const [format, setFormat] = useState<ExportFormat>('pdf')
+  const [format, setFormat] = useState<ExportFormat>('html')
   const [template, setTemplate] = useState<TemplateStyle>('default')
   const [title, setTitle] = useState('Research Report')
   const [isExporting, setIsExporting] = useState(false)

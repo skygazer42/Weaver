@@ -2,7 +2,7 @@
 
 import { useMemo, memo } from 'react'
 import { Button } from '@/components/ui/button'
-import { Menu, Settings, Sun, Moon, PanelRight } from '@/components/ui/icons'
+import { Menu, Settings, Sun, Moon, PanelRight, Share, MessageSquare, Download } from '@/components/ui/icons'
 import { useTheme } from '@/components/theme-provider'
 import { useI18n } from '@/lib/i18n/i18n-context'
 import {
@@ -23,6 +23,10 @@ interface HeaderProps {
   hasInspector?: boolean
   currentView: 'dashboard' | 'discover' | 'library'
   sessionTitle?: string | null
+  threadId?: string | null
+  onOpenShare?: () => void
+  onOpenComments?: () => void
+  onOpenExport?: () => void
 }
 
 export const Header = memo(function Header({
@@ -34,7 +38,11 @@ export const Header = memo(function Header({
   onToggleInspector,
   hasInspector,
   currentView,
-  sessionTitle
+  sessionTitle,
+  threadId,
+  onOpenShare,
+  onOpenComments,
+  onOpenExport,
 }: HeaderProps) {
   const { theme, setTheme, resolvedTheme } = useTheme()
   const { t } = useI18n()
@@ -98,6 +106,43 @@ export const Header = memo(function Header({
       </div>
 
       <div className="flex items-center gap-1.5">
+        {currentView === 'dashboard' && threadId ? (
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onOpenShare}
+              className="rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent"
+              aria-label="Share session"
+              title="Share"
+            >
+              <Share className="h-[18px] w-[18px]" />
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onOpenComments}
+              className="rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent"
+              aria-label="Open comments"
+              title="Comments"
+            >
+              <MessageSquare className="h-[18px] w-[18px]" />
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onOpenExport}
+              className="rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent"
+              aria-label="Export report"
+              title="Export"
+            >
+              <Download className="h-[18px] w-[18px]" />
+            </Button>
+          </>
+        ) : null}
+
         {hasInspector && (
           <Button
             variant="ghost"

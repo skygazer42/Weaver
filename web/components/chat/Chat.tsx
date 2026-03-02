@@ -43,6 +43,21 @@ const SettingsDialog = dynamic(
   { ssr: false }
 )
 
+const ShareDialog = dynamic(
+  () => import('@/components/collaboration/ShareDialog').then(mod => ({ default: mod.ShareDialog })),
+  { ssr: false }
+)
+
+const CommentsPanel = dynamic(
+  () => import('@/components/collaboration/CommentsPanel').then(mod => ({ default: mod.CommentsPanel })),
+  { ssr: false }
+)
+
+const ExportDialog = dynamic(
+  () => import('@/components/export/ExportDialog').then(mod => ({ default: mod.ExportDialog })),
+  { ssr: false }
+)
+
 const Discover = dynamic(
   () => import('@/components/views/Discover').then(mod => ({ default: mod.Discover })),
   {
@@ -114,6 +129,9 @@ export function Chat() {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
   const [input, setInput] = useState('')
   const [attachments, setAttachments] = useState<File[]>([])
+  const [showShareDialog, setShowShareDialog] = useState(false)
+  const [showCommentsPanel, setShowCommentsPanel] = useState(false)
+  const [showExportDialog, setShowExportDialog] = useState(false)
 
   // Chat history
   const {
@@ -175,6 +193,9 @@ export function Chat() {
     setInput('')
     setThreadId(null)
     setPendingInterrupt(null)
+    setShowShareDialog(false)
+    setShowCommentsPanel(false)
+    setShowExportDialog(false)
     resetForNewChat()
     handleStop()
   }, [messages, currentSessionId, saveToHistory, setMessages, setArtifacts, setCurrentStatus, setThreadId, setPendingInterrupt, resetForNewChat, handleStop])
@@ -206,6 +227,9 @@ export function Chat() {
       setInput('')
       setThreadId(null)
       setPendingInterrupt(null)
+      setShowShareDialog(false)
+      setShowCommentsPanel(false)
+      setShowExportDialog(false)
       handleStop()
     }
   }, [messages, currentSessionId, saveToHistory, loadSession, setMessages, setView, setArtifacts, setCurrentStatus, setThreadId, setPendingInterrupt, handleStop])
@@ -372,6 +396,10 @@ export function Chat() {
           hasInspector={artifacts.length > 0 || Boolean(threadId)}
           currentView={ui.currentView}
           sessionTitle={activeSessionTitle}
+          threadId={threadId}
+          onOpenShare={() => setShowShareDialog(true)}
+          onOpenComments={() => setShowCommentsPanel(true)}
+          onOpenExport={() => setShowExportDialog(true)}
         />
 
         {renderContent()}
@@ -426,6 +454,31 @@ export function Chat() {
           {currentStatus}
         </div>
       </div>
+
+      {/* Share / Comments / Export */}
+      {threadId && showShareDialog ? (
+        <ShareDialog
+          threadId={threadId}
+          isOpen={showShareDialog}
+          onClose={() => setShowShareDialog(false)}
+        />
+      ) : null}
+
+      {threadId && showCommentsPanel ? (
+        <CommentsPanel
+          threadId={threadId}
+          isOpen={showCommentsPanel}
+          onClose={() => setShowCommentsPanel(false)}
+        />
+      ) : null}
+
+      {threadId && showExportDialog ? (
+        <ExportDialog
+          threadId={threadId}
+          isOpen={showExportDialog}
+          onClose={() => setShowExportDialog(false)}
+        />
+      ) : null}
 
       {/* Desktop Artifacts Panel */}
       {(artifacts.length > 0 || threadId) && (
