@@ -11,6 +11,7 @@ interface UseBrowserStreamProps {
 interface StreamFrame {
   data: string  // base64 encoded image
   timestamp: number
+  source?: string
   metadata?: Record<string, any>
 }
 
@@ -99,6 +100,7 @@ export function useBrowserStream({
           setCurrentFrame({
             data: data.data,
             timestamp: data.timestamp,
+            source: typeof data.source === 'string' ? data.source : undefined,
             metadata: data.metadata
           })
         } else if (data.type === 'status') {
@@ -108,6 +110,8 @@ export function useBrowserStream({
           } else if (data.message === 'Screencast stopped') {
             setIsStreaming(false)
           }
+        } else if (data.type === 'ping') {
+          // Keepalive from server (safe to ignore).
         } else if (data.type === 'error') {
           console.error('[useBrowserStream] Error:', data.message)
           setError(data.message)

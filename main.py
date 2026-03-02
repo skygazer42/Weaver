@@ -35,7 +35,7 @@ from prometheus_client import (
     Gauge,
     generate_latest,
 )
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from agent import (
     AgentState,
@@ -162,6 +162,18 @@ sse_active_connections = _get_or_create_gauge(
 ws_active_connections = _get_or_create_gauge(
     "weaver_ws_active_connections",
     "Active WebSocket connections",
+    ["endpoint"],
+)
+
+# Browser stream metrics (useful even in local dev; low-cardinality labels only).
+browser_ws_frames_total = _get_or_create_counter(
+    "weaver_browser_ws_frames_total",
+    "Browser WS frames emitted (attempted)",
+    ["source"],
+)
+browser_ws_dropped_messages_total = _get_or_create_counter(
+    "weaver_browser_ws_dropped_messages_total",
+    "WS messages dropped due to send timeout/backpressure",
     ["endpoint"],
 )
 
@@ -4629,22 +4641,49 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
 
     streaming = False
     stream_task: Optional[asyncio.Task] = None
+    ping_task: Optional[asyncio.Task] = None
+    dropped_messages = 0
 
-    async def _safe_send_json(payload: Dict[str, Any]) -> bool:
+    async def _safe_send_json(payload: Dict[str, Any], *, timeout_s: Optional[float] = None) -> bool:
         """
         Best-effort send that won't spam logs on expected disconnects.
 
         Playwright streaming runs in a background task; it's normal for clients
         (e.g. Playwright e2e) to close the socket while the server is mid-send.
         """
+        nonlocal dropped_messages
         try:
-            await websocket.send_json(payload)
+            send_coro = websocket.send_json(payload)
+            if timeout_s is not None and float(timeout_s) > 0:
+                await asyncio.wait_for(send_coro, timeout=float(timeout_s))
+            else:
+                await send_coro
+            return True
+        except asyncio.TimeoutError:
+            # Backpressure: drop the message but keep the connection alive.
+            dropped_messages += 1
+            try:
+                browser_ws_dropped_messages_total.labels("browser_stream").inc()
+            except Exception:
+                pass
             return True
         except WebSocketDisconnect:
             return False
         except RuntimeError:
             # Starlette can raise RuntimeError when sending after close.
             return False
+
+    async def _ping_loop() -> None:
+        """
+        Keep the WS connection warm behind proxies/load balancers.
+
+        The client is allowed to ignore this message.
+        """
+        while True:
+            await asyncio.sleep(15.0)
+            ok = await _safe_send_json({"type": "ping", "timestamp": time.time()}, timeout_s=1.0)
+            if not ok:
+                break
 
     async def capture_frame(*, quality: int = 70) -> Dict[str, Any]:
         """Capture a single JPEG frame from the sandbox browser session."""
@@ -4727,6 +4766,9 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
         nonlocal streaming
         interval = 1.0 / max(1, int(max_fps or 5))
         last_frame_id: Optional[int] = None
+        consecutive_failures = 0
+        max_failures = 5
+        frame_send_timeout_s = 1.0
         while streaming:
             try:
                 # Prefer CDP screencast frames (smooth, low overhead). Fall back to screenshots.
@@ -4738,32 +4780,58 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
                         continue
                     if isinstance(frame_id, int):
                         last_frame_id = frame_id
+                    try:
+                        browser_ws_frames_total.labels("cdp").inc()
+                    except Exception:
+                        pass
                     if not await _safe_send_json(
                         {
                             "type": "frame",
+                            "source": "cdp",
                             "data": cdp_frame["data"],
                             "timestamp": float(cdp_frame.get("timestamp") or time.time()),
                             "metadata": cdp_frame.get("metadata") or {},
-                        }
+                        },
+                        timeout_s=frame_send_timeout_s,
                     ):
                         streaming = False
                         break
                 else:
                     frame = await capture_frame(quality=quality)
+                    try:
+                        browser_ws_frames_total.labels("screenshot").inc()
+                    except Exception:
+                        pass
                     if not await _safe_send_json(
                         {
                             "type": "frame",
+                            "source": "screenshot",
                             "data": frame["data"],
                             "timestamp": time.time(),
                             "metadata": frame.get("metadata") or {},
-                        }
+                        },
+                        timeout_s=frame_send_timeout_s,
                     ):
                         streaming = False
                         break
+                consecutive_failures = 0
             except Exception as e:
-                streaming = False
-                await _safe_send_json({"type": "error", "message": f"Capture failed: {e}"})
-                break
+                consecutive_failures += 1
+                await _safe_send_json(
+                    {
+                        "type": "error",
+                        "message": f"Capture failed: {e}",
+                        "consecutive_failures": consecutive_failures,
+                    },
+                    timeout_s=1.0,
+                )
+                if consecutive_failures >= max_failures:
+                    streaming = False
+                    break
+                # Exponential backoff to avoid a tight error loop when the sandbox/browser is unhealthy.
+                backoff_s = min(2.0, 0.25 * (2 ** (consecutive_failures - 1)))
+                await asyncio.sleep(backoff_s)
+                continue
             await asyncio.sleep(interval)
 
     try:
@@ -4776,6 +4844,8 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
                 "streaming": False,
             }
         )
+
+        ping_task = asyncio.create_task(_ping_loop(), name=f"weaver-browser-ws-ping-{thread_id}")
 
         while True:
             try:
@@ -4891,6 +4961,7 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
                             await _safe_send_json(
                                 {
                                     "type": "frame",
+                                    "source": "cdp",
                                     "data": frame_payload["data"],
                                     "timestamp": float(frame_payload.get("timestamp") or time.time()),
                                     "metadata": frame_payload.get("metadata") or {},
@@ -4902,6 +4973,7 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
                         await _safe_send_json(
                             {
                                 "type": "frame",
+                                "source": "screenshot",
                                 "data": frame["data"],
                                 "timestamp": time.time(),
                                 "metadata": frame.get("metadata") or {},
@@ -4928,6 +5000,8 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
         streaming = False
         if stream_task:
             stream_task.cancel()
+        if ping_task:
+            ping_task.cancel()
         await _stop_cdp_screencast()
         try:
             if ws_gauge is not None:
