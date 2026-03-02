@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import AsyncIterable, AsyncIterator
+from collections.abc import AsyncIterable, AsyncIterator, Awaitable, Callable
 from typing import Any
 
 
@@ -68,3 +68,54 @@ async def iter_with_sse_keepalive(
     finally:
         if next_task is not None and not next_task.done():
             next_task.cancel()
+
+
+async def iter_abort_on_disconnect(
+    source: AsyncIterable[str],
+    *,
+    is_disconnected: Callable[[], Awaitable[bool]],
+    check_interval_s: float = 1.0,
+) -> AsyncIterator[str]:
+    """
+    Yield from an async iterable until the client disconnects.
+
+    This is designed for streaming endpoints (SSE/WS) where we want to stop doing
+    work promptly after the client is gone, without relying on downstream tool
+    code to notice cancellation immediately.
+    """
+    timeout_s = float(check_interval_s)
+    if timeout_s < 0:
+        timeout_s = 0.0
+
+    iterator = source.__aiter__()
+    next_task: asyncio.Task | None = asyncio.create_task(iterator.__anext__())
+
+    try:
+        while next_task is not None:
+            done, _pending = await asyncio.wait({next_task}, timeout=timeout_s)
+
+            if next_task in done:
+                try:
+                    item = next_task.result()
+                except StopAsyncIteration:
+                    break
+                yield item
+                next_task = asyncio.create_task(iterator.__anext__())
+                continue
+
+            # No source item yet; check whether the client is still connected.
+            try:
+                if await is_disconnected():
+                    break
+            except Exception:
+                # Disconnect checks must never crash streams.
+                continue
+    finally:
+        if next_task is not None and not next_task.done():
+            next_task.cancel()
+        try:
+            aclose = getattr(iterator, "aclose", None)
+            if callable(aclose):
+                await aclose()
+        except Exception:
+            pass
