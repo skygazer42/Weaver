@@ -4474,6 +4474,35 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
                     quality = data.get("quality", 70)
                     max_fps = data.get("max_fps", 5)
 
+                    # If sandbox browser isn't configured, fail fast with an actionable message
+                    # (avoid starting a stream task that will just spam "Capture failed").
+                    try:
+                        import os
+
+                        missing_cfg: list[str] = []
+                        if not (settings.e2b_api_key or "").strip():
+                            missing_cfg.append("E2B_API_KEY")
+                        template = (
+                            os.getenv("SANDBOX_TEMPLATE_BROWSER")
+                            or (settings.sandbox_template_browser or "")
+                        ).strip()
+                        if not template:
+                            missing_cfg.append("SANDBOX_TEMPLATE_BROWSER")
+
+                        if missing_cfg:
+                            await _safe_send_json(
+                                {
+                                    "type": "error",
+                                    "message": "Sandbox browser is not configured",
+                                    "missing": missing_cfg,
+                                    "hint": "Set E2B_API_KEY and SANDBOX_TEMPLATE_BROWSER in .env, then retry.",
+                                }
+                            )
+                            continue
+                    except Exception:
+                        # Best-effort only; never block stream start on diagnose errors.
+                        pass
+
                     # Kick off a CDP screencast (best-effort). If it fails we still
                     # stream via screenshots, but CDP makes the viewer feel like a
                     # real browser (continuous frames).
@@ -4507,6 +4536,33 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
 
                 elif action == "capture":
                     try:
+                        # Fast-fail if sandbox config is missing (actionable error).
+                        try:
+                            import os
+
+                            missing_cfg: list[str] = []
+                            if not (settings.e2b_api_key or "").strip():
+                                missing_cfg.append("E2B_API_KEY")
+                            template = (
+                                os.getenv("SANDBOX_TEMPLATE_BROWSER")
+                                or (settings.sandbox_template_browser or "")
+                            ).strip()
+                            if not template:
+                                missing_cfg.append("SANDBOX_TEMPLATE_BROWSER")
+
+                            if missing_cfg:
+                                await _safe_send_json(
+                                    {
+                                        "type": "error",
+                                        "message": "Sandbox browser is not configured",
+                                        "missing": missing_cfg,
+                                        "hint": "Set E2B_API_KEY and SANDBOX_TEMPLATE_BROWSER in .env, then retry.",
+                                    }
+                                )
+                                continue
+                        except Exception:
+                            pass
+
                         # If a CDP screencast is running, reuse its latest frame;
                         # otherwise force a screenshot capture.
                         frame_payload = await _get_cdp_frame()
