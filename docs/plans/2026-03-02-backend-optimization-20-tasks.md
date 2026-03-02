@@ -16,6 +16,8 @@ These projects/papers are used as “what good looks like” for research-agent 
 
 - GPT-Researcher: https://github.com/assafelovic/gpt-researcher
 - Open Deep Research: https://github.com/langchain-ai/open_deep_research
+- LangGraph Deep Research (full-stack app): https://github.com/foreveryh/langgraph-deep-research
+- Agent Service Toolkit (LangGraph + FastAPI service template): https://github.com/JoshuaC215/agent-service-toolkit
 - DeepResearchAgent: https://github.com/SkyworkAI/DeepResearchAgent
 - DeerFlow: https://github.com/bytedance/deer-flow
 - MiroThinker: https://github.com/MiroMindAI/MiroThinker
@@ -402,4 +404,3 @@ Expected: exit code 0.
 
 **Step 2: Push**
 Run: `git push`
-
