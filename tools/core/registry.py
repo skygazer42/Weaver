@@ -23,6 +23,7 @@ import importlib
 import inspect
 import json
 import logging
+from fnmatch import fnmatch
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -385,7 +386,7 @@ class ToolRegistry:
                 )
                 registered.append(metadata)
             except ValueError:
-                logger.warning(f"Tool {tool_name} already registered, skipping")
+                logger.debug(f"Tool {tool_name} already registered, skipping")
             except Exception as e:
                 logger.error(f"Failed to register langchain tool {tool_name}: {e}")
 
@@ -405,7 +406,7 @@ class ToolRegistry:
                     )
                     registered.append(metadata)
                 except ValueError:
-                    logger.warning(f"Tool {tool_name} already registered, skipping")
+                    logger.debug(f"Tool {tool_name} already registered, skipping")
 
         logger.info(f"Discovered {len(registered)} tools from module '{module_name}'")
 
@@ -417,6 +418,8 @@ class ToolRegistry:
         pattern: str = "*.py",
         recursive: bool = True,
         tags: Optional[List[str]] = None,
+        exclude_dirs: Optional[Set[str]] = None,
+        exclude_globs: Optional[List[str]] = None,
     ) -> List[ToolMetadata]:
         """
         Discover tools from all Python files in a directory.
@@ -444,14 +447,22 @@ class ToolRegistry:
         else:
             files = dir_path.glob(pattern)
 
+        exclude_dir_set = {str(d).strip() for d in (exclude_dirs or set()) if str(d).strip()}
+        exclude_glob_list = [str(g).strip() for g in (exclude_globs or []) if str(g).strip()]
+
         # Discover from each module
         for file_path in files:
             # Skip __init__.py and test files
             if file_path.name.startswith("__") or file_path.name.startswith("test_"):
                 continue
+            if exclude_dir_set and any(part in exclude_dir_set for part in file_path.parts):
+                continue
 
             # Convert path to module name
             relative_path = file_path.relative_to(dir_path.parent)
+            rel_for_match = str(relative_path).replace("\\", "/")
+            if exclude_glob_list and any(fnmatch(rel_for_match, pat) for pat in exclude_glob_list):
+                continue
             module_name = str(relative_path.with_suffix("")).replace("/", ".").replace("\\", ".")
 
             try:

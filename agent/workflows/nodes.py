@@ -157,13 +157,44 @@ def initialize_enhanced_tools() -> None:
         return
 
     try:
+        if not bool(getattr(settings, "enhanced_tool_discovery_enabled", True)):
+            logger.info("Enhanced tool discovery disabled, skipping initialization")
+            return
+
         registry = get_global_registry()
 
-        # Discover tools from tools directory
-        logger.info("Discovering tools from 'tools' directory...")
-        discovered = registry.discover_from_directory(
-            directory="tools", pattern="*.py", recursive=False, tags=["weaver", "auto_discovered"]
-        )
+        discovered = []
+
+        # Phase 1 (fast): discover tools exported from the `tools` package.
+        # This is intentionally cheap and avoids importing the entire tools tree.
+        logger.info("Discovering tools from module 'tools'...")
+        try:
+            discovered.extend(
+                registry.discover_from_module(
+                    module_name="tools",
+                    tags=["weaver", "auto_discovered"],
+                )
+            )
+        except Exception as e:
+            logger.warning(f"Failed to discover tools from module 'tools': {e}")
+
+        # Phase 2 (optional): recursive discovery across tools/* for full introspection.
+        if bool(getattr(settings, "enhanced_tool_discovery_recursive", False)):
+            exclude_dirs = set(getattr(settings, "enhanced_tool_discovery_exclude_list", []) or [])
+            logger.info("Discovering tools from 'tools' directory (recursive)...")
+            discovered.extend(
+                registry.discover_from_directory(
+                    directory="tools",
+                    pattern="*.py",
+                    recursive=True,
+                    tags=["weaver", "auto_discovered"],
+                    exclude_dirs=exclude_dirs,
+                    exclude_globs=[
+                        "tools/core/*",
+                        "tools/examples/*",
+                    ],
+                )
+            )
 
         logger.info(f"Discovered and registered {len(discovered)} tools")
 

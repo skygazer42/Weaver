@@ -443,6 +443,14 @@ class Settings(BaseSettings):
     enable_browser_use: bool = False  # enable browser_use tool (Playwright-based)
     enable_browser_context_helper: bool = False  # inject browser context prompt if available
 
+    # Enhanced tool registry auto-discovery (dev ergonomics)
+    # Note: keep this lightweight by default. Recursive discovery can be enabled
+    # when you need full tool introspection.
+    enhanced_tool_discovery_enabled: bool = True
+    enhanced_tool_discovery_recursive: bool = False
+    enhanced_tool_discovery_exclude_dirs: str = "__pycache__,node_modules,web"
+    agent_use_enhanced_registry: bool = False  # reserved for future: build agent tools from ToolRegistry
+
     # Tool visibility / events
     emit_tool_events: bool = True  # wrap tools with event emitters for front-end
     tool_whitelist: str = ""  # comma-separated tool names to allow (empty = all)
@@ -514,6 +522,15 @@ class Settings(BaseSettings):
     def tool_blacklist_list(self) -> List[str]:
         """Comma separated tool blacklist."""
         return [t.strip() for t in self.tool_blacklist.split(",") if t.strip()]
+
+    @property
+    def enhanced_tool_discovery_exclude_list(self) -> List[str]:
+        """Comma separated directory names excluded from enhanced tool discovery."""
+        return [
+            d.strip()
+            for d in (self.enhanced_tool_discovery_exclude_dirs or "").split(",")
+            if d.strip()
+        ]
 
     @property
     def search_engines_list(self) -> List[str]:
