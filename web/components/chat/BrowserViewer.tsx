@@ -56,7 +56,7 @@ export function BrowserViewer({
   className,
   onClose,
   defaultExpanded = true,
-  mode = 'events',
+  mode = 'stream',
   alwaysShow = false
 }: BrowserViewerProps) {
   const initialState: BrowserViewerState = {
@@ -95,9 +95,9 @@ export function BrowserViewer({
     capture: captureFrame
   } = useBrowserStream({
     threadId: isLiveMode ? threadId : null,
-    autoStart: false,
+    autoStart: true,
     quality: 70,
-    maxFps: 5
+    maxFps: 10
   })
 
   const isActive = isLiveMode ? isStreaming : isEventsActive
@@ -121,6 +121,8 @@ export function BrowserViewer({
   // Determine what to display
   const displayScreenshot = selectedScreenshot || latestScreenshot
   const liveImageUrl = currentFrame ? `data:image/jpeg;base64,${currentFrame.data}` : null
+  const livePageUrl = typeof currentFrame?.metadata?.url === 'string' ? currentFrame.metadata.url : null
+  const effectivePageUrl = isLiveMode ? livePageUrl : (displayScreenshot?.pageUrl || null)
 
   // Don't render if no screenshots/frames and not active (unless alwaysShow is true)
   if (!alwaysShow) {
@@ -165,11 +167,11 @@ export function BrowserViewer({
         <div className="flex-1 flex items-center gap-2 bg-background/60 rounded px-2 py-1 text-xs">
           <Globe className="w-3 h-3 text-muted-foreground flex-shrink-0" />
           <span className="truncate text-muted-foreground">
-            {displayScreenshot?.pageUrl || 'Browser'}
+            {effectivePageUrl || 'Browser'}
           </span>
-          {displayScreenshot?.pageUrl && (
+          {effectivePageUrl && (
             <a
-              href={displayScreenshot.pageUrl}
+              href={effectivePageUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="flex-shrink-0 hover:text-primary"
@@ -273,7 +275,7 @@ export function BrowserViewer({
                 <div className="flex items-center justify-center min-h-[240px] text-muted-foreground">
                   <div className="text-center">
                     <Play className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">Click play to start live view</p>
+                    <p className="text-sm">Starting live view...</p>
                   </div>
                 </div>
               ) : displayScreenshot ? (
