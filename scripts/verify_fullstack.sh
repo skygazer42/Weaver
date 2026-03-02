@@ -28,6 +28,23 @@ fi
 export WEAVER_DATA_DIR="${WEAVER_DATA_DIR:-/tmp/weaver-data-verify}"
 mkdir -p "${WEAVER_DATA_DIR}"
 
+free_port() {
+  "${PY}" - <<'PY'
+import socket
+
+sock = socket.socket()
+sock.bind(("127.0.0.1", 0))
+port = sock.getsockname()[1]
+sock.close()
+print(port)
+PY
+}
+
+# Playwright e2e starts real backend + frontend dev servers. Pick free ports by
+# default so local services don't cause false failures.
+export E2E_BACKEND_PORT="${E2E_BACKEND_PORT:-$(free_port)}"
+export E2E_WEB_BASE_URL="${E2E_WEB_BASE_URL:-http://127.0.0.1:$(free_port)}"
+
 run() {
   echo "+ $*"
   "$@"

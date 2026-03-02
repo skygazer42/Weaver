@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import json
 import logging
+import threading
 import time
 import uuid
 from collections import OrderedDict
@@ -323,9 +324,19 @@ async def log_requests(request: Request, call_next):
 
 
 # Configure CORS
+cors_origin_regex = None
+try:
+    env = (getattr(settings, "app_env", "") or "").strip().lower()
+    if bool(getattr(settings, "debug", False)) or env in {"dev", "debug", "local", "test"}:
+        # Dev ergonomics: allow the UI to run on any local port (e.g. 3100, 5173, random e2e ports).
+        cors_origin_regex = r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
+except Exception:
+    cors_origin_regex = None
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
+    allow_origin_regex=cors_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -1007,6 +1018,36 @@ class CancelRequest(BaseModel):
 
 # Store active streaming tasks (legacy; cancellation is primarily token-based)
 active_streams: Dict[str, asyncio.Task] = {}
+
+# Track active browser live-view WS connections per thread_id.
+#
+# This is used to avoid tearing down sandbox browser sessions while the UI is
+# actively streaming frames. Cleanup is deferred until the viewer disconnects.
+_browser_stream_conn_lock = threading.Lock()
+_browser_stream_conn_counts: Dict[str, int] = {}
+
+
+def _browser_stream_conn_inc(thread_id: str) -> None:
+    tid = (thread_id or "").strip() or "default"
+    with _browser_stream_conn_lock:
+        _browser_stream_conn_counts[tid] = int(_browser_stream_conn_counts.get(tid, 0)) + 1
+
+
+def _browser_stream_conn_dec(thread_id: str) -> None:
+    tid = (thread_id or "").strip() or "default"
+    with _browser_stream_conn_lock:
+        current = int(_browser_stream_conn_counts.get(tid, 0))
+        next_val = max(0, current - 1)
+        if next_val <= 0:
+            _browser_stream_conn_counts.pop(tid, None)
+        else:
+            _browser_stream_conn_counts[tid] = next_val
+
+
+def _browser_stream_conn_active(thread_id: str) -> bool:
+    tid = (thread_id or "").strip() or "default"
+    with _browser_stream_conn_lock:
+        return int(_browser_stream_conn_counts.get(tid, 0)) > 0
 
 
 def _serialize_interrupts(interrupts: Any) -> List[Any]:
@@ -1953,10 +1994,22 @@ async def stream_agent_events(
                 browser_sessions.reset(thread_id)
             except Exception:
                 pass
-            try:
-                sandbox_browser_sessions.reset(thread_id)
-            except Exception:
-                pass
+            # If the UI is actively streaming browser frames for this thread,
+            # keep the sandbox session alive; tearing it down here can stall the
+            # SSE response (slow E2B shutdown) and breaks the live viewer.
+            if _browser_stream_conn_active(thread_id):
+                logger.info(
+                    f"Skipping sandbox browser reset for thread={thread_id} (browser stream active)"
+                )
+            else:
+                # Avoid blocking the request/event loop on slow sandbox shutdown.
+                try:
+                    asyncio.create_task(asyncio.to_thread(sandbox_browser_sessions.reset, thread_id))
+                except Exception:
+                    try:
+                        sandbox_browser_sessions.reset(thread_id)
+                    except Exception:
+                        pass
 
 
 @app.post("/api/chat/sse")
@@ -4686,6 +4739,8 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
     except Exception:
         ws_gauge = None
 
+    _browser_stream_conn_inc(thread_id)
+
     streaming = False
     stream_task: Optional[asyncio.Task] = None
     ping_task: Optional[asyncio.Task] = None
@@ -5050,6 +5105,7 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
         if ping_task:
             ping_task.cancel()
         await _stop_cdp_screencast()
+        _browser_stream_conn_dec(thread_id)
         try:
             if ws_gauge is not None:
                 ws_gauge.dec()

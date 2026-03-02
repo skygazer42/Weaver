@@ -2,6 +2,10 @@
 const nextConfig = {
   reactStrictMode: true,
 
+  // Allow e2e / local runs to isolate the Next build output directory so
+  // a running `next dev` instance doesn't block Playwright webServer startup.
+  distDir: process.env.NEXT_DIST_DIR || '.next',
+
   // --- Performance ---
   // Hide X-Powered-By header (security best practice)
   poweredByHeader: false,

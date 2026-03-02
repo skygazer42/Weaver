@@ -35,6 +35,7 @@ web/.env.local
 
 # Next.js
 .next/
+.next-e2e/
 out/
 build/
 dist/
@@ -43,6 +44,7 @@ dist/
 !sdk/typescript/dist/
 !sdk/typescript/dist/**
 web/.next/
+web/.next-e2e/
 web/out/
 web/build/
 
@@ -96,6 +98,7 @@ playwright-report/
 test-results/
 web/playwright-report/
 web/test-results/
+web/tmp/
 
 # Misc
 .turbo/

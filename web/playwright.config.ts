@@ -58,6 +58,24 @@ const backendPort = (
 const backendBaseUrl = `http://127.0.0.1:${backendPort}`
 const webBaseUrl = process.env.E2E_WEB_BASE_URL?.trim() || 'http://localhost:3100'
 
+const webHost = (() => {
+  try {
+    return new URL(webBaseUrl).hostname || 'localhost'
+  } catch {
+    return 'localhost'
+  }
+})()
+
+const webPort = (() => {
+  try {
+    const parsed = new URL(webBaseUrl)
+    if (parsed.port) return Number(parsed.port)
+  } catch {
+    // ignore
+  }
+  return 3100
+})()
+
 const reuseExistingServer = ['1', 'true', 'yes', 'y', 'on'].includes(
   (process.env.E2E_REUSE_EXISTING_SERVER || '').trim().toLowerCase()
 )
@@ -98,13 +116,14 @@ export default defineConfig({
     },
     {
       cwd: __dirname,
-      command: 'pnpm dev',
+      command: `pnpm exec next dev --webpack -H ${webHost} -p ${webPort}`,
       url: webBaseUrl,
       timeout: 180_000,
       reuseExistingServer,
       env: {
         ...stripProxyEnv(process.env),
         NEXT_PUBLIC_API_URL: backendBaseUrl,
+        NEXT_DIST_DIR: '.next-e2e',
       },
     },
   ],

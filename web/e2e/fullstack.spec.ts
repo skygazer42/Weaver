@@ -1,5 +1,25 @@
 import { test, expect } from '@playwright/test'
 
+async function sendMessage(page: any, content: string) {
+  const input = page.locator('#chat-input')
+  const send = page.getByRole('button', { name: 'Send message' })
+
+  await expect(input).toBeVisible({ timeout: 60_000 })
+  await expect(input).toBeEditable({ timeout: 60_000 })
+
+  // Next dev + Tailwind can trigger a couple of fast refreshes on first load.
+  // Ensure the controlled textarea value sticks before clicking send.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await input.fill(content)
+    await expect(input).toHaveValue(content, { timeout: 10_000 })
+    if (await send.isEnabled().catch(() => false)) return await send.click()
+    await page.waitForTimeout(500)
+  }
+
+  await expect(send).toBeEnabled({ timeout: 60_000 })
+  await send.click()
+}
+
 async function waitForStreamToFinish(page: any, timeoutMs: number) {
   const stop = page.getByRole('button', { name: 'Stop generation' })
   await expect(stop).toBeVisible({ timeout: 30_000 })
@@ -9,10 +29,10 @@ async function waitForStreamToFinish(page: any, timeoutMs: number) {
 test('full-stack: chat + research + browser live + comments + export + share', async ({ page }) => {
   // 1) Open app
   await page.goto('/')
-  await expect(page.locator('#chat-input')).toBeVisible()
+  await expect(page.locator('#chat-input')).toBeVisible({ timeout: 60_000 })
 
   // 2) Chat SSE (ensures basic streaming + thread header propagation)
-  await page.locator('#chat-input').fill('Respond with the single word: pong')
+  const chatPrompt = 'Respond with the single word: pong'
   const chatResPromise = page.waitForResponse((r) => {
     return (
       r.request().method() === 'POST' &&
@@ -20,7 +40,7 @@ test('full-stack: chat + research + browser live + comments + export + share', a
       r.status() < 500
     )
   })
-  await page.getByRole('button', { name: 'Send message' }).click()
+  await sendMessage(page, chatPrompt)
   const chatRes = await chatResPromise
   if (!chatRes.ok()) {
     const body = await chatRes.text().catch(() => '')
@@ -32,11 +52,11 @@ test('full-stack: chat + research + browser live + comments + export + share', a
   await waitForStreamToFinish(page, 180_000)
 
   // 3) Research SSE (produces exportable report)
-  await page.locator('#chat-input').fill('/research Write a short (<= 120 words) report about the number 7.')
+  const researchPrompt = '/research Write a short (<= 120 words) report about the number 7.'
   const researchResPromise = page.waitForResponse((r) => {
     return r.request().method() === 'POST' && r.url().includes('/api/research/sse')
   })
-  await page.getByRole('button', { name: 'Send message' }).click()
+  await sendMessage(page, researchPrompt)
   const researchRes = await researchResPromise
   if (!researchRes.ok()) {
     const body = await researchRes.text().catch(() => '')
