@@ -4759,4 +4759,24 @@ if __name__ == "__main__":
     if settings.debug and not reload_enabled:
         logger.info("Hot reload disabled (set WEAVER_RELOAD=1 to enable).")
 
-    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=reload_enabled, log_level="info")
+    reload_dirs = None
+    reload_excludes = None
+    if reload_enabled:
+        try:
+            from common.uvicorn_reload import get_uvicorn_reload_dirs, get_uvicorn_reload_excludes
+
+            reload_dirs = get_uvicorn_reload_dirs()
+            reload_excludes = get_uvicorn_reload_excludes()
+        except Exception:
+            reload_dirs = None
+            reload_excludes = None
+
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=port,
+        reload=reload_enabled,
+        reload_dirs=reload_dirs,
+        reload_excludes=reload_excludes,
+        log_level="info",
+    )
