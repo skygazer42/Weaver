@@ -377,6 +377,10 @@ export interface paths {
         /**
          * List Export Templates
          * @description List available export templates.
+         *
+         *     Note: This route must be registered before `/api/export/{thread_id}`.
+         *     Otherwise, the dynamic route will capture `templates` as a thread_id and
+         *     this endpoint becomes unreachable.
          */
         get: operations["list_export_templates_api_export_templates_get"];
         put?: never;
@@ -2069,10 +2073,6 @@ export interface components {
         };
         /** ValidationError */
         ValidationError: {
-            /** Context */
-            ctx?: Record<string, never>;
-            /** Input */
-            input?: unknown;
             /** Location */
             loc: (string | number)[];
             /** Message */
