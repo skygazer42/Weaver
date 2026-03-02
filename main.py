@@ -763,6 +763,78 @@ class SearchProvidersResponse(BaseModel):
     providers: List[SearchProviderSnapshot]
 
 
+class PublicConfigDefaults(BaseModel):
+    port: int
+    primary_model: str
+    reasoning_model: str
+
+
+class PublicConfigFeatures(BaseModel):
+    mcp_enabled: bool
+    sandbox_mode: str
+    prometheus_enabled: bool
+    tracing_enabled: bool
+
+
+class PublicConfigStreamEndpoint(BaseModel):
+    protocol: str
+    endpoint: str
+
+
+class PublicConfigStreaming(BaseModel):
+    chat: PublicConfigStreamEndpoint
+    research: PublicConfigStreamEndpoint
+    events: PublicConfigStreamEndpoint
+    browser: PublicConfigStreamEndpoint
+
+
+class PublicConfigResponse(BaseModel):
+    version: str
+    defaults: PublicConfigDefaults
+    features: PublicConfigFeatures
+    streaming: PublicConfigStreaming
+
+
+class SandboxBrowserConfigured(BaseModel):
+    e2b_api_key: bool
+    sandbox_template_browser: bool
+    e2b_code_interpreter: bool
+    playwright: bool
+
+
+class SandboxBrowserDeepResult(BaseModel):
+    ok: bool
+    latency_ms: int
+    frame_bytes: Optional[int] = None
+    error: Optional[str] = None
+
+
+class SandboxBrowserDiagnoseResponse(BaseModel):
+    ready: bool
+    missing: List[str]
+    sandbox_mode: str
+    allow_internet: bool
+    configured: SandboxBrowserConfigured
+    deep: Optional[SandboxBrowserDeepResult] = None
+
+
+class SearchCacheStats(BaseModel):
+    size: int
+    max_size: int
+    hits: int
+    similar_hits: int
+    misses: int
+    hit_rate: float
+
+
+class SearchCacheStatsResponse(BaseModel):
+    stats: SearchCacheStats
+
+
+class SearchCacheClearResponse(BaseModel):
+    cleared: bool
+
+
 class ImagePayload(BaseModel):
     name: Optional[str] = None
     data: str
@@ -2116,7 +2188,7 @@ async def get_search_providers():
     return {"providers": providers}
 
 
-@app.get("/api/search/cache/stats")
+@app.get("/api/search/cache/stats", response_model=SearchCacheStatsResponse)
 async def get_search_cache_stats():
     """Return in-memory search cache statistics (LRU + TTL)."""
     from agent.core.search_cache import get_search_cache
@@ -2125,7 +2197,7 @@ async def get_search_cache_stats():
     return {"stats": cache.stats()}
 
 
-@app.post("/api/search/cache/clear")
+@app.post("/api/search/cache/clear", response_model=SearchCacheClearResponse)
 async def clear_search_cache_endpoint():
     """Clear the in-memory search cache (best-effort)."""
     from agent.core.search_cache import clear_search_cache
@@ -2435,7 +2507,7 @@ async def memory_status():
     }
 
 
-@app.get("/api/config/public")
+@app.get("/api/config/public", response_model=PublicConfigResponse)
 async def public_config():
     """
     Public, non-secret runtime configuration for frontend bootstrapping.
@@ -2465,7 +2537,7 @@ async def public_config():
     }
 
 
-@app.get("/api/sandbox/browser/diagnose")
+@app.get("/api/sandbox/browser/diagnose", response_model=SandboxBrowserDiagnoseResponse)
 async def sandbox_browser_diagnose(deep: bool = False):
     """
     Diagnose whether the E2B sandbox-backed browser tools are configured.

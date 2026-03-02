@@ -252,6 +252,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/config/public": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Public Config
+         * @description Public, non-secret runtime configuration for frontend bootstrapping.
+         *
+         *     This endpoint is intentionally safe to expose: it must not include API keys,
+         *     tokens, raw MCP server configs, or any user data.
+         */
+        get: operations["public_config_api_config_public_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/documents/list": {
         parameters: {
             query?: never;
@@ -615,6 +638,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/sandbox/browser/diagnose": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sandbox Browser Diagnose
+         * @description Diagnose whether the E2B sandbox-backed browser tools are configured.
+         *
+         *     Fast path: validates env/config and local dependencies without cold-starting a sandbox.
+         *     Use this to troubleshoot "Capture failed: ..." errors in `/api/browser/{thread_id}/stream`.
+         */
+        get: operations["sandbox_browser_diagnose_api_sandbox_browser_diagnose_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/screenshots": {
         parameters: {
             query?: never;
@@ -674,6 +720,46 @@ export interface paths {
          *         filename: Screenshot filename
          */
         get: operations["get_screenshot_api_screenshots__filename__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/search/cache/clear": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Clear Search Cache Endpoint
+         * @description Clear the in-memory search cache (best-effort).
+         */
+        post: operations["clear_search_cache_endpoint_api_search_cache_clear_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/search/cache/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Search Cache Stats
+         * @description Return in-memory search cache statistics (LRU + TTL).
+         */
+        get: operations["get_search_cache_stats_api_search_cache_stats_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1836,6 +1922,48 @@ export interface components {
             /** Resets In Seconds */
             resets_in_seconds?: number | null;
         };
+        /** PublicConfigDefaults */
+        PublicConfigDefaults: {
+            /** Port */
+            port: number;
+            /** Primary Model */
+            primary_model: string;
+            /** Reasoning Model */
+            reasoning_model: string;
+        };
+        /** PublicConfigFeatures */
+        PublicConfigFeatures: {
+            /** Mcp Enabled */
+            mcp_enabled: boolean;
+            /** Prometheus Enabled */
+            prometheus_enabled: boolean;
+            /** Sandbox Mode */
+            sandbox_mode: string;
+            /** Tracing Enabled */
+            tracing_enabled: boolean;
+        };
+        /** PublicConfigResponse */
+        PublicConfigResponse: {
+            defaults: components["schemas"]["PublicConfigDefaults"];
+            features: components["schemas"]["PublicConfigFeatures"];
+            streaming: components["schemas"]["PublicConfigStreaming"];
+            /** Version */
+            version: string;
+        };
+        /** PublicConfigStreamEndpoint */
+        PublicConfigStreamEndpoint: {
+            /** Endpoint */
+            endpoint: string;
+            /** Protocol */
+            protocol: string;
+        };
+        /** PublicConfigStreaming */
+        PublicConfigStreaming: {
+            browser: components["schemas"]["PublicConfigStreamEndpoint"];
+            chat: components["schemas"]["PublicConfigStreamEndpoint"];
+            events: components["schemas"]["PublicConfigStreamEndpoint"];
+            research: components["schemas"]["PublicConfigStreamEndpoint"];
+        };
         /** ResearchRequest */
         ResearchRequest: {
             /** Agent Id */
@@ -1905,6 +2033,65 @@ export interface components {
             run_id: string;
             /** Started At */
             started_at: string;
+        };
+        /** SandboxBrowserConfigured */
+        SandboxBrowserConfigured: {
+            /** E2B Api Key */
+            e2b_api_key: boolean;
+            /** E2B Code Interpreter */
+            e2b_code_interpreter: boolean;
+            /** Playwright */
+            playwright: boolean;
+            /** Sandbox Template Browser */
+            sandbox_template_browser: boolean;
+        };
+        /** SandboxBrowserDeepResult */
+        SandboxBrowserDeepResult: {
+            /** Error */
+            error?: string | null;
+            /** Frame Bytes */
+            frame_bytes?: number | null;
+            /** Latency Ms */
+            latency_ms: number;
+            /** Ok */
+            ok: boolean;
+        };
+        /** SandboxBrowserDiagnoseResponse */
+        SandboxBrowserDiagnoseResponse: {
+            /** Allow Internet */
+            allow_internet: boolean;
+            configured: components["schemas"]["SandboxBrowserConfigured"];
+            deep?: components["schemas"]["SandboxBrowserDeepResult"] | null;
+            /** Missing */
+            missing: string[];
+            /** Ready */
+            ready: boolean;
+            /** Sandbox Mode */
+            sandbox_mode: string;
+        };
+        /** SearchCacheClearResponse */
+        SearchCacheClearResponse: {
+            /** Cleared */
+            cleared: boolean;
+        };
+        /** SearchCacheStats */
+        SearchCacheStats: {
+            /** Hit Rate */
+            hit_rate: number;
+            /** Hits */
+            hits: number;
+            /** Max Size */
+            max_size: number;
+            /** Misses */
+            misses: number;
+            /** Similar Hits */
+            similar_hits: number;
+            /** Size */
+            size: number;
+        };
+        /** SearchCacheStatsResponse */
+        SearchCacheStatsResponse: {
+            stats: components["schemas"]["SearchCacheStats"];
         };
         /** SearchMode */
         SearchMode: {
@@ -2537,6 +2724,26 @@ export interface operations {
             };
         };
     };
+    public_config_api_config_public_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicConfigResponse"];
+                };
+            };
+        };
+    };
     list_documents_api_documents_list_get: {
         parameters: {
             query?: {
@@ -3039,6 +3246,37 @@ export interface operations {
             };
         };
     };
+    sandbox_browser_diagnose_api_sandbox_browser_diagnose_get: {
+        parameters: {
+            query?: {
+                deep?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SandboxBrowserDiagnoseResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_screenshots_api_screenshots_get: {
         parameters: {
             query?: {
@@ -3118,6 +3356,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clear_search_cache_endpoint_api_search_cache_clear_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchCacheClearResponse"];
+                };
+            };
+        };
+    };
+    get_search_cache_stats_api_search_cache_stats_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchCacheStatsResponse"];
                 };
             };
         };
