@@ -3,12 +3,15 @@ VENV_DIR ?= .venv
 VENV_BIN := $(VENV_DIR)/bin
 PY := $(VENV_BIN)/python
 
-.PHONY: help setup setup-full test lint lint-all format secret-scan check openapi-types bench-smoke web-install web-lint web-build
+.PHONY: help setup setup-full dev dev-reload verify test lint lint-all format secret-scan check openapi-types bench-smoke web-install web-lint web-build
 
 help:
 	@echo "Targets:"
 	@echo "  setup       - Create venv and install core + dev dependencies"
 	@echo "  setup-full  - Install optional tool dependencies (if requirements-optional.txt exists)"
+	@echo "  dev         - Start backend (no hot reload)"
+	@echo "  dev-reload  - Start backend with opt-in hot reload"
+	@echo "  verify      - Run real full-stack verification (headless)"
 	@echo "  test        - Run pytest"
 	@echo "  lint        - Run ruff (changed files)"
 	@echo "  lint-all    - Run ruff (full repo)"
@@ -29,6 +32,18 @@ setup:
 
 setup-full: setup
 	@test -f requirements-optional.txt && $(PY) -m pip install -r requirements-optional.txt || true
+
+dev:
+	@$(PY) main.py
+
+dev-reload:
+	@DEBUG=true WEAVER_RELOAD=1 $(PY) main.py
+
+verify:
+	@$(PY) -m pytest -q
+	@bash scripts/check_openapi_ts_types.sh
+	@$(PY) scripts/live_api_smoke.py --ws --timeout 30
+	@pnpm -C web e2e
 
 test:
 	@$(PY) -m pytest -q
