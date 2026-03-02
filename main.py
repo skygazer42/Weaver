@@ -152,6 +152,18 @@ http_inprogress = (
     else None
 )
 
+# Streaming connection gauges (always registered; cheap + useful for debugging).
+sse_active_connections = _get_or_create_gauge(
+    "weaver_sse_active_connections",
+    "Active SSE connections",
+    ["endpoint"],
+)
+ws_active_connections = _get_or_create_gauge(
+    "weaver_ws_active_connections",
+    "Active WebSocket connections",
+    ["endpoint"],
+)
+
 
 # Request logging middleware
 @app.middleware("http")
@@ -1774,55 +1786,69 @@ async def chat_sse(request: Request, payload: ChatRequest):
     set_thread_owner(thread_id, getattr(request.state, "principal_id", "") or "anonymous")
 
     async def _sse_generator():
-        seq = 0
-        # Hint clients (EventSource) how long to wait before attempting reconnects.
+        gauge = None
         try:
-            if await request.is_disconnected():
-                return
+            gauge = sse_active_connections.labels("chat_sse")
+            gauge.inc()
         except Exception:
-            pass
-        yield format_sse_retry(2000)
+            gauge = None
 
-        # Deterministic failure mode when no API key is configured.
-        # We keep this fast and side-effect free (no graph compilation/run).
-        if not (settings.openai_api_key or "").strip():
-            seq += 1
-            yield format_sse_event(
-                event="error",
-                data={"message": "OPENAI_API_KEY is not configured", "thread_id": thread_id},
-                event_id=seq,
+        try:
+            seq = 0
+            # Hint clients (EventSource) how long to wait before attempting reconnects.
+            try:
+                if await request.is_disconnected():
+                    return
+            except Exception:
+                pass
+            yield format_sse_retry(2000)
+
+            # Deterministic failure mode when no API key is configured.
+            # We keep this fast and side-effect free (no graph compilation/run).
+            if not (settings.openai_api_key or "").strip():
+                seq += 1
+                yield format_sse_event(
+                    event="error",
+                    data={"message": "OPENAI_API_KEY is not configured", "thread_id": thread_id},
+                    event_id=seq,
+                )
+                seq += 1
+                yield format_sse_event(event="done", data={"thread_id": thread_id}, event_id=seq)
+                return
+
+            source = iter_with_sse_keepalive(
+                stream_agent_events(
+                    last_message,
+                    thread_id=thread_id,
+                    model=model,
+                    search_mode=mode_info,
+                    agent_id=payload.agent_id,
+                    images=_normalize_images_payload(payload.images),
+                    user_id=user_id,
+                ),
+                interval_s=15.0,
             )
-            seq += 1
-            yield format_sse_event(event="done", data={"thread_id": thread_id}, event_id=seq)
-            return
 
-        source = iter_with_sse_keepalive(
-            stream_agent_events(
-                last_message,
-                thread_id=thread_id,
-                model=model,
-                search_mode=mode_info,
-                agent_id=payload.agent_id,
-                images=_normalize_images_payload(payload.images),
-                user_id=user_id,
-            ),
-            interval_s=15.0,
-        )
+            async for maybe_line in iter_abort_on_disconnect(
+                source,
+                is_disconnected=request.is_disconnected,
+                check_interval_s=0.25,
+            ):
+                # Keepalive comments are already SSE frames.
+                if maybe_line.startswith(":"):
+                    yield maybe_line
+                    continue
 
-        async for maybe_line in iter_abort_on_disconnect(
-            source,
-            is_disconnected=request.is_disconnected,
-            check_interval_s=0.25,
-        ):
-            # Keepalive comments are already SSE frames.
-            if maybe_line.startswith(":"):
-                yield maybe_line
-                continue
-
-            seq += 1
-            sse = translate_legacy_line_to_sse(maybe_line, seq=seq)
-            if sse:
-                yield sse
+                seq += 1
+                sse = translate_legacy_line_to_sse(maybe_line, seq=seq)
+                if sse:
+                    yield sse
+        finally:
+            try:
+                if gauge is not None:
+                    gauge.dec()
+            except Exception:
+                pass
 
     return StreamingResponse(
         _sse_generator(),
@@ -3930,55 +3956,69 @@ async def research_sse(request: Request, payload: ResearchRequest):
     set_thread_owner(thread_id, principal_id or "anonymous")
 
     async def _sse_generator():
-        seq = 0
-        # Hint clients (EventSource) how long to wait before attempting reconnects.
+        gauge = None
         try:
-            if await request.is_disconnected():
-                return
+            gauge = sse_active_connections.labels("research_sse")
+            gauge.inc()
         except Exception:
-            pass
-        yield format_sse_retry(2000)
+            gauge = None
 
-        # Deterministic failure mode when no API key is configured.
-        # We keep this fast and side-effect free (no graph compilation/run).
-        if not (settings.openai_api_key or "").strip():
-            seq += 1
-            yield format_sse_event(
-                event="error",
-                data={"message": "OPENAI_API_KEY is not configured", "thread_id": thread_id},
-                event_id=seq,
+        try:
+            seq = 0
+            # Hint clients (EventSource) how long to wait before attempting reconnects.
+            try:
+                if await request.is_disconnected():
+                    return
+            except Exception:
+                pass
+            yield format_sse_retry(2000)
+
+            # Deterministic failure mode when no API key is configured.
+            # We keep this fast and side-effect free (no graph compilation/run).
+            if not (settings.openai_api_key or "").strip():
+                seq += 1
+                yield format_sse_event(
+                    event="error",
+                    data={"message": "OPENAI_API_KEY is not configured", "thread_id": thread_id},
+                    event_id=seq,
+                )
+                seq += 1
+                yield format_sse_event(event="done", data={"thread_id": thread_id}, event_id=seq)
+                return
+
+            source = iter_with_sse_keepalive(
+                stream_agent_events(
+                    query,
+                    thread_id=thread_id,
+                    model=model,
+                    search_mode=mode_info,
+                    agent_id=payload.agent_id,
+                    images=_normalize_images_payload(payload.images),
+                    user_id=user_id,
+                ),
+                interval_s=15.0,
             )
-            seq += 1
-            yield format_sse_event(event="done", data={"thread_id": thread_id}, event_id=seq)
-            return
 
-        source = iter_with_sse_keepalive(
-            stream_agent_events(
-                query,
-                thread_id=thread_id,
-                model=model,
-                search_mode=mode_info,
-                agent_id=payload.agent_id,
-                images=_normalize_images_payload(payload.images),
-                user_id=user_id,
-            ),
-            interval_s=15.0,
-        )
+            async for maybe_line in iter_abort_on_disconnect(
+                source,
+                is_disconnected=request.is_disconnected,
+                check_interval_s=0.25,
+            ):
+                # Keepalive comments are already SSE frames.
+                if maybe_line.startswith(":"):
+                    yield maybe_line
+                    continue
 
-        async for maybe_line in iter_abort_on_disconnect(
-            source,
-            is_disconnected=request.is_disconnected,
-            check_interval_s=0.25,
-        ):
-            # Keepalive comments are already SSE frames.
-            if maybe_line.startswith(":"):
-                yield maybe_line
-                continue
-
-            seq += 1
-            sse = translate_legacy_line_to_sse(maybe_line, seq=seq)
-            if sse:
-                yield sse
+                seq += 1
+                sse = translate_legacy_line_to_sse(maybe_line, seq=seq)
+                if sse:
+                    yield sse
+        finally:
+            try:
+                if gauge is not None:
+                    gauge.dec()
+            except Exception:
+                pass
 
     return StreamingResponse(
         _sse_generator(),
@@ -4079,11 +4119,25 @@ async def stream_tool_events(thread_id: str, request: Request, last_event_id: Op
     _require_thread_owner(request, thread_id)
 
     async def event_generator():
+        gauge = None
+        try:
+            gauge = sse_active_connections.labels("tool_events")
+            gauge.inc()
+        except Exception:
+            gauge = None
+
         cursor = last_event_id or request.headers.get("last-event-id")
-        async for event_sse in event_stream_generator(
-            thread_id, timeout=300.0, last_event_id=cursor
-        ):
-            yield event_sse
+        try:
+            async for event_sse in event_stream_generator(
+                thread_id, timeout=300.0, last_event_id=cursor
+            ):
+                yield event_sse
+        finally:
+            try:
+                if gauge is not None:
+                    gauge.dec()
+            except Exception:
+                pass
 
     return StreamingResponse(
         event_generator(),
@@ -4305,6 +4359,13 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
                 pass
 
     await websocket.accept()
+
+    ws_gauge = None
+    try:
+        ws_gauge = ws_active_connections.labels("browser_stream")
+        ws_gauge.inc()
+    except Exception:
+        ws_gauge = None
 
     streaming = False
     stream_task: Optional[asyncio.Task] = None
@@ -4608,6 +4669,11 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
         if stream_task:
             stream_task.cancel()
         await _stop_cdp_screencast()
+        try:
+            if ws_gauge is not None:
+                ws_gauge.dec()
+        except Exception:
+            pass
         logger.info(f"Browser stream WebSocket closed for thread {thread_id}")
 
 
