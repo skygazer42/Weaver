@@ -58,7 +58,8 @@ BACKEND_PID=$!
 
 # Start web
 echo "⚛️  Starting web server..."
-pnpm -C web dev &
+WEB_API_URL="${NEXT_PUBLIC_API_URL:-http://127.0.0.1:${BACKEND_PORT}}"
+NEXT_PUBLIC_API_URL="${WEB_API_URL}" pnpm -C web dev &
 WEB_PID=$!
 
 echo ""
@@ -68,6 +69,7 @@ echo "📍 URLs:"
 echo "   Web:      http://localhost:3100"
 echo "   Backend:  http://localhost:${BACKEND_PORT}"
 echo "   API Docs: http://localhost:${BACKEND_PORT}/docs"
+echo "   Web API:  ${WEB_API_URL}"
 echo ""
 echo "Press Ctrl+C to stop all servers"
 
