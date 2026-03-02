@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
@@ -27,6 +28,21 @@ from .scheduler import TriggerScheduler, get_scheduler
 from .webhook import WebhookHandler, get_webhook_handler
 
 logger = logging.getLogger(__name__)
+
+def _default_storage_path() -> str:
+    """
+    Default trigger storage path.
+
+    When `WEAVER_DATA_DIR` is set (e.g. Playwright e2e, live smoke tests),
+    store under that directory so tests don't modify repo files.
+    """
+    override = (os.getenv("WEAVER_DATA_DIR") or "").strip()
+    if override:
+        root = Path(override).expanduser()
+        if not root.is_absolute():
+            root = (Path.cwd() / root).resolve()
+        return str(root / "triggers.json")
+    return "data/triggers.json"
 
 
 class TriggerManager:
@@ -440,7 +456,7 @@ def get_trigger_manager(
     if _trigger_manager is None:
         _trigger_manager = TriggerManager(
             config=config,
-            storage_path=storage_path or "data/triggers.json",
+            storage_path=storage_path or _default_storage_path(),
         )
 
     return _trigger_manager

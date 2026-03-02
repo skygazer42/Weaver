@@ -31,10 +31,27 @@ function readDotenvValue(envPath: string, key: string): string | null {
 const repoRoot = path.resolve(__dirname, '..')
 const dotenvPort = readDotenvValue(path.join(repoRoot, '.env'), 'PORT')
 
+function stripProxyEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const cleaned: NodeJS.ProcessEnv = { ...env }
+  for (const key of [
+    'HTTP_PROXY',
+    'HTTPS_PROXY',
+    'ALL_PROXY',
+    'NO_PROXY',
+    'http_proxy',
+    'https_proxy',
+    'all_proxy',
+    'no_proxy',
+  ]) {
+    delete cleaned[key]
+  }
+  return cleaned
+}
+
 const backendPort = (
   process.env.E2E_BACKEND_PORT ||
-  process.env.PORT ||
   dotenvPort ||
+  process.env.PORT ||
   '8001'
 ).trim()
 
@@ -69,9 +86,10 @@ export default defineConfig({
       timeout: 180_000,
       reuseExistingServer: !process.env.CI,
       env: {
-        ...process.env,
+        ...stripProxyEnv(process.env),
         PORT: backendPort,
         WEAVER_DATA_DIR: e2eDataDir,
+        PYTHONUNBUFFERED: '1',
       },
     },
     {
@@ -81,7 +99,7 @@ export default defineConfig({
       timeout: 180_000,
       reuseExistingServer: !process.env.CI,
       env: {
-        ...process.env,
+        ...stripProxyEnv(process.env),
         NEXT_PUBLIC_API_URL: backendBaseUrl,
       },
     },

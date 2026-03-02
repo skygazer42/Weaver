@@ -595,7 +595,7 @@ async def startup_event():
     # Initialize trigger system
     try:
         logger.info("Initializing trigger system...")
-        await init_trigger_manager(storage_path="data/triggers.json")
+        await init_trigger_manager()
         logger.info("Trigger system initialized successfully")
     except Exception as e:
         logger.warning(f"Trigger system initialization failed: {e}", exc_info=settings.debug)
@@ -4187,6 +4187,22 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
     streaming = False
     stream_task: Optional[asyncio.Task] = None
 
+    async def _safe_send_json(payload: Dict[str, Any]) -> bool:
+        """
+        Best-effort send that won't spam logs on expected disconnects.
+
+        Playwright streaming runs in a background task; it's normal for clients
+        (e.g. Playwright e2e) to close the socket while the server is mid-send.
+        """
+        try:
+            await websocket.send_json(payload)
+            return True
+        except WebSocketDisconnect:
+            return False
+        except RuntimeError:
+            # Starlette can raise RuntimeError when sending after close.
+            return False
+
     async def capture_frame(*, quality: int = 70) -> Dict[str, Any]:
         """Capture a single JPEG frame from the sandbox browser session."""
         q = max(1, min(100, int(quality or 70)))
@@ -4279,37 +4295,36 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
                         continue
                     if isinstance(frame_id, int):
                         last_frame_id = frame_id
-                    await websocket.send_json(
+                    if not await _safe_send_json(
                         {
                             "type": "frame",
                             "data": cdp_frame["data"],
                             "timestamp": float(cdp_frame.get("timestamp") or time.time()),
                             "metadata": cdp_frame.get("metadata") or {},
                         }
-                    )
+                    ):
+                        streaming = False
+                        break
                 else:
                     frame = await capture_frame(quality=quality)
-                    await websocket.send_json(
+                    if not await _safe_send_json(
                         {
                             "type": "frame",
                             "data": frame["data"],
                             "timestamp": time.time(),
                             "metadata": frame.get("metadata") or {},
                         }
-                    )
+                    ):
+                        streaming = False
+                        break
             except Exception as e:
                 streaming = False
-                await websocket.send_json(
-                    {
-                        "type": "error",
-                        "message": f"Capture failed: {e}",
-                    }
-                )
+                await _safe_send_json({"type": "error", "message": f"Capture failed: {e}"})
                 break
             await asyncio.sleep(interval)
 
     try:
-        await websocket.send_json(
+        await _safe_send_json(
             {
                 "type": "status",
                 "message": "Connected to browser stream",
@@ -4324,7 +4339,7 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
 
                 if action == "start":
                     if streaming:
-                        await websocket.send_json(
+                        await _safe_send_json(
                             {
                                 "type": "status",
                                 "message": "Screencast already running",
@@ -4344,7 +4359,7 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
                     stream_task = asyncio.create_task(
                         stream_frames(quality=int(quality or 70), max_fps=int(max_fps or 5))
                     )
-                    await websocket.send_json(
+                    await _safe_send_json(
                         {
                             "type": "status",
                             "message": "Screencast started",
@@ -4359,7 +4374,7 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
                         stream_task.cancel()
                         stream_task = None
                     await _stop_cdp_screencast()
-                    await websocket.send_json(
+                    await _safe_send_json(
                         {
                             "type": "status",
                             "message": "Screencast stopped",
@@ -4372,7 +4387,7 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
                         # otherwise force a screenshot capture.
                         frame_payload = await _get_cdp_frame()
                         if frame_payload and frame_payload.get("data"):
-                            await websocket.send_json(
+                            await _safe_send_json(
                                 {
                                     "type": "frame",
                                     "data": frame_payload["data"],
@@ -4383,7 +4398,7 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
                             continue
 
                         frame = await capture_frame(quality=int(data.get("quality", 70) or 70))
-                        await websocket.send_json(
+                        await _safe_send_json(
                             {
                                 "type": "frame",
                                 "data": frame["data"],
@@ -4392,23 +4407,21 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
                             }
                         )
                     except Exception as e:
-                        await websocket.send_json(
-                            {
-                                "type": "error",
-                                "message": f"Capture failed: {e}",
-                            }
-                        )
+                        await _safe_send_json({"type": "error", "message": f"Capture failed: {e}"})
 
             except WebSocketDisconnect:
                 break
+            except RuntimeError as e:
+                # Starlette may raise RuntimeError on receive/send after the socket is closed.
+                # Treat this as a normal disconnect to avoid a tight error loop.
+                msg = str(e).lower()
+                if "websocket is not connected" in msg or ("need to call" in msg and "accept" in msg):
+                    break
+                logger.error(f"WebSocket runtime error: {e}")
+                await _safe_send_json({"type": "error", "message": str(e)})
             except Exception as e:
                 logger.error(f"WebSocket error: {e}")
-                await websocket.send_json(
-                    {
-                        "type": "error",
-                        "message": str(e),
-                    }
-                )
+                await _safe_send_json({"type": "error", "message": str(e)})
 
     finally:
         streaming = False

@@ -115,9 +115,23 @@ def _find_free_port(host: str) -> int:
 def _env_for_server(*, tmp_root: Path) -> Dict[str, str]:
     env = dict(os.environ)
 
-    # Avoid `socks://...` proxy scheme issues with httpx/openai client initialization.
-    env.pop("ALL_PROXY", None)
-    env.pop("all_proxy", None)
+    # Avoid proxy leakage into the backend subprocess.
+    #
+    # Many local environments have `HTTP(S)_PROXY`/`ALL_PROXY` pointing at a
+    # SOCKS proxy (e.g. Clash). Some SDKs used by the backend (LLM gateways,
+    # E2B sandbox, etc.) may not handle these values reliably, which can make
+    # "real" smoke tests flaky or fail with confusing network errors.
+    for key in (
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "NO_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+        "no_proxy",
+    ):
+        env.pop(key, None)
 
     # Keep server side-effects inside tmp_root
     env["WEAVER_DATA_DIR"] = str(tmp_root / "data")
@@ -899,6 +913,11 @@ async def _sweep_all_routes(
                     "messages": [{"role": "user", "content": "Hello, just say hi."}],
                     "stream": False,
                 }
+            elif method_u == "POST" and path == "/api/chat/sse":
+                json_body = {
+                    "messages": [{"role": "user", "content": "Hello, just say hi."}],
+                    "stream": True,
+                }
             elif method_u == "POST" and path == "/api/support/chat":
                 json_body = {"message": "Hello support, just say hi.", "stream": False}
             elif method_u == "POST" and path == "/api/asr/recognize":
@@ -916,6 +935,8 @@ async def _sweep_all_routes(
             elif method_u == "POST" and path == "/api/research":
                 # Query param, streaming response.
                 params = {"query": "smoke test"}
+            elif method_u == "POST" and path == "/api/research/sse":
+                json_body = {"query": "smoke test"}
             elif method_u == "GET" and path == "/api/screenshots":
                 params = {"limit": 5}
             elif method_u == "POST" and path == "/api/mcp/config":
@@ -924,7 +945,12 @@ async def _sweep_all_routes(
                 json_body = {"thread_id": pick_id("thread_id"), "payload": {}}
 
             # Streaming endpoints
-            if path in {"/api/research", "/api/events/{thread_id}"}:
+            if path in {"/api/research", "/api/events/{thread_id}", "/api/chat/sse", "/api/research/sse"}:
+                first_byte_timeout_s = 1.5
+                if path in {"/api/chat/sse", "/api/research/sse"}:
+                    # These hit a real model + graph; allow a little more time
+                    # for the first SSE frame.
+                    first_byte_timeout_s = 10.0
                 results.append(
                     await _request_stream(
                         client,
@@ -933,7 +959,7 @@ async def _sweep_all_routes(
                         params=params,
                         json_body=json_body,
                         timeout_s=max(timeout_s, 10.0),
-                        first_byte_timeout_s=1.5,
+                        first_byte_timeout_s=first_byte_timeout_s,
                     )
                 )
                 done.add(key)

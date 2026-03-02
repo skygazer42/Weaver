@@ -4,6 +4,7 @@ Collaboration models for sharing, comments, and version history.
 
 import json
 import logging
+import os
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -11,16 +12,31 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-# File-based storage for collaboration data (no extra DB dependency)
-_DATA_DIR = Path("data/collaboration")
+def _data_dir() -> Path:
+    """
+    Resolve the collaboration storage directory.
+
+    By default this stores under `data/collaboration` in the repo cwd.
+
+    For integration tests / ephemeral runs, set `WEAVER_DATA_DIR` to point at a
+    temp folder; collaboration artifacts will be stored under
+    `${WEAVER_DATA_DIR}/collaboration` so tests don't dirty the git checkout.
+    """
+    override = (os.getenv("WEAVER_DATA_DIR") or "").strip()
+    if override:
+        root = Path(override).expanduser()
+        if not root.is_absolute():
+            root = (Path.cwd() / root).resolve()
+        return root / "collaboration"
+    return Path("data") / "collaboration"
 
 
 def _ensure_dir():
-    _DATA_DIR.mkdir(parents=True, exist_ok=True)
+    _data_dir().mkdir(parents=True, exist_ok=True)
 
 
 def _load_json(filename: str) -> Dict[str, Any]:
-    path = _DATA_DIR / filename
+    path = _data_dir() / filename
     if path.exists():
         try:
             return json.loads(path.read_text(encoding="utf-8"))
@@ -31,7 +47,7 @@ def _load_json(filename: str) -> Dict[str, Any]:
 
 def _save_json(filename: str, data: Dict[str, Any]) -> None:
     _ensure_dir()
-    path = _DATA_DIR / filename
+    path = _data_dir() / filename
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
@@ -186,7 +202,7 @@ def save_version(
 
     # Save snapshot separately (can be large)
     _ensure_dir()
-    snapshot_path = _DATA_DIR / f"snapshot_{version_id}.json"
+    snapshot_path = _data_dir() / f"snapshot_{version_id}.json"
     snapshot_path.write_text(
         json.dumps(state_snapshot, ensure_ascii=False, default=str),
         encoding="utf-8",
@@ -208,7 +224,7 @@ def list_versions(thread_id: str) -> List[Dict[str, Any]]:
 
 def get_version_snapshot(version_id: str) -> Optional[Dict[str, Any]]:
     """Get the full state snapshot for a version."""
-    snapshot_path = _DATA_DIR / f"snapshot_{version_id}.json"
+    snapshot_path = _data_dir() / f"snapshot_{version_id}.json"
     if snapshot_path.exists():
         try:
             return json.loads(snapshot_path.read_text(encoding="utf-8"))
