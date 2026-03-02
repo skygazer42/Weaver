@@ -40,6 +40,7 @@ dev-reload:
 	@DEBUG=true WEAVER_RELOAD=1 $(PY) main.py
 
 verify:
+	@$(PY) scripts/check_python_compiles.py
 	@$(PY) -m pytest -q
 	@bash scripts/check_openapi_ts_types.sh
 	@$(PY) scripts/live_api_smoke.py --ws --timeout 30
