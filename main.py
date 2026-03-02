@@ -2404,6 +2404,36 @@ async def memory_status():
     }
 
 
+@app.get("/api/config/public")
+async def public_config():
+    """
+    Public, non-secret runtime configuration for frontend bootstrapping.
+
+    This endpoint is intentionally safe to expose: it must not include API keys,
+    tokens, raw MCP server configs, or any user data.
+    """
+    return {
+        "version": app.version,
+        "defaults": {
+            "port": settings.port,
+            "primary_model": settings.primary_model,
+            "reasoning_model": settings.reasoning_model,
+        },
+        "features": {
+            "mcp_enabled": bool(mcp_enabled),
+            "sandbox_mode": settings.sandbox_mode,
+            "prometheus_enabled": bool(settings.enable_prometheus),
+            "tracing_enabled": bool(settings.enable_tracing),
+        },
+        "streaming": {
+            "chat": {"protocol": "sse", "endpoint": "/api/chat/sse"},
+            "research": {"protocol": "sse", "endpoint": "/api/research/sse"},
+            "events": {"protocol": "sse", "endpoint": "/api/events/{thread_id}"},
+            "browser": {"protocol": "ws", "endpoint": "/api/browser/{thread_id}/stream"},
+        },
+    }
+
+
 @app.get("/api/sandbox/browser/diagnose")
 async def sandbox_browser_diagnose(deep: bool = False):
     """
