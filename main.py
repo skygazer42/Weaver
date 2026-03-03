@@ -4994,7 +4994,34 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
                     timeout_s=1.0,
                 )
                 if consecutive_failures >= max_failures:
+                    # The stream is unhealthy; stop the screencast so the frontend
+                    # doesn't stay stuck in "LIVE" while frames are no longer flowing.
                     streaming = False
+                    await _stop_cdp_screencast()
+                    await _safe_send_json(
+                        {
+                            "type": "error",
+                            "message": (
+                                "Browser stream stopped after consecutive capture failures. "
+                                f"Last error: {e}"
+                            ),
+                            "consecutive_failures": consecutive_failures,
+                            "hint": (
+                                "Check GET /api/sandbox/browser/diagnose (and ?deep=1) for "
+                                "missing config/dependencies, then retry."
+                            ),
+                        },
+                        timeout_s=1.0,
+                    )
+                    await _safe_send_json(
+                        {
+                            "type": "status",
+                            "message": "Screencast stopped",
+                            "reason": "capture_failed",
+                            "consecutive_failures": consecutive_failures,
+                        },
+                        timeout_s=1.0,
+                    )
                     break
                 # Exponential backoff to avoid a tight error loop when the sandbox/browser is unhealthy.
                 backoff_s = min(2.0, 0.25 * (2 ** (consecutive_failures - 1)))

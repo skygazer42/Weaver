@@ -533,8 +533,10 @@ export function BrowserViewer({
             >
               <Camera className="w-3.5 h-3.5 text-muted-foreground" />
             </button>
-            {isStreaming && fps > 0 && (
-              <span className="text-[10px] text-muted-foreground">{fps} FPS</span>
+            {isStreaming && (
+              <span className="text-[10px] text-muted-foreground">
+                {Math.max(0, Number.isFinite(fps) ? fps : 0)} FPS
+              </span>
             )}
           </div>
         )}
@@ -719,6 +721,17 @@ export function BrowserViewer({
                       Control enabled
                     </div>
                   )}
+
+                  {isLiveMode && liveImageUrl && (!effectivePageUrl || effectivePageUrl === 'about:blank') && (
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-4">
+                      <div className="max-w-[520px] rounded bg-black/60 text-white px-3 py-2 text-[11px] leading-relaxed">
+                        <div className="font-medium">Browser is idle</div>
+                        <div className="opacity-90">
+                          Enable control (cursor icon) to navigate, or ask the agent to use browser tools.
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : isLiveMode && isConnected ? (
                 <div className="flex items-center justify-center min-h-[240px] text-muted-foreground">
@@ -757,7 +770,7 @@ export function BrowserViewer({
             )}
 
             {/* Live Indicator */}
-            {(isLiveMode && isStreaming) || displayScreenshot?.isLive ? (
+            {(isLiveMode && isStreaming && Boolean(liveImageUrl)) || displayScreenshot?.isLive ? (
               <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-0.5 bg-red-600 text-white text-xs rounded">
                 <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
                 LIVE
