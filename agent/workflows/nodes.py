@@ -1043,6 +1043,129 @@ def hitl_draft_review_node(state: AgentState, config: RunnableConfig) -> Dict[st
     return {"draft_report": content, "final_report": content}
 
 
+def _format_sources_snapshot_for_instruction(state: AgentState) -> str:
+    """
+    Build a compact, human-readable snapshot of sources + compressed knowledge.
+
+    This is embedded into the interrupt instruction (read-only) so the editable
+    `content` field can be reserved for user guidance.
+    """
+    scraped_content = state.get("scraped_content", []) or []
+    compressed = state.get("compressed_knowledge", {}) or {}
+
+    urls: List[str] = []
+    seen = set()
+    try:
+        for item in scraped_content:
+            if not isinstance(item, dict):
+                continue
+            for r in (item.get("results") or [])[:10]:
+                if not isinstance(r, dict):
+                    continue
+                url = r.get("url")
+                if not isinstance(url, str):
+                    continue
+                url = url.strip()
+                if not url or url in seen:
+                    continue
+                seen.add(url)
+                urls.append(url)
+                if len(urls) >= 12:
+                    raise StopIteration
+    except StopIteration:
+        pass
+
+    facts = compressed.get("facts") if isinstance(compressed, dict) else None
+    facts_preview: List[str] = []
+    if isinstance(facts, list):
+        for f in facts[:8]:
+            if not isinstance(f, dict):
+                continue
+            fact = f.get("fact")
+            source = f.get("source") or f.get("source_url")
+            if isinstance(fact, str) and fact.strip():
+                if isinstance(source, str) and source.strip():
+                    facts_preview.append(f"- {fact.strip()} ({source.strip()})")
+                else:
+                    facts_preview.append(f"- {fact.strip()}")
+
+    summary = compressed.get("summary") if isinstance(compressed, dict) else ""
+    if not isinstance(summary, str):
+        summary = ""
+
+    entities = compressed.get("key_entities") if isinstance(compressed, dict) else None
+    entities_list: List[str] = []
+    if isinstance(entities, list):
+        for e in entities[:10]:
+            if isinstance(e, str) and e.strip():
+                entities_list.append(e.strip())
+
+    lines: List[str] = []
+    lines.append(f"- Sources collected: {sum(len((i or {}).get('results', []) or []) for i in scraped_content if isinstance(i, dict))}")
+    if summary.strip():
+        lines.append(f"- Compressed summary: {summary.strip()}")
+    if facts_preview:
+        lines.append("- Key facts (preview):")
+        lines.extend(facts_preview)
+    if entities_list:
+        lines.append(f"- Key entities: {', '.join(entities_list)}")
+    if urls:
+        lines.append("- Example URLs:")
+        lines.extend(f"- {u}" for u in urls[:8])
+
+    snapshot = "\n".join(lines).strip()
+    if len(snapshot) > 4000:
+        snapshot = snapshot[:3999] + "…"
+    return snapshot
+
+
+def hitl_sources_review_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
+    """
+    Optional HITL checkpoint: review sources/compressed knowledge, add guidance.
+
+    This checkpoint is intended for deep mode (after `compressor_node`), but is
+    safe to call regardless of route.
+    """
+    if not _hitl_checkpoint_active(config, "sources"):
+        return {}
+
+    has_sources = bool(state.get("scraped_content"))
+    has_compressed = bool(state.get("compressed_knowledge"))
+    if not (has_sources or has_compressed):
+        return {}
+
+    snapshot = _format_sources_snapshot_for_instruction(state)
+    prompt = {
+        "checkpoint": "sources",
+        "instruction": (
+            "Review sources and compressed knowledge (snapshot below).\n\n"
+            f"{snapshot}\n\n"
+            "Optionally add guidance for the writer in `content`, then approve to continue.\n"
+            "Return:\n"
+            "- {\"content\": \"<guidance>\"}\n"
+            "- or a plain string."
+        ),
+        "content": (state.get("human_guidance") or "").strip(),
+    }
+
+    updated = interrupt(prompt)
+
+    content: str | None = None
+    if isinstance(updated, dict) and isinstance(updated.get("content"), str):
+        content = updated["content"]
+    elif isinstance(updated, str):
+        content = updated
+
+    if content is None:
+        return {}
+
+    guidance = content.strip()
+    if not guidance:
+        return {}
+
+    return {"human_guidance": guidance}
+
+
 def refine_plan_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     """
     Refinement node: creates follow-up queries based on evaluator feedback.
@@ -1461,6 +1584,12 @@ def writer_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
             SystemMessage(content=writer_system_prompt),
             HumanMessage(content=_build_user_content(state["input"], state.get("images"))),
         ]
+
+        human_guidance = state.get("human_guidance")
+        if isinstance(human_guidance, str) and human_guidance.strip():
+            messages.append(
+                HumanMessage(content=f"User guidance (HITL):\n{human_guidance.strip()}")
+            )
         if research_context:
             messages.append(
                 HumanMessage(

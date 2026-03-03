@@ -17,6 +17,7 @@ from agent.workflows.nodes import (
     initiate_research,
     hitl_draft_review_node,
     hitl_plan_review_node,
+    hitl_sources_review_node,
     perform_parallel_search,
     planner_node,
     refine_plan_node,
@@ -69,6 +70,7 @@ def create_research_graph(checkpointer=None, interrupt_before=None, store=None):
     workflow.add_node("human_review", human_review_node)
     workflow.add_node("deepsearch", deepsearch_node)
     workflow.add_node("compressor", compressor_node)
+    workflow.add_node("hitl_sources_review", hitl_sources_review_node)
 
     # Add coordinator node for hierarchical mode
     if use_hierarchical:
@@ -153,8 +155,9 @@ def create_research_graph(checkpointer=None, interrupt_before=None, store=None):
 
     workflow.add_conditional_edges("perform_parallel_search", after_search, ["compressor", "writer"])
 
-    # Compressor feeds into writer
-    workflow.add_edge("compressor", "writer")
+    # Compressor feeds into (optional) sources review, then writer.
+    workflow.add_edge("compressor", "hitl_sources_review")
+    workflow.add_edge("hitl_sources_review", "writer")
 
     def after_writer(state: AgentState) -> str:
         if state.get("route") == "deep":

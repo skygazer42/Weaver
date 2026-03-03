@@ -1,4 +1,6 @@
 import json
+import operator
+from typing import Annotated, Any
 from typing_extensions import TypedDict
 
 import pytest
@@ -15,6 +17,12 @@ class PlanState(TypedDict, total=False):
 class DraftState(TypedDict, total=False):
     draft_report: str
     final_report: str
+
+
+class SourcesState(TypedDict, total=False):
+    scraped_content: Annotated[list[dict[str, Any]], operator.add]
+    compressed_knowledge: dict
+    human_guidance: str
 
 
 def _graph_config(thread_id: str) -> dict:
@@ -99,3 +107,54 @@ def test_human_review_node_interrupts_when_final_checkpoint_enabled(monkeypatch:
     assert "instruction" in interrupt_value
     assert interrupt_value.get("content") == "report v1"
 
+
+def test_hitl_sources_review_node_interrupts_and_saves_guidance(monkeypatch: pytest.MonkeyPatch):
+    from common.config import settings
+
+    monkeypatch.setattr(settings, "hitl_checkpoints", "sources", raising=False)
+
+    from agent.workflows.nodes import hitl_sources_review_node
+
+    cp = MemorySaver()
+    builder = StateGraph(SourcesState)
+    builder.add_node("review", hitl_sources_review_node)
+    builder.add_edge(START, "review")
+    builder.add_edge("review", END)
+    graph = builder.compile(checkpointer=cp)
+
+    out1 = graph.invoke(
+        {
+            "scraped_content": [
+                {
+                    "query": "q1",
+                    "results": [{"url": "https://example.com", "title": "Example", "snippet": "Hello"}],
+                }
+            ],
+            "compressed_knowledge": {
+                "summary": "Summary",
+                "facts": [
+                    {
+                        "fact": "Fact 1",
+                        "source": "https://example.com",
+                        "confidence": 0.9,
+                        "category": "background",
+                    }
+                ],
+                "statistics": [],
+                "key_entities": ["Example"],
+                "subtopics": {},
+            },
+        },
+        _graph_config("sources-1"),
+    )
+    assert "__interrupt__" in out1
+    interrupt_value = out1["__interrupt__"][0].value
+    assert isinstance(interrupt_value, dict)
+    assert interrupt_value.get("checkpoint") == "sources"
+    assert "instruction" in interrupt_value
+
+    out2 = graph.invoke(
+        Command(resume={"content": "Please focus on evidence quality."}),
+        _graph_config("sources-1"),
+    )
+    assert out2.get("human_guidance") == "Please focus on evidence quality."
