@@ -1,6 +1,13 @@
 // ESLint v9+ uses flat config by default.
 // Next.js provides a flat config export via eslint-config-next.
 module.exports = [
+  {
+    ignores: [
+      '.next/**',
+      '.next-e2e/**',
+      'node_modules/**',
+    ],
+  },
   ...require('eslint-config-next/core-web-vitals'),
   {
     rules: {

@@ -37,6 +37,15 @@ class _DummyMouse:
     def click(self, x, y, *, button="left", click_count=1):
         self.calls.append(("click", int(x), int(y), button, int(click_count)))
 
+    def move(self, x, y):
+        self.calls.append(("move", int(x), int(y)))
+
+    def down(self, *, button="left"):
+        self.calls.append(("down", str(button)))
+
+    def up(self, *, button="left"):
+        self.calls.append(("up", str(button)))
+
     def wheel(self, dx, dy):
         self.calls.append(("wheel", int(dx), int(dy)))
 
@@ -63,6 +72,9 @@ class _DummyPage:
 
     def title(self):
         return "Dummy"
+
+    def evaluate(self, _expr):
+        return {"w": 1000, "h": 500}
 
     def goto(self, url, **_kwargs):
         self.url = str(url)
@@ -122,6 +134,121 @@ def test_browser_stream_ws_mouse_click_sends_ack_and_executes_page_click(monkeyp
     assert ack["ok"] is True
 
     # Normalized 0.5 maps to the middle of (1000x500) viewport.
+    assert ("click", 500, 250, "left", 1) in dummy.session.page.mouse.calls
+
+
+def test_browser_stream_ws_mouse_move_sends_ack_and_executes_page_move(monkeypatch):
+    monkeypatch.setitem(main.settings.__dict__, "internal_api_key", "")
+
+    dummy = _DummySandboxBrowserSessions()
+    monkeypatch.setattr(main, "sandbox_browser_sessions", dummy)
+
+    from fastapi.testclient import TestClient
+
+    client = TestClient(main.app)
+    thread_id = "thread_test_ws_input_mouse_move"
+
+    with client.websocket_connect(f"/api/browser/{thread_id}/stream") as ws:
+        initial = _receive_json_with_timeout(ws)
+        assert initial["type"] == "status"
+
+        ws.send_json(
+            {
+                "action": "mouse",
+                "type": "move",
+                "x": 0.1,
+                "y": 0.2,
+                "id": "m1",
+            }
+        )
+
+        ack = _receive_json_with_timeout(ws)
+
+    assert ack["type"] == "ack"
+    assert ack["id"] == "m1"
+    assert ack["ok"] is True
+    assert ("move", 100, 100) in dummy.session.page.mouse.calls
+
+
+def test_browser_stream_ws_mouse_down_up_send_ack_and_execute_page_calls(monkeypatch):
+    monkeypatch.setitem(main.settings.__dict__, "internal_api_key", "")
+
+    dummy = _DummySandboxBrowserSessions()
+    monkeypatch.setattr(main, "sandbox_browser_sessions", dummy)
+
+    from fastapi.testclient import TestClient
+
+    client = TestClient(main.app)
+    thread_id = "thread_test_ws_input_mouse_down_up"
+
+    with client.websocket_connect(f"/api/browser/{thread_id}/stream") as ws:
+        initial = _receive_json_with_timeout(ws)
+        assert initial["type"] == "status"
+
+        ws.send_json(
+            {
+                "action": "mouse",
+                "type": "down",
+                "button": "left",
+                "id": "d1",
+            }
+        )
+        ack_down = _receive_json_with_timeout(ws)
+
+        ws.send_json(
+            {
+                "action": "mouse",
+                "type": "up",
+                "button": "left",
+                "id": "u1",
+            }
+        )
+        ack_up = _receive_json_with_timeout(ws)
+
+    assert ack_down["type"] == "ack"
+    assert ack_down["id"] == "d1"
+    assert ack_down["ok"] is True
+    assert ("down", "left") in dummy.session.page.mouse.calls
+
+    assert ack_up["type"] == "ack"
+    assert ack_up["id"] == "u1"
+    assert ack_up["ok"] is True
+    assert ("up", "left") in dummy.session.page.mouse.calls
+
+
+def test_browser_stream_ws_mouse_click_uses_viewport_fallback_when_missing(monkeypatch):
+    monkeypatch.setitem(main.settings.__dict__, "internal_api_key", "")
+
+    dummy = _DummySandboxBrowserSessions()
+    dummy.session.page.viewport_size = None
+    monkeypatch.setattr(main, "sandbox_browser_sessions", dummy)
+
+    from fastapi.testclient import TestClient
+
+    client = TestClient(main.app)
+    thread_id = "thread_test_ws_input_click_fallback"
+
+    with client.websocket_connect(f"/api/browser/{thread_id}/stream") as ws:
+        initial = _receive_json_with_timeout(ws)
+        assert initial["type"] == "status"
+
+        ws.send_json(
+            {
+                "action": "mouse",
+                "type": "click",
+                "x": 0.5,
+                "y": 0.5,
+                "button": "left",
+                "clicks": 1,
+                "id": "c2",
+            }
+        )
+
+        ack = _receive_json_with_timeout(ws)
+
+    assert ack["type"] == "ack"
+    assert ack["id"] == "c2"
+    assert ack["ok"] is True
     assert ("click", 500, 250, "left", 1) in dummy.session.page.mouse.calls
 
 

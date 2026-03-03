@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { getApiWsBaseUrl } from '@/lib/api'
+import type { WsAckMessage } from '@/lib/browser/wsAckTracker'
+import { WsAckTracker } from '@/lib/browser/wsAckTracker'
 
 interface UseBrowserStreamProps {
   threadId: string | null
@@ -21,10 +23,71 @@ interface UseBrowserStreamReturn {
   currentFrame: StreamFrame | null
   fps: number
   error: string | null
+  lastAck: WsAckMessage | null
   start: () => void
   stop: () => void
   capture: () => void
+  sendInputAction: (action: BrowserWsInputAction) => Promise<WsAckMessage>
 }
+
+type BrowserWsMouseButton = 'left' | 'right' | 'middle'
+
+type BrowserWsMouseAction =
+  | {
+      action: 'mouse'
+      type: 'click'
+      x: number
+      y: number
+      button?: BrowserWsMouseButton
+      clicks?: number
+      id?: string
+    }
+  | {
+      action: 'mouse'
+      type: 'move'
+      x: number
+      y: number
+      id?: string
+    }
+  | {
+      action: 'mouse'
+      type: 'down' | 'up'
+      button?: BrowserWsMouseButton
+      id?: string
+    }
+
+type BrowserWsScrollAction = {
+  action: 'scroll'
+  dx: number
+  dy: number
+  id?: string
+}
+
+type BrowserWsKeyboardAction =
+  | {
+      action: 'keyboard'
+      type: 'press'
+      key: string
+      id?: string
+    }
+  | {
+      action: 'keyboard'
+      type: 'type'
+      text: string
+      id?: string
+    }
+
+type BrowserWsNavigateAction = {
+  action: 'navigate'
+  url: string
+  id?: string
+}
+
+export type BrowserWsInputAction =
+  | BrowserWsMouseAction
+  | BrowserWsScrollAction
+  | BrowserWsKeyboardAction
+  | BrowserWsNavigateAction
 
 /**
  * Hook for WebSocket-based real-time browser streaming.
@@ -41,8 +104,11 @@ export function useBrowserStream({
   const [currentFrame, setCurrentFrame] = useState<StreamFrame | null>(null)
   const [fps, setFps] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const [lastAck, setLastAck] = useState<WsAckMessage | null>(null)
 
   const wsRef = useRef<WebSocket | null>(null)
+  const ackTrackerRef = useRef(new WsAckTracker())
+  const actionSeqRef = useRef(0)
   const frameCountRef = useRef(0)
   const fpsIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -66,6 +132,7 @@ export function useBrowserStream({
 
     // Clean up existing connection
     if (wsRef.current) {
+      ackTrackerRef.current.rejectAll(new Error('WebSocket replaced'))
       wsRef.current.close()
     }
 
@@ -103,6 +170,9 @@ export function useBrowserStream({
             source: typeof data.source === 'string' ? data.source : undefined,
             metadata: data.metadata
           })
+        } else if (data.type === 'ack') {
+          setLastAck(data as WsAckMessage)
+          ackTrackerRef.current.resolve(data as WsAckMessage)
         } else if (data.type === 'status') {
           console.log('[useBrowserStream] Status:', data.message)
           if (data.message === 'Screencast started') {
@@ -130,6 +200,7 @@ export function useBrowserStream({
       console.log('[useBrowserStream] Disconnected:', event.code, event.reason)
       setIsConnected(false)
       setIsStreaming(false)
+      ackTrackerRef.current.rejectAll(new Error('WebSocket disconnected'))
       wsRef.current = null
 
       // Attempt to reconnect after 3 seconds if not intentionally closed
@@ -146,6 +217,8 @@ export function useBrowserStream({
 
   // Connect when threadId changes
   useEffect(() => {
+    const ackTracker = ackTrackerRef.current
+
     if (threadId) {
       connect()
     }
@@ -155,6 +228,7 @@ export function useBrowserStream({
         clearTimeout(reconnectTimeoutRef.current)
       }
       if (wsRef.current) {
+        ackTracker.rejectAll(new Error('WebSocket closed'))
         wsRef.current.close(1000, 'Component unmounted')
         wsRef.current = null
       }
@@ -183,14 +257,30 @@ export function useBrowserStream({
     }
   }, [])
 
+  const sendInputAction = useCallback(async (action: BrowserWsInputAction) => {
+    const ws = wsRef.current
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      throw new Error('Browser stream is not connected')
+    }
+
+    const existingId = typeof (action as any)?.id === 'string' ? String((action as any).id).trim() : ''
+    const id = existingId || `ui_${Date.now().toString(36)}_${++actionSeqRef.current}`
+
+    const ackPromise = ackTrackerRef.current.waitFor(id)
+    ws.send(JSON.stringify({ ...action, id }))
+    return await ackPromise
+  }, [])
+
   return {
     isConnected,
     isStreaming,
     currentFrame,
     fps,
     error,
+    lastAck,
     start,
     stop,
-    capture
+    capture,
+    sendInputAction,
   }
 }

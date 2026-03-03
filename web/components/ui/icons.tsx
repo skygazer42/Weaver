@@ -39,6 +39,7 @@ import {
   Code as PCode,
   Compass as PCompass,
   Copy as PCopy,
+  CursorClick as PCursorClick,
   DownloadSimple as PDownloadSimple,
   Eye as PEye,
   ArrowSquareOut as PArrowSquareOut,
@@ -152,6 +153,7 @@ export const Check = wrap(PCheck)
 export const CheckCircle2 = wrap(PCheckCircle)
 export const ClipboardCopy = wrap(PClipboard)
 export const Copy = wrap(PCopy)
+export const CursorClick = wrap(PCursorClick)
 export const Download = wrap(PDownloadSimple)
 export const ExternalLink = wrap(PArrowSquareOut)
 export const Filter = wrap(PFunnel)

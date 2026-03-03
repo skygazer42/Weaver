@@ -5115,7 +5115,7 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
 
                 elif action == "mouse":
                     mouse_type = str(data.get("type") or "").strip().lower()
-                    if mouse_type != "click":
+                    if mouse_type not in {"click", "move", "down", "up"}:
                         ok = await _send_ack(
                             ok=False,
                             action_name="mouse",
@@ -5125,84 +5125,207 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
                             break
                         continue
 
-                    try:
-                        x_norm = float(data.get("x"))
-                        y_norm = float(data.get("y"))
-                    except Exception:
-                        ok = await _send_ack(
-                            ok=False,
-                            action_name="mouse",
-                            error="Mouse click requires numeric x/y in [0..1].",
-                        )
-                        if not ok:
-                            break
-                        continue
-
-                    if not (0.0 <= x_norm <= 1.0 and 0.0 <= y_norm <= 1.0):
-                        ok = await _send_ack(
-                            ok=False,
-                            action_name="mouse",
-                            error="Mouse click x/y must be between 0 and 1.",
-                        )
-                        if not ok:
-                            break
-                        continue
-
                     button = str(data.get("button") or "left").strip().lower() or "left"
-                    try:
-                        clicks = int(data.get("clicks", 1) or 1)
-                    except Exception:
-                        clicks = 1
-                    clicks = max(1, min(10, clicks))
-
-                    def _click(x_norm=x_norm, y_norm=y_norm, button=button, clicks=clicks):
-                        session = sandbox_browser_sessions.get(thread_id)
-                        page = session.get_page()
-
-                        viewport = getattr(page, "viewport_size", None)
-                        width = None
-                        height = None
-                        if isinstance(viewport, dict):
-                            width = viewport.get("width")
-                            height = viewport.get("height")
-                        if not isinstance(width, (int, float)) or not isinstance(height, (int, float)):
-                            raise RuntimeError("Could not determine browser viewport size")
-                        if width <= 0 or height <= 0:
-                            raise RuntimeError("Invalid browser viewport size")
-
-                        x_px = int(x_norm * float(width))
-                        y_px = int(y_norm * float(height))
-                        if x_px >= int(width):
-                            x_px = int(width) - 1
-                        if y_px >= int(height):
-                            y_px = int(height) - 1
-                        if x_px < 0:
-                            x_px = 0
-                        if y_px < 0:
-                            y_px = 0
-
-                        page.mouse.click(x_px, y_px, button=button, click_count=clicks)
-
-                        meta: Dict[str, Any] = {}
+                    if mouse_type in {"click", "move"}:
                         try:
-                            meta["url"] = page.url
+                            x_norm = float(data.get("x"))
+                            y_norm = float(data.get("y"))
                         except Exception:
-                            pass
-                        try:
-                            meta["title"] = page.title() or ""
-                        except Exception:
-                            pass
-                        return meta
+                            ok = await _send_ack(
+                                ok=False,
+                                action_name="mouse",
+                                error="Mouse click/move requires numeric x/y in [0..1].",
+                            )
+                            if not ok:
+                                break
+                            continue
 
-                    try:
-                        metadata = await sandbox_browser_sessions.run_async(thread_id, _click)
-                        ok = await _send_ack(ok=True, action_name="mouse", metadata=metadata)
-                        if not ok:
-                            break
-                    except Exception as e:
-                        ok = await _send_ack(ok=False, action_name="mouse", error=str(e))
-                        if not ok:
-                            break
+                        if not (0.0 <= x_norm <= 1.0 and 0.0 <= y_norm <= 1.0):
+                            ok = await _send_ack(
+                                ok=False,
+                                action_name="mouse",
+                                error="Mouse x/y must be between 0 and 1.",
+                            )
+                            if not ok:
+                                break
+                            continue
+
+                        def _resolve_viewport_size(page) -> tuple[int, int]:
+                            viewport = getattr(page, "viewport_size", None)
+                            width = None
+                            height = None
+                            if isinstance(viewport, dict):
+                                width = viewport.get("width")
+                                height = viewport.get("height")
+
+                            if not isinstance(width, (int, float)) or not isinstance(
+                                height, (int, float)
+                            ):
+                                try:
+                                    measured = page.evaluate(
+                                        "() => ({ w: window.innerWidth, h: window.innerHeight })"
+                                    )
+                                except Exception:
+                                    measured = None
+                                if isinstance(measured, dict):
+                                    width = measured.get("w") or measured.get("width")
+                                    height = measured.get("h") or measured.get("height")
+
+                            if not isinstance(width, (int, float)) or not isinstance(height, (int, float)):
+                                raise RuntimeError("Could not determine browser viewport size")
+                            if width <= 0 or height <= 0:
+                                raise RuntimeError("Invalid browser viewport size")
+
+                            return int(width), int(height)
+
+                        if mouse_type == "click":
+                            try:
+                                clicks = int(data.get("clicks", 1) or 1)
+                            except Exception:
+                                clicks = 1
+                            clicks = max(1, min(10, clicks))
+
+                            def _click(
+                                x_norm=x_norm,
+                                y_norm=y_norm,
+                                button=button,
+                                clicks=clicks,
+                            ):
+                                session = sandbox_browser_sessions.get(thread_id)
+                                page = session.get_page()
+
+                                width, height = _resolve_viewport_size(page)
+
+                                x_px = int(x_norm * float(width))
+                                y_px = int(y_norm * float(height))
+                                if x_px >= width:
+                                    x_px = width - 1
+                                if y_px >= height:
+                                    y_px = height - 1
+                                if x_px < 0:
+                                    x_px = 0
+                                if y_px < 0:
+                                    y_px = 0
+
+                                page.mouse.click(x_px, y_px, button=button, click_count=clicks)
+
+                                meta: Dict[str, Any] = {}
+                                try:
+                                    meta["url"] = page.url
+                                except Exception:
+                                    pass
+                                try:
+                                    meta["title"] = page.title() or ""
+                                except Exception:
+                                    pass
+                                return meta
+
+                            try:
+                                metadata = await sandbox_browser_sessions.run_async(thread_id, _click)
+                                ok = await _send_ack(ok=True, action_name="mouse", metadata=metadata)
+                                if not ok:
+                                    break
+                            except Exception as e:
+                                ok = await _send_ack(ok=False, action_name="mouse", error=str(e))
+                                if not ok:
+                                    break
+
+                        else:
+                            def _move(x_norm=x_norm, y_norm=y_norm):
+                                session = sandbox_browser_sessions.get(thread_id)
+                                page = session.get_page()
+
+                                width, height = _resolve_viewport_size(page)
+
+                                x_px = int(x_norm * float(width))
+                                y_px = int(y_norm * float(height))
+                                if x_px >= width:
+                                    x_px = width - 1
+                                if y_px >= height:
+                                    y_px = height - 1
+                                if x_px < 0:
+                                    x_px = 0
+                                if y_px < 0:
+                                    y_px = 0
+
+                                page.mouse.move(x_px, y_px)
+
+                                meta: Dict[str, Any] = {}
+                                try:
+                                    meta["url"] = page.url
+                                except Exception:
+                                    pass
+                                try:
+                                    meta["title"] = page.title() or ""
+                                except Exception:
+                                    pass
+                                return meta
+
+                            try:
+                                metadata = await sandbox_browser_sessions.run_async(thread_id, _move)
+                                ok = await _send_ack(ok=True, action_name="mouse", metadata=metadata)
+                                if not ok:
+                                    break
+                            except Exception as e:
+                                ok = await _send_ack(ok=False, action_name="mouse", error=str(e))
+                                if not ok:
+                                    break
+
+                    elif mouse_type == "down":
+                        def _down(button=button):
+                            session = sandbox_browser_sessions.get(thread_id)
+                            page = session.get_page()
+
+                            page.mouse.down(button=button)
+
+                            meta: Dict[str, Any] = {}
+                            try:
+                                meta["url"] = page.url
+                            except Exception:
+                                pass
+                            try:
+                                meta["title"] = page.title() or ""
+                            except Exception:
+                                pass
+                            return meta
+
+                        try:
+                            metadata = await sandbox_browser_sessions.run_async(thread_id, _down)
+                            ok = await _send_ack(ok=True, action_name="mouse", metadata=metadata)
+                            if not ok:
+                                break
+                        except Exception as e:
+                            ok = await _send_ack(ok=False, action_name="mouse", error=str(e))
+                            if not ok:
+                                break
+
+                    else:
+                        def _up(button=button):
+                            session = sandbox_browser_sessions.get(thread_id)
+                            page = session.get_page()
+
+                            page.mouse.up(button=button)
+
+                            meta: Dict[str, Any] = {}
+                            try:
+                                meta["url"] = page.url
+                            except Exception:
+                                pass
+                            try:
+                                meta["title"] = page.title() or ""
+                            except Exception:
+                                pass
+                            return meta
+
+                        try:
+                            metadata = await sandbox_browser_sessions.run_async(thread_id, _up)
+                            ok = await _send_ack(ok=True, action_name="mouse", metadata=metadata)
+                            if not ok:
+                                break
+                        except Exception as e:
+                            ok = await _send_ack(ok=False, action_name="mouse", error=str(e))
+                            if not ok:
+                                break
 
                 elif action == "scroll":
                     try:
