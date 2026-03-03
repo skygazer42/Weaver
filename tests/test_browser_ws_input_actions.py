@@ -377,3 +377,34 @@ def test_browser_stream_ws_navigate_sends_ack_and_executes_page_goto(monkeypatch
     assert ack["id"] == "n1"
     assert ack["ok"] is True
     assert dummy.session.page.url == "https://example.com"
+
+
+def test_browser_stream_ws_unknown_action_sends_ack_error(monkeypatch):
+    monkeypatch.setitem(main.settings.__dict__, "internal_api_key", "")
+
+    dummy = _DummySandboxBrowserSessions()
+    monkeypatch.setattr(main, "sandbox_browser_sessions", dummy)
+
+    from fastapi.testclient import TestClient
+
+    client = TestClient(main.app)
+    thread_id = "thread_test_ws_input_unknown_action"
+
+    with client.websocket_connect(f"/api/browser/{thread_id}/stream") as ws:
+        initial = _receive_json_with_timeout(ws)
+        assert initial["type"] == "status"
+
+        ws.send_json(
+            {
+                "action": "does_not_exist",
+                "id": "u_1",
+            }
+        )
+
+        ack = _receive_json_with_timeout(ws)
+
+    assert ack["type"] == "ack"
+    assert ack["id"] == "u_1"
+    assert ack["ok"] is False
+    assert ack["action"] == "does_not_exist"
+    assert "unsupported" in (ack.get("error") or "").lower()

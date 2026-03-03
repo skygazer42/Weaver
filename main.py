@@ -5523,6 +5523,20 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
                         ok = await _send_ack(ok=False, action_name="navigate", error=str(e))
                         if not ok:
                             break
+                else:
+                    try:
+                        action_name = str(action or "").strip()
+                    except Exception:
+                        action_name = ""
+                    if not action_name:
+                        action_name = "unknown"
+                    ok = await _send_ack(
+                        ok=False,
+                        action_name=action_name,
+                        error=f"Unsupported action: {action_name}",
+                    )
+                    if not ok:
+                        break
 
             except WebSocketDisconnect:
                 break
