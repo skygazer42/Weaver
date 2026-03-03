@@ -568,13 +568,24 @@ Resume after tool approval interrupt.
 {
   "thread_id": "thread_abc123",
   "payload": {
-    "tool_approved": true,
-    "tool_calls": [...]
+    "decisions": [
+      { "type": "approve" }
+    ]
   },
   "model": "gpt-4o",
   "search_mode": "agent"
 }
 ```
+
+`payload.decisions` follows LangChain's `HumanInTheLoopMiddleware` schema:
+- `approve` — allow the tool call(s) as-is
+- `edit` — modify a tool call before execution:
+  - `{ "type": "edit", "edited_action": { "name": "<tool>", "args": { ... } } }`
+- `reject` — reject tool call(s) and feed an error tool message back to the model:
+  - `{ "type": "reject", "message": "Optional reason" }`
+
+Compatibility: legacy clients may still send `{ "tool_approved": true/false, "tool_calls": [...] }` and the backend
+will translate it into `decisions` automatically.
 
 ### Screenshot API
 

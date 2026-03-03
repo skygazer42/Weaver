@@ -1064,6 +1064,65 @@ def _serialize_interrupts(interrupts: Any) -> List[Any]:
     return result
 
 
+def _normalize_interrupt_resume_payload(payload: Any) -> Any:
+    """
+    Normalize /api/interrupt/resume payloads for LangGraph `interrupt()` resumes.
+
+    Weaver historically used a custom payload shape:
+        {"tool_approved": true/false, "tool_calls": [{name, args, ...}, ...]}
+
+    LangChain's official HumanInTheLoopMiddleware expects a HITLResponse:
+        {"decisions": [{"type": "approve"|"edit"|"reject", ...}, ...]}
+
+    This helper keeps backwards compatibility while allowing newer clients to
+    send the native HITLResponse shape directly.
+    """
+    if not isinstance(payload, dict):
+        return payload
+
+    # Native HITLResponse passthrough
+    decisions = payload.get("decisions")
+    if isinstance(decisions, list):
+        return payload
+
+    # Legacy tool approval payload -> HITLResponse decisions
+    if "tool_approved" in payload:
+        tool_calls = payload.get("tool_calls")
+        if not isinstance(tool_calls, list) or not tool_calls:
+            raise ValueError(
+                "Legacy resume payload requires non-empty 'tool_calls' when 'tool_approved' is present"
+            )
+
+        approved = bool(payload.get("tool_approved"))
+        if approved:
+            normalized_decisions: List[Dict[str, Any]] = []
+            for call in tool_calls:
+                if not isinstance(call, dict):
+                    raise ValueError("tool_calls entries must be objects")
+                name = call.get("name")
+                if not isinstance(name, str) or not name.strip():
+                    raise ValueError("tool_calls[].name is required")
+                args = call.get("args") or {}
+                if not isinstance(args, dict):
+                    args = {}
+                normalized_decisions.append(
+                    {
+                        "type": "edit",
+                        "edited_action": {"name": name, "args": args},
+                    }
+                )
+            return {"decisions": normalized_decisions}
+
+        message = payload.get("message")
+        if not isinstance(message, str) or not message.strip():
+            message = "User rejected tool execution."
+        return {
+            "decisions": [{"type": "reject", "message": message} for _ in tool_calls],
+        }
+
+    return payload
+
+
 # ---------------------------------------------------------------------------
 # Global Exception Handlers — consistent JSON error responses
 # ---------------------------------------------------------------------------
@@ -2289,7 +2348,12 @@ async def resume_interrupt(request: Request, payload: GraphInterruptResumeReques
         "recursion_limit": 50,
     }
 
-    result = await research_graph.ainvoke(Command(resume=payload.payload), config=config)
+    try:
+        resume_payload = _normalize_interrupt_resume_payload(payload.payload)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    result = await research_graph.ainvoke(Command(resume=resume_payload), config=config)
     interrupts = _serialize_interrupts(result.get("__interrupt__"))
     if interrupts:
         return {"status": "interrupted", "interrupts": interrupts}

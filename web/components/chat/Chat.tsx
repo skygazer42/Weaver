@@ -167,7 +167,9 @@ export function Chat() {
     processChat,
     processResearch,
     handleStop,
-    handleApproveInterrupt
+    handleApproveInterrupt,
+    handleRejectInterrupt,
+    handleEditInterrupt
   } = useChatStream({
     selectedModel: ui.selectedModel,
     searchMode: ui.searchMode,
@@ -425,6 +427,8 @@ export function Chat() {
               pendingInterrupt={pendingInterrupt}
               isLoading={isLoading}
               onApprove={handleApproveInterrupt}
+              onReject={handleRejectInterrupt}
+              onEdit={handleEditInterrupt}
               onDismiss={() => setPendingInterrupt(null)}
             />
           </>

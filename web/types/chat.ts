@@ -67,7 +67,17 @@ export interface Artifact {
 
 export interface InterruptPrompt {
   message?: string
-  tool_calls?: Array<{ id: string; name: string; args?: Record<string, unknown> }>
+  tool_calls?: Array<{ id?: string; name: string; args?: Record<string, unknown> }>
+  // LangChain HumanInTheLoopMiddleware (tool approval)
+  action_requests?: Array<{ name: string; args: Record<string, unknown>; description?: string }>
+  review_configs?: Array<{
+    action_name: string
+    allowed_decisions: Array<'approve' | 'edit' | 'reject'>
+    args_schema?: Record<string, unknown>
+  }>
+  // LangGraph interrupt nodes (e.g. human_review_node)
+  instruction?: string
+  content?: string
 }
 
 export interface PendingInterrupt {

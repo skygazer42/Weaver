@@ -10,6 +10,7 @@ import {
 import { createAppError } from '@/lib/errors'
 import { toNullableSearchMode, type SearchMode } from '@/lib/chat-mode'
 import { applyToolStreamEvent } from '@/lib/stream/toolInvocations'
+import { buildHitlDecisions, isHitlToolApprovalRequest } from '@/lib/hitl'
 
 interface UseChatStreamProps {
   selectedModel: string
@@ -493,51 +494,124 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
     }
   }, [clearPendingStatusTimer, consumeStream, searchMode, selectedModel, throttledSetStatus])
 
-  const handleApproveInterrupt = useCallback(async () => {
-    if (!pendingInterrupt || !threadId) return
-    setIsLoading(true)
-    setCurrentStatus('Resuming after approval...')
-    try {
-      const toolCalls = pendingInterrupt?.prompts?.[0]?.tool_calls
-      const res = await fetch(
-        `${getApiBaseUrl()}/api/interrupt/resume`,
-        {
+  const resumeInterruptWithPayload = useCallback(
+    async (resumePayload: unknown) => {
+      if (!pendingInterrupt || !threadId) return
+      setIsLoading(true)
+      setCurrentStatus('Resuming...')
+      let interruptedAgain = false
+      let resumedToCompletion = false
+      try {
+        const res = await fetch(`${getApiBaseUrl()}/api/interrupt/resume`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             thread_id: threadId,
-            payload: { tool_approved: true, tool_calls: toolCalls },
+            payload: resumePayload,
             model: selectedModel,
             search_mode: toNullableSearchMode(searchMode),
-          })
+          }),
+        })
+        if (!res.ok) throw new Error('Failed to resume')
+
+        const data = (await res.json()) as unknown
+
+        // Graph resumed but immediately interrupted again (nested HITL).
+        if (data && typeof data === 'object' && !Array.isArray(data)) {
+          const record = data as Record<string, unknown>
+          if (record.status === 'interrupted' && Array.isArray(record.interrupts)) {
+            interruptedAgain = true
+            setPendingInterrupt({ prompts: record.interrupts as any[] })
+            const msg =
+              (record.interrupts?.[0] as any)?.message ||
+              'Approval required before continuing.'
+            setCurrentStatus(String(msg || 'Approval required before continuing.'))
+            setMessages((prev: Message[]) => [
+              ...prev,
+              {
+                id: `interrupt-${Date.now()}`,
+                role: 'assistant',
+                content: String(msg || 'Approval required before continuing.'),
+              },
+            ])
+            return
+          }
         }
-      )
-      if (!res.ok) throw new Error('Failed to resume')
-      const data = await res.json()
-      setMessages((prev: Message[]) => [
-        ...prev,
-        {
-          id: `assistant-${Date.now()}`,
-          role: 'assistant',
-          content: data.content || 'Resumed and completed.',
-        }
-      ])
-    } catch (err) {
-      console.error('Failed to resume interrupt', err)
-      setMessages((prev: Message[]) => [
-        ...prev,
-        {
-          id: `error-${Date.now()}`,
-          role: 'assistant',
-          content: 'Resume failed. Please retry.',
-        }
-      ])
-    } finally {
-      setPendingInterrupt(null)
-      setIsLoading(false)
-      setCurrentStatus('')
+
+        setMessages((prev: Message[]) => [
+          ...prev,
+          {
+            id: `assistant-${Date.now()}`,
+            role: 'assistant',
+            content: (data as any)?.content || 'Resumed and completed.',
+          },
+        ])
+        resumedToCompletion = true
+      } catch (err) {
+        console.error('Failed to resume interrupt', err)
+        setMessages((prev: Message[]) => [
+          ...prev,
+          {
+            id: `error-${Date.now()}`,
+            role: 'assistant',
+            content: 'Resume failed. Please retry.',
+          },
+        ])
+      } finally {
+        setIsLoading(false)
+        if (!interruptedAgain && resumedToCompletion) setPendingInterrupt(null)
+        if (!interruptedAgain) setCurrentStatus('')
+      }
+    },
+    [pendingInterrupt, threadId, selectedModel, searchMode],
+  )
+
+  const handleApproveInterrupt = useCallback(async () => {
+    if (!pendingInterrupt || !threadId) return
+
+    const prompt = pendingInterrupt?.prompts?.[0]
+    if (isHitlToolApprovalRequest(prompt)) {
+      const decisions = buildHitlDecisions(prompt, { type: 'approve' })
+      await resumeInterruptWithPayload({ decisions })
+      return
     }
-  }, [pendingInterrupt, threadId, selectedModel, searchMode])
+
+    // Generic interrupt approval: resume with empty payload.
+    await resumeInterruptWithPayload({})
+  }, [pendingInterrupt, threadId, resumeInterruptWithPayload])
+
+  const handleRejectInterrupt = useCallback(
+    async (message?: string) => {
+      if (!pendingInterrupt || !threadId) return
+
+      const prompt = pendingInterrupt?.prompts?.[0]
+      if (!isHitlToolApprovalRequest(prompt)) {
+        // Non-tool interrupts don't support reject semantics yet; dismiss.
+        setPendingInterrupt(null)
+        return
+      }
+
+      const decisions = buildHitlDecisions(prompt, {
+        type: 'reject',
+        message: message || 'User rejected tool execution.',
+      })
+      await resumeInterruptWithPayload({ decisions })
+    },
+    [pendingInterrupt, threadId, resumeInterruptWithPayload],
+  )
+
+  const handleEditInterrupt = useCallback(
+    async (editedArgs: Array<Record<string, unknown> | undefined>) => {
+      if (!pendingInterrupt || !threadId) return
+
+      const prompt = pendingInterrupt?.prompts?.[0]
+      if (!isHitlToolApprovalRequest(prompt)) return
+
+      const decisions = buildHitlDecisions(prompt, { type: 'edit', editedArgs })
+      await resumeInterruptWithPayload({ decisions })
+    },
+    [pendingInterrupt, threadId, resumeInterruptWithPayload],
+  )
 
   return {
     messages,
@@ -556,6 +630,8 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
     processChat,
     processResearch,
     handleStop,
-    handleApproveInterrupt
+    handleApproveInterrupt,
+    handleRejectInterrupt,
+    handleEditInterrupt,
   }
 }
