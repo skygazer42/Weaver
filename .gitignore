@@ -105,6 +105,9 @@ web/tmp/
 .vercel/
 .claude/
 .beads/
+!.beads/
+.beads/*
+!.beads/issues.jsonl
 *.tsbuildinfo
 .eslintcache
 .npm
@@ -117,6 +120,7 @@ web/tmp/
 *.swo
 *~
 .cache/
+y/
 
 # Runtime data
 .memory_store.json

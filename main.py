@@ -25,7 +25,6 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
-from starlette.concurrency import run_in_threadpool
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import Command
@@ -37,6 +36,7 @@ from prometheus_client import (
     generate_latest,
 )
 from pydantic import BaseModel, Field, field_validator
+from starlette.concurrency import run_in_threadpool
 
 from agent import (
     AgentState,
@@ -4953,6 +4953,35 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
             try:
                 data = await websocket.receive_json()
                 action = data.get("action", "")
+                req_id = None
+                try:
+                    raw_id = data.get("id")
+                    if raw_id is not None:
+                        req_id = str(raw_id).strip() or None
+                except Exception:
+                    req_id = None
+
+                async def _send_ack(
+                    *,
+                    ok: bool,
+                    action_name: str,
+                    error: str | None = None,
+                    metadata: Optional[Dict[str, Any]] = None,
+                    req_id=req_id,
+                ) -> bool:
+                    payload: Dict[str, Any] = {
+                        "type": "ack",
+                        "ok": bool(ok),
+                        "action": action_name,
+                        "timestamp": time.time(),
+                    }
+                    if req_id:
+                        payload["id"] = req_id
+                    if error:
+                        payload["error"] = str(error)
+                    if isinstance(metadata, dict) and metadata:
+                        payload["metadata"] = metadata
+                    return await _safe_send_json(payload, timeout_s=1.0)
 
                 if action == "start":
                     if streaming:
@@ -5083,6 +5112,294 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
                         )
                     except Exception as e:
                         await _safe_send_json({"type": "error", "message": f"Capture failed: {e}"})
+
+                elif action == "mouse":
+                    mouse_type = str(data.get("type") or "").strip().lower()
+                    if mouse_type != "click":
+                        ok = await _send_ack(
+                            ok=False,
+                            action_name="mouse",
+                            error=f"Unsupported mouse action type: {mouse_type or '(missing)'}",
+                        )
+                        if not ok:
+                            break
+                        continue
+
+                    try:
+                        x_norm = float(data.get("x"))
+                        y_norm = float(data.get("y"))
+                    except Exception:
+                        ok = await _send_ack(
+                            ok=False,
+                            action_name="mouse",
+                            error="Mouse click requires numeric x/y in [0..1].",
+                        )
+                        if not ok:
+                            break
+                        continue
+
+                    if not (0.0 <= x_norm <= 1.0 and 0.0 <= y_norm <= 1.0):
+                        ok = await _send_ack(
+                            ok=False,
+                            action_name="mouse",
+                            error="Mouse click x/y must be between 0 and 1.",
+                        )
+                        if not ok:
+                            break
+                        continue
+
+                    button = str(data.get("button") or "left").strip().lower() or "left"
+                    try:
+                        clicks = int(data.get("clicks", 1) or 1)
+                    except Exception:
+                        clicks = 1
+                    clicks = max(1, min(10, clicks))
+
+                    def _click(x_norm=x_norm, y_norm=y_norm, button=button, clicks=clicks):
+                        session = sandbox_browser_sessions.get(thread_id)
+                        page = session.get_page()
+
+                        viewport = getattr(page, "viewport_size", None)
+                        width = None
+                        height = None
+                        if isinstance(viewport, dict):
+                            width = viewport.get("width")
+                            height = viewport.get("height")
+                        if not isinstance(width, (int, float)) or not isinstance(height, (int, float)):
+                            raise RuntimeError("Could not determine browser viewport size")
+                        if width <= 0 or height <= 0:
+                            raise RuntimeError("Invalid browser viewport size")
+
+                        x_px = int(x_norm * float(width))
+                        y_px = int(y_norm * float(height))
+                        if x_px >= int(width):
+                            x_px = int(width) - 1
+                        if y_px >= int(height):
+                            y_px = int(height) - 1
+                        if x_px < 0:
+                            x_px = 0
+                        if y_px < 0:
+                            y_px = 0
+
+                        page.mouse.click(x_px, y_px, button=button, click_count=clicks)
+
+                        meta: Dict[str, Any] = {}
+                        try:
+                            meta["url"] = page.url
+                        except Exception:
+                            pass
+                        try:
+                            meta["title"] = page.title() or ""
+                        except Exception:
+                            pass
+                        return meta
+
+                    try:
+                        metadata = await sandbox_browser_sessions.run_async(thread_id, _click)
+                        ok = await _send_ack(ok=True, action_name="mouse", metadata=metadata)
+                        if not ok:
+                            break
+                    except Exception as e:
+                        ok = await _send_ack(ok=False, action_name="mouse", error=str(e))
+                        if not ok:
+                            break
+
+                elif action == "scroll":
+                    try:
+                        dx = int(data.get("dx", 0) or 0)
+                        dy = int(data.get("dy", 0) or 0)
+                    except Exception:
+                        ok = await _send_ack(
+                            ok=False,
+                            action_name="scroll",
+                            error="Scroll requires integer dx/dy.",
+                        )
+                        if not ok:
+                            break
+                        continue
+
+                    def _wheel(dx=dx, dy=dy):
+                        session = sandbox_browser_sessions.get(thread_id)
+                        page = session.get_page()
+
+                        page.mouse.wheel(dx, dy)
+
+                        meta: Dict[str, Any] = {}
+                        try:
+                            meta["url"] = page.url
+                        except Exception:
+                            pass
+                        try:
+                            meta["title"] = page.title() or ""
+                        except Exception:
+                            pass
+                        return meta
+
+                    try:
+                        metadata = await sandbox_browser_sessions.run_async(thread_id, _wheel)
+                        ok = await _send_ack(ok=True, action_name="scroll", metadata=metadata)
+                        if not ok:
+                            break
+                    except Exception as e:
+                        ok = await _send_ack(ok=False, action_name="scroll", error=str(e))
+                        if not ok:
+                            break
+
+                elif action == "keyboard":
+                    key_type = str(data.get("type") or "").strip().lower()
+                    if key_type not in {"press", "type"}:
+                        ok = await _send_ack(
+                            ok=False,
+                            action_name="keyboard",
+                            error=f"Unsupported keyboard action type: {key_type or '(missing)'}",
+                        )
+                        if not ok:
+                            break
+                        continue
+
+                    if key_type == "press":
+                        key = str(data.get("key") or "").strip()
+                        if not key:
+                            ok = await _send_ack(
+                                ok=False,
+                                action_name="keyboard",
+                                error="Keyboard press requires a non-empty key.",
+                            )
+                            if not ok:
+                                break
+                            continue
+
+                        def _press(key=key):
+                            session = sandbox_browser_sessions.get(thread_id)
+                            page = session.get_page()
+
+                            page.keyboard.press(key)
+
+                            meta: Dict[str, Any] = {}
+                            try:
+                                meta["url"] = page.url
+                            except Exception:
+                                pass
+                            try:
+                                meta["title"] = page.title() or ""
+                            except Exception:
+                                pass
+                            return meta
+
+                        try:
+                            metadata = await sandbox_browser_sessions.run_async(thread_id, _press)
+                            ok = await _send_ack(ok=True, action_name="keyboard", metadata=metadata)
+                            if not ok:
+                                break
+                        except Exception as e:
+                            ok = await _send_ack(ok=False, action_name="keyboard", error=str(e))
+                            if not ok:
+                                break
+
+                    else:
+                        text = str(data.get("text") or "")
+                        if not text:
+                            ok = await _send_ack(
+                                ok=False,
+                                action_name="keyboard",
+                                error="Keyboard type requires a non-empty text.",
+                            )
+                            if not ok:
+                                break
+                            continue
+
+                        def _type(text=text):
+                            session = sandbox_browser_sessions.get(thread_id)
+                            page = session.get_page()
+
+                            page.keyboard.type(text)
+
+                            meta: Dict[str, Any] = {}
+                            try:
+                                meta["url"] = page.url
+                            except Exception:
+                                pass
+                            try:
+                                meta["title"] = page.title() or ""
+                            except Exception:
+                                pass
+                            return meta
+
+                        try:
+                            metadata = await sandbox_browser_sessions.run_async(thread_id, _type)
+                            ok = await _send_ack(ok=True, action_name="keyboard", metadata=metadata)
+                            if not ok:
+                                break
+                        except Exception as e:
+                            ok = await _send_ack(ok=False, action_name="keyboard", error=str(e))
+                            if not ok:
+                                break
+
+                elif action == "navigate":
+                    url = str(data.get("url") or "").strip()
+                    if not url:
+                        ok = await _send_ack(
+                            ok=False,
+                            action_name="navigate",
+                            error="Navigate requires a non-empty url.",
+                        )
+                        if not ok:
+                            break
+                        continue
+
+                    try:
+                        from urllib.parse import urlsplit
+
+                        parsed = urlsplit(url)
+                    except Exception:
+                        parsed = None
+
+                    if not parsed or parsed.scheme.lower() not in {"http", "https"}:
+                        ok = await _send_ack(
+                            ok=False,
+                            action_name="navigate",
+                            error="Only http(s) URLs are allowed.",
+                        )
+                        if not ok:
+                            break
+                        continue
+
+                    if not parsed.netloc:
+                        ok = await _send_ack(
+                            ok=False,
+                            action_name="navigate",
+                            error="Navigate URL must include a host.",
+                        )
+                        if not ok:
+                            break
+                        continue
+
+                    def _goto(url=url):
+                        session = sandbox_browser_sessions.get(thread_id)
+                        page = session.get_page()
+
+                        page.goto(url)
+
+                        meta: Dict[str, Any] = {}
+                        try:
+                            meta["url"] = page.url
+                        except Exception:
+                            pass
+                        try:
+                            meta["title"] = page.title() or ""
+                        except Exception:
+                            pass
+                        return meta
+
+                    try:
+                        metadata = await sandbox_browser_sessions.run_async(thread_id, _goto)
+                        ok = await _send_ack(ok=True, action_name="navigate", metadata=metadata)
+                        if not ok:
+                            break
+                    except Exception as e:
+                        ok = await _send_ack(ok=False, action_name="navigate", error=str(e))
+                        if not ok:
+                            break
 
             except WebSocketDisconnect:
                 break
@@ -5425,7 +5742,6 @@ async def handle_webhook(
 
 
 if __name__ == "__main__":
-    import os
     import uvicorn
 
     # `settings` reads from `.env` (see `common/config.py`). This makes the

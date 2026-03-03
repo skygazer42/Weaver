@@ -39,3 +39,6 @@
 *.eot binary
 *.ttf binary
 *.otf binary
+
+# Use bd merge for beads JSONL files
+.beads/issues.jsonl merge=beads
