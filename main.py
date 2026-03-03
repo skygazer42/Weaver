@@ -4042,54 +4042,56 @@ async def get_interrupt_status(thread_id: str, request: Request):
         if not checkpoint_tuple:
             raise HTTPException(status_code=404, detail=f"Session not found: {thread_id}")
 
-        state = checkpoint_tuple.checkpoint.get("channel_values", {})
-        metadata = getattr(checkpoint_tuple, "metadata", {}) or {}
+        pending_writes = getattr(checkpoint_tuple, "pending_writes", []) or []
+        interrupt_items: List[Any] = []
+        for entry in pending_writes:
+            if not isinstance(entry, (list, tuple)) or len(entry) != 3:
+                continue
+            _, key, value = entry
+            if key != "__interrupt__":
+                continue
+            if isinstance(value, (list, tuple)):
+                interrupt_items.extend(list(value))
+            elif value is not None:
+                interrupt_items.append(value)
 
-        # Check if paused at interrupt
-        is_interrupted = metadata.get("interrupted", False)
-        interrupt_node = metadata.get("interrupt_node", "")
+        prompts = _serialize_interrupts(interrupt_items)
+        is_interrupted = bool(prompts)
 
-        # Get checkpoint info
-        checkpoint_info = {
-            "plan": {
-                "node": "planner",
-                "description": "Research plan generated, awaiting approval",
-                "data": {
-                    "research_plan": state.get("research_plan", []),
-                    "suggested_queries": state.get("suggested_queries", []),
-                },
-            },
-            "sources": {
-                "node": "compressor",
-                "description": "Sources collected and compressed, awaiting review",
-                "data": {
-                    "sources_count": len(state.get("scraped_content", [])),
-                    "compressed_knowledge": state.get("compressed_knowledge", {}),
-                },
-            },
-            "draft": {
-                "node": "writer",
-                "description": "Draft report generated, awaiting review",
-                "data": {
-                    "draft_report": state.get("draft_report", "")[:1000] + "..." if len(state.get("draft_report", "")) > 1000 else state.get("draft_report", ""),
-                },
-            },
-        }
+        checkpoint_name: Optional[str] = None
+        available_actions: List[str] = []
+        first = prompts[0] if prompts else None
+        if isinstance(first, dict):
+            cp = first.get("checkpoint")
+            if isinstance(cp, str) and cp.strip():
+                checkpoint_name = cp.strip()
 
-        # Find which checkpoint we're at
-        current_checkpoint = None
-        for cp_name, cp_info in checkpoint_info.items():
-            if cp_info["node"] == interrupt_node:
-                current_checkpoint = cp_name
-                break
+            # Tool approval interrupt (HumanInTheLoopMiddleware) — expose allowed decisions.
+            if "action_requests" in first and "review_configs" in first:
+                checkpoint_name = checkpoint_name or "tool_approval"
+                allowed: set[str] = set()
+                for cfg in first.get("review_configs", []) or []:
+                    if not isinstance(cfg, dict):
+                        continue
+                    for d in cfg.get("allowed_decisions", []) or []:
+                        if isinstance(d, str) and d.strip():
+                            allowed.add(d.strip())
+                if allowed:
+                    available_actions = sorted(allowed)
+
+        if is_interrupted and not available_actions:
+            # Generic interrupts support "approve" (resume as-is) and optional edits
+            # (client can send a structured payload like {"content": "..."}).
+            available_actions = ["approve", "edit"]
 
         return {
             "thread_id": thread_id,
             "is_interrupted": is_interrupted,
-            "interrupt_node": interrupt_node,
-            "checkpoint_name": current_checkpoint,
-            "checkpoint_info": checkpoint_info.get(current_checkpoint, {}) if current_checkpoint else {},
-            "available_actions": ["approve", "modify", "reject", "skip"] if is_interrupted else [],
+            "interrupt_node": "",
+            "checkpoint_name": checkpoint_name,
+            "checkpoint_info": {},
+            "available_actions": available_actions if is_interrupted else [],
+            "prompts": prompts,
         }
 
     except HTTPException:
