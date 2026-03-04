@@ -352,10 +352,10 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
       </div>
 
       {/* Desktop Rail + Panel */}
-      <aside className="hidden md:flex h-dvh shrink-0">
+      <aside className="hidden md:flex h-dvh shrink-0 shadow-[12px_0_44px_rgba(0,0,0,0.05)]">
         <TooltipProvider delayDuration={200}>
           <div
-            className="flex h-full flex-col items-center justify-between bg-background border-r border-border/10 pt-3 pb-5"
+            className="flex h-full flex-col items-center justify-between bg-background pt-3 pb-5"
             style={{ width: WORKSPACE_RAIL_W }}
           >
             <div className="flex flex-col items-center gap-1.5">
@@ -414,7 +414,6 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
         <div
           className={cn(
             "h-full bg-background overflow-hidden transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
-            isOpen && "shadow-[16px_0_48px_rgba(0,0,0,0.06)]"
           )}
           style={{ width: isOpen ? WORKSPACE_PANEL_W : 0 }}
           aria-hidden={!isOpen}
