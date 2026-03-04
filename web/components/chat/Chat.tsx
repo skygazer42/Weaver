@@ -317,7 +317,7 @@ export function Chat() {
     if (ui.currentView === 'library') return <div key="library" className="animate-fade-in"><Library /></div>
 
     return (
-      <div className="flex-1 flex flex-col min-h-0 chat-ambient">
+      <div className="flex-1 flex flex-col min-h-0">
         {messages.length === 0 ? (
           <div className="h-full w-full p-4 overflow-y-auto">
             <EmptyState

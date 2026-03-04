@@ -15,7 +15,8 @@
 /* ─── Design tokens ──────────────────────────────────── */
 @layer base {
   :root {
-    --background: 30 6% 99%;
+    /* Closer to pure white to avoid the “grey haze” look in light mode. */
+    --background: 30 6% 100%;
     --foreground: 28 10% 6%;
     --card: 30 6% 100%;
     --card-foreground: 28 10% 6%;
@@ -23,16 +24,16 @@
     --popover-foreground: 28 10% 6%;
     --primary: 220 72% 50%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 30 6% 96%;
+    --secondary: 30 6% 98%;
     --secondary-foreground: 28 8% 12%;
-    --muted: 30 6% 96%;
-    --muted-foreground: 25 5% 45%;
-    --accent: 30 6% 96%;
+    --muted: 30 6% 98%;
+    --muted-foreground: 25 6% 40%;
+    --accent: 30 6% 98%;
     --accent-foreground: 28 8% 12%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 98%;
-    --border: 28 6% 90%;
-    --input: 28 6% 90%;
+    --border: 28 6% 94%;
+    --input: 28 6% 94%;
     --ring: 220 72% 50%;
     --radius: 0.625rem;
   }
@@ -325,31 +326,6 @@ html {
   }
   .weaver-disclosure[open] .weaver-disclosure-chevron {
     transform: rotate(180deg);
-  }
-}
-
-/* ─── Ambient background ─────────────────────────────── */
-@layer components {
-  .chat-ambient {
-    position: relative;
-  }
-  .chat-ambient::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background: radial-gradient(
-      ellipse 60% 40% at 50% 0%,
-      hsl(var(--primary) / 0.012) 0%,
-      transparent 60%
-    );
-  }
-  .dark .chat-ambient::before {
-    background: radial-gradient(
-      ellipse 60% 40% at 50% 0%,
-      hsl(var(--primary) / 0.025) 0%,
-      transparent 60%
-    );
   }
 }
 
