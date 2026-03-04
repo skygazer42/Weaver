@@ -195,7 +195,6 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
             <span className="text-[11px] font-semibold uppercase tracking-wider">
               {text}
             </span>
-            <span className="h-px flex-1 bg-border/40" />
           </div>
         </div>
       )
@@ -249,7 +248,7 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
         className={cn(
           "fixed inset-y-0 left-0 z-50 md:hidden",
           "w-[300px] max-w-[85vw]",
-          "bg-background/95 backdrop-blur-xl border-r border-border/20",
+          "bg-background shadow-[0_0_60px_rgba(0,0,0,0.10)]",
           "transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
           isOpen ? "translate-x-0" : "-translate-x-full"
         )}
@@ -298,7 +297,7 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
               onChange={(e) => setHistoryQuery(e.target.value)}
               placeholder={t('searchPlaceholder')}
               aria-label="Search chat history"
-              className="h-8 text-xs font-medium rounded-lg bg-muted/30 border-border/40"
+              className="h-8 text-xs font-medium rounded-lg bg-background border-transparent shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
             />
           </div>
 
@@ -356,7 +355,7 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
       <aside className="hidden md:flex h-dvh shrink-0">
         <TooltipProvider delayDuration={200}>
           <div
-            className="flex h-full flex-col items-center justify-between bg-background border-r border-border/20 pt-3 pb-5"
+            className="flex h-full flex-col items-center justify-between bg-background border-r border-border/10 pt-3 pb-5"
             style={{ width: WORKSPACE_RAIL_W }}
           >
             <div className="flex flex-col items-center gap-1.5">
@@ -415,7 +414,7 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
         <div
           className={cn(
             "h-full bg-background overflow-hidden transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
-            isOpen && "border-r border-border/20"
+            isOpen && "shadow-[16px_0_48px_rgba(0,0,0,0.06)]"
           )}
           style={{ width: isOpen ? WORKSPACE_PANEL_W : 0 }}
           aria-hidden={!isOpen}
@@ -439,7 +438,7 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
                   onChange={(e) => setHistoryQuery(e.target.value)}
                   placeholder={t('searchPlaceholder')}
                   aria-label="Search chat history"
-                  className="h-8 text-xs font-medium rounded-lg bg-muted/30 border-border/40"
+                  className="h-8 text-xs font-medium rounded-lg bg-background border-transparent shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
                 />
               </div>
 
