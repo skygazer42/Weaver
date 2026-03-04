@@ -188,11 +188,11 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
 
       return (
         <div className="px-3 pt-5 pb-1.5">
-          <div className="flex items-center gap-2 text-muted-foreground/60">
+          <div className="flex items-center gap-2 text-muted-foreground">
             {entry.kind === 'pinned' ? (
               <Star className="h-3 w-3 fill-current text-primary/50" />
             ) : null}
-            <span className="text-[10px] font-semibold uppercase tracking-wider">
+            <span className="text-[11px] font-semibold uppercase tracking-wider">
               {text}
             </span>
             <span className="h-px flex-1 bg-border/40" />
@@ -249,7 +249,7 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
         className={cn(
           "fixed inset-y-0 left-0 z-50 md:hidden",
           "w-[300px] max-w-[85vw]",
-          "bg-card/90 backdrop-blur-xl border-r border-border/30",
+          "bg-background/95 backdrop-blur-xl border-r border-border/20",
           "transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
           isOpen ? "translate-x-0" : "-translate-x-full"
         )}
@@ -298,7 +298,7 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
               onChange={(e) => setHistoryQuery(e.target.value)}
               placeholder={t('searchPlaceholder')}
               aria-label="Search chat history"
-              className="h-8 text-xs rounded-lg bg-muted/30 border-border/40"
+              className="h-8 text-xs font-medium rounded-lg bg-muted/30 border-border/40"
             />
           </div>
 
@@ -313,7 +313,7 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
                 ))}
               </div>
             ) : history.length === 0 ? (
-              <div className="px-3 text-xs text-muted-foreground/60 italic py-4">{t('noRecentChats')}</div>
+              <div className="px-3 text-xs font-medium text-muted-foreground italic py-4">{t('noRecentChats')}</div>
             ) : (
               <Virtuoso
                 style={{ height: '100%' }}
@@ -324,7 +324,7 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
             )}
           </div>
 
-          <div className="flex items-center justify-between gap-2 border-t border-border/40 pt-2 px-1">
+          <div className="flex items-center justify-between gap-2 border-t border-border/20 pt-2 px-1">
             <Button
               type="button"
               variant="ghost"
@@ -356,7 +356,7 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
       <aside className="hidden md:flex h-dvh shrink-0">
         <TooltipProvider delayDuration={200}>
           <div
-            className="flex h-full flex-col items-center justify-between bg-card border-r border-border/30 pt-3 pb-5"
+            className="flex h-full flex-col items-center justify-between bg-background border-r border-border/20 pt-3 pb-5"
             style={{ width: WORKSPACE_RAIL_W }}
           >
             <div className="flex flex-col items-center gap-1.5">
@@ -414,8 +414,8 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
 
         <div
           className={cn(
-            "h-full bg-card overflow-hidden transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
-            isOpen && "border-r border-border/30"
+            "h-full bg-background overflow-hidden transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
+            isOpen && "border-r border-border/20"
           )}
           style={{ width: isOpen ? WORKSPACE_PANEL_W : 0 }}
           aria-hidden={!isOpen}
@@ -439,7 +439,7 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
                   onChange={(e) => setHistoryQuery(e.target.value)}
                   placeholder={t('searchPlaceholder')}
                   aria-label="Search chat history"
-                  className="h-8 text-xs rounded-lg bg-muted/30 border-border/40"
+                  className="h-8 text-xs font-medium rounded-lg bg-muted/30 border-border/40"
                 />
               </div>
 
@@ -454,7 +454,7 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
                     ))}
                   </div>
                 ) : history.length === 0 ? (
-                  <div className="px-3 text-xs text-muted-foreground/60 italic py-4">{t('noRecentChats')}</div>
+                  <div className="px-3 text-xs font-medium text-muted-foreground italic py-4">{t('noRecentChats')}</div>
                 ) : (
                   <Virtuoso
                     style={{ height: '100%' }}
@@ -465,13 +465,13 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
                 )}
               </div>
 
-              <div className="border-t border-border/40 pt-2 px-1 flex items-center justify-between">
+              <div className="border-t border-border/20 pt-2 px-1 flex items-center justify-between">
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
                   onClick={() => setShowClearConfirm(true)}
-                  className="text-[11px] text-muted-foreground/50 hover:text-muted-foreground"
+                  className="text-xs font-medium text-muted-foreground hover:text-foreground"
                 >
                   {t('clearHistory')}
                 </Button>
@@ -507,7 +507,7 @@ function RailButton({
             "relative flex size-9 items-center justify-center rounded-lg transition-all duration-150",
             active
               ? "bg-primary/10 text-primary shadow-sm"
-              : "text-muted-foreground/60 hover:text-foreground hover:bg-accent/50"
+              : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
           )}
         >
           {children}
@@ -604,8 +604,8 @@ function SidebarChatItem({
         className={cn(
           "flex w-full gap-3 px-2.5 py-2 rounded-lg text-left transition-all duration-150 pr-10",
           active
-            ? "bg-primary/8 text-foreground"
-            : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+            ? "bg-primary/[0.05] text-foreground"
+            : "text-muted-foreground hover:text-foreground hover:bg-accent/30"
         )}
       >
         {active && (
@@ -616,16 +616,16 @@ function SidebarChatItem({
           <span className="flex items-center justify-between gap-2">
             <span className={cn(
               "truncate text-[13px] font-medium",
-              active ? "text-foreground" : "text-foreground/80"
+              active ? "text-foreground" : "text-foreground"
             )}>
               {item.title}
             </span>
-            <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground/50">
+            <span className="shrink-0 text-[11px] font-medium tabular-nums text-muted-foreground">
               {timeLabel}
             </span>
           </span>
           {summary ? (
-            <span className="mt-0.5 block text-[11px] leading-4 text-muted-foreground/50 line-clamp-1">
+            <span className="mt-0.5 block text-xs font-medium leading-4 text-muted-foreground line-clamp-1">
               {summary}
             </span>
           ) : null}
@@ -638,7 +638,7 @@ function SidebarChatItem({
           "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-150",
         )}
       >
-        <div className="flex items-center gap-0.5 rounded-md bg-card/95 shadow-sm border border-border/40 p-0.5">
+        <div className="flex items-center gap-0.5 rounded-md p-0.5">
           <button
             onClick={(e) => {
               e.stopPropagation()
@@ -647,7 +647,7 @@ function SidebarChatItem({
             aria-label={item.isPinned ? `Unpin ${item.title}` : `Pin ${item.title}`}
             aria-pressed={item.isPinned}
             className={cn(
-              "p-1 rounded text-muted-foreground/60 transition-colors",
+              "p-1 rounded text-muted-foreground transition-colors",
               "hover:bg-accent hover:text-foreground",
               item.isPinned && "text-primary"
             )}
@@ -665,7 +665,7 @@ function SidebarChatItem({
               onDelete(item.id)
             }}
             aria-label={`Delete ${item.title}`}
-            className="p-1 rounded text-muted-foreground/60 transition-colors hover:bg-destructive/10 hover:text-destructive"
+            className="p-1 rounded text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
           >
             <Trash2 className="h-3 w-3" />
           </button>
@@ -685,7 +685,7 @@ function SidebarItem({ icon: Icon, label, active, onClick, iconClassName }: { ic
         "sidebar-item group",
         active && "active"
       )}>
-      <Icon className={cn("h-4 w-4 transition-colors", iconClassName || (active ? "text-primary" : "text-muted-foreground/60 group-hover:text-foreground"))} />
+      <Icon className={cn("h-4 w-4 transition-colors", iconClassName || (active ? "text-primary" : "text-muted-foreground group-hover:text-foreground"))} />
       <span className="truncate text-sm">{label}</span>
     </button>
   )

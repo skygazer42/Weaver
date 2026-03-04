@@ -80,8 +80,8 @@ export const Header = memo(function Header({
   }, [currentView, t])
 
   return (
-    <header className="sticky top-0 z-30 flex h-12 items-center justify-between border-b border-border/30 bg-background/70 backdrop-blur-xl px-4 transition-colors duration-200">
-      <div className="flex items-center gap-3 min-w-0">
+    <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border/30 bg-background/70 backdrop-blur-xl px-5 transition-colors duration-200">
+      <div className="flex items-center gap-4 min-w-0">
         <Button
           variant="ghost"
           size="icon"
@@ -98,7 +98,7 @@ export const Header = memo(function Header({
             {viewLabel}
           </div>
           {currentView === 'dashboard' ? (
-            <div className="text-xs text-muted-foreground truncate text-pretty">
+            <div className="text-xs font-medium text-muted-foreground truncate text-pretty">
               {sessionTitle || t('newInvestigation')}
             </div>
           ) : null}
@@ -116,7 +116,7 @@ export const Header = memo(function Header({
               aria-label="Share session"
               title="Share"
             >
-              <Share className="h-[18px] w-[18px] text-sky-500/70 dark:text-sky-400/70" />
+              <Share className="h-[18px] w-[18px] text-sky-500 dark:text-sky-400" />
             </Button>
 
             <Button
@@ -127,7 +127,7 @@ export const Header = memo(function Header({
               aria-label="Open comments"
               title="Comments"
             >
-              <MessageSquare className="h-[18px] w-[18px] text-violet-500/70 dark:text-violet-400/70" />
+              <MessageSquare className="h-[18px] w-[18px] text-violet-500 dark:text-violet-400" />
             </Button>
 
             <Button
@@ -138,7 +138,7 @@ export const Header = memo(function Header({
               aria-label="Export report"
               title="Export"
             >
-              <Download className="h-[18px] w-[18px] text-emerald-500/70 dark:text-emerald-400/70" />
+              <Download className="h-[18px] w-[18px] text-emerald-500 dark:text-emerald-400" />
             </Button>
           </>
         ) : null}
@@ -151,7 +151,7 @@ export const Header = memo(function Header({
             className="rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent xl:hidden"
             aria-label="Toggle inspector"
           >
-            <PanelRight className="h-[18px] w-[18px] text-slate-500/70 dark:text-slate-400/70" />
+            <PanelRight className="h-[18px] w-[18px] text-slate-500 dark:text-slate-400" />
           </Button>
         )}
 
@@ -191,7 +191,7 @@ export const Header = memo(function Header({
             className="rounded-lg hover:bg-accent"
             aria-label={t('settings')}
           >
-            <Settings className="h-[18px] w-[18px] text-slate-500/70 dark:text-slate-400/70" />
+            <Settings className="h-[18px] w-[18px] text-slate-500 dark:text-slate-400" />
           </Button>
         </div>
       </div>

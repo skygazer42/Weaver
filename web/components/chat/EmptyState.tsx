@@ -17,30 +17,30 @@ const MODE_COLORS: Record<string, { icon: string; activeIcon: string; activeBg: 
   ultra: {
     icon: 'text-violet-500/50 dark:text-violet-400/50',
     activeIcon: 'text-violet-500 dark:text-violet-400',
-    activeBg: 'bg-violet-500/[0.04]',
-    activeBorder: 'border-violet-500/20',
-    activeShadow: 'shadow-violet-500/5',
+    activeBg: 'bg-card',
+    activeBorder: 'border-violet-500/15',
+    activeShadow: 'shadow-sm',
   },
   agent: {
     icon: 'text-sky-500/50 dark:text-sky-400/50',
     activeIcon: 'text-sky-500 dark:text-sky-400',
-    activeBg: 'bg-sky-500/[0.04]',
-    activeBorder: 'border-sky-500/20',
-    activeShadow: 'shadow-sky-500/5',
+    activeBg: 'bg-card',
+    activeBorder: 'border-sky-500/15',
+    activeShadow: 'shadow-sm',
   },
   web: {
     icon: 'text-emerald-500/50 dark:text-emerald-400/50',
     activeIcon: 'text-emerald-500 dark:text-emerald-400',
-    activeBg: 'bg-emerald-500/[0.04]',
-    activeBorder: 'border-emerald-500/20',
-    activeShadow: 'shadow-emerald-500/5',
+    activeBg: 'bg-card',
+    activeBorder: 'border-emerald-500/15',
+    activeShadow: 'shadow-sm',
   },
   direct: {
     icon: 'text-amber-500/50 dark:text-amber-400/50',
     activeIcon: 'text-amber-500 dark:text-amber-400',
-    activeBg: 'bg-amber-500/[0.04]',
-    activeBorder: 'border-amber-500/20',
-    activeShadow: 'shadow-amber-500/5',
+    activeBg: 'bg-card',
+    activeBorder: 'border-amber-500/15',
+    activeShadow: 'shadow-sm',
   },
 }
 
@@ -77,22 +77,22 @@ export function EmptyState({ selectedMode, mcpMode, onModeSelect, onStarterClick
 
       {/* Hero Section */}
       <div className="flex flex-col items-center space-y-5 mb-14 text-center">
-        <div className="flex size-16 items-center justify-center rounded-2xl bg-card border border-border/20 shadow-sm overflow-hidden">
+        <div className="flex size-18 items-center justify-center rounded-2xl bg-card border border-border/20 shadow-sm overflow-hidden">
           <Image
             src="/logo.png"
             alt="Weaver"
-            width={48}
-            height={48}
-            className="h-12 w-12 object-contain"
+            width={56}
+            height={56}
+            className="h-14 w-14 object-contain"
             priority
           />
         </div>
 
-        <div className="space-y-2 max-w-md">
-          <h2 className="text-xl font-semibold text-foreground/90 text-balance tracking-tight">
+        <div className="space-y-3 max-w-md">
+          <h2 className="text-2xl font-semibold text-foreground text-balance tracking-tight">
             {t('emptyStateTitle')}
           </h2>
-          <p className="text-muted-foreground/50 text-sm text-pretty leading-relaxed">
+          <p className="text-stone-500 dark:text-stone-400 text-base text-pretty leading-relaxed">
             {t('emptyStateSubtitle')} <br className="hidden sm:block" />
             {t('emptyStateDescription')}
           </p>
@@ -112,28 +112,29 @@ export function EmptyState({ selectedMode, mcpMode, onModeSelect, onStarterClick
                 onStarterClick?.(starter.text, starter.mode)
               }}
               className={cn(
-                "group flex items-start gap-3 p-3.5 rounded-xl border text-left transition-all duration-200",
+                "group flex items-start gap-3.5 p-4 rounded-xl border text-left transition-all duration-200",
+                "hover:shadow-md hover:-translate-y-0.5",
                 isActive
                   ? [colors.activeBorder, colors.activeBg, "shadow-sm", colors.activeShadow]
-                  : "border-border/20 bg-card/40 hover:bg-card/80 hover:border-border/40 hover:shadow-sm"
+                  : "border-border/30 bg-card hover:bg-card hover:border-border/50"
               )}
               style={{ animationDelay: `${i * 50}ms` }}
             >
               <div className={cn(
-                "p-2 rounded-lg transition-colors",
+                "p-2.5 rounded-lg transition-colors",
                 isActive
-                  ? [colors.activeBg, colors.activeIcon]
-                  : ["bg-muted/30", colors.icon, "group-hover:bg-muted/50"]
+                  ? ["bg-muted/30", colors.activeIcon]
+                  : ["bg-muted/20", colors.icon, "group-hover:bg-muted/40"]
               )}>
-                <starter.icon className="h-4 w-4" />
+                <starter.icon className="h-5 w-5" />
               </div>
-              <div className="flex-1 space-y-1 min-w-0">
-                <p className="text-[13px] font-medium leading-snug group-hover:text-foreground transition-colors">
+              <div className="flex-1 space-y-1.5 min-w-0">
+                <p className="text-sm font-medium leading-snug group-hover:text-foreground transition-colors">
                   {starter.text}
                 </p>
                 <div className={cn(
-                  "flex items-center gap-1 text-xs",
-                  isActive ? [colors.activeIcon, "opacity-60"] : "text-muted-foreground/35"
+                  "flex items-center gap-1 text-xs font-medium",
+                  isActive ? [colors.activeIcon] : "text-stone-500 dark:text-stone-400"
                 )}>
                   <span>{t('useMode')} {starter.mode} {t('mode')}</span>
                   <ArrowRight className="h-2.5 w-2.5" />

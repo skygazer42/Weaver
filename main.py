@@ -4934,6 +4934,11 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
         nonlocal streaming
         interval = 1.0 / max(1, int(max_fps or 5))
         last_frame_id: Optional[int] = None
+        last_frame_sent_at: float = 0.0
+        # Chrome's CDP screencast may stop emitting frames when the page is visually idle.
+        # If we strictly de-dup by frame_id, the frontend appears frozen (0 FPS, blank viewer).
+        # Emit a periodic "keepalive" frame even when frame_id doesn't change.
+        cdp_keepalive_s = 1.0
         consecutive_failures = 0
         max_failures = 5
         frame_send_timeout_s = 1.0
@@ -4943,7 +4948,12 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
                 cdp_frame = await _get_cdp_frame()
                 if cdp_frame and cdp_frame.get("data"):
                     frame_id = cdp_frame.get("frame_id")
-                    if isinstance(frame_id, int) and frame_id == last_frame_id:
+                    now = time.time()
+                    if (
+                        isinstance(frame_id, int)
+                        and frame_id == last_frame_id
+                        and (now - last_frame_sent_at) < cdp_keepalive_s
+                    ):
                         await asyncio.sleep(interval)
                         continue
                     if isinstance(frame_id, int):
@@ -4957,13 +4967,14 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
                             "type": "frame",
                             "source": "cdp",
                             "data": cdp_frame["data"],
-                            "timestamp": float(cdp_frame.get("timestamp") or time.time()),
+                            "timestamp": float(cdp_frame.get("timestamp") or now),
                             "metadata": cdp_frame.get("metadata") or {},
                         },
                         timeout_s=frame_send_timeout_s,
                     ):
                         streaming = False
                         break
+                    last_frame_sent_at = now
                 else:
                     frame = await capture_frame(quality=quality)
                     try:
@@ -4982,6 +4993,7 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
                     ):
                         streaming = False
                         break
+                    last_frame_sent_at = time.time()
                 consecutive_failures = 0
             except Exception as e:
                 consecutive_failures += 1

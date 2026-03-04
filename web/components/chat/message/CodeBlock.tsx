@@ -147,7 +147,7 @@ const CodeLine = memo(function CodeLine({
       data-code-line={lineNumber}
     >
       {showLineNumbers ? (
-        <span className="select-none text-white/30 w-12 pr-4 text-right shrink-0 tabular-nums">
+        <span className="select-none text-white/40 w-12 pr-4 text-right shrink-0 tabular-nums">
           {lineNumber}
         </span>
       ) : null}
@@ -508,7 +508,7 @@ export function CodeBlock({ language, value, defaultCollapsed = false }: CodeBlo
                   <DialogTitle className="font-mono text-sm">
                     {language || 'text'}
                   </DialogTitle>
-                  <div className="text-xs text-muted-foreground tabular-nums">
+                  <div className="text-[11px] font-medium text-muted-foreground tabular-nums">
                     {lines.length} lines
                     {matchCount > 0 ? ` · ${safeActiveCursor + 1}/${matchCount} matches` : null}
                   </div>
@@ -626,9 +626,9 @@ export function CodeBlock({ language, value, defaultCollapsed = false }: CodeBlo
         <div className="flex items-center gap-3">
           <span className="text-xs font-medium text-white/70 font-mono flex items-center gap-2">
             {language || 'text'}
-            {isCollapsed && <span className="text-xs text-white/40">collapsed</span>}
-            {wrapLines && !isCollapsed && <span className="text-xs text-white/40">wrap</span>}
-            {showLineNumbers && !isCollapsed && <span className="text-xs text-white/40">lines</span>}
+            {isCollapsed && <span className="text-xs text-white/50">collapsed</span>}
+            {wrapLines && !isCollapsed && <span className="text-xs text-white/50">wrap</span>}
+            {showLineNumbers && !isCollapsed && <span className="text-xs text-white/50">lines</span>}
           </span>
         </div>
         <div className="flex items-center gap-1">
@@ -688,7 +688,7 @@ export function CodeBlock({ language, value, defaultCollapsed = false }: CodeBlo
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="text-xs font-semibold text-muted-foreground uppercase">Code tools</div>
-                  <div className="text-[10px] text-muted-foreground tabular-nums">
+                  <div className="text-[11px] font-medium text-muted-foreground tabular-nums">
                     {lines.length} lines
                   </div>
                 </div>
@@ -715,7 +715,7 @@ export function CodeBlock({ language, value, defaultCollapsed = false }: CodeBlo
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="text-xs font-semibold text-muted-foreground uppercase">Find</div>
-                    <div className="text-[10px] text-muted-foreground tabular-nums">
+                    <div className="text-[11px] font-medium text-muted-foreground tabular-nums">
                       {matchCount > 0 ? `${safeActiveCursor + 1}/${matchCount}` : '0'}
                     </div>
                   </div>

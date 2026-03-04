@@ -165,7 +165,7 @@ export function AudioControls({ onTranscript, disabled }: AudioControlsProps) {
       aria-pressed={isListening}
       className={cn(
         "h-8 w-8 rounded-lg transition-all duration-200",
-        "text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/40",
+        "text-muted-foreground hover:text-foreground hover:bg-muted/40",
         isListening && [
           "relative text-red-500 bg-red-500/10 hover:bg-red-500/15 hover:text-red-500",
           "ring-2 ring-red-500/20 ring-offset-1 ring-offset-background",

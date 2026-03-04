@@ -111,13 +111,13 @@ function StreamStatus({
   const isWarning = connectionState === 'reconnecting'
 
   const iconColor = (() => {
-    if (isError) return 'text-destructive/60'
-    if (isWarning) return 'text-amber-500/70'
+    if (isError) return 'text-destructive'
+    if (isWarning) return 'text-amber-500'
     if (Icon === Search) return 'text-emerald-500 dark:text-emerald-400'
     if (Icon === Code) return 'text-sky-500 dark:text-sky-400'
     if (Icon === PenLine) return 'text-violet-500 dark:text-violet-400'
     if (Icon === ListChecks) return 'text-primary'
-    return 'text-muted-foreground/40'
+    return 'text-muted-foreground'
   })()
 
   return (
@@ -136,11 +136,11 @@ function StreamStatus({
               ? "bg-amber-500"
               : isLoading
                 ? "bg-primary animate-pulse"
-                : "bg-muted-foreground/30"
+                : "bg-muted-foreground/40"
         )} />
 
         {isLoading ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary/60 shrink-0" />
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />
         ) : (
           <Icon className={cn(
             "h-3.5 w-3.5 shrink-0",
@@ -149,10 +149,10 @@ function StreamStatus({
         )}
 
         <span className={cn(
-          "text-[13px] truncate",
+          "text-[13px] font-medium truncate",
           isError
-            ? "text-destructive/80 font-medium"
-            : "text-muted-foreground/50"
+            ? "text-destructive font-semibold"
+            : "text-muted-foreground"
         )}>
           {raw}
         </span>

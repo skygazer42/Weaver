@@ -77,7 +77,7 @@ const ArtifactListItem = memo(function ArtifactListItem({
         <span className={cn("block text-xs font-medium truncate", isActive && "text-foreground")}>
           {artifact.title}
         </span>
-        <span className="block text-[11px] text-muted-foreground mt-0.5">
+        <span className="block text-xs font-medium text-muted-foreground mt-0.5">
           {artifact.type}
         </span>
       </span>
@@ -219,10 +219,10 @@ export function ArtifactsPanel({
           <PanelRightOpen className="h-5 w-5 text-muted-foreground" />
         </Button>
         <div className="flex-1 w-full flex flex-col items-center justify-center gap-2 overflow-hidden py-2">
-          <div className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground tabular-nums">
+          <div className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground tabular-nums">
             {hasArtifacts ? `A${artifacts.length}` : hasEvidence ? 'E' : '0'}
           </div>
-          <div className="text-[10px] font-medium text-muted-foreground uppercase select-none">
+          <div className="text-[11px] font-medium text-muted-foreground uppercase select-none">
             Inspector
           </div>
         </div>
@@ -258,7 +258,7 @@ export function ArtifactsPanel({
                 stats={progress.stats}
               />
               {!progress.isConnected && progress.error ? (
-                <div className="mt-3 max-w-5xl mx-auto rounded-lg border border-border/60 bg-muted/10 p-3 text-xs text-muted-foreground">
+                <div className="mt-3 max-w-5xl mx-auto rounded-lg border border-border/60 bg-muted/10 p-3 text-xs font-medium text-muted-foreground">
                   {progress.error}
                 </div>
               ) : null}
@@ -309,7 +309,7 @@ export function ArtifactsPanel({
           )}
           <div className="min-w-0">
             <h2 className="text-sm font-semibold truncate">Inspector</h2>
-            <p className="text-xs text-muted-foreground truncate">
+            <p className="text-xs font-medium text-muted-foreground truncate">
               {activeTab === 'evidence'
                 ? 'Evidence view'
                 : activeTab === 'metrics'
@@ -381,7 +381,7 @@ function ArtifactPreview({ artifact }: { artifact: Artifact | null }) {
     return (
       <div className="rounded-lg border border-border/60 bg-muted/10 p-4">
         <div className="text-xs font-semibold text-foreground">No artifacts yet</div>
-        <div className="mt-1 text-xs text-muted-foreground text-pretty">
+        <div className="mt-1 text-xs font-medium text-muted-foreground text-pretty">
           Run a task that produces a report, code, or chart to see artifacts here.
         </div>
       </div>
@@ -406,7 +406,7 @@ function ArtifactPreview({ artifact }: { artifact: Artifact | null }) {
           </div>
           <div className="min-w-0">
             <div className="text-xs font-semibold truncate">{artifact.title}</div>
-            <div className="text-[11px] text-muted-foreground">{artifact.type}</div>
+            <div className="text-xs font-medium text-muted-foreground">{artifact.type}</div>
           </div>
         </div>
         {artifact.type === 'chart' ? (

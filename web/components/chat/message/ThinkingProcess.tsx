@@ -118,7 +118,7 @@ export function ThinkingProcess({ tools, isThinking }: ThinkingProcessProps) {
               ? "bg-primary/10 text-primary"
               : hasFailed
                 ? "bg-destructive/10 text-destructive"
-                : "bg-muted/50 text-muted-foreground/60"
+                : "bg-muted/50 text-muted-foreground"
           )}>
             {isActive ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -130,13 +130,13 @@ export function ThinkingProcess({ tools, isThinking }: ThinkingProcessProps) {
           </div>
 
           <div className="flex flex-col gap-0 min-w-0">
-            <span className="text-[13px] font-semibold text-foreground/80">
+            <span className="text-[13px] font-semibold text-foreground">
               Activity
-              <span className="ml-2 text-[11px] font-normal text-muted-foreground/60 tabular-nums">
+              <span className="ml-2 text-xs font-normal text-muted-foreground tabular-nums">
                 {stats.total} tools
               </span>
             </span>
-            <span className="text-[11px] text-muted-foreground/50 truncate">
+            <span className="text-xs font-medium text-muted-foreground truncate">
               {runningTool
                 ? normalizeToolName(runningTool.toolName)
                 : hasFailed
@@ -156,7 +156,7 @@ export function ThinkingProcess({ tools, isThinking }: ThinkingProcessProps) {
               <span
                 key={cat}
                 className={cn(
-                  "hidden sm:inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium tabular-nums",
+                  "hidden sm:inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium tabular-nums",
                   CATEGORY_BG[cat], CATEGORY_COLOR[cat]
                 )}
               >
@@ -167,7 +167,7 @@ export function ThinkingProcess({ tools, isThinking }: ThinkingProcessProps) {
           })}
 
           <ChevronDown className={cn(
-            "h-3.5 w-3.5 text-muted-foreground/40 transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ml-1",
+            "h-3.5 w-3.5 text-muted-foreground transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ml-1",
             isOpen && "rotate-180"
           )} />
         </div>
@@ -299,11 +299,11 @@ function LogItem({
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0 flex items-center gap-1.5">
-              <span className="text-[10px] font-mono font-medium text-muted-foreground/60 shrink-0">
+              <span className="text-[11px] font-mono font-medium text-muted-foreground shrink-0">
                 {normalizeToolName(tool.toolName)}
               </span>
               {preview ? (
-                <span className="text-[11px] text-muted-foreground/40 truncate">
+                <span className="text-xs font-medium text-muted-foreground truncate">
                   {preview}
                 </span>
               ) : null}
@@ -313,16 +313,16 @@ function LogItem({
               {isRunning ? (
                 <Loader2 className="h-3 w-3 animate-spin text-primary" />
               ) : tool.state === 'failed' ? (
-                <XCircle className="h-3 w-3 text-destructive/60" />
+                <XCircle className="h-3 w-3 text-destructive" />
               ) : (
-                <Check className="h-3 w-3 text-muted-foreground/30" />
+                <Check className="h-3 w-3 text-muted-foreground" />
               )}
 
               <Button
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                className="size-6 rounded-md text-muted-foreground/40 hover:text-foreground hover:bg-muted/40 opacity-0 group-hover:opacity-100"
+                className="size-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/40 opacity-0 group-hover:opacity-100"
                 onClick={(e) => {
                   e.stopPropagation()
                   handleCopy()
@@ -334,9 +334,9 @@ function LogItem({
               </Button>
 
               {isExpanded ? (
-                <ChevronDown className="h-3 w-3 text-muted-foreground/30" />
+                <ChevronDown className="h-3 w-3 text-muted-foreground" />
               ) : (
-                <ChevronRight className="h-3 w-3 text-muted-foreground/30" />
+                <ChevronRight className="h-3 w-3 text-muted-foreground" />
               )}
             </div>
           </div>
@@ -345,7 +345,7 @@ function LogItem({
 
       {isExpanded && details ? (
         <div className="px-2 pb-2 pl-6">
-          <div className="rounded-md border border-border/30 bg-muted/[0.03] p-2 font-mono text-[11px] leading-5 text-muted-foreground/60 overflow-x-auto whitespace-pre-wrap break-words max-h-48 overflow-y-auto">
+          <div className="rounded-md border border-border/30 bg-muted/[0.03] p-2 font-mono text-xs font-medium leading-5 text-muted-foreground overflow-x-auto whitespace-pre-wrap break-words max-h-48 overflow-y-auto">
             {details}
           </div>
         </div>

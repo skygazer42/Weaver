@@ -727,7 +727,7 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
                         {block.queries.length > 0 ? (
                           <div className="mt-3">
                             <div className="flex items-center justify-between gap-2">
-                              <p className="text-[10px] font-semibold uppercase text-muted-foreground">
+                              <p className="text-[11px] font-semibold uppercase text-muted-foreground">
                                 Queries
                               </p>
                               <Button
@@ -741,7 +741,7 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
                             </div>
                             <ol className="mt-2 ml-5 list-decimal space-y-1 text-sm">
                               {block.queries.map((q, i) => (
-                                <li key={`${keyBase}-q-${i}`} className="leading-6 text-foreground/90">
+                                <li key={`${keyBase}-q-${i}`} className="leading-6 text-foreground">
                                   {q}
                                 </li>
                               ))}
@@ -794,11 +794,11 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
                           onLoad={(e) => e.currentTarget.classList.remove('blur-sm')}
                         />
                       ) : (
-                        <div className="p-3 text-xs text-muted-foreground">
+                        <div className="p-3 text-xs font-medium text-muted-foreground">
                           {att.name || 'Image attachment'}
                         </div>
                       )}
-                      <div className="px-2 py-1 text-[10px] text-muted-foreground truncate border-t border-border/50">
+                      <div className="px-2 py-1 text-[11px] font-medium text-muted-foreground truncate border-t border-border/50">
                         {att.name || att.mime || 'Image'}
                       </div>
                     </div>
@@ -823,7 +823,7 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
 
               {/* Worker Processing Indicator */}
               {isProcessing && (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground mt-2 animate-pulse">
+                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground mt-2 animate-pulse">
                   <Loader2 className="h-3 w-3 animate-spin" />
                   <span>Processing content...</span>
                 </div>
@@ -847,12 +847,12 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  className="h-7 w-7 rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-accent/50"
+                  className="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/50"
                   onClick={handleCopy}
                   aria-label="Copy message"
                   title="Copy"
                 >
-                  {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <ClipboardCopy className="h-3.5 w-3.5 text-sky-500/70 dark:text-sky-400/70" />}
+                  {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <ClipboardCopy className="h-3.5 w-3.5 text-sky-500 dark:text-sky-400" />}
                 </Button>
 
                 {!isUser ? (
@@ -862,7 +862,7 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
                       variant="ghost"
                       size="icon-sm"
                       className={cn(
-                        "h-7 w-7 rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-accent/50",
+                        "h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/50",
                         isPlaying && "text-primary bg-primary/10"
                       )}
                       onClick={handleSpeak}
@@ -875,19 +875,19 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
                       ) : isPlaying ? (
                         <Square className="h-3 w-3" />
                       ) : (
-                        <Volume2 className="h-3.5 w-3.5 text-violet-500/70 dark:text-violet-400/70" />
+                        <Volume2 className="h-3.5 w-3.5 text-violet-500 dark:text-violet-400" />
                       )}
                     </Button>
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon-sm"
-                      className="h-7 w-7 rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-accent/50"
+                      className="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/50"
                       onClick={handleSaveToLibrary}
                       aria-label={saved ? "Saved to library" : "Save to library"}
                       title={saved ? "Saved" : "Save"}
                     >
-                      {saved ? <Check className="h-3.5 w-3.5 text-green-500" /> : <BookmarkPlus className="h-3.5 w-3.5 text-amber-500/70 dark:text-amber-400/70" />}
+                      {saved ? <Check className="h-3.5 w-3.5 text-green-500" /> : <BookmarkPlus className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400" />}
                     </Button>
                   </>
                 ) : null}
@@ -897,12 +897,12 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    className="h-7 w-7 rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-accent/50"
+                    className="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/50"
                     onClick={() => setIsEditing(true)}
                     aria-label="Edit message"
                     title="Edit"
                   >
-                    <PenLine className="h-3.5 w-3.5 text-emerald-500/70 dark:text-emerald-400/70" />
+                    <PenLine className="h-3.5 w-3.5 text-emerald-500 dark:text-emerald-400" />
                   </Button>
                 ) : null}
               </div>
@@ -961,17 +961,17 @@ function StructuredDisclosure({
           )}>
             <Icon className={cn("h-3.5 w-3.5", iconColor)} />
           </span>
-          <span className="text-xs font-semibold text-foreground/80 truncate">
+          <span className="text-xs font-semibold text-foreground truncate">
             {title}
           </span>
           {meta ? (
-            <span className="hidden sm:inline-flex text-[10px] font-medium text-muted-foreground/50 tabular-nums truncate">
+            <span className="hidden sm:inline-flex text-[11px] font-medium text-muted-foreground tabular-nums truncate">
               {meta}
             </span>
           ) : null}
         </div>
 
-        <ChevronDown className="weaver-disclosure-chevron h-3.5 w-3.5 text-muted-foreground/40 transition-transform duration-200" />
+        <ChevronDown className="weaver-disclosure-chevron h-3.5 w-3.5 text-muted-foreground transition-transform duration-200" />
       </summary>
 
       <div className={cn("px-4 pb-3 pt-1 border-t border-border/20", contentClassName)}>

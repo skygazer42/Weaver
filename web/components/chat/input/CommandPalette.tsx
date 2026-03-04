@@ -115,7 +115,7 @@ export function CommandPalette({ show, onSelect, onClose }: CommandPaletteProps)
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             placeholder="Search commands..."
-            className="w-full pl-7 pr-2 py-1.5 text-sm bg-transparent border-none focus:outline-none placeholder:text-muted-foreground/60"
+            className="w-full pl-7 pr-2 py-1.5 text-sm bg-transparent border-none focus:outline-none placeholder:text-muted-foreground"
           />
         </div>
       </div>
@@ -154,7 +154,7 @@ export function CommandPalette({ show, onSelect, onClose }: CommandPaletteProps)
                 </div>
                 <div>
                   <div className="font-medium">{cmd.label}</div>
-                  <div className="text-[10px] text-muted-foreground">{cmd.desc}</div>
+                  <div className="text-[11px] text-muted-foreground">{cmd.desc}</div>
                 </div>
               </button>
             )

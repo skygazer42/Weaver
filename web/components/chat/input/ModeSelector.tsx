@@ -148,7 +148,7 @@ export function ModeSelector({
         >
           <Plug className={cn("h-3.5 w-3.5 transition-colors", mcpMode ? mcpStyle.activeColor : mcpStyle.color)} />
           {mcpMode ? (mcpOptions.find(o => o.id === mcpProvider)?.label || 'MCP') : 'MCP'}
-          <ChevronDown className="h-3 w-3 opacity-50" />
+          <ChevronDown className="h-3 w-3 opacity-60" />
         </button>
 
         {isMcpOpen && (

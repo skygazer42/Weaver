@@ -129,7 +129,7 @@ export function InspectorEvidence({ threadId }: { threadId: string | null }) {
     return (
       <div className="rounded-lg border border-border/60 bg-muted/10 p-4">
         <div className="text-xs font-semibold text-foreground">No evidence yet</div>
-        <div className="mt-1 text-xs text-muted-foreground text-pretty">
+        <div className="mt-1 text-xs font-medium text-muted-foreground text-pretty">
           Start a chat to generate a session, then evidence passages will appear here.
         </div>
       </div>
@@ -141,7 +141,7 @@ export function InspectorEvidence({ threadId }: { threadId: string | null }) {
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <div className="text-xs font-semibold text-foreground">Evidence</div>
-          <div className="text-[11px] text-muted-foreground truncate">
+          <div className="text-[11px] font-medium text-muted-foreground truncate">
             {pages.length} pages · {(evidence?.passages?.length ?? 0)} passages
           </div>
         </div>
@@ -161,7 +161,7 @@ export function InspectorEvidence({ threadId }: { threadId: string | null }) {
       {error ? (
         <div className="rounded-lg border border-border/60 bg-background p-3">
           <div className="text-xs font-semibold text-foreground">Failed to load evidence</div>
-          <div className="mt-1 text-xs text-muted-foreground text-pretty">
+          <div className="mt-1 text-xs font-medium text-muted-foreground text-pretty">
             {error}
           </div>
           <div className="mt-3">
@@ -187,13 +187,13 @@ export function InspectorEvidence({ threadId }: { threadId: string | null }) {
         <>
 	          <div className="grid grid-cols-2 gap-2">
 	            <div className="rounded-lg border border-border/60 bg-muted/10 p-2">
-	              <div className="text-[11px] text-muted-foreground">Sources</div>
+	              <div className="text-[11px] font-medium text-muted-foreground">Sources</div>
 	              <div className="mt-0.5 text-sm font-semibold tabular-nums text-foreground">
 	                {evidence.sources?.length ?? 0}
 	              </div>
 	            </div>
 	            <div className="rounded-lg border border-border/60 bg-muted/10 p-2">
-	              <div className="text-[11px] text-muted-foreground">Claims</div>
+	              <div className="text-[11px] font-medium text-muted-foreground">Claims</div>
 	              <div className="mt-0.5 text-sm font-semibold tabular-nums text-foreground">
 	                {evidence.claims?.length ?? 0}
 	              </div>
@@ -204,19 +204,19 @@ export function InspectorEvidence({ threadId }: { threadId: string | null }) {
 	            <div className="flex items-start justify-between gap-3">
 	              <div className="min-w-0">
 	                <div className="text-xs font-semibold text-foreground">Quality</div>
-	                <div className="mt-1 text-[11px] text-muted-foreground text-pretty">
+	                <div className="mt-1 text-[11px] font-medium text-muted-foreground text-pretty">
 	                  Query coverage, freshness, and budget signals captured during deep research.
 	                </div>
 	              </div>
 	              <div className="flex items-center gap-1.5">
-	                <span className="rounded-md border border-border/60 bg-muted/10 px-2 py-1 text-[11px] text-muted-foreground tabular-nums">
+	                <span className="rounded-md border border-border/60 bg-muted/10 px-2 py-1 text-[11px] font-medium text-muted-foreground tabular-nums">
 	                  Query {percent(quality.queryCoverageScore)}
 	                </span>
-	                <span className="rounded-md border border-border/60 bg-muted/10 px-2 py-1 text-[11px] text-muted-foreground tabular-nums">
+	                <span className="rounded-md border border-border/60 bg-muted/10 px-2 py-1 text-[11px] font-medium text-muted-foreground tabular-nums">
 	                  Fresh {percent(quality.freshnessRatio30d)}
 	                </span>
 	                {typeof quality.citationCoverage === 'number' ? (
-	                  <span className="rounded-md border border-border/60 bg-muted/10 px-2 py-1 text-[11px] text-muted-foreground tabular-nums">
+	                  <span className="rounded-md border border-border/60 bg-muted/10 px-2 py-1 text-[11px] font-medium text-muted-foreground tabular-nums">
 	                    Cite {percent(quality.citationCoverage)}
 	                  </span>
 	                ) : null}
@@ -225,25 +225,25 @@ export function InspectorEvidence({ threadId }: { threadId: string | null }) {
 
 	            <div className="mt-3 grid grid-cols-2 gap-2">
 	              <div className="rounded-md border border-border/60 bg-muted/10 p-2">
-	                <div className="text-[11px] text-muted-foreground">Time-sensitive</div>
+	                <div className="text-[11px] font-medium text-muted-foreground">Time-sensitive</div>
 	                <div className="mt-0.5 text-xs font-medium text-foreground">
 	                  {quality.timeSensitive ? 'Yes' : 'No'}
 	                </div>
 	              </div>
 	              <div className="rounded-md border border-border/60 bg-muted/10 p-2">
-	                <div className="text-[11px] text-muted-foreground">Budget stop</div>
+	                <div className="text-[11px] font-medium text-muted-foreground">Budget stop</div>
 	                <div className="mt-0.5 text-xs font-medium text-foreground truncate" title={quality.budgetStopReason || ''}>
 	                  {quality.budgetStopReason || '—'}
 	                </div>
 	              </div>
 	              <div className="rounded-md border border-border/60 bg-muted/10 p-2">
-	                <div className="text-[11px] text-muted-foreground">Elapsed</div>
+	                <div className="text-[11px] font-medium text-muted-foreground">Elapsed</div>
 	                <div className="mt-0.5 text-xs font-medium text-foreground tabular-nums">
 	                  {typeof quality.elapsedSeconds === 'number' ? `${Math.round(quality.elapsedSeconds)}s` : '—'}
 	                </div>
 	              </div>
 	              <div className="rounded-md border border-border/60 bg-muted/10 p-2">
-	                <div className="text-[11px] text-muted-foreground">Tokens used</div>
+	                <div className="text-[11px] font-medium text-muted-foreground">Tokens used</div>
 	                <div className="mt-0.5 text-xs font-medium text-foreground tabular-nums">
 	                  {typeof quality.tokensUsed === 'number' ? quality.tokensUsed.toLocaleString() : '—'}
 	                </div>
@@ -264,7 +264,7 @@ export function InspectorEvidence({ threadId }: { threadId: string | null }) {
 	            <div className="flex items-start justify-between gap-3">
 	              <div className="min-w-0">
 	                <div className="text-xs font-semibold text-foreground">Claims</div>
-	                <div className="mt-1 text-[11px] text-muted-foreground text-pretty">
+	                <div className="mt-1 text-[11px] font-medium text-muted-foreground text-pretty">
 	                  Deterministic checks that each claim is supported by collected evidence.
 	                </div>
 	              </div>
@@ -329,7 +329,7 @@ export function InspectorEvidence({ threadId }: { threadId: string | null }) {
 	            {filteredClaims.length === 0 ? (
 	              <div className="mt-3 rounded-md border border-border/60 bg-muted/10 p-3">
 	                <div className="text-xs font-semibold text-foreground">No claims</div>
-	                <div className="mt-1 text-xs text-muted-foreground text-pretty">
+	                <div className="mt-1 text-xs font-medium text-muted-foreground text-pretty">
 	                  This session has no extracted claims yet. Run deep research (or enable the research fetcher) to generate evidence-backed claims.
 	                </div>
 	              </div>
@@ -360,7 +360,7 @@ export function InspectorEvidence({ threadId }: { threadId: string | null }) {
 	                            <span className={cn('inline-flex rounded-md border px-2 py-0.5 text-[11px] font-semibold', statusTone(status))}>
 	                              {status}
 	                            </span>
-	                            <span className="text-[11px] text-muted-foreground tabular-nums">
+	                            <span className="text-[11px] font-medium text-muted-foreground tabular-nums">
 	                              {evidenceUrls.length} urls · {evidencePassages.length} passages
 	                            </span>
 	                          </div>
@@ -382,7 +382,7 @@ export function InspectorEvidence({ threadId }: { threadId: string | null }) {
 	                          {notes ? (
 	                            <div className="rounded-md border border-border/60 bg-muted/10 p-2">
 	                              <div className="text-[11px] font-semibold text-foreground">Notes</div>
-	                              <div className="mt-1 text-xs text-muted-foreground text-pretty">{notes}</div>
+	                              <div className="mt-1 text-xs font-medium text-muted-foreground text-pretty">{notes}</div>
 	                            </div>
 	                          ) : null}
 
@@ -480,7 +480,7 @@ export function InspectorEvidence({ threadId }: { threadId: string | null }) {
 	          {pages.length === 0 ? (
 	            <div className="rounded-lg border border-border/60 bg-background p-4">
 	              <div className="text-xs font-semibold text-foreground">No passages found</div>
-	              <div className="mt-1 text-xs text-muted-foreground text-pretty">
+	              <div className="mt-1 text-xs font-medium text-muted-foreground text-pretty">
 	                This session has no evidence passages yet. Try enabling the research fetcher, or run deep research.
 	              </div>
 	            </div>
@@ -503,7 +503,7 @@ export function InspectorEvidence({ threadId }: { threadId: string | null }) {
                         <div className="text-xs font-semibold text-foreground truncate" title={meta?.title || page.url}>
                           {title}
                         </div>
-                        <div className="mt-0.5 text-[11px] text-muted-foreground truncate" title={sub}>
+                        <div className="mt-0.5 text-[11px] font-medium text-muted-foreground truncate" title={sub}>
                           {sub || page.url}
                         </div>
                       </div>
@@ -551,7 +551,7 @@ export function InspectorEvidence({ threadId }: { threadId: string | null }) {
                                   {heading.key}
                                 </span>
                               </div>
-                              <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
+                              <span className="text-[11px] font-medium text-muted-foreground tabular-nums shrink-0">
                                 {heading.passages.length}
                               </span>
                             </button>

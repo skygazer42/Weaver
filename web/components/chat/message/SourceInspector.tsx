@@ -179,12 +179,12 @@ export function SourceInspector({
                 className="flex w-full items-start gap-2 text-left"
                 onClick={() => onSelectCitation?.(isActive ? null : source.citation)}
               >
-                <span className="mt-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded bg-primary/10 px-1 text-[10px] font-semibold text-primary">
+                <span className="mt-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded bg-primary/10 px-1 text-[11px] font-semibold text-primary">
                   [{source.citation}]
                 </span>
                 <span className="flex-1 text-xs font-medium leading-5">{source.title || 'Untitled source'}</span>
               </button>
-              <div className="mt-2 flex flex-wrap items-center gap-1 text-[10px] text-muted-foreground">
+              <div className="mt-2 flex flex-wrap items-center gap-1 text-[11px] font-medium text-muted-foreground">
                 <span className="rounded bg-muted px-1.5 py-0.5">{source.domain}</span>
                 <span className="rounded bg-muted px-1.5 py-0.5">{source.provider}</span>
                 <span className="rounded bg-muted px-1.5 py-0.5">freshness: {source.freshness}</span>
@@ -193,7 +193,7 @@ export function SourceInspector({
                 href={href}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-2 inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
+                className="mt-2 inline-flex items-center gap-1 text-xs text-primary hover:underline"
               >
                 <LinkIcon className="h-3 w-3 text-sky-500/70 dark:text-sky-400/70" />
                 <span className="max-w-[420px] truncate">{href}</span>

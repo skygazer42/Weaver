@@ -248,8 +248,8 @@ export const ChatInput = memo(function ChatInput({
           className={cn(
             "relative group rounded-2xl border bg-card/80 backdrop-blur-sm transition-all duration-200 overflow-hidden",
             isFocused
-              ? "border-primary/25 shadow-[0_0_0_1px_hsl(var(--primary)/0.12),0_0_0_4px_hsl(var(--primary)/0.04)]"
-              : "border-border/40 hover:border-border/60 shadow-sm",
+              ? "border-border/50 ring-2 ring-primary/15 ring-offset-0 shadow-sm"
+              : "border-border/30 hover:border-border/50 shadow-sm",
             isDragging && "border-primary/40 ring-2 ring-primary/10 bg-primary/[0.02]",
             isLoading && "opacity-80"
           )}
@@ -280,11 +280,11 @@ export const ChatInput = memo(function ChatInput({
               type="button"
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/40 rounded-lg transition-colors"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/40 rounded-lg transition-colors"
               onClick={() => fileInputRef.current?.click()}
               aria-label="Attach files"
             >
-              <Paperclip className="h-4 w-4 text-amber-500/70 dark:text-amber-400/70" />
+              <Paperclip className="h-4 w-4 text-amber-500 dark:text-amber-400" />
             </Button>
           </div>
 
@@ -312,7 +312,7 @@ export const ChatInput = memo(function ChatInput({
               rows={1}
               aria-describedby="chat-input-hint"
               className={cn(
-                "w-full resize-none bg-transparent px-14 min-h-[56px] max-h-[200px] text-base focus:outline-none placeholder:text-muted-foreground/40 scrollbar-thin scrollbar-thumb-muted",
+                "w-full resize-none bg-transparent px-14 min-h-[56px] max-h-[200px] text-base focus:outline-none placeholder:text-muted-foreground scrollbar-thin scrollbar-thumb-muted",
                 attachments.length > 0 ? "pt-2 pb-4" : "py-4"
               )}
             />
@@ -349,7 +349,7 @@ export const ChatInput = memo(function ChatInput({
                   "group h-8 w-8 rounded-xl transition-all duration-200",
                   hasContent
                     ? "bg-primary text-primary-foreground shadow-sm shadow-primary/25 hover:bg-primary/90 hover:shadow-md hover:shadow-primary/20"
-                    : "bg-muted/40 text-muted-foreground/30"
+                    : "bg-muted/40 text-muted-foreground"
                 )}
               >
                 <Send className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
@@ -359,7 +359,7 @@ export const ChatInput = memo(function ChatInput({
         </div>
 
         {/* Footer hints */}
-        <div className="flex justify-between px-3 text-xs text-muted-foreground/40">
+        <div className="flex justify-between px-3 text-xs font-medium text-muted-foreground">
           <span><kbd className="font-mono">/</kbd> {t('forCommands')}</span>
           <span>{t('aiCanMakeMistakes')}</span>
         </div>

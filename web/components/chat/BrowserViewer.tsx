@@ -82,6 +82,16 @@ function getNormalizedPoint(target: HTMLDivElement, clientX: number, clientY: nu
   return { x: clamp01(x), y: clamp01(y) }
 }
 
+function isIdleBrowserUrl(url: string | null): boolean {
+  const u = String(url || '').trim().toLowerCase()
+  if (!u) return true
+  if (u === 'about:blank') return true
+  if (u === 'chrome://newtab/' || u === 'edge://newtab/' || u === 'chrome://newtab') return true
+  if (u.startsWith('chrome-error://')) return true
+  if (u === 'data:,' || u === 'data:text/html,' || u.startsWith('data:text/html,')) return true
+  return false
+}
+
 /**
  * Real-time browser viewer component
  * Displays browser screenshots as they're captured during agent operations
@@ -169,6 +179,7 @@ export function BrowserViewer({
   const liveImageUrl = currentFrame ? `data:image/jpeg;base64,${currentFrame.data}` : null
   const livePageUrl = typeof currentFrame?.metadata?.url === 'string' ? currentFrame.metadata.url : null
   const effectivePageUrl = isLiveMode ? livePageUrl : (displayScreenshot?.pageUrl || null)
+  const isIdlePage = isIdleBrowserUrl(effectivePageUrl)
 
   const [navigateUrl, setNavigateUrl] = useState('')
   const [typeText, setTypeText] = useState('')
@@ -722,12 +733,13 @@ export function BrowserViewer({
                     </div>
                   )}
 
-                  {isLiveMode && liveImageUrl && (!effectivePageUrl || effectivePageUrl === 'about:blank') && (
+                  {isLiveMode && liveImageUrl && isIdlePage && (
                     <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-4">
-                      <div className="max-w-[520px] rounded bg-black/60 text-white px-3 py-2 text-[11px] leading-relaxed">
-                        <div className="font-medium">Browser is idle</div>
-                        <div className="opacity-90">
-                          Enable control (cursor icon) to navigate, or ask the agent to use browser tools.
+                      <div className="max-w-[520px] rounded-md bg-black/70 text-white px-4 py-3 text-sm leading-relaxed shadow-lg">
+                        <div className="font-semibold">Browser is idle</div>
+                        <div className="mt-1 opacity-90 text-[12px]">
+                          This is expected until the agent opens a page. Enable control (cursor icon) to navigate,
+                          or ask the agent to use browser tools.
                         </div>
                       </div>
                     </div>
