@@ -113,6 +113,7 @@ export function useBrowserStream({
   const frameCountRef = useRef(0)
   const fpsIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const reconnectAttemptsRef = useRef(0)
 
   // Calculate FPS every second
   useEffect(() => {
@@ -131,13 +132,37 @@ export function useBrowserStream({
   const connect = useCallback(function connect() {
     if (!threadId) return
 
+    // Clear any pending reconnect; we're taking control of the connection lifecycle now.
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current)
+      reconnectTimeoutRef.current = null
+    }
+
     // Clean up existing connection
     if (wsRef.current) {
       ackTrackerRef.current.rejectAll(new Error('WebSocket replaced'))
-      wsRef.current.close()
+      // Close gracefully to avoid triggering auto-reconnect loops in `onclose`.
+      try {
+        wsRef.current.close(1000, 'WebSocket replaced')
+      } catch {
+        wsRef.current.close()
+      }
     }
 
     const wsUrl = getApiWsBaseUrl() + `/api/browser/${threadId}/stream`
+
+    // Mixed content guard: browsers block `ws://` from `https://` pages.
+    if (typeof window !== 'undefined' && window.location.protocol === 'https:' && wsUrl.startsWith('ws://')) {
+      const msg =
+        'WebSocket blocked by mixed content (https page → ws://). ' +
+        'Use http:// for the frontend, or configure NEXT_PUBLIC_API_URL to an https:// origin that supports wss://.'
+      console.warn('[useBrowserStream] ' + msg, { wsUrl })
+      setError(msg)
+      setIsConnected(false)
+      setIsStreaming(false)
+      wsRef.current = null
+      return
+    }
 
     console.log('[useBrowserStream] Connecting to:', wsUrl)
 
@@ -146,6 +171,7 @@ export function useBrowserStream({
 
     ws.onopen = () => {
       console.log('[useBrowserStream] Connected')
+      reconnectAttemptsRef.current = 0
       setIsConnected(true)
       setError(null)
 
@@ -193,8 +219,10 @@ export function useBrowserStream({
     }
 
     ws.onerror = (event) => {
-      console.error('[useBrowserStream] WebSocket error:', event)
-      setError('WebSocket connection error')
+      // In Next.js dev, `console.error` triggers the error overlay and can look like a crash.
+      // Use warn + show a user-visible error message instead.
+      console.warn('[useBrowserStream] WebSocket error:', event)
+      setError((prev) => prev || 'WebSocket connection error')
     }
 
     ws.onclose = (event) => {
@@ -204,15 +232,17 @@ export function useBrowserStream({
       ackTrackerRef.current.rejectAll(new Error('WebSocket disconnected'))
       wsRef.current = null
 
-      // Attempt to reconnect after 3 seconds if not intentionally closed
-      if (event.code !== 1000) {
-        reconnectTimeoutRef.current = setTimeout(() => {
-          if (threadId) {
-            console.log('[useBrowserStream] Attempting to reconnect...')
-            connect()
-          }
-        }, 3000)
-      }
+      // Don't reconnect if we closed intentionally (1000) or the server rejected the user.
+      if (event.code === 1000 || event.code === 4401 || event.code === 4403) return
+      if (!threadId) return
+
+      const attempt = reconnectAttemptsRef.current++
+      const delayMs = Math.min(30_000, 1_000 * (2 ** attempt))
+      reconnectTimeoutRef.current = setTimeout(() => {
+        if (!threadId) return
+        console.log('[useBrowserStream] Attempting to reconnect...')
+        connect()
+      }, delayMs)
     }
   }, [threadId, autoStart, quality, maxFps])
 
