@@ -80,7 +80,7 @@ export const Header = memo(function Header({
   }, [currentView, t])
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border/30 bg-background/70 backdrop-blur-xl px-5 transition-colors duration-200">
+    <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border/10 bg-background px-5 transition-colors duration-200">
       <div className="flex items-center gap-4 min-w-0">
         <Button
           variant="ghost"

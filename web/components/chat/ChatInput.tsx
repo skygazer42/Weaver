@@ -230,27 +230,18 @@ export const ChatInput = memo(function ChatInput({
           />
         ) : null}
 
-        {/* Mode Tabs */}
-        <ModeSelector
-          searchMode={searchMode}
-          onSearchModeChange={setSearchMode}
-          mcpMode={mcpMode}
-          onMcpModeChange={setMcpMode}
-          mcpProvider={mcpProvider}
-          onMcpProviderChange={setMcpProvider}
-        />
-
-        {/* Input Container */}
+        {/* Floating input pill (Mode tabs + textarea) */}
         <div
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           className={cn(
-            "relative group rounded-2xl bg-card/85 backdrop-blur-sm transition-all duration-200 overflow-hidden shadow-sm",
-            isFocused
-              ? "ring-2 ring-primary/15 ring-offset-0 shadow-md"
-              : "hover:shadow-md",
-            isDragging && "ring-2 ring-primary/10 bg-primary/[0.02]",
+            "relative overflow-hidden rounded-3xl bg-background transition-all duration-200",
+            "ring-1 ring-border/20",
+            "shadow-[0_0_40px_rgba(0,0,0,0.06)]",
+            isFocused && "ring-primary/20 shadow-[0_0_48px_rgba(0,0,0,0.08)]",
+            !isFocused && "hover:shadow-[0_0_48px_rgba(0,0,0,0.075)]",
+            isDragging && "ring-primary/25 bg-primary/[0.015]",
             isLoading && "opacity-80"
           )}
         >
@@ -266,29 +257,42 @@ export const ChatInput = memo(function ChatInput({
             </div>
           )}
 
-          {/* File Input */}
-          <div className="absolute top-3 left-3 flex gap-1 z-10">
-            <input
-              type="file"
-              multiple
-              className="hidden"
-              ref={fileInputRef}
-              onChange={handleFileSelect}
-              aria-label="Upload files"
+          {/* Mode Tabs */}
+          <div className="px-3 pt-3 pb-1">
+            <ModeSelector
+              searchMode={searchMode}
+              onSearchModeChange={setSearchMode}
+              mcpMode={mcpMode}
+              onMcpModeChange={setMcpMode}
+              mcpProvider={mcpProvider}
+              onMcpProviderChange={setMcpProvider}
             />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/40 rounded-lg transition-colors"
-              onClick={() => fileInputRef.current?.click()}
-              aria-label="Attach files"
-            >
-              <Paperclip className="h-4 w-4 text-amber-500 dark:text-amber-400" />
-            </Button>
           </div>
 
-          <div className="flex flex-col w-full">
+          <div className="relative px-3 pb-3">
+            {/* File Input */}
+            <div className="absolute top-2 left-2 flex gap-1 z-10">
+              <input
+                type="file"
+                multiple
+                className="hidden"
+                ref={fileInputRef}
+                onChange={handleFileSelect}
+                aria-label="Upload files"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/30 rounded-lg transition-colors"
+                onClick={() => fileInputRef.current?.click()}
+                aria-label="Attach files"
+              >
+                <Paperclip className="h-4 w-4 text-amber-500 dark:text-amber-400" />
+              </Button>
+            </div>
+
+            <div className="flex flex-col w-full">
             {/* Attachments Preview */}
             <AttachmentPreview
               previews={previews.map(p => ({ file: p.file, previewUrl: p.previewUrl }))}
@@ -356,6 +360,7 @@ export const ChatInput = memo(function ChatInput({
               </Button>
             )}
           </div>
+        </div>
         </div>
 
         {/* Footer hints */}

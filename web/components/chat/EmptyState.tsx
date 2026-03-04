@@ -13,34 +13,26 @@ interface EmptyStateProps {
   onStarterClick?: (text: string, mode: CoreModeId) => void
 }
 
-const MODE_COLORS: Record<string, { icon: string; activeIcon: string; activeBg: string; activeRing: string; activeShadow: string }> = {
+const MODE_COLORS: Record<string, { icon: string; activeIcon: string; activeRing: string }> = {
   ultra: {
     icon: 'text-violet-600 dark:text-violet-400',
     activeIcon: 'text-violet-700 dark:text-violet-300',
-    activeBg: 'bg-card',
     activeRing: 'ring-violet-500/20',
-    activeShadow: 'shadow-md',
   },
   agent: {
     icon: 'text-sky-600 dark:text-sky-400',
     activeIcon: 'text-sky-700 dark:text-sky-300',
-    activeBg: 'bg-card',
     activeRing: 'ring-sky-500/20',
-    activeShadow: 'shadow-md',
   },
   web: {
     icon: 'text-emerald-600 dark:text-emerald-400',
     activeIcon: 'text-emerald-700 dark:text-emerald-300',
-    activeBg: 'bg-card',
     activeRing: 'ring-emerald-500/20',
-    activeShadow: 'shadow-md',
   },
   direct: {
     icon: 'text-amber-600 dark:text-amber-400',
     activeIcon: 'text-amber-700 dark:text-amber-300',
-    activeBg: 'bg-card',
     activeRing: 'ring-amber-500/20',
-    activeShadow: 'shadow-md',
   },
 }
 
@@ -77,7 +69,7 @@ export function EmptyState({ selectedMode, mcpMode, onModeSelect, onStarterClick
 
       {/* Hero Section */}
       <div className="flex flex-col items-center space-y-5 mb-14 text-center">
-        <div className="flex size-18 items-center justify-center rounded-2xl bg-card border border-border/20 shadow-sm overflow-hidden">
+        <div className="flex size-18 items-center justify-center rounded-2xl bg-background shadow-[0_12px_36px_rgba(0,0,0,0.08)] overflow-hidden">
           <Image
             src="/logo.png"
             alt="Weaver"
@@ -113,10 +105,10 @@ export function EmptyState({ selectedMode, mcpMode, onModeSelect, onStarterClick
               }}
               className={cn(
                 "group flex items-start gap-3.5 p-4 rounded-xl text-left transition-all duration-200",
-                "bg-card shadow-sm hover:shadow-md hover:-translate-y-0.5",
+                "bg-background shadow-[0_8px_30px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_36px_rgba(0,0,0,0.06)] hover:-translate-y-0.5",
                 isActive
-                  ? ["ring-1", colors.activeRing, colors.activeBg, colors.activeShadow]
-                  : "hover:bg-card"
+                  ? ["ring-1", colors.activeRing]
+                  : "ring-1 ring-border/10"
               )}
               style={{ animationDelay: `${i * 50}ms` }}
             >
@@ -133,8 +125,7 @@ export function EmptyState({ selectedMode, mcpMode, onModeSelect, onStarterClick
                   {starter.text}
                 </p>
                 <div className={cn(
-                  "flex items-center gap-1 text-xs font-medium",
-                  isActive ? [colors.activeIcon] : "text-stone-500 dark:text-stone-400"
+                  "flex items-center gap-1 text-xs font-medium text-muted-foreground"
                 )}>
                   <span>{t('useMode')} {starter.mode} {t('mode')}</span>
                   <ArrowRight className="h-2.5 w-2.5" />
