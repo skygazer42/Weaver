@@ -59,9 +59,9 @@ export function BrowserViewer({
     capture: captureFrame
   } = useBrowserStream({
     threadId: isLiveMode ? threadId : null,
-    autoStart: false,
+    autoStart: true,
     quality: 70,
-    maxFps: 5
+    maxFps: 10
   })
 
   const isActive = isLiveMode ? isStreaming : isEventsActive
@@ -222,19 +222,42 @@ export function BrowserViewer({
           <div className="relative bg-muted/30">
             <div className="max-h-[60vh] min-h-[240px] overflow-auto">
               {/* Live stream mode */}
-              {isLiveMode && liveImageUrl ? (
-                <img
-                  src={liveImageUrl}
-                  alt="Live browser view"
-                  className="block w-full h-auto bg-white"
-                />
-              ) : isLiveMode && isConnected ? (
-                <div className="flex items-center justify-center min-h-[240px] text-muted-foreground">
-                  <div className="text-center">
-                    <Play className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">Click play to start live view</p>
+              {isLiveMode ? (
+                liveImageUrl ? (
+                  <img
+                    src={liveImageUrl}
+                    alt="Live browser view"
+                    className="block w-full h-auto bg-white"
+                  />
+                ) : !isConnected ? (
+                  <div className="flex items-center justify-center min-h-[240px] text-muted-foreground">
+                    <div className="text-center">
+                      <Loader2 className="w-8 h-8 mx-auto mb-2 animate-spin opacity-60" />
+                      <p className="text-sm">Connecting to live view...</p>
+                      <p className="text-xs mt-1 opacity-70">
+                        First run can take up to ~1 minute to start the sandbox browser.
+                      </p>
+                    </div>
                   </div>
-                </div>
+                ) : isStreaming ? (
+                  <div className="flex items-center justify-center min-h-[240px] text-muted-foreground">
+                    <div className="text-center">
+                      <Loader2 className="w-8 h-8 mx-auto mb-2 animate-spin opacity-60" />
+                      <p className="text-sm">Starting live view...</p>
+                      <p className="text-xs mt-1 opacity-70">
+                        Waiting for the first frame. If this takes too long, check the error banner below.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center min-h-[240px] text-muted-foreground">
+                    <div className="text-center">
+                      <Play className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">Live view is paused</p>
+                      <p className="text-xs mt-1 opacity-70">Click play to resume streaming.</p>
+                    </div>
+                  </div>
+                )
               ) : displayScreenshot ? (
                 /* Screenshot mode */
                 <img
