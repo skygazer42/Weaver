@@ -102,7 +102,7 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
       console.log('[useChatStream] Creating assistant message:', {
         id: assistantMessage.id,
         role: assistantMessage.role,
-        currentMessagesCount: messages.length
+        currentMessagesCount: messageHistory.length
       })
 
       setMessages((prev) => [...prev, assistantMessage])
