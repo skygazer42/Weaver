@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useMemo, useState } from 'react'
-import { ChevronDown, Loader2, CheckCircle2, Search, Wrench, Image as ImageIcon } from 'lucide-react'
+import { ChevronDown, Loader2, CheckCircle2, Search, Wrench, Image as ImageIcon, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ProcessEvent, RunMetrics, ToolInvocation } from '@/types/chat'
 
@@ -56,8 +56,12 @@ export function ThinkingProcess({
   }, [tools.length, events])
 
   const displayEvents = useMemo(() => {
-    const filtered = events.filter((e) => e.type !== 'done')
-    return filtered.slice(-60)
+    const thoughts = events.filter((e) => e.type === 'thinking').slice(-3)
+    const tail = events
+      .filter((e) => e.type !== 'done' && e.type !== 'thinking')
+      .slice(-60)
+
+    return [...thoughts, ...tail].sort((a, b) => a.timestamp - b.timestamp)
   }, [events])
 
   useEffect(() => {
@@ -145,6 +149,21 @@ function EventRow({ ev }: { ev: ProcessEvent }) {
         <span className="mt-1 h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />
         <div className="min-w-0">
           <div className="truncate">{String(ev.data?.text || 'Working…')}</div>
+        </div>
+      </div>
+    )
+  }
+
+  if (kind === 'thinking') {
+    const text = String(ev.data?.text || '').trim()
+    if (!text) return null
+    return (
+      <div className="flex items-start gap-2">
+        <Sparkles className="mt-0.5 h-4 w-4 text-muted-foreground/60" />
+        <div className="min-w-0">
+          <div className="whitespace-pre-wrap break-words text-[13px] leading-6 text-foreground/80">
+            {text}
+          </div>
         </div>
       </div>
     )

@@ -1411,6 +1411,57 @@ def _should_emit_main_text_for_node(node_name: str) -> bool:
     return any(token in name for token in allow_tokens)
 
 
+def _should_emit_thinking_summary_for_node(node_name: str) -> bool:
+    """
+    Decide whether a node's `output.messages` should be surfaced as a
+    human-readable "thinking summary" in the UI accordion.
+
+    This is NOT chain-of-thought. It is a short, user-facing progress narrative
+    (e.g. a research plan + queries), kept separate from the final answer.
+    """
+    name = (node_name or "").strip().lower()
+    if not name:
+        return False
+
+    # Only allow planning/clarification style nodes. Avoid writer/evaluator/deepsearch
+    # outputs which can be long or contain structured blobs that don't read well.
+    allow = (
+        "planner",
+        "web_plan",
+        "refine_plan",
+        "clarify",
+    )
+    return any(token in name for token in allow)
+
+
+def _looks_like_structured_blob(text: str) -> bool:
+    """
+    Heuristic guardrail: skip large JSON/python-like dumps from appearing in the
+    thinking accordion, which would recreate the "python list / json block" UX.
+    """
+    t = (text or "").strip()
+    if not t:
+        return False
+    if "```" in t:
+        return True
+    if t.startswith(("{", "[")) and len(t) > 40:
+        return True
+    # Common keys seen in deepsearch/planner structured dumps
+    if '"subtopics"' in t or "'subtopics'" in t or '"queries"' in t:
+        if "{" in t or "[" in t:
+            return True
+    return False
+
+
+def _sanitize_thinking_text(text: str, max_len: int = 1800) -> str:
+    t = (text or "").strip()
+    if not t:
+        return ""
+    if len(t) > max_len:
+        t = t[:max_len].rstrip() + "..."
+    return t
+
+
 def _compact_tool_args(tool_input: Any) -> Dict[str, Any]:
     """
     Best-effort compact tool args for streaming UI previews.
@@ -1857,6 +1908,22 @@ async def stream_agent_events(
                             {"thread_id": thread_id, "prompts": _serialize_interrupts(interrupts)},
                         )
                         return
+
+                    # Optional "thinking summary" (safe progress narrative) — keep separate from main answer.
+                    if _should_emit_thinking_summary_for_node(node_name) and not output.get("is_complete"):
+                        try:
+                            messages = output.get("messages", [])
+                            for msg in messages or []:
+                                content = msg.content if hasattr(msg, "content") else str(msg)
+                                safe = _sanitize_thinking_text(content)
+                                if not safe or _looks_like_structured_blob(safe):
+                                    continue
+                                yield await format_stream_event(
+                                    "thinking",
+                                    {"text": safe, "node": node_name},
+                                )
+                        except Exception:
+                            pass
 
                     # Check for completion and final report artifact
                     if output.get("is_complete"):

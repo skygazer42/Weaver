@@ -76,6 +76,8 @@ async def test_stream_does_not_forward_intermediate_messages_or_planner_tokens(m
 
     # Main answer stream should not receive node output "messages" at all.
     assert "message" not in types
+    # Planner summary should be surfaced as a separate thinking event (accordion), not main answer.
+    assert "thinking" in types
 
     # Planner tokens must not leak into main text stream.
     text_chunks = [p for p in payloads if p.get("type") == "text"]

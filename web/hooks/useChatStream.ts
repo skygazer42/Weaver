@@ -213,6 +213,7 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
                 syncAssistantMessage()
               } else if (
                 [
+                  'thinking',
                   'tool_start',
                   'tool_result',
                   'tool_error',
