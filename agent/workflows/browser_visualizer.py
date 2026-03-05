@@ -31,6 +31,8 @@ def _resolve_thread_id(state: Dict[str, Any], config: Dict[str, Any]) -> str:
     if isinstance(cfg, dict):
         thread_id = str(cfg.get("thread_id") or "").strip()
     if not thread_id:
+        thread_id = str(state.get("thread_id") or "").strip()
+    if not thread_id:
         # Best-effort fallback used elsewhere in deepsearch for the emitter.
         thread_id = str(state.get("cancel_token_id") or "").strip()
     return thread_id
