@@ -269,19 +269,19 @@ html {
 /* ─── Sidebar ────────────────────────────────────────── */
 @layer components {
   .sidebar {
-    @apply bg-background border-r border-border/20;
+    @apply bg-muted border-r border-border/40;
   }
   .sidebar-item {
     @apply flex items-center gap-3 px-3 py-2 rounded-lg;
     @apply text-muted-foreground hover:text-foreground;
-    @apply hover:bg-accent/40 transition-all duration-150;
+    @apply hover:bg-background/60 transition-colors duration-150;
     content-visibility: auto;
   }
   .sidebar-item:active {
     transform: scale(0.98);
   }
   .sidebar-item.active {
-    @apply text-foreground bg-primary/[0.05];
+    @apply text-foreground bg-background shadow-sm ring-1 ring-border/30;
   }
 }
 

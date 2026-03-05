@@ -190,7 +190,7 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
         <div className="px-3 pt-5 pb-1.5">
           <div className="flex items-center gap-2 text-muted-foreground">
             {entry.kind === 'pinned' ? (
-              <Star className="h-3 w-3 fill-current text-primary/50" />
+              <Star className="h-3 w-3 fill-current text-muted-foreground/70" />
             ) : null}
             <span className="text-[11px] font-semibold uppercase tracking-wider">
               {text}
@@ -286,9 +286,9 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
           </div>
 
           <div className="space-y-0.5" role="group" aria-label="Workspace navigation">
-            <SidebarItem icon={LayoutGrid} label={t('dashboard')} active={activeView === 'dashboard'} onClick={() => onViewChange('dashboard')} iconClassName="text-sky-500 dark:text-sky-400" />
-            <SidebarItem icon={Compass} label={t('discover')} active={activeView === 'discover'} onClick={() => onViewChange('discover')} iconClassName="text-amber-500 dark:text-amber-400" />
-            <SidebarItem icon={FolderOpen} label={t('library')} active={activeView === 'library'} onClick={() => onViewChange('library')} iconClassName="text-violet-500 dark:text-violet-400" />
+            <SidebarItem icon={LayoutGrid} label={t('dashboard')} active={activeView === 'dashboard'} onClick={() => onViewChange('dashboard')} />
+            <SidebarItem icon={Compass} label={t('discover')} active={activeView === 'discover'} onClick={() => onViewChange('discover')} />
+            <SidebarItem icon={FolderOpen} label={t('library')} active={activeView === 'library'} onClick={() => onViewChange('library')} />
           </div>
 
           <div>
@@ -333,8 +333,8 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
               title={t('toggleTheme')}
               className="hover:bg-accent/50 rounded-lg"
             >
-              <Sun className="h-4 w-4 text-amber-500 rotate-0 scale-100 transition-transform duration-200 dark:-rotate-90 dark:scale-0" />
-              <Moon className="absolute h-4 w-4 text-indigo-400 rotate-90 scale-0 transition-transform duration-200 dark:rotate-0 dark:scale-100" />
+              <Sun className="h-4 w-4 text-muted-foreground rotate-0 scale-100 transition-transform duration-200 dark:-rotate-90 dark:scale-0" />
+              <Moon className="absolute h-4 w-4 text-muted-foreground rotate-90 scale-0 transition-transform duration-200 dark:rotate-0 dark:scale-100" />
             </Button>
             <Button
               type="button"
@@ -378,29 +378,29 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
                 active={activeView === 'dashboard'}
                 onClick={() => onViewChange('dashboard')}
               >
-                <LayoutGrid className="h-4 w-4 text-sky-500 dark:text-sky-400" />
+                <LayoutGrid className="h-4 w-4" />
               </RailButton>
               <RailButton
                 label={t('discover')}
                 active={activeView === 'discover'}
                 onClick={() => onViewChange('discover')}
               >
-                <Compass className="h-4 w-4 text-amber-500 dark:text-amber-400" />
+                <Compass className="h-4 w-4" />
               </RailButton>
               <RailButton
                 label={t('library')}
                 active={activeView === 'library'}
                 onClick={() => onViewChange('library')}
               >
-                <FolderOpen className="h-4 w-4 text-violet-500 dark:text-violet-400" />
+                <FolderOpen className="h-4 w-4" />
               </RailButton>
             </div>
 
             <div className="flex flex-col items-center gap-1.5">
               <RailButton label={t('toggleTheme')} active={false} onClick={toggleTheme}>
                 <>
-                  <Sun className="h-4 w-4 text-amber-500 rotate-0 scale-100 transition-transform duration-200 dark:-rotate-90 dark:scale-0" />
-                  <Moon className="absolute h-4 w-4 text-indigo-400 rotate-90 scale-0 transition-transform duration-200 dark:rotate-0 dark:scale-100" />
+                  <Sun className="h-4 w-4 text-muted-foreground rotate-0 scale-100 transition-transform duration-200 dark:-rotate-90 dark:scale-0" />
+                  <Moon className="absolute h-4 w-4 text-muted-foreground rotate-90 scale-0 transition-transform duration-200 dark:rotate-0 dark:scale-100" />
                 </>
               </RailButton>
 
@@ -504,8 +504,8 @@ function RailButton({
           className={cn(
             "relative flex size-9 items-center justify-center rounded-lg transition-all duration-150",
             active
-              ? "bg-primary/10 text-primary shadow-sm"
-              : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+              ? "bg-background text-foreground shadow-sm ring-1 ring-border/30"
+              : "text-muted-foreground hover:text-foreground hover:bg-background/60"
           )}
         >
           {children}
@@ -602,14 +602,10 @@ function SidebarChatItem({
         className={cn(
           "flex w-full gap-3 px-2.5 py-2 rounded-lg text-left transition-all duration-150 pr-10",
           active
-            ? "bg-primary/[0.05] text-foreground"
-            : "text-muted-foreground hover:text-foreground hover:bg-accent/30"
+            ? "bg-background text-foreground shadow-sm ring-1 ring-border/30"
+            : "text-muted-foreground hover:text-foreground hover:bg-background/60"
         )}
       >
-        {active && (
-          <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-full bg-primary" />
-        )}
-
         <span className="min-w-0 flex-1">
           <span className="flex items-center justify-between gap-2">
             <span className={cn(
@@ -637,22 +633,22 @@ function SidebarChatItem({
         )}
       >
         <div className="flex items-center gap-0.5 rounded-md p-0.5">
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onTogglePin(item.id)
-            }}
-            aria-label={item.isPinned ? `Unpin ${item.title}` : `Pin ${item.title}`}
-            aria-pressed={item.isPinned}
-            className={cn(
-              "p-1 rounded text-muted-foreground transition-colors",
-              "hover:bg-accent hover:text-foreground",
-              item.isPinned && "text-primary"
-            )}
-          >
-            {item.isPinned ? (
-              <StarOff className="h-3 w-3" />
-            ) : (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onTogglePin(item.id)
+              }}
+              aria-label={item.isPinned ? `Unpin ${item.title}` : `Pin ${item.title}`}
+              aria-pressed={item.isPinned}
+              className={cn(
+                "p-1 rounded text-muted-foreground transition-colors",
+                "hover:bg-accent hover:text-foreground",
+                item.isPinned && "text-foreground"
+              )}
+            >
+              {item.isPinned ? (
+                <StarOff className="h-3 w-3" />
+              ) : (
               <Star className="h-3 w-3" />
             )}
           </button>
@@ -674,7 +670,7 @@ function SidebarChatItem({
 }
 
 
-function SidebarItem({ icon: Icon, label, active, onClick, iconClassName }: { icon: any, label: string, active?: boolean, onClick?: () => void, iconClassName?: string }) {
+function SidebarItem({ icon: Icon, label, active, onClick }: { icon: any, label: string, active?: boolean, onClick?: () => void }) {
   return (
     <button
       onClick={onClick}
@@ -683,7 +679,7 @@ function SidebarItem({ icon: Icon, label, active, onClick, iconClassName }: { ic
         "sidebar-item group",
         active && "active"
       )}>
-      <Icon className={cn("h-4 w-4 transition-colors", iconClassName || (active ? "text-primary" : "text-muted-foreground group-hover:text-foreground"))} />
+      <Icon className={cn("h-4 w-4 transition-colors", active ? "text-foreground" : "text-muted-foreground group-hover:text-foreground")} />
       <span className="truncate text-sm">{label}</span>
     </button>
   )
