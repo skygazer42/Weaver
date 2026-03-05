@@ -504,7 +504,7 @@ function RailButton({
           className={cn(
             "relative flex size-9 items-center justify-center rounded-lg transition-all duration-150",
             active
-              ? "bg-background text-foreground shadow-sm ring-1 ring-border/30"
+              ? "bg-background text-foreground"
               : "text-muted-foreground hover:text-foreground hover:bg-background/60"
           )}
         >
@@ -602,7 +602,7 @@ function SidebarChatItem({
         className={cn(
           "flex w-full gap-3 px-2.5 py-2 rounded-lg text-left transition-all duration-150 pr-10",
           active
-            ? "bg-background text-foreground shadow-sm ring-1 ring-border/30"
+            ? "bg-background text-foreground"
             : "text-muted-foreground hover:text-foreground hover:bg-background/60"
         )}
       >

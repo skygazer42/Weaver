@@ -281,7 +281,7 @@ html {
     transform: scale(0.98);
   }
   .sidebar-item.active {
-    @apply text-foreground bg-background shadow-sm ring-1 ring-border/30;
+    @apply text-foreground bg-background;
   }
 }
 
