@@ -245,7 +245,7 @@ export function ArtifactsPanel({
             </div>
           </div>
           <Button type="button" variant="ghost" onClick={() => setIsFullscreen(false)}>
-            <Minimize2 className="h-5 w-5 mr-2 text-slate-500/70" />
+            <Minimize2 className="h-5 w-5 mr-2 text-muted-foreground/70" />
             Close
           </Button>
         </div>
@@ -304,7 +304,7 @@ export function ArtifactsPanel({
               aria-label={toggleLabel || 'Collapse inspector'}
               title={toggleTitle || 'Collapse inspector'}
             >
-              <PanelRightClose className="h-4 w-4 text-slate-500/70 dark:text-slate-400/70" />
+              <PanelRightClose className="h-4 w-4 text-muted-foreground/70" />
             </Button>
           )}
           <div className="min-w-0">
@@ -330,7 +330,7 @@ export function ArtifactsPanel({
               aria-label="Open inspector fullscreen"
               title="Open fullscreen"
             >
-              <Maximize2 className="h-3.5 w-3.5 text-slate-500/70 dark:text-slate-400/70" />
+              <Maximize2 className="h-3.5 w-3.5 text-muted-foreground/70" />
             </Button>
           ) : null}
         </div>

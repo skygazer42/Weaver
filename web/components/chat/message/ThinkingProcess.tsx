@@ -57,14 +57,14 @@ const CATEGORY_COLOR: Record<ToolCategory, string> = {
   search: 'text-emerald-500 dark:text-emerald-400',
   code: 'text-sky-500 dark:text-sky-400',
   browser: 'text-violet-500 dark:text-violet-400',
-  other: 'text-slate-500 dark:text-slate-400',
+  other: 'text-muted-foreground',
 }
 
 const CATEGORY_BG: Record<ToolCategory, string> = {
   search: 'bg-emerald-500/10 dark:bg-emerald-500/15',
   code: 'bg-sky-500/10 dark:bg-sky-500/15',
   browser: 'bg-violet-500/10 dark:bg-violet-500/15',
-  other: 'bg-slate-500/10 dark:bg-slate-500/15',
+  other: 'bg-muted/50',
 }
 
 export function ThinkingProcess({ tools, isThinking }: ThinkingProcessProps) {

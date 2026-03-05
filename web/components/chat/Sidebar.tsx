@@ -345,7 +345,7 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
               title={t('settings')}
               className="hover:bg-accent/50 rounded-lg"
             >
-              <Settings className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+              <Settings className="h-4 w-4 text-muted-foreground" />
             </Button>
           </div>
         </div>
@@ -405,7 +405,7 @@ export const Sidebar = memo(function Sidebar(props: SidebarProps) {
               </RailButton>
 
               <RailButton label={t('settings')} active={false} onClick={onOpenSettings}>
-                <Settings className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+                <Settings className="h-4 w-4 text-muted-foreground" />
               </RailButton>
             </div>
           </div>

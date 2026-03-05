@@ -90,7 +90,7 @@ export const Header = memo(function Header({
           aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
           aria-expanded={sidebarOpen}
         >
-          <Menu className="h-[18px] w-[18px] text-slate-500 dark:text-slate-400" />
+          <Menu className="h-[18px] w-[18px] text-muted-foreground" />
         </Button>
 
         <div className="min-w-0">
@@ -151,7 +151,7 @@ export const Header = memo(function Header({
             className="rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent xl:hidden"
             aria-label="Toggle inspector"
           >
-            <PanelRight className="h-[18px] w-[18px] text-slate-500 dark:text-slate-400" />
+            <PanelRight className="h-[18px] w-[18px] text-muted-foreground" />
           </Button>
         )}
 
@@ -191,7 +191,7 @@ export const Header = memo(function Header({
             className="rounded-lg hover:bg-accent"
             aria-label={t('settings')}
           >
-            <Settings className="h-[18px] w-[18px] text-slate-500 dark:text-slate-400" />
+            <Settings className="h-[18px] w-[18px] text-muted-foreground" />
           </Button>
         </div>
       </div>

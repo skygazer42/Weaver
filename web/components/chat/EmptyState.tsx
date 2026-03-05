@@ -80,7 +80,7 @@ export function EmptyState({ selectedMode, mcpMode, onModeSelect, onStarterClick
           <h2 className="text-2xl font-semibold text-foreground text-balance tracking-tight">
             {t('emptyStateTitle')}
           </h2>
-          <p className="text-stone-500 dark:text-stone-400 text-base text-pretty leading-relaxed">
+          <p className="text-muted-foreground text-base text-pretty leading-relaxed">
             {t('emptyStateSubtitle')} <br className="hidden sm:block" />
             {t('emptyStateDescription')}
           </p>

@@ -15,48 +15,48 @@
 /* ─── Design tokens ──────────────────────────────────── */
 @layer base {
   :root {
-    /* Closer to pure white to avoid the “grey haze” look in light mode. */
-    --background: 30 6% 100%;
-    --foreground: 28 10% 6%;
-    --card: 30 6% 100%;
-    --card-foreground: 28 10% 6%;
-    --popover: 30 6% 100%;
-    --popover-foreground: 28 10% 6%;
+    /* Neutral (zinc-like) theme — closer to the OpenAI/ChatGPT UI feel. */
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
     --primary: 220 72% 50%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 30 6% 98%;
-    --secondary-foreground: 28 8% 12%;
-    --muted: 30 6% 98%;
-    --muted-foreground: 25 6% 40%;
-    --accent: 30 6% 98%;
-    --accent-foreground: 28 8% 12%;
-    --destructive: 0 72% 51%;
+    --secondary: 240 4.8% 96%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 96%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 96%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 28 6% 94%;
-    --input: 28 6% 94%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
     --ring: 220 72% 50%;
     --radius: 0.625rem;
   }
 
   .dark {
-    --background: 25 12% 6%;
-    --foreground: 30 15% 94%;
-    --card: 25 12% 8.5%;
-    --card-foreground: 30 15% 94%;
-    --popover: 25 14% 9.5%;
-    --popover-foreground: 30 15% 94%;
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
     --primary: 217 76% 56%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 25 10% 12%;
-    --secondary-foreground: 30 12% 90%;
-    --muted: 25 10% 14%;
-    --muted-foreground: 25 8% 50%;
-    --accent: 25 10% 14%;
-    --accent-foreground: 30 12% 90%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
     --destructive: 0 62% 40%;
     --destructive-foreground: 0 0% 98%;
-    --border: 25 8% 17%;
-    --input: 25 8% 17%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
     --ring: 217 76% 56%;
   }
 }
