@@ -1007,6 +1007,20 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
                         logger.info(f"[deepsearch] 搜索阶段触发预算停止: {budget_stop_reason}")
                         break
 
+                    # While API search is running (blocking), render a small animated status page
+                    # so the Live browser viewer isn't stuck on a blank about:blank.
+                    try:
+                        from agent.workflows.browser_visualizer import show_browser_status_page
+
+                        show_browser_status_page(
+                            state=state,
+                            config=config,
+                            title="Searching the web…",
+                            detail=q,
+                        )
+                    except Exception:
+                        pass
+
                     results = _search_query(
                         q,
                         per_query_results,

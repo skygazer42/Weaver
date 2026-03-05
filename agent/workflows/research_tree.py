@@ -451,6 +451,19 @@ class TreeExplorer:
             for query in node.queries:
                 self._check_cancel(state)
 
+                # Keep the Live browser view non-blank while API search runs.
+                try:
+                    from agent.workflows.browser_visualizer import show_browser_status_page
+
+                    show_browser_status_page(
+                        state=state,
+                        config=self.config,
+                        title="Searching the web…",
+                        detail=query,
+                    )
+                except Exception:
+                    pass
+
                 results = self.search_func(
                     {"query": query, "max_results": per_query_results},
                     config=self.config,
@@ -714,6 +727,22 @@ class TreeExplorer:
             # Execute searches (in executor)
             for query in node.queries:
                 self._check_cancel(state)
+
+                # Keep the Live browser view non-blank while API search runs (off the event loop).
+                try:
+                    from agent.workflows.browser_visualizer import show_browser_status_page
+
+                    await loop.run_in_executor(
+                        None,
+                        lambda q=query: show_browser_status_page(
+                            state=state,
+                            config=self.config,
+                            title="Searching the web…",
+                            detail=q,
+                        ),
+                    )
+                except Exception:
+                    pass
 
                 results = await loop.run_in_executor(
                     None,
