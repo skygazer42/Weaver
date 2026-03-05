@@ -107,6 +107,7 @@ web/tmp/
 .turbo/
 .vercel/
 .claude/
+.worktrees/
 .beads/
 !.beads/
 .beads/*
