@@ -255,6 +255,9 @@ class SandboxBrowserSession:
         self.thread_id = (thread_id or "").strip() or "default"
         self._lock = threading.Lock()
         self._handles: Optional[SandboxBrowserHandles] = None
+        self._meta_lock = threading.Lock()
+        self._last_page_url: str = ""
+        self._last_page_title: str = ""
         self._screencast_lock = threading.Lock()
         self._screencast_running = False
         self._screencast_cdp_session: Optional[Any] = None
@@ -263,6 +266,20 @@ class SandboxBrowserSession:
         self._screencast_latest_ts: float = 0.0
         self._screencast_frame_id: int = 0
         self._screencast_error: Optional[str] = None
+
+    def set_page_meta(self, *, url: Optional[str] = None, title: Optional[str] = None) -> None:
+        """
+        Record the last-known page URL/title in a thread-safe way.
+
+        This is intentionally decoupled from Playwright access so other threads
+        (e.g. WS streaming) can attach URL/title to frames without calling
+        Playwright APIs cross-thread.
+        """
+        with self._meta_lock:
+            if isinstance(url, str) and url.strip():
+                self._last_page_url = url.strip()
+            if isinstance(title, str) and title.strip():
+                self._last_page_title = title.strip()
 
     def _ensure_sandbox_and_page(self) -> SandboxBrowserHandles:
         with self._lock:
@@ -422,6 +439,10 @@ class SandboxBrowserSession:
                     else browser.new_context()
                 )
                 page = context.new_page()
+                try:
+                    self.set_page_meta(url=str(getattr(page, "url", "") or ""), title=str(page.title() or ""))
+                except Exception:
+                    pass
             except Exception:
                 try:
                     pw.stop()
@@ -624,7 +645,11 @@ class SandboxBrowserSession:
 
         # Attach minimal, browser-friendly metadata outside of the hot callback path.
         try:
-            metadata.setdefault("url", self.get_page().url)
+            with self._meta_lock:
+                if self._last_page_url:
+                    metadata.setdefault("url", self._last_page_url)
+                if self._last_page_title:
+                    metadata.setdefault("title", self._last_page_title)
         except Exception:
             pass
 
@@ -655,6 +680,15 @@ class SandboxBrowserSession:
             metadata = dict(self._screencast_latest_metadata or {})
             ts = self._screencast_latest_ts or time.time()
             err = self._screencast_error
+
+        try:
+            with self._meta_lock:
+                if self._last_page_url:
+                    metadata.setdefault("url", self._last_page_url)
+                if self._last_page_title:
+                    metadata.setdefault("title", self._last_page_title)
+        except Exception:
+            pass
 
         return {
             "frame_id": frame_id,

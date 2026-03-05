@@ -96,6 +96,12 @@ class _SbBrowserTool(BaseTool):
             url = page.url or ""
         except Exception:
             pass
+        try:
+            # Persist page meta on the session so WS streaming can attach it to
+            # screencast frames without cross-thread Playwright calls.
+            self._session().set_page_meta(url=url, title=title)
+        except Exception:
+            pass
         return {"url": url, "title": title}
 
     def _screenshot_bytes(self, *, full_page: bool) -> bytes:
