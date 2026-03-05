@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
+from urllib.parse import urlparse
 from typing import Any, Dict, Iterable, List, Optional
 
 from common.config import settings
@@ -23,6 +25,9 @@ logger = logging.getLogger(__name__)
 
 _VISITED_LOCK = threading.Lock()
 _VISITED_URLS: Dict[str, set[str]] = {}
+_VISUALIZE_LOCK = threading.Lock()
+_VISUALIZE_IN_FLIGHT: set[str] = set()
+_LAST_VISUALIZE_AT: Dict[str, float] = {}
 
 
 def _resolve_thread_id(state: Dict[str, Any], config: Dict[str, Any]) -> str:
@@ -67,6 +72,55 @@ def _mark_visited(thread_id: str, url: str) -> bool:
             # Prefer keeping recent-ish entries (unordered set; best-effort).
             _VISITED_URLS[tid] = set(list(seen)[-300:])
         return True
+
+
+def _try_begin_visualize(thread_id: str) -> bool:
+    tid = (thread_id or "").strip() or "default"
+    now = time.time()
+    with _VISUALIZE_LOCK:
+        if tid in _VISUALIZE_IN_FLIGHT:
+            return False
+        # Soft throttle to avoid spamming the sandbox/browser thread.
+        last = float(_LAST_VISUALIZE_AT.get(tid) or 0.0)
+        if (now - last) < 1.5:
+            return False
+        _VISUALIZE_IN_FLIGHT.add(tid)
+        _LAST_VISUALIZE_AT[tid] = now
+        return True
+
+
+def _end_visualize(thread_id: str) -> None:
+    tid = (thread_id or "").strip() or "default"
+    with _VISUALIZE_LOCK:
+        _VISUALIZE_IN_FLIGHT.discard(tid)
+
+
+def _should_skip_url(url: str) -> bool:
+    """
+    Avoid previewing very heavy / video-centric sites in the live browser.
+
+    These frequently hang on headless Chromium, slow down the Playwright thread,
+    and don't add much value compared to text/article sources.
+    """
+    try:
+        host = (urlparse(url).netloc or "").lower()
+    except Exception:
+        host = ""
+    if not host:
+        return False
+    blocked = (
+        "youtube.com",
+        "www.youtube.com",
+        "m.youtube.com",
+        "youtu.be",
+        "bilibili.com",
+        "www.bilibili.com",
+        "tiktok.com",
+        "www.tiktok.com",
+        "douyin.com",
+        "www.douyin.com",
+    )
+    return host in blocked
 
 
 def show_browser_status_page(
@@ -259,50 +313,61 @@ def visualize_urls(
     thread_id = _resolve_thread_id(state, config)
     if not thread_id:
         return
-
-    # Avoid importing heavy deps unless the feature is enabled + has thread_id.
-    try:
-        from agent.workflows.source_url_utils import canonicalize_source_url
-        from tools.sandbox.sandbox_browser_tools import (
-            SbBrowserNavigateTool,
-            SbBrowserScrollTool,
-        )
-    except Exception as e:
-        logger.debug(f"[browser_visualizer] import failed: {e}")
+    if not _try_begin_visualize(thread_id):
         return
 
     try:
-        max_urls = max(0, int(max_urls or 0))
-    except Exception:
-        max_urls = 0
-    if max_urls <= 0:
-        return
-
-    navigate = SbBrowserNavigateTool(thread_id=thread_id, emit_events=True, save_screenshots=True)
-    scroll = SbBrowserScrollTool(thread_id=thread_id, emit_events=True, save_screenshots=True)
-
-    visited_now = 0
-    for raw in urls:
-        if visited_now >= max_urls:
-            break
-
-        url = canonicalize_source_url(raw)
-        if not url or not _is_http_url(url):
-            continue
-        if not _mark_visited(thread_id, url):
-            continue
-
-        visited_now += 1
+        # Avoid importing heavy deps unless the feature is enabled + has thread_id.
         try:
-            logger.info(f"[browser_visualizer] ({reason}) preview: {url}")
-            nav_res = navigate._run(url=url, wait_until="domcontentloaded", wait_ms=900, full_page=False)
-            if isinstance(nav_res, dict) and nav_res.get("error"):
+            from agent.workflows.source_url_utils import canonicalize_source_url
+            from tools.sandbox.sandbox_browser_tools import (
+                SbBrowserNavigateTool,
+                SbBrowserScrollTool,
+            )
+        except Exception as e:
+            logger.debug(f"[browser_visualizer] import failed: {e}")
+            return
+
+        try:
+            max_urls = max(0, int(max_urls or 0))
+        except Exception:
+            max_urls = 0
+        if max_urls <= 0:
+            return
+
+        navigate = SbBrowserNavigateTool(thread_id=thread_id, emit_events=True, save_screenshots=True)
+        scroll = SbBrowserScrollTool(thread_id=thread_id, emit_events=True, save_screenshots=True)
+
+        visited_now = 0
+        for raw in urls:
+            if visited_now >= max_urls:
+                break
+
+            url = canonicalize_source_url(raw)
+            if not url or not _is_http_url(url):
+                continue
+            if _should_skip_url(url):
+                continue
+            if not _mark_visited(thread_id, url):
                 continue
 
-            # Scroll a bit to make it feel like a human skim (and trigger at least one screenshot).
-            # Keep amounts moderate to avoid excessive screenshots/log spam.
-            scroll._run(amount=420, wait_ms=450, full_page=False)
-            scroll._run(amount=420, wait_ms=450, full_page=False)
-        except Exception as e:
-            logger.debug(f"[browser_visualizer] preview failed: {e}")
-            continue
+            visited_now += 1
+            try:
+                logger.info(f"[browser_visualizer] ({reason}) preview: {url}")
+                nav_res = navigate._run(
+                    url=url,
+                    wait_until="domcontentloaded",
+                    wait_ms=450,
+                    full_page=False,
+                )
+                if isinstance(nav_res, dict) and nav_res.get("error"):
+                    continue
+
+                # Scroll a bit to make it feel like a human skim (and trigger at least one screenshot).
+                # Keep amounts moderate to avoid excessive screenshots/log spam.
+                scroll._run(amount=520, wait_ms=350, full_page=False)
+            except Exception as e:
+                logger.debug(f"[browser_visualizer] preview failed: {e}")
+                continue
+    finally:
+        _end_visualize(thread_id)

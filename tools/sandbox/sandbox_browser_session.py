@@ -636,6 +636,34 @@ class SandboxBrowserSession:
             "error": err,
         }
 
+    def peek_screencast_frame(self) -> Optional[Dict[str, Any]]:
+        """
+        Thread-safe peek at the latest CDP screencast frame.
+
+        Unlike `get_screencast_frame()`, this does NOT touch Playwright objects
+        (page/context/browser) and is safe to call from non-executor threads
+        (e.g. the FastAPI event loop). This is critical for keeping the Live
+        viewer responsive while the Playwright thread is busy with navigation.
+        """
+        with self._screencast_lock:
+            if not self._screencast_running:
+                return None
+            data = self._screencast_latest_frame
+            if not data:
+                return None
+            frame_id = self._screencast_frame_id
+            metadata = dict(self._screencast_latest_metadata or {})
+            ts = self._screencast_latest_ts or time.time()
+            err = self._screencast_error
+
+        return {
+            "frame_id": frame_id,
+            "data": data,
+            "timestamp": ts,
+            "metadata": metadata,
+            "error": err,
+        }
+
     def close(self) -> None:
         with self._lock:
             h = self._handles
@@ -756,6 +784,37 @@ class SandboxBrowserSessionManager:
         return await loop.run_in_executor(
             executor, functools.partial(self._run_and_record, thread_id, bound)
         )
+
+    def peek_screencast_frame(self, thread_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Thread-safe peek at the latest CDP screencast frame for `thread_id`.
+
+        This avoids scheduling work onto the Playwright executor. It's used by
+        the WS streaming endpoint so the Live viewer keeps updating even while
+        Playwright is busy with long navigations/tool calls.
+
+        Returns None if no primary session exists or screencast hasn't produced
+        frames yet.
+        """
+        thread_id = self._normalize_thread_id(thread_id)
+        with self._lock:
+            executor_thread_id = self._executor_thread_id.get(thread_id)
+            session: Optional[SandboxBrowserSession] = None
+            if executor_thread_id is not None:
+                session = self._sessions.get((thread_id, executor_thread_id))
+            if session is None:
+                # Best-effort fallback: locate any session for this thread_id.
+                for (tid, _), s in self._sessions.items():
+                    if tid == thread_id:
+                        session = s
+                        break
+
+        if session is None:
+            return None
+        try:
+            return session.peek_screencast_frame()
+        except Exception:
+            return None
 
     def reset(self, thread_id: str) -> None:
         thread_id = self._normalize_thread_id(thread_id)

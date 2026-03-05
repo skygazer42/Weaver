@@ -5107,13 +5107,16 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
         except Exception:
             pass
 
-    async def _get_cdp_frame() -> Optional[Dict[str, Any]]:
-        def _get():
-            session = sandbox_browser_sessions.get(thread_id)
-            return session.get_screencast_frame()
+    def _peek_cdp_frame() -> Optional[Dict[str, Any]]:
+        """
+        Peek the latest CDP frame without touching Playwright.
 
+        This is intentionally synchronous and avoids the Playwright executor so
+        the WS stream stays responsive even while navigation/tool calls are
+        running on the browser thread.
+        """
         try:
-            return await sandbox_browser_sessions.run_async(thread_id, _get)
+            return sandbox_browser_sessions.peek_screencast_frame(thread_id)
         except Exception:
             return None
 
@@ -5132,7 +5135,7 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
         while streaming:
             try:
                 # Prefer CDP screencast frames (smooth, low overhead). Fall back to screenshots.
-                cdp_frame = await _get_cdp_frame()
+                cdp_frame = _peek_cdp_frame()
                 if cdp_frame and cdp_frame.get("data"):
                     frame_id = cdp_frame.get("frame_id")
                     now = time.time()
@@ -5484,7 +5487,7 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
 
                         # If a CDP screencast is running, reuse its latest frame;
                         # otherwise force a screenshot capture.
-                        frame_payload = await _get_cdp_frame()
+                        frame_payload = _peek_cdp_frame()
                         if frame_payload and frame_payload.get("data"):
                             await _safe_send_json(
                                 {

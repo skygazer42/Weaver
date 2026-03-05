@@ -325,7 +325,19 @@ class SbBrowserNavigateTool(_SbBrowserTool):
                 return result
 
             except Exception as e:
-                result = {"error": str(e), "url": url}
+                # Even on navigation failure, try to capture a screenshot of the
+                # current page/error state so the UI has something actionable.
+                result: Dict[str, Any] = {"error": str(e), "url": url}
+                try:
+                    info = self._page_info()
+                    screenshot, screenshot_hash = self._screenshot_with_save(
+                        "navigate", full_page=full_page
+                    )
+                    result = {**result, **info, **screenshot}
+                    self._emit_screenshot(screenshot, "navigate", image_hash=screenshot_hash)
+                except Exception:
+                    pass
+
                 self._emit_tool_result("navigate", result, start_time, success=False)
                 return result
 

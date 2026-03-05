@@ -452,15 +452,21 @@ class TreeExplorer:
                 self._check_cancel(state)
 
                 # Keep the Live browser view non-blank while API search runs.
+                # Best-effort: do not block research on sandbox cold starts.
                 try:
+                    import threading
+
                     from agent.workflows.browser_visualizer import show_browser_status_page
 
-                    show_browser_status_page(
-                        state=state,
-                        config=self.config,
-                        title="Searching the web…",
-                        detail=query,
-                    )
+                    threading.Thread(
+                        target=lambda q=query: show_browser_status_page(
+                            state=state,
+                            config=self.config,
+                            title="Searching the web…",
+                            detail=q,
+                        ),
+                        daemon=True,
+                    ).start()
                 except Exception:
                     pass
 
@@ -470,16 +476,22 @@ class TreeExplorer:
                 )
 
                 # Best-effort: preview a top result in the sandbox browser so the Live view stays active.
+                # Do this in a daemon thread so slow/broken sites don't slow research.
                 try:
+                    import threading
+
                     from agent.workflows.browser_visualizer import visualize_urls_from_results
 
-                    visualize_urls_from_results(
-                        state=state,
-                        config=self.config,
-                        results=results if isinstance(results, list) else [],
-                        max_urls=1,
-                        reason=f"research_tree:{node.id}:search",
-                    )
+                    threading.Thread(
+                        target=lambda rs=results: visualize_urls_from_results(
+                            state=state,
+                            config=self.config,
+                            results=rs if isinstance(rs, list) else [],
+                            max_urls=1,
+                            reason=f"research_tree:{node.id}:search",
+                        ),
+                        daemon=True,
+                    ).start()
                 except Exception:
                     pass
 
