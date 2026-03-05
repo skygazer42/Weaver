@@ -178,8 +178,11 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
   }
 
   const tools = message.toolInvocations || []
-  const hasTools = tools.length > 0
-  const isThinking = tools.some(t => t.state === 'running')
+  const processEvents = message.processEvents || []
+  const isThinking = Boolean(message.isStreaming) || tools.some(t => t.state === 'running')
+  const showThinking = !isUser && !isEditing && (isThinking || tools.length > 0 || processEvents.length > 0)
+  const hideAssistantBubble =
+    !isUser && !isEditing && !displayContent.trim() && isThinking
 
   return (
     <div
@@ -195,8 +198,15 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
       )}>
         
         {/* Thinking Process */}
-        {!isUser && hasTools && !isEditing && (
-          <ThinkingProcess tools={tools} isThinking={isThinking} />
+        {showThinking && (
+          <ThinkingProcess
+            tools={tools}
+            events={processEvents}
+            metrics={message.metrics}
+            startedAt={message.createdAt}
+            completedAt={message.completedAt}
+            isThinking={isThinking}
+          />
         )}
 
         {/* Message Bubble OR Edit Mode */}
@@ -212,7 +222,7 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
                     <Button size="sm" onClick={handleSaveEdit}>Save & Submit</Button>
                 </div>
             </div>
-        ) : (
+        ) : hideAssistantBubble ? null : (
             <div className={cn(
                 "relative px-5 py-3.5 shadow-sm",
                 isUser
@@ -289,7 +299,7 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
                         )
                     }}
                 >
-                  {displayContent || (hasTools ? "" : "")}
+                  {displayContent}
                 </ReactMarkdown>
 
                 {message.attachments && message.attachments.length > 0 && (
@@ -315,10 +325,7 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
                   </div>
                 )}
                 
-                {/* Typing Indicator for AI if no content yet */}
-                {!isUser && !message.content && !hasTools && (
-                   <span className="animate-pulse">...</span>
-                )}
+                {/* Intentionally no typing indicator here; the Thinking row covers streaming state. */}
               </div>
 
               {/* Actions: Copy, Speak & Edit */}

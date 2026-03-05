@@ -6,6 +6,27 @@ export interface ToolInvocation {
   result?: any
 }
 
+export interface ProcessEvent {
+  id: string
+  type: string
+  timestamp: number
+  data: any
+}
+
+export interface RunMetrics {
+  run_id?: string
+  model?: string
+  route?: string
+  started_at?: string
+  ended_at?: string | null
+  duration_ms?: number
+  event_count?: number
+  nodes_started?: Record<string, number>
+  nodes_completed?: Record<string, number>
+  errors?: string[]
+  cancelled?: boolean
+}
+
 export interface MessageSource {
   title: string
   url: string
@@ -25,6 +46,11 @@ export interface Message {
   toolInvocations?: ToolInvocation[]
   sources?: MessageSource[]
   attachments?: ImageAttachment[]
+  processEvents?: ProcessEvent[]
+  metrics?: RunMetrics
+  createdAt?: number
+  completedAt?: number
+  isStreaming?: boolean
 }
 
 export interface ChatSession {

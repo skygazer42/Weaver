@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react'
-import { Message, Artifact, ToolInvocation, ImageAttachment } from '@/types/chat'
+import { Message, Artifact, ToolInvocation, ImageAttachment, ProcessEvent, RunMetrics, MessageSource } from '@/types/chat'
 import { getApiBaseUrl } from '@/lib/api'
 
 interface UseChatStreamProps {
@@ -94,6 +94,9 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
         role: 'assistant',
         content: '',
         toolInvocations: [],
+        processEvents: [],
+        createdAt: Date.now(),
+        isStreaming: true,
       }
 
       console.log('[useChatStream] Creating assistant message:', {
@@ -103,6 +106,34 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
       })
 
       setMessages((prev) => [...prev, assistantMessage])
+
+      const pushProcessEvent = (type: string, payload: any) => {
+        const now = Date.now()
+        const next: ProcessEvent = {
+          id: `evt-${now}-${Math.random().toString(16).slice(2)}`,
+          type,
+          timestamp: now,
+          data: payload,
+        }
+
+        const prevEvents = assistantMessage.processEvents || []
+        const last = prevEvents[prevEvents.length - 1]
+
+        // Simple dedupe to avoid spammy UI.
+        if (last?.type === type) {
+          if (type === 'status' && last.data?.text && last.data?.text === payload?.text) return
+          if (type === 'search' && last.data?.query && last.data?.query === payload?.query) return
+        }
+
+        const capped = [...prevEvents, next].slice(-200)
+        assistantMessage.processEvents = capped
+      }
+
+      const syncAssistantMessage = () => {
+        setMessages((prev) =>
+          prev.map((msg) => (msg.id === assistantMessage.id ? { ...assistantMessage } : msg))
+        )
+      }
 
       let interrupted = false
       while (true) {
@@ -119,6 +150,8 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
 
               if (data.type === 'status') {
                 setCurrentStatus(data.data.text)
+                pushProcessEvent('status', data.data)
+                syncAssistantMessage()
               } else if (data.type === 'text') {
                 assistantMessage.content += data.data.content
                 console.log('[useChatStream] Updating message (text):', {
@@ -126,23 +159,19 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
                   role: assistantMessage.role,
                   contentLength: assistantMessage.content.length
                 })
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === assistantMessage.id ? { ...assistantMessage } : msg
-                  )
-                )
+                syncAssistantMessage()
               } else if (data.type === 'message') {
                 assistantMessage.content = data.data.content
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === assistantMessage.id ? { ...assistantMessage } : msg
-                  )
-                )
+                syncAssistantMessage()
               } else if (data.type === 'interrupt') {
                 interrupted = true
                 setPendingInterrupt(data.data)
                 const msg = data.data?.message || data.data?.prompts?.[0]?.message
                 setCurrentStatus(msg || 'Approval required before continuing')
+                assistantMessage.isStreaming = false
+                assistantMessage.completedAt = Date.now()
+                pushProcessEvent('interrupt', data.data)
+                syncAssistantMessage()
                 setMessages((prev) => [
                   ...prev,
                   {
@@ -153,30 +182,81 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
                 ])
                 break
               } else if (data.type === 'tool') {
+                const toolCallId =
+                  data.data.toolCallId || `tool-${Date.now()}-${Math.random()}`
+
+                const state: ToolInvocation['state'] =
+                  data.data.status === 'completed'
+                    ? 'completed'
+                    : data.data.status === 'failed'
+                      ? 'failed'
+                      : 'running'
+
                 const toolInvocation: ToolInvocation = {
-                  toolCallId: `tool-${Date.now()}-${Math.random()}`,
+                  toolCallId,
                   toolName: data.data.name,
-                  state: data.data.status === 'completed' ? 'completed' : 'running',
-                  args: data.data.query ? { query: data.data.query } : {},
+                  state,
+                  args: data.data.args || (data.data.query ? { query: data.data.query } : {}),
                 }
 
-                assistantMessage.toolInvocations = [
-                  ...(assistantMessage.toolInvocations || []),
-                  toolInvocation,
-                ]
+                const prevTools = assistantMessage.toolInvocations || []
+                const existingIndex = prevTools.findIndex((t) => t.toolCallId === toolCallId)
+                if (existingIndex >= 0) {
+                  const nextTools = [...prevTools]
+                  nextTools[existingIndex] = { ...nextTools[existingIndex], ...toolInvocation }
+                  assistantMessage.toolInvocations = nextTools
+                } else {
+                  assistantMessage.toolInvocations = [...prevTools, toolInvocation]
+                }
 
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === assistantMessage.id ? { ...assistantMessage } : msg
-                  )
-                )
+                pushProcessEvent('tool', data.data)
+                syncAssistantMessage()
+              } else if (
+                [
+                  'tool_start',
+                  'tool_result',
+                  'tool_error',
+                  'search',
+                  'screenshot',
+                  'task_update',
+                  'research_node_start',
+                  'research_node_complete',
+                  'research_tree_update',
+                  'quality_update',
+                ].includes(data.type)
+              ) {
+                pushProcessEvent(data.type, data.data)
+                syncAssistantMessage()
+              } else if (data.type === 'sources') {
+                const items = (data.data?.items || []) as MessageSource[]
+                assistantMessage.sources = items
+                syncAssistantMessage()
               } else if (data.type === 'completion') {
                 assistantMessage.content = data.data.content
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === assistantMessage.id ? { ...assistantMessage } : msg
-                  )
-                )
+                assistantMessage.isStreaming = false
+                assistantMessage.completedAt = Date.now()
+                syncAssistantMessage()
+              } else if (data.type === 'done') {
+                const metrics = (data.data?.metrics || {}) as RunMetrics
+                assistantMessage.metrics = metrics
+                assistantMessage.isStreaming = false
+                if (!assistantMessage.completedAt) assistantMessage.completedAt = Date.now()
+                pushProcessEvent('done', data.data)
+                syncAssistantMessage()
+              } else if (data.type === 'cancelled') {
+                const msg = data.data?.message || 'Task was cancelled'
+                assistantMessage.content = assistantMessage.content || msg
+                assistantMessage.isStreaming = false
+                assistantMessage.completedAt = Date.now()
+                pushProcessEvent('cancelled', data.data)
+                syncAssistantMessage()
+              } else if (data.type === 'error') {
+                const msg = data.data?.message || 'An error occurred'
+                assistantMessage.content = assistantMessage.content || msg
+                assistantMessage.isStreaming = false
+                assistantMessage.completedAt = Date.now()
+                pushProcessEvent('error', data.data)
+                syncAssistantMessage()
               } else if (data.type === 'artifact') {
                 const newArtifact = data.data as Artifact
                 setArtifacts((prev) => {
@@ -193,6 +273,11 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
         if (interrupted) break
       }
 
+      if (assistantMessage.isStreaming) {
+        assistantMessage.isStreaming = false
+        if (!assistantMessage.completedAt) assistantMessage.completedAt = Date.now()
+        syncAssistantMessage()
+      }
       setCurrentStatus('')
     } catch (error: any) {
       if (error.name === 'AbortError') {
