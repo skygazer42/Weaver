@@ -41,6 +41,35 @@ def test_agent_node_delegates_simple_verification_query_to_fast_search(monkeypat
     assert result["final_report"] == "Paris"
 
 
+def test_agent_node_delegates_narrow_comparison_query_to_fast_search(monkeypatch):
+    called = {"fast": False}
+
+    def fake_fast(state, config):
+        called["fast"] = True
+        return {
+            "draft_report": "Paris is the capital of France, and Berlin is the capital of Germany.",
+            "final_report": "Paris is the capital of France, and Berlin is the capital of Germany.",
+            "messages": [AIMessage(content="Paris is the capital of France, and Berlin is the capital of Germany.")],
+            "is_complete": False,
+        }
+
+    def fail_build_tools(_config):
+        raise AssertionError("full tool agent should be skipped for narrow comparison query")
+
+    monkeypatch.setattr(nodes, "_answer_simple_agent_query", fake_fast, raising=False)
+    monkeypatch.setattr(nodes, "build_agent_tools", fail_build_tools)
+
+    result = nodes.agent_node(
+        {
+            "input": "Use current web search to compare the capitals of France and Germany in one sentence.",
+        },
+        {"configurable": {}},
+    )
+
+    assert called["fast"] is True
+    assert "Berlin" in result["final_report"]
+
+
 def test_agent_node_keeps_full_tool_agent_for_complex_research_queries(monkeypatch):
     class FakeAgent:
         def invoke(self, payload, config=None):

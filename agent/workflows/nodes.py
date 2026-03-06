@@ -51,6 +51,107 @@ _FAST_VERIFY_PREFIX_ZH_RE = re.compile(
 _FAST_REPLY_SUFFIX_ZH_RE = re.compile(
     r"""(?is)[\s,，;；:：-]*(?:只回答|仅回答|只需回答|回答时只输出|只输出).*$"""
 )
+_FAST_COMPARE_PREFIX_RE = re.compile(
+    r"""(?is)^\s*(?:please\s+)?(?:use|using)\s+(?:current\s+)?web\s+search\s+to\s+compare\b[\s:：,-]*"""
+)
+_FAST_COMPARE_INLINE_RE = re.compile(
+    r"""(?is)^\s*(?:please\s+)?compare\b[\s:：,-]*"""
+)
+_FAST_COMPARE_PREFIX_ZH_RE = re.compile(
+    r"""(?is)^\s*(?:请)?(?:使用|用)(?:当前)?(?:网络|网页|web)?搜索(?:来)?(?:比较|对比)[\s:：,-]*"""
+)
+_FAST_COMPARE_FORMAT_SUFFIX_RE = re.compile(
+    r"""(?is)[\s,，;；:：-]*(?:in\s+one\s+sentence|in\s+a\s+sentence|briefly|succinctly|shortly|简短(?:地)?|简要(?:地)?|一句话|一段话).*$"""
+)
+_NARROW_COMPARE_SIGNALS = (
+    "compare",
+    "comparison",
+    "versus",
+    "vs",
+    "比较",
+    "对比",
+)
+_NARROW_COMPARE_ATTRIBUTE_CUES = (
+    "capital",
+    "capitals",
+    "population",
+    "populations",
+    "gdp",
+    "currency",
+    "currencies",
+    "area",
+    "areas",
+    "price",
+    "prices",
+    "leader",
+    "leaders",
+    "president",
+    "presidents",
+    "prime minister",
+    "mayor",
+    "founder",
+    "founded",
+    "headquarters",
+    "market cap",
+    "stock price",
+    "exchange rate",
+    "首都",
+    "人口",
+    "货币",
+    "面积",
+    "价格",
+    "总统",
+    "总理",
+    "市长",
+    "总部",
+)
+_NARROW_COMPARE_FORMAT_CUES = (
+    "one sentence",
+    "in a sentence",
+    "briefly",
+    "succinctly",
+    "shortly",
+    "一句话",
+    "简短",
+    "简要",
+    "只回答",
+)
+_NARROW_COMPARE_BROAD_CUES = (
+    "analysis",
+    "analyze",
+    "assess",
+    "case study",
+    "evaluate",
+    "framework",
+    "history",
+    "histor",
+    "impact",
+    "investigate",
+    "market",
+    "overview",
+    "policy",
+    "regulation",
+    "report",
+    "research",
+    "risk",
+    "risks",
+    "sourcing",
+    "supply chain",
+    "timeline",
+    "trade-off",
+    "tradeoffs",
+    "trend",
+    "trends",
+    "分析",
+    "影响",
+    "政策",
+    "法规",
+    "研究",
+    "风险",
+    "供应链",
+    "趋势",
+    "历史",
+)
 
 
 def check_cancellation(state: Union[AgentState, QueryState, Dict[str, Any]]) -> None:
@@ -158,11 +259,33 @@ def _is_tool_enabled(profile: Dict[str, Any], key: str, default: bool = False) -
     return default
 
 
+def _is_narrow_comparison_prompt(user_input: str) -> bool:
+    text = re.sub(r"\s+", " ", str(user_input or "")).strip()
+    if not text:
+        return False
+
+    lowered = text.lower()
+    if not any(signal in lowered for signal in _NARROW_COMPARE_SIGNALS):
+        return False
+    if any(cue in lowered for cue in _NARROW_COMPARE_BROAD_CUES):
+        return False
+
+    token_count = len(re.findall(r"\w+", lowered))
+    has_attribute_cue = any(cue in lowered for cue in _NARROW_COMPARE_ATTRIBUTE_CUES)
+    has_format_cue = any(cue in lowered for cue in _NARROW_COMPARE_FORMAT_CUES)
+
+    if has_attribute_cue and token_count <= 20:
+        return True
+    if has_attribute_cue and has_format_cue:
+        return True
+    return False
+
+
 def _should_use_fast_agent_path(state: AgentState, config: RunnableConfig) -> bool:
     user_input = str(state.get("input", "") or "").strip()
     if not user_input or state.get("images"):
         return False
-    if not _auto_mode_prefers_linear(user_input):
+    if not (_auto_mode_prefers_linear(user_input) or _is_narrow_comparison_prompt(user_input)):
         return False
 
     profile = _configurable(config).get("agent_profile") or {}
@@ -180,8 +303,12 @@ def _build_fast_agent_search_query(user_input: str) -> str:
     text = _FAST_VERIFY_PREFIX_RE.sub("", text)
     text = _FAST_VERIFY_INLINE_RE.sub("", text)
     text = _FAST_VERIFY_PREFIX_ZH_RE.sub("", text)
+    text = _FAST_COMPARE_PREFIX_RE.sub("", text)
+    text = _FAST_COMPARE_INLINE_RE.sub("", text)
+    text = _FAST_COMPARE_PREFIX_ZH_RE.sub("", text)
     text = _EXACT_REPLY_QUOTED_RE.sub("", text)
     text = _EXACT_REPLY_PLAIN_RE.sub("", text)
+    text = _FAST_COMPARE_FORMAT_SUFFIX_RE.sub("", text)
     text = _FAST_REPLY_SUFFIX_ZH_RE.sub("", text)
 
     text = text.strip(" \t\r\n\"'`“”‘’")
@@ -283,6 +410,7 @@ def _answer_simple_agent_query(
                 "You already have current web evidence. "
                 "Answer the user's question directly using only the provided evidence. "
                 "Prefer the most authoritative and consistent evidence. "
+                "If the request is a comparison, compare only the specific dimension the user asked for and do not introduce adjacent metrics. "
                 "Keep the answer concise. If the user requested an exact reply format, follow it exactly. "
                 "Do not add a sources section unless the user explicitly asked for it."
             )
