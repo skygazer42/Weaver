@@ -60,7 +60,9 @@ def _tool_selector_methods() -> tuple[str, ...]:
         return ("json_schema", "function_calling", "json_mode")
     if "api.openai.com" in base_url:
         return ("json_schema", "function_calling", "json_mode")
-    return ("function_calling", "json_mode", "json_schema")
+    # DeepSeek and other OpenAI-compatible gateways have been more reliable with
+    # JSON mode than function-calling for tool-selection prompts.
+    return ("json_mode", "function_calling", "json_schema")
 
 
 def _tool_selector_always_include() -> list[str]:

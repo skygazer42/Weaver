@@ -53,3 +53,17 @@ def test_build_middlewares_keep_todo_defaults_when_settings_blank(monkeypatch):
 
     assert todo_middleware.system_prompt == WRITE_TODOS_SYSTEM_PROMPT
     assert todo_middleware.tool_description == WRITE_TODOS_TOOL_DESCRIPTION
+
+
+def test_non_openai_selector_prefers_json_mode(monkeypatch):
+    settings_with_defaults = Settings(
+        _env_file=None,
+        openai_base_url="https://api.deepseek.com/v1",
+    )
+    monkeypatch.setattr(agent_factory, "settings", settings_with_defaults)
+
+    assert agent_factory._tool_selector_methods() == (
+        "json_mode",
+        "function_calling",
+        "json_schema",
+    )
