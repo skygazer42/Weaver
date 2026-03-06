@@ -8,6 +8,7 @@ import { MessageItem } from './MessageItem'
 import { SearchModeSelector, SearchMode } from './SearchModeSelector'
 import { Send, Loader2, Sparkles } from 'lucide-react'
 import { getApiBaseUrl } from '@/lib/api'
+import { createLegacyChatStreamState, consumeLegacyChatStreamChunk } from '@/lib/chatStreamProtocol'
 
 interface Message {
   id: string
@@ -90,65 +91,58 @@ export function ChatInterface({ selectedModel }: ChatInterfaceProps) {
 
       setMessages((prev) => [...prev, assistantMessage])
 
+      const streamState = createLegacyChatStreamState()
       while (true) {
         const { done, value } = await reader.read()
-        if (done) break
+        const chunk = done ? decoder.decode() : decoder.decode(value, { stream: true })
+        const events = consumeLegacyChatStreamChunk(streamState, chunk, { flush: done })
 
-        const chunk = decoder.decode(value)
-        const lines = chunk.split('\n').filter((line) => line.trim())
-
-        for (const line of lines) {
-          if (line.startsWith('0:')) {
-            try {
-              const data = JSON.parse(line.slice(2))
-
-              if (data.type === 'status') {
-                setCurrentStatus(data.data.text)
-              } else if (data.type === 'text') {
-                assistantMessage.content += data.data.content
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === assistantMessage.id ? { ...assistantMessage } : msg
-                  )
-                )
-              } else if (data.type === 'message') {
-                assistantMessage.content = data.data.content
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === assistantMessage.id ? { ...assistantMessage } : msg
-                  )
-                )
-              } else if (data.type === 'tool') {
-                const toolInvocation = {
-                  toolCallId: `tool-${Date.now()}-${Math.random()}`,
-                  toolName: data.data.name,
-                  state: data.data.status === 'completed' ? 'completed' : 'running',
-                  args: data.data.query ? { query: data.data.query } : {},
-                }
-
-                assistantMessage.toolInvocations = [
-                  ...(assistantMessage.toolInvocations || []),
-                  toolInvocation,
-                ]
-
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === assistantMessage.id ? { ...assistantMessage } : msg
-                  )
-                )
-              } else if (data.type === 'completion') {
-                assistantMessage.content = data.data.content
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === assistantMessage.id ? { ...assistantMessage } : msg
-                  )
-                )
-              }
-            } catch (err) {
-              console.error('Error parsing stream data:', err)
+        for (const data of events) {
+          if (data.type === 'status') {
+            setCurrentStatus(data.data.text)
+          } else if (data.type === 'text') {
+            assistantMessage.content += data.data.content
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === assistantMessage.id ? { ...assistantMessage } : msg
+              )
+            )
+          } else if (data.type === 'message') {
+            assistantMessage.content = data.data.content
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === assistantMessage.id ? { ...assistantMessage } : msg
+              )
+            )
+          } else if (data.type === 'tool') {
+            const toolInvocation = {
+              toolCallId: `tool-${Date.now()}-${Math.random()}`,
+              toolName: data.data.name,
+              state: data.data.status === 'completed' ? 'completed' : 'running',
+              args: data.data.query ? { query: data.data.query } : {},
             }
+
+            assistantMessage.toolInvocations = [
+              ...(assistantMessage.toolInvocations || []),
+              toolInvocation,
+            ]
+
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === assistantMessage.id ? { ...assistantMessage } : msg
+              )
+            )
+          } else if (data.type === 'completion') {
+            assistantMessage.content = data.data.content
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === assistantMessage.id ? { ...assistantMessage } : msg
+              )
+            )
           }
         }
+
+        if (done) break
       }
 
       setCurrentStatus('')

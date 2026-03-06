@@ -23,6 +23,13 @@ def test_normalize_search_mode_deep_string():
     assert mode["use_deep"] is True
 
 
+def test_normalize_search_mode_mcp_string():
+    mode = _normalize_search_mode("mcp")
+    assert mode["mode"] == "agent"
+    assert mode["use_agent"] is True
+    assert mode["use_deep"] is False
+
+
 def test_normalize_search_mode_object_flags():
     mode = _normalize_search_mode(
         SearchMode(useWebSearch=True, useAgent=False, useDeepSearch=False)

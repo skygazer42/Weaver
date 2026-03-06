@@ -731,6 +731,9 @@ def _coerce_search_mode_input(value: Any) -> SearchMode | None:
             return SearchMode()
         if lowered in {"web", "search", "tavily"}:
             return SearchMode(useWebSearch=True)
+        if lowered in {"mcp"}:
+            # Frontend UX label: "MCP" is implemented as tool-calling agent mode.
+            return SearchMode(useAgent=True)
         if lowered in {"agent"}:
             return SearchMode(useAgent=True)
         if lowered in {"deep", "deep_agent", "deep-agent", "ultra"}:
@@ -1589,7 +1592,7 @@ def _normalize_search_mode(search_mode: SearchMode | Dict[str, Any] | str | None
             use_deep_prompt = False
         else:
             use_web = lowered in {"web", "search", "tavily"}
-            use_agent = lowered in {"agent", "deep", "deep_agent", "deep-agent", "ultra"}
+            use_agent = lowered in {"agent", "mcp", "deep", "deep_agent", "deep-agent", "ultra"}
             use_deep = lowered in {"deep", "deep_agent", "deep-agent", "ultra"}
             use_deep_prompt = use_deep
     else:
