@@ -5086,9 +5086,9 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
             session = sandbox_browser_sessions.get(thread_id)
             page = session.get_page()
             try:
-                jpg_bytes = page.screenshot(
-                    type="jpeg", quality=q, full_page=False, animations="disabled", caret="hide"
-                )
+                # Live streaming should preserve animations so the viewer can
+                # actually reflect motion between frames.
+                jpg_bytes = page.screenshot(type="jpeg", quality=q, full_page=False, caret="hide")
             except TypeError:
                 jpg_bytes = page.screenshot(type="jpeg", quality=q, full_page=False)
             metadata: Dict[str, Any] = {}
@@ -5161,67 +5161,76 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
     async def stream_frames(*, quality: int, max_fps: int):
         nonlocal streaming
         interval = 1.0 / max(1, int(max_fps or 5))
+        next_frame_due = time.perf_counter()
         last_frame_id: Optional[int] = None
         last_frame_sent_at: float = 0.0
-        # Chrome's CDP screencast may stop emitting frames when the page is visually idle.
-        # If we strictly de-dup by frame_id, the frontend appears frozen (0 FPS, blank viewer).
-        # Emit a periodic "keepalive" frame even when frame_id doesn't change.
-        cdp_keepalive_s = 1.0
+        last_frame_payload: Optional[Dict[str, Any]] = None
+        last_screenshot_capture_at: float = 0.0
+        screenshot_refresh_s = 1.0
         consecutive_failures = 0
         max_failures = 5
         frame_send_timeout_s = 1.0
         while streaming:
             try:
+                now_perf = time.perf_counter()
+                if now_perf < next_frame_due:
+                    await asyncio.sleep(next_frame_due - now_perf)
+
                 # Prefer CDP screencast frames (smooth, low overhead). Fall back to screenshots.
                 cdp_frame = _peek_cdp_frame()
                 if cdp_frame and cdp_frame.get("data"):
                     frame_id = cdp_frame.get("frame_id")
                     now = time.time()
-                    if (
-                        isinstance(frame_id, int)
-                        and frame_id == last_frame_id
-                        and (now - last_frame_sent_at) < cdp_keepalive_s
-                    ):
-                        await asyncio.sleep(interval)
-                        continue
                     if isinstance(frame_id, int):
                         last_frame_id = frame_id
                     try:
                         browser_ws_frames_total.labels("cdp").inc()
                     except Exception:
                         pass
-                    if not await _safe_send_json(
-                        {
-                            "type": "frame",
-                            "source": "cdp",
-                            "data": cdp_frame["data"],
-                            "timestamp": float(cdp_frame.get("timestamp") or now),
-                            "metadata": cdp_frame.get("metadata") or {},
-                        },
-                        timeout_s=frame_send_timeout_s,
-                    ):
+                    payload = {
+                        "type": "frame",
+                        "source": "cdp",
+                        "data": cdp_frame["data"],
+                        "timestamp": float(cdp_frame.get("timestamp") or now),
+                        "metadata": cdp_frame.get("metadata") or {},
+                    }
+                    if not await _safe_send_json(payload, timeout_s=frame_send_timeout_s):
                         streaming = False
                         break
+                    last_frame_payload = payload
                     last_frame_sent_at = now
                 else:
-                    frame = await capture_frame(quality=quality)
+                    now = time.time()
+                    should_capture = (
+                        last_frame_payload is None
+                        or last_frame_payload.get("source") != "screenshot"
+                        or (now - last_screenshot_capture_at) >= screenshot_refresh_s
+                    )
+
+                    if should_capture:
+                        frame = await capture_frame(quality=quality)
+                        payload = {
+                            "type": "frame",
+                            "source": "screenshot",
+                            "data": frame["data"],
+                            "timestamp": now,
+                            "metadata": frame.get("metadata") or {},
+                        }
+                        last_frame_payload = payload
+                        last_screenshot_capture_at = now
+                    else:
+                        payload = dict(last_frame_payload)
+                        payload["timestamp"] = now
+
                     try:
                         browser_ws_frames_total.labels("screenshot").inc()
                     except Exception:
                         pass
-                    if not await _safe_send_json(
-                        {
-                            "type": "frame",
-                            "source": "screenshot",
-                            "data": frame["data"],
-                            "timestamp": time.time(),
-                            "metadata": frame.get("metadata") or {},
-                        },
-                        timeout_s=frame_send_timeout_s,
-                    ):
+                    if not await _safe_send_json(payload, timeout_s=frame_send_timeout_s):
                         streaming = False
                         break
-                    last_frame_sent_at = time.time()
+                    last_frame_payload = payload
+                    last_frame_sent_at = now
                 consecutive_failures = 0
             except Exception as e:
                 consecutive_failures += 1
@@ -5266,8 +5275,9 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
                 # Exponential backoff to avoid a tight error loop when the sandbox/browser is unhealthy.
                 backoff_s = min(2.0, 0.25 * (2 ** (consecutive_failures - 1)))
                 await asyncio.sleep(backoff_s)
+                next_frame_due = time.perf_counter() + interval
                 continue
-            await asyncio.sleep(interval)
+            next_frame_due = max(next_frame_due + interval, time.perf_counter())
 
     try:
         await _safe_send_json(
@@ -5358,14 +5368,9 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
                         # Best-effort only; never block stream start on diagnose errors.
                         pass
 
-                    # Kick off a CDP screencast (best-effort). If it fails we still
-                    # stream via screenshots, but CDP makes the viewer feel like a
-                    # real browser (continuous frames).
-                    await _start_cdp_screencast(quality=int(quality or 70))
-
                     # The sandbox browser starts at `about:blank`, which produces an all-white
-                    # first frame. Render a lightweight animated status page so the Live viewer
-                    # feels "alive" even before the agent navigates to real sites.
+                    # first frame. Render a lightweight animated status page before
+                    # starting the screencast so Chrome can capture an already-live page.
                     try:
 
                         def _set_status_page_if_blank():
@@ -5467,6 +5472,11 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
                         await sandbox_browser_sessions.run_async(thread_id, _set_status_page_if_blank)
                     except Exception:
                         pass
+
+                    # Kick off a CDP screencast (best-effort). If it fails we still
+                    # stream via screenshots, but CDP makes the viewer feel like a
+                    # real browser (continuous frames).
+                    await _start_cdp_screencast(quality=int(quality or 70))
 
                     # Send the start status before starting the frame loop so clients/tests
                     # observe a stable ordering (status first, then potential capture errors).
