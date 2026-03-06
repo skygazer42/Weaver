@@ -39,6 +39,18 @@ _EXACT_REPLY_QUOTED_RE = re.compile(
 _EXACT_REPLY_PLAIN_RE = re.compile(
     r"""(?is)\b(?:reply|respond|answer|return)\s+with\s+exactly\s+(.+?)(?:\s+and\s+nothing\s+else\b|$)"""
 )
+_FAST_VERIFY_PREFIX_RE = re.compile(
+    r"""(?is)^\s*(?:please\s+)?(?:use|using)\s+(?:current\s+)?web\s+search\s+to\s+verify\b[\s:：,-]*"""
+)
+_FAST_VERIFY_INLINE_RE = re.compile(
+    r"""(?is)^\s*(?:please\s+)?verify(?:\s+this|\s+that)?\b[\s:：,-]*"""
+)
+_FAST_VERIFY_PREFIX_ZH_RE = re.compile(
+    r"""(?is)^\s*(?:请)?(?:使用|用)(?:当前)?(?:网络|网页|web)?搜索(?:来)?验证[\s:：,-]*"""
+)
+_FAST_REPLY_SUFFIX_ZH_RE = re.compile(
+    r"""(?is)[\s,，;；:：-]*(?:只回答|仅回答|只需回答|回答时只输出|只输出).*$"""
+)
 
 
 def check_cancellation(state: Union[AgentState, QueryState, Dict[str, Any]]) -> None:
@@ -137,6 +149,179 @@ def _apply_output_contract(user_input: str, report: str) -> str:
         return target
 
     return report
+
+
+def _is_tool_enabled(profile: Dict[str, Any], key: str, default: bool = False) -> bool:
+    enabled_tools = profile.get("enabled_tools") or {}
+    if isinstance(enabled_tools, dict) and key in enabled_tools:
+        return bool(enabled_tools.get(key))
+    return default
+
+
+def _should_use_fast_agent_path(state: AgentState, config: RunnableConfig) -> bool:
+    user_input = str(state.get("input", "") or "").strip()
+    if not user_input or state.get("images"):
+        return False
+    if not _auto_mode_prefers_linear(user_input):
+        return False
+
+    profile = _configurable(config).get("agent_profile") or {}
+    if not isinstance(profile, dict):
+        profile = {}
+
+    return _is_tool_enabled(profile, "web_search", default=True)
+
+
+def _build_fast_agent_search_query(user_input: str) -> str:
+    text = re.sub(r"\s+", " ", str(user_input or "")).strip()
+    if not text:
+        return ""
+
+    text = _FAST_VERIFY_PREFIX_RE.sub("", text)
+    text = _FAST_VERIFY_INLINE_RE.sub("", text)
+    text = _FAST_VERIFY_PREFIX_ZH_RE.sub("", text)
+    text = _EXACT_REPLY_QUOTED_RE.sub("", text)
+    text = _EXACT_REPLY_PLAIN_RE.sub("", text)
+    text = _FAST_REPLY_SUFFIX_ZH_RE.sub("", text)
+
+    text = text.strip(" \t\r\n\"'`“”‘’")
+    text = re.sub(r"^[,:：-]+\s*", "", text)
+    return text or str(user_input or "").strip()
+
+
+def _format_fast_search_results(results: List[Dict[str, Any]], limit: int = 3) -> str:
+    blocks: List[str] = []
+    for idx, item in enumerate(results[:limit], start=1):
+        if not isinstance(item, dict):
+            continue
+        title = str(item.get("title", "") or "Untitled result").strip()
+        url = str(item.get("url", "") or "").strip()
+        snippet = (
+            item.get("summary")
+            or item.get("snippet")
+            or item.get("raw_excerpt")
+            or ""
+        )
+        snippet = re.sub(r"\s+", " ", str(snippet or "")).strip()
+        if len(snippet) > 700:
+            snippet = snippet[:700] + "..."
+        block = f"[{idx}] {title}"
+        if url:
+            block += f"\nURL: {url}"
+        if snippet:
+            block += f"\nEvidence: {snippet}"
+        blocks.append(block)
+    return "\n\n".join(blocks)
+
+
+def _run_fast_agent_search(
+    query: str,
+    config: RunnableConfig,
+) -> Tuple[Optional[str], List[Dict[str, Any]]]:
+    if not query:
+        return None, []
+
+    call_kwargs = {"query": query, "max_results": 3}
+
+    if len(settings.search_engines_list) > 1:
+        from tools.search.fallback_search import run_fallback_search
+
+        if settings.tool_retry:
+            return retry_call(
+                run_fallback_search,
+                attempts=settings.tool_retry_max_attempts,
+                backoff=settings.tool_retry_backoff,
+                **call_kwargs,
+            )
+        return run_fallback_search(**call_kwargs)
+
+    if settings.tool_retry:
+        results = retry_call(
+            tavily_search.invoke,
+            attempts=settings.tool_retry_max_attempts,
+            backoff=settings.tool_retry_backoff,
+            **{"input": call_kwargs, "config": config},
+        )
+    else:
+        results = tavily_search.invoke(call_kwargs, config=config)
+    return getattr(tavily_search, "name", "tavily_search"), results or []
+
+
+def _answer_simple_agent_query(
+    state: AgentState,
+    config: RunnableConfig,
+) -> Optional[Dict[str, Any]]:
+    user_input = str(state.get("input", "") or "").strip()
+    search_query = _build_fast_agent_search_query(user_input)
+    if not search_query:
+        return None
+
+    t0 = time.time()
+    try:
+        provider, results = _run_fast_agent_search(search_query, config)
+    except Exception as e:
+        logger.warning(f"[agent_node] Fast search path failed for '{search_query[:80]}': {e}")
+        return None
+
+    if not results:
+        logger.info("[agent_node] Fast search path found no results; falling back to full agent")
+        return None
+
+    evidence = _format_fast_search_results(results)
+    if not evidence:
+        return None
+
+    messages: List[Any] = []
+    for seeded in state.get("messages") or []:
+        if isinstance(seeded, SystemMessage):
+            messages.append(seeded)
+
+    messages.append(
+        SystemMessage(
+            content=(
+                "You are Weaver in fast verification mode. "
+                "You already have current web evidence. "
+                "Answer the user's question directly using only the provided evidence. "
+                "Prefer the most authoritative and consistent evidence. "
+                "Keep the answer concise. If the user requested an exact reply format, follow it exactly. "
+                "Do not add a sources section unless the user explicitly asked for it."
+            )
+        )
+    )
+    messages.append(
+        HumanMessage(
+            content=(
+                f"User question:\n{user_input}\n\n"
+                f"Search query used:\n{search_query}\n\n"
+                f"Current search evidence:\n{evidence}\n\n"
+                "Return the best final answer."
+            )
+        )
+    )
+
+    llm = _chat_model(_model_for_task("writing", config), temperature=0.2)
+    response = llm.invoke(messages, config=config)
+    _log_usage(response, "agent_fast_search")
+
+    content = response.content if hasattr(response, "content") else str(response)
+    content = _apply_output_contract(user_input, content)
+
+    logger.info(f"[timing] agent_fast_search {(time.time() - t0):.3f}s")
+    return {
+        "scraped_content": [
+            {
+                "query": search_query,
+                "results": results,
+                "provider": provider,
+                "timestamp": datetime.now().isoformat(),
+                "fast_path": True,
+            }
+        ],
+        "draft_report": content,
+        "final_report": content,
+        "is_complete": False,
+        "messages": [AIMessage(content=content)],
+    }
 
 
 def _chat_model(
@@ -1423,6 +1608,12 @@ def agent_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
     logger.info("Executing agent node (tool-calling)")
     try:
         check_cancellation(state)
+
+        if _should_use_fast_agent_path(state, config):
+            fast_result = _answer_simple_agent_query(state, config)
+            if fast_result is not None:
+                logger.info("[agent_node] Served simple verification query via fast search path")
+                return fast_result
 
         cfg = _configurable(config)
         profile = cfg.get("agent_profile") or {}
