@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from typing import TYPE_CHECKING, Any, Iterable
 
@@ -37,6 +38,17 @@ class ProviderSafeToolSelectorMiddleware(LLMToolSelectorMiddleware):
         super().__init__(**kwargs)
         methods = tuple(selection_methods or _DEFAULT_SELECTION_METHODS)
         self.selection_methods = tuple(method for method in methods if method)
+        self._selection_cache: dict[str, list[str]] = {}
+
+    def _selection_cache_key(self, request: Any) -> str:
+        payload = {
+            "system_message": request.system_message,
+            "user_message": request.last_user_message.content,
+            "valid_tool_names": request.valid_tool_names,
+            "always_include": self.always_include,
+            "max_tools": self.max_tools,
+        }
+        return json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
 
     def _selection_messages(self, request: Any, *, method: str) -> list[Any]:
         system_message = request.system_message
@@ -62,6 +74,15 @@ class ProviderSafeToolSelectorMiddleware(LLMToolSelectorMiddleware):
         selection_request = self._prepare_selection_request(request)
         if selection_request is None:
             return request
+        cache_key = self._selection_cache_key(selection_request)
+        cached_names = self._selection_cache.get(cache_key)
+        if cached_names is not None:
+            return self._process_selection_response(
+                {"tools": cached_names},
+                selection_request.available_tools,
+                selection_request.valid_tool_names,
+                request,
+            )
 
         type_adapter = _create_tool_selection_response(selection_request.available_tools)
         schema = type_adapter.json_schema()
@@ -75,6 +96,7 @@ class ProviderSafeToolSelectorMiddleware(LLMToolSelectorMiddleware):
         if not isinstance(response, dict):
             msg = f"Expected dict response, got {type(response)}"
             raise AssertionError(msg)
+        self._selection_cache[cache_key] = list(response.get("tools") or [])
         return self._process_selection_response(
             response,
             selection_request.available_tools,
@@ -86,6 +108,15 @@ class ProviderSafeToolSelectorMiddleware(LLMToolSelectorMiddleware):
         selection_request = self._prepare_selection_request(request)
         if selection_request is None:
             return request
+        cache_key = self._selection_cache_key(selection_request)
+        cached_names = self._selection_cache.get(cache_key)
+        if cached_names is not None:
+            return self._process_selection_response(
+                {"tools": cached_names},
+                selection_request.available_tools,
+                selection_request.valid_tool_names,
+                request,
+            )
 
         type_adapter = _create_tool_selection_response(selection_request.available_tools)
         schema = type_adapter.json_schema()
@@ -96,6 +127,7 @@ class ProviderSafeToolSelectorMiddleware(LLMToolSelectorMiddleware):
         if not isinstance(response, dict):
             msg = f"Expected dict response, got {type(response)}"
             raise AssertionError(msg)
+        self._selection_cache[cache_key] = list(response.get("tools") or [])
         return self._process_selection_response(
             response,
             selection_request.available_tools,

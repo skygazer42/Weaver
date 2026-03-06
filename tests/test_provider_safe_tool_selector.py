@@ -75,3 +75,29 @@ def test_provider_safe_tool_selector_falls_back_to_function_calling():
 
     assert model.methods == ["json_schema", "function_calling"]
     assert captured["tools"] == ["beta_tool"]
+
+
+def test_provider_safe_tool_selector_caches_same_request_signature():
+    model = _FakeSelectionModel()
+    middleware = ProviderSafeToolSelectorMiddleware(
+        model=model,
+        max_tools=1,
+        selection_methods=("function_calling",),
+    )
+    captured = []
+
+    def _handler(request):
+        captured.append([tool.name for tool in request.tools])
+        return ModelResponse(result=[])
+
+    request = ModelRequest(
+        model=model,
+        messages=[HumanMessage("Use the beta tool")],
+        tools=[alpha_tool, beta_tool],
+    )
+
+    middleware.wrap_model_call(request, _handler)
+    middleware.wrap_model_call(request, _handler)
+
+    assert model.methods == ["function_calling"]
+    assert captured == [["beta_tool"], ["beta_tool"]]
