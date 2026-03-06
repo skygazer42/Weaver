@@ -61,3 +61,61 @@ def test_agent_tools_web_dev_tools_when_enabled():
         settings.e2b_api_key = original_key
     assert "sandbox_scaffold_web_project" in names
     assert "sandbox_deploy_web_project" in names
+
+
+def test_agent_tools_prefer_api_search_over_sandbox_search_when_web_search_enabled():
+    original_key = settings.e2b_api_key
+    original_search_engines = settings.search_engines
+    original_mode = settings.sandbox_mode
+    settings.e2b_api_key = "e2b_test_key"
+    settings.search_engines = "tavily,serper"
+    settings.sandbox_mode = "local"
+    try:
+        cfg = {
+            "configurable": {
+                "thread_id": "t4",
+                "agent_profile": {
+                    "enabled_tools": {
+                        "web_search": True,
+                        "sandbox_web_search": True,
+                    }
+                },
+            }
+        }
+        names = _names(build_agent_tools(cfg))
+    finally:
+        settings.e2b_api_key = original_key
+        settings.search_engines = original_search_engines
+        settings.sandbox_mode = original_mode
+    assert "fallback_search" in names
+    assert "sandbox_web_search" not in names
+    assert "sandbox_search_and_click" not in names
+    assert "sandbox_extract_search_results" not in names
+
+
+def test_agent_tools_include_sandbox_search_when_api_search_disabled():
+    original_key = settings.e2b_api_key
+    original_search_engines = settings.search_engines
+    original_mode = settings.sandbox_mode
+    settings.e2b_api_key = "e2b_test_key"
+    settings.search_engines = "tavily,serper"
+    settings.sandbox_mode = "local"
+    try:
+        cfg = {
+            "configurable": {
+                "thread_id": "t5",
+                "agent_profile": {
+                    "enabled_tools": {
+                        "web_search": False,
+                        "sandbox_web_search": True,
+                    }
+                },
+            }
+        }
+        names = _names(build_agent_tools(cfg))
+    finally:
+        settings.e2b_api_key = original_key
+        settings.search_engines = original_search_engines
+        settings.sandbox_mode = original_mode
+    assert "fallback_search" not in names
+    assert "sandbox_web_search" in names

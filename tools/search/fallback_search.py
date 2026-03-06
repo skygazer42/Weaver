@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 def _tavily(query: str, max_results: int) -> List[Dict[str, Any]]:
-    return tavily_search(query=query, max_results=max_results)
+    return tavily_search.invoke({"query": query, "max_results": max_results})
 
 
 # Map engine key -> handler

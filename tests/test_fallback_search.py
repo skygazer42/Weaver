@@ -69,3 +69,22 @@ def test_run_fallback_search_continues_after_engine_error(monkeypatch):
 
     assert engine == "tavily"
     assert results and results[0]["url"] == "https://tavily.example"
+
+
+def test_run_fallback_search_supports_structured_tool_tavily(monkeypatch):
+    calls = []
+
+    class _DummyStructuredTool:
+        def invoke(self, payload, config=None):
+            calls.append(payload)
+            return [{"url": "https://tavily.example"}]
+
+    monkeypatch.setattr(fallback_search, "tavily_search", _DummyStructuredTool())
+
+    engine, results = fallback_search.run_fallback_search(
+        query="hello", max_results=5, engines=["tavily"]
+    )
+
+    assert engine == "tavily"
+    assert calls == [{"query": "hello", "max_results": 5}]
+    assert results and results[0]["url"] == "https://tavily.example"

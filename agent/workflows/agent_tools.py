@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from typing import Any, Dict, List
 
 from langchain_core.runnables import RunnableConfig
@@ -40,18 +39,6 @@ from tools.sandbox import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-def _sandbox_template_available() -> bool:
-    """
-    Detect whether sandbox browser template is configured.
-    Required by sandbox browser / sandbox web search tools.
-    """
-    if getattr(settings, "sandbox_template_browser", "").strip():
-        return True
-    env_template = os.getenv("SANDBOX_TEMPLATE_BROWSER", "").strip()
-    return bool(env_template)
-
 
 _E2B_PLACEHOLDER_KEYS = {
     "e2b_...",  # common placeholder
@@ -120,14 +107,13 @@ def build_agent_tools(config: RunnableConfig) -> List[BaseTool]:
     tools: List[BaseTool] = []
     e2b_ready = _e2b_api_key_configured()
 
-    prefer_visual_search = (
-        _enabled(profile, "sandbox_web_search", default=False)
-        and _sandbox_template_available()
-        and settings.sandbox_mode == "local"
-        and e2b_ready
-    )
+    web_search_enabled = _enabled(profile, "web_search", default=True)
+    sandbox_web_search_enabled = _enabled(profile, "sandbox_web_search", default=False)
 
-    if _enabled(profile, "web_search", default=True) and not prefer_visual_search:
+    if web_search_enabled:
+        # Keep stable API search tools available even when visual sandbox search is enabled.
+        # When API web search is available, omit the specialized sandbox search tools to
+        # steer the agent away from anti-bot-prone search pages.
         # Use fallback search if multiple engines configured
         if len(settings.search_engines_list) > 1:
             from tools import fallback_search
@@ -164,7 +150,7 @@ def build_agent_tools(config: RunnableConfig) -> List[BaseTool]:
         tools.extend(build_browser_use_tools(thread_id))
 
     # Sandbox web search: visual search using sandbox browser
-    if _enabled(profile, "sandbox_web_search", default=False):
+    if sandbox_web_search_enabled and not web_search_enabled:
         if settings.sandbox_mode == "local" and e2b_ready:
             tools.extend(build_sandbox_web_search_tools(thread_id))
 
