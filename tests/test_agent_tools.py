@@ -119,3 +119,18 @@ def test_agent_tools_include_sandbox_search_when_api_search_disabled():
         settings.sandbox_mode = original_mode
     assert "fallback_search" not in names
     assert "sandbox_web_search" in names
+
+
+def test_agent_tools_include_task_list_tools_by_default():
+    cfg = {
+        "configurable": {
+            "thread_id": "t_default_tasks",
+            "agent_profile": {"enabled_tools": {}},
+        }
+    }
+    names = _names(build_agent_tools(cfg))
+    assert "create_tasks" in names
+    assert "view_tasks" in names
+    assert "update_task" in names
+    assert "get_next_task" in names
+    assert "plan_steps" in names

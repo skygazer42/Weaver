@@ -429,21 +429,21 @@ class Settings(BaseSettings):
     sandbox_allow_internet: bool = True  # allow internet access inside sandbox
 
     # Tool / middleware controls
-    tool_retry: bool = False
+    tool_retry: bool = True
     tool_retry_max_attempts: int = 3
     tool_retry_backoff: float = 1.5  # seconds exponential factor
     tool_retry_initial_delay: float = 1.0
     tool_retry_max_delay: float = 60.0
-    tool_call_limit: int = 0  # 0 = unlimited per request
+    tool_call_limit: int = 12
     strip_tool_messages: bool = False  # drop ToolMessage from history to save tokens
     context_edit_trigger_tokens: int = 1000
     context_edit_keep_tools: int = 3
-    tool_selector: bool = False
+    tool_selector: bool = False  # keep gated off by default for DeepSeek-compatible backends
     tool_selector_model: str = "gpt-4o-mini"
     tool_selector_max_tools: int = 3
     tool_selector_always_include: str = ""  # comma-separated tool names
     tool_selector_prompt: str = ""
-    enable_todo_middleware: bool = False  # enable todo list middleware
+    enable_todo_middleware: bool = False  # enable todo list middleware (provider-sensitive)
     todo_system_prompt: str = ""  # custom system prompt for todo middleware
     todo_tool_description: str = ""  # custom tool description for todo middleware
     enable_browser_use: bool = False  # enable browser_use tool (Playwright-based)

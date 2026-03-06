@@ -204,7 +204,7 @@ def build_agent_tools(config: RunnableConfig) -> List[BaseTool]:
         tools.append(chart_visualize)
 
     # Task list tools for structured task management
-    if _enabled(profile, "task_list", default=False):
+    if _enabled(profile, "task_list", default=True):
         tools.extend(build_task_list_tools(thread_id))
 
     # Computer use tools for desktop automation
