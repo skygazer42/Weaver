@@ -163,7 +163,7 @@ export function useBrowserStream({
         }, 3000)
       }
     }
-  }, [threadId, autoStart, quality, maxFps, readWsMessage])
+  }, [threadId, autoStart, quality, maxFps])
 
   // Connect when threadId changes
   useEffect(() => {

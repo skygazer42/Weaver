@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react'
 import { Message, Artifact, ToolInvocation, ImageAttachment, ProcessEvent, RunMetrics, MessageSource } from '@/types/chat'
 import { getApiBaseUrl } from '@/lib/api'
+import { createLegacyChatStreamState, consumeLegacyChatStreamChunk } from '@/lib/chatStreamProtocol'
 
 interface UseChatStreamProps {
   selectedModel: string
@@ -84,7 +85,6 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
 
       const reader = response.body?.getReader()
       const decoder = new TextDecoder()
-      let buffer = ''
 
       if (!reader) {
         throw new Error('No reader available')
@@ -103,7 +103,7 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
       console.log('[useChatStream] Creating assistant message:', {
         id: assistantMessage.id,
         role: assistantMessage.role,
-        currentMessagesCount: messageHistory.length
+        currentMessagesCount: messages.length
       })
 
       setMessages((prev) => [...prev, assistantMessage])
@@ -136,14 +136,14 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
         )
       }
 
-      const handleStreamLine = (line: string, setInterrupted: () => void) => {
-        const trimmed = line.trim()
-        if (!trimmed) return
-        if (!trimmed.startsWith('0:')) return
+      const streamState = createLegacyChatStreamState()
+      let interrupted = false
+      while (true) {
+        const { done, value } = await reader.read()
+        const chunk = done ? decoder.decode() : decoder.decode(value, { stream: true })
+        const events = consumeLegacyChatStreamChunk(streamState, chunk, { flush: done })
 
-        try {
-          const data = JSON.parse(trimmed.slice(2))
-
+        for (const data of events) {
           if (data.type === 'status') {
             setCurrentStatus(data.data.text)
             pushProcessEvent('status', data.data)
@@ -160,7 +160,7 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
             assistantMessage.content = data.data.content
             syncAssistantMessage()
           } else if (data.type === 'interrupt') {
-            setInterrupted()
+            interrupted = true
             setPendingInterrupt(data.data)
             const msg = data.data?.message || data.data?.prompts?.[0]?.message
             setCurrentStatus(msg || 'Approval required before continuing')
@@ -176,6 +176,7 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
                 content: msg || 'Approval required before running a tool.',
               },
             ])
+            break
           } else if (data.type === 'tool') {
             const toolCallId =
               data.data.toolCallId || `tool-${Date.now()}-${Math.random()}`
@@ -260,41 +261,9 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
               return [...prev, newArtifact]
             })
           }
-        } catch (err) {
-          console.error('Error parsing stream data:', err)
-        }
-      }
-
-      let interrupted = false
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-        while (true) {
-          const newlineIndex = buffer.indexOf('\n')
-          if (newlineIndex < 0) break
-
-          const line = buffer.slice(0, newlineIndex).replace(/\r$/, '')
-          buffer = buffer.slice(newlineIndex + 1)
-
-          handleStreamLine(line, () => {
-            interrupted = true
-          })
-          if (interrupted) break
         }
 
-        if (interrupted) break
-      }
-
-      if (!interrupted) {
-        buffer += decoder.decode()
-        const tail = buffer.replace(/\r$/, '')
-        if (tail.trim()) {
-          handleStreamLine(tail, () => {
-            interrupted = true
-          })
-        }
+        if (done || interrupted) break
       }
 
       if (assistantMessage.isStreaming) {
