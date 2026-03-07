@@ -70,6 +70,7 @@ export function BrowserViewer({
     isStarting,
     currentFrame,
     fps,
+    updatesFps,
     error: streamError,
     start: startStream,
     stop: stopStream,
@@ -373,8 +374,11 @@ export function BrowserViewer({
             >
               <Camera className="w-3.5 h-3.5 text-muted-foreground" />
             </button>
-            {isStreaming && fps > 0 && (
-              <span className="text-[10px] text-muted-foreground">{fps} FPS</span>
+            {isStreaming && (fps > 0 || updatesFps > 0) && (
+              <span className="text-[10px] text-muted-foreground">
+                RX {fps} FPS · UI {updatesFps} upd/s
+                {fps > 0 && updatesFps === 0 ? ' · static' : ''}
+              </span>
             )}
           </div>
         )}

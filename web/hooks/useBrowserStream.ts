@@ -20,6 +20,7 @@ interface UseBrowserStreamReturn {
   isStarting: boolean
   currentFrame: StreamFrame | null
   fps: number
+  updatesFps: number
   error: string | null
   start: () => void
   stop: () => void
@@ -42,11 +43,13 @@ export function useBrowserStream({
   const [isStarting, setIsStarting] = useState(false)
   const [currentFrame, setCurrentFrame] = useState<StreamFrame | null>(null)
   const [fps, setFps] = useState(0)
+  const [updatesFps, setUpdatesFps] = useState(0)
   const [error, setError] = useState<string | null>(null)
 
   const wsRef = useRef<WebSocket | null>(null)
   const closedByClientRef = useRef<Set<WebSocket>>(new Set())
   const frameCountRef = useRef(0)
+  const uniqueFrameCountRef = useRef(0)
   const lastFrameDataRef = useRef<string | null>(null)
   const lastFrameMetaRef = useRef<string>('') // compact signature of url/title
   const fpsIntervalRef = useRef<NodeJS.Timeout | null>(null)
@@ -65,6 +68,8 @@ export function useBrowserStream({
     fpsIntervalRef.current = setInterval(() => {
       setFps(frameCountRef.current)
       frameCountRef.current = 0
+      setUpdatesFps(uniqueFrameCountRef.current)
+      uniqueFrameCountRef.current = 0
     }, 1000)
 
     return () => {
@@ -119,6 +124,7 @@ export function useBrowserStream({
         const data = JSON.parse(raw)
 
         if (data.type === 'frame') {
+          frameCountRef.current++
           const nextData = typeof data.data === 'string' ? data.data : ''
           const meta = data.metadata || {}
           const metaUrl = typeof meta?.url === 'string' ? meta.url : (typeof meta?.page_url === 'string' ? meta.page_url : '')
@@ -130,7 +136,7 @@ export function useBrowserStream({
           const isDuplicate = nextData && nextData === lastFrameDataRef.current && metaSig === lastFrameMetaRef.current
 
           if (!isDuplicate) {
-            frameCountRef.current++
+            uniqueFrameCountRef.current++
             lastFrameDataRef.current = nextData
             lastFrameMetaRef.current = metaSig
             setCurrentFrame({
@@ -260,6 +266,7 @@ export function useBrowserStream({
     isStarting,
     currentFrame,
     fps,
+    updatesFps,
     error,
     start,
     stop,
