@@ -743,12 +743,13 @@ class TreeExplorer:
 
             async def _search_one_async(query: str) -> None:
                 self._check_cancel(state)
+                logger.info(f"[TreeExplorer] ({node.id}) Searching query: {query}")
 
                 # Keep the Live browser view non-blank while API search runs (off the event loop).
                 try:
                     from agent.workflows.browser_visualizer import show_browser_status_page
 
-                    await loop.run_in_executor(
+                    status_task = loop.run_in_executor(
                         None,
                         lambda q=query: show_browser_status_page(
                             state=state,
@@ -757,6 +758,12 @@ class TreeExplorer:
                             detail=q,
                         ),
                     )
+                    # Best-effort only: if the sandbox browser thread is busy,
+                    # don't block research on rendering a status page.
+                    try:
+                        await asyncio.wait_for(status_task, timeout=0.5)
+                    except asyncio.TimeoutError:
+                        pass
                 except Exception:
                     pass
 
@@ -842,6 +849,7 @@ class TreeExplorer:
 
             # Summarize findings (in executor)
             if node.findings:
+                logger.info(f"[TreeExplorer] Summarizing branch {node.id} ({len(node.findings)} findings)")
                 node.summary = await loop.run_in_executor(
                     None,
                     lambda: self._summarize_branch(node)

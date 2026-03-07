@@ -145,6 +145,15 @@ def show_browser_status_page(
     if not thread_id:
         return
 
+    # Avoid blocking research when the live preview is already busy navigating.
+    # The sandbox browser executor is single-worker per thread_id; if a preview
+    # navigation is in-flight, `run_sync()` calls here would stall until it
+    # completes (which can be ~60s on slow sites).
+    tid = (thread_id or "").strip() or "default"
+    with _VISUALIZE_LOCK:
+        if tid in _VISUALIZE_IN_FLIGHT:
+            return
+
     try:
         from tools.sandbox.sandbox_browser_session import sandbox_browser_sessions
     except Exception:
