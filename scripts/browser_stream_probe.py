@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import inspect
 import json
 import os
 import sys
@@ -327,14 +328,30 @@ async def _probe_stream(
     open_timeout = max(10.0, float(first_frame_timeout_s or 0.0))
     close_timeout = 10.0
 
+    connect_kwargs: Dict[str, Any] = {
+        "open_timeout": open_timeout,
+        "close_timeout": close_timeout,
+        # Disable built-in ping; the server already sends keepalive `ping` events.
+        "ping_interval": None,
+    }
+    if headers:
+        try:
+            params = inspect.signature(websockets.connect).parameters
+        except Exception:
+            params = {}
+
+        # websockets<14: extra_headers
+        # websockets>=14: additional_headers
+        if "additional_headers" in params:
+            connect_kwargs["additional_headers"] = headers
+        elif "extra_headers" in params:
+            connect_kwargs["extra_headers"] = headers
+        else:
+            # Best-effort fallback: prefer the modern name.
+            connect_kwargs["additional_headers"] = headers
+
     try:
-        async with websockets.connect(
-            ws_url,
-            extra_headers=headers or None,
-            open_timeout=open_timeout,
-            close_timeout=close_timeout,
-            ping_interval=None,
-        ) as ws:
+        async with websockets.connect(ws_url, **connect_kwargs) as ws:
             stats.connected_monotonic = time.monotonic()
 
             # Start streaming immediately (frontend behavior).
