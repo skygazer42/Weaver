@@ -1,7 +1,7 @@
 # Web Framework
-fastapi==0.134.0
-uvicorn[standard]==0.41.0
-python-multipart==0.0.22
+fastapi==0.136.0
+uvicorn[standard]==0.44.0
+python-multipart==0.0.26
 
 # LangChain & LangGraph (1.x)
 langgraph>=1.0.0
@@ -20,23 +20,23 @@ pgvector==0.4.2
 sqlalchemy>=2.0.25
 
 # Tools
-tavily-python==0.7.22
-e2b-code-interpreter==2.4.1
+tavily-python==0.7.23
+e2b-code-interpreter==2.6.0
 playwright>=1.47.0
-langchain-mcp-adapters==0.2.1
-mcp==1.26.0
+langchain-mcp-adapters==0.2.2
+mcp==1.27.0
 dashscope>=1.24.6  # DashScope SDK (ASR/TTS)
 
 # Utilities
-python-dotenv==1.2.1
-pydantic==2.12.5
+python-dotenv==1.2.2
+pydantic==2.13.2
 pydantic-settings==2.13.1
 httpx==0.28.1
 
 # Optional heavy tool deps moved to requirements-optional.txt
 # Async support
 aiofiles>=24.1.0
-prometheus-client==0.24.1
+prometheus-client==0.25.0
 tiktoken>=0.6.0
 pillow>=10.0.0
 requests>=2.31.0
