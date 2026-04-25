@@ -1,68 +1,68 @@
 # Web Framework
-fastapi==0.134.0
-uvicorn[standard]==0.41.0
-python-multipart==0.0.22
+fastapi==0.136.1
+uvicorn[standard]==0.46.0
+python-multipart==0.0.26
 
 # LangChain & LangGraph (1.x)
-langgraph>=1.0.0
-langgraph-checkpoint>=2.0.0
-langgraph-checkpoint-postgres>=2.0.0
-langchain>=1.0.0
-langchain-openai>=1.0.0
-langchain-anthropic>=1.0.0
-langchain-core>=1.0.0
-langchain-community>=0.4.0
-mem0ai>=0.0.7
+langgraph>=1.1.9
+langgraph-checkpoint>=4.0.2
+langgraph-checkpoint-postgres>=3.0.5
+langchain>=1.2.15
+langchain-openai>=1.2.1
+langchain-anthropic>=1.4.1
+langchain-core>=1.3.2
+langchain-community>=0.4.1
+mem0ai>=2.0.1
 
 # Database & Persistence
 psycopg[binary]==3.3.3
 pgvector==0.4.2
-sqlalchemy>=2.0.25
+sqlalchemy>=2.0.49
 
 # Tools
-tavily-python==0.7.22
-e2b-code-interpreter==2.4.1
-playwright>=1.47.0
-langchain-mcp-adapters==0.2.1
-mcp==1.26.0
-dashscope>=1.24.6  # DashScope SDK (ASR/TTS)
+tavily-python==0.7.23
+e2b-code-interpreter==2.6.0
+playwright>=1.58.0
+langchain-mcp-adapters==0.2.2
+mcp==1.27.0
+dashscope>=1.25.17  # DashScope SDK (ASR/TTS)
 
 # Utilities
-python-dotenv==1.2.1
-pydantic==2.12.5
-pydantic-settings==2.13.1
+python-dotenv==1.2.2
+pydantic==2.13.3
+pydantic-settings==2.14.0
 httpx==0.28.1
 
 # Optional heavy tool deps moved to requirements-optional.txt
 # Async support
-aiofiles>=24.1.0
-prometheus-client==0.24.1
-tiktoken>=0.6.0
-pillow>=10.0.0
-requests>=2.31.0
-markdownify>=0.12.0
-matplotlib>=3.9.0
-greenlet>=3.1.1
+aiofiles>=25.1.0
+prometheus-client==0.25.0
+tiktoken>=0.12.0
+pillow>=12.2.0
+requests>=2.33.1
+markdownify>=1.2.2
+matplotlib>=3.10.9
+greenlet>=3.4.0
 
 # RAG & Export (optional but commonly used)
 # These have try/except guards - install for full functionality
-pymupdf>=1.23.0           # PDF parsing
-python-docx>=0.8.11       # DOCX parsing/export
-chromadb>=0.4.0           # Vector store for RAG
-weasyprint>=60.0          # PDF export
-jinja2>=3.1.0             # HTML template rendering
-markdown>=3.5.0           # Markdown to HTML conversion
-openai>=1.0.0             # OpenAI embeddings API
+pymupdf>=1.27.2.3           # PDF parsing
+python-docx>=1.2.0       # DOCX parsing/export
+chromadb>=1.5.8           # Vector store for RAG
+weasyprint>=68.1          # PDF export
+jinja2>=3.1.6             # HTML template rendering
+markdown>=3.10.2           # Markdown to HTML conversion
+openai>=2.32.0             # OpenAI embeddings API
 
 # Real-time Feed Providers (optional)
 # Install for Twitter/Reddit/HackerNews search
-tweepy>=4.14.0            # Twitter/X API v2
-praw>=7.7.0               # Reddit API
-duckduckgo-search>=6.0.0  # DuckDuckGo (no API key)
+tweepy>=4.16.0            # Twitter/X API v2
+praw>=7.8.1               # Reddit API
+duckduckgo-search>=8.1.1  # DuckDuckGo (no API key)
 
 # Academic Search Providers (optional)
 # Install for arXiv/Semantic Scholar/PubMed search
-arxiv>=2.1.0              # arXiv API
-biopython>=1.83           # PubMed/NCBI Entrez
-exa-py>=1.0.0             # Exa.ai neural search
+arxiv>=3.0.0              # arXiv API
+biopython>=1.87           # PubMed/NCBI Entrez
+exa-py>=2.12.1             # Exa.ai neural search
 
