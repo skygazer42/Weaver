@@ -180,6 +180,7 @@ class Settings(BaseSettings):
     brave_api_key: str = ""
     exa_api_key: str = ""
     firecrawl_api_key: str = ""
+    youcom_api_key: str = ""
     google_search_api_key: str = ""  # Google Custom Search API key
     google_search_engine_id: str = ""  # Google Custom Search Engine ID (cx)
     e2b_api_key: str = ""
@@ -232,8 +233,12 @@ class Settings(BaseSettings):
     rate_limit_general_per_minute: int = Field(
         default=60, ge=1, validation_alias="RATE_LIMIT_GENERAL_PER_MINUTE"
     )
-    rate_limit_chat_per_minute: int = Field(default=20, ge=1, validation_alias="RATE_LIMIT_CHAT_PER_MINUTE")
-    rate_limit_window_seconds: int = Field(default=60, ge=1, validation_alias="RATE_LIMIT_WINDOW_SECONDS")
+    rate_limit_chat_per_minute: int = Field(
+        default=20, ge=1, validation_alias="RATE_LIMIT_CHAT_PER_MINUTE"
+    )
+    rate_limit_window_seconds: int = Field(
+        default=60, ge=1, validation_alias="RATE_LIMIT_WINDOW_SECONDS"
+    )
     rate_limit_max_buckets: int = Field(
         default=10_000,
         ge=1,
@@ -360,8 +365,12 @@ class Settings(BaseSettings):
     deepsearch_report_sources_limit: int = 20  # max sources exposed to writer + appended to report
     deepsearch_visualize_browser: bool = True  # drive sandbox browser so Live view isn't blank
     deepsearch_claim_verifier_use_passages: bool = True  # use fetched passages for claim evidence
-    deepsearch_claim_verifier_min_overlap_tokens: int = 2  # token overlap threshold for claim evidence
-    deepsearch_claim_verifier_max_evidence_per_claim: int = 3  # max evidence passages/urls stored per claim
+    deepsearch_claim_verifier_min_overlap_tokens: int = (
+        2  # token overlap threshold for claim evidence
+    )
+    deepsearch_claim_verifier_max_evidence_per_claim: int = (
+        3  # max evidence passages/urls stored per claim
+    )
 
     # Research Fetcher / Reader Settings
     reader_fallback_mode: str = "both"
@@ -386,9 +395,13 @@ class Settings(BaseSettings):
     search_cache_max_size: int = 200  # session-level search cache capacity
     search_cache_ttl_seconds: float = 1800.0  # search cache TTL in seconds
     search_cache_similarity_threshold: float = 0.9  # fuzzy query match threshold
-    search_reliability_max_retries: int = 2  # retries per provider call (in addition to first attempt)
+    search_reliability_max_retries: int = (
+        2  # retries per provider call (in addition to first attempt)
+    )
     search_reliability_retry_backoff_seconds: float = 0.5  # exponential backoff base seconds
-    search_reliability_circuit_breaker_failures: int = 3  # open circuit after N consecutive failures
+    search_reliability_circuit_breaker_failures: int = (
+        3  # open circuit after N consecutive failures
+    )
     search_reliability_circuit_breaker_reset_seconds: float = 60.0  # reset circuit after N seconds
     search_parallel_max_workers: int = 8  # cap threads for parallel provider fan-out
     search_parallel_timeout_seconds: float = 30.0  # best-effort timeout for parallel fan-out
@@ -456,7 +469,9 @@ class Settings(BaseSettings):
     enhanced_tool_discovery_enabled: bool = True
     enhanced_tool_discovery_recursive: bool = False
     enhanced_tool_discovery_exclude_dirs: str = "__pycache__,node_modules,web"
-    agent_use_enhanced_registry: bool = False  # reserved for future: build agent tools from ToolRegistry
+    agent_use_enhanced_registry: bool = (
+        False  # reserved for future: build agent tools from ToolRegistry
+    )
 
     # Tool visibility / events
     emit_tool_events: bool = True  # wrap tools with event emitters for front-end
