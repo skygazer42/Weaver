@@ -395,3 +395,48 @@ def firecrawl_search(query: str, max_results: int = 10) -> List[Dict[str, Any]]:
         )
 
     return results[: int(max_results or 10)]
+
+
+def youcom_search(query: str, max_results: int = 10) -> List[Dict[str, Any]]:
+    api_key = (getattr(settings, "youcom_api_key", "") or "").strip()
+    if not _is_valid_api_key(api_key):
+        return []
+
+    url = "https://ydc-index.io/v1/search"
+    headers = {"Accept": "application/json", "X-API-Key": api_key}
+    payload = {"query": query, "count": max(1, min(int(max_results or 10), 20))}
+
+    resp = requests.post(url, json=payload, headers=headers, timeout=DEFAULT_TIMEOUT_S)
+    if resp.status_code != 200:
+        msg = _sanitize_error_message(resp.text)
+        raise RuntimeError(f"You.com Search API error ({resp.status_code}): {msg}")
+
+    data = _safe_json(resp) or {}
+    results: List[Dict[str, Any]] = []
+
+    web_results = data.get("results", {}).get("web", [])
+    if not isinstance(web_results, list):
+        web_results = data.get("results", [])
+
+    for idx, item in enumerate(web_results, 1):
+        if not isinstance(item, dict):
+            continue
+        snippets = item.get("snippets", [])
+        snippet = ""
+        if isinstance(snippets, list) and snippets:
+            snippet = snippets[0]
+        if not snippet:
+            snippet = item.get("description", "") or ""
+
+        results.append(
+            {
+                "title": item.get("title", "") or "",
+                "snippet": snippet,
+                "url": item.get("url", "") or "",
+                "source": "youcom",
+                "position": idx,
+                "date": item.get("date"),
+            }
+        )
+
+    return results[: int(max_results or 10)]

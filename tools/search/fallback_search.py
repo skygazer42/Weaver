@@ -24,6 +24,7 @@ from tools.search.providers import (
     google_cse_search,
     serpapi_search,
     serper_search,
+    youcom_search,
 )
 from tools.search.search import tavily_search
 
@@ -45,6 +46,7 @@ _ENGINE_HANDLERS = {
     ),
     "exa": lambda query, max_results: exa_search(query=query, max_results=max_results),
     "firecrawl": lambda query, max_results: firecrawl_search(query=query, max_results=max_results),
+    "youcom": lambda query, max_results: youcom_search(query=query, max_results=max_results),
 }
 
 # Friendly aliases (align with Shannon/OpenManus naming)
