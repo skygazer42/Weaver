@@ -19,6 +19,7 @@ from langchain.tools import tool
 from common.config import settings
 from tools.search.providers import (
     bing_search,
+    brightdata_search,
     exa_search,
     firecrawl_search,
     google_cse_search,
@@ -44,6 +45,7 @@ _ENGINE_HANDLERS = {
         query=query, max_results=max_results
     ),
     "exa": lambda query, max_results: exa_search(query=query, max_results=max_results),
+    "brightdata": lambda query, max_results: brightdata_search(query=query, max_results=max_results),
     "firecrawl": lambda query, max_results: firecrawl_search(query=query, max_results=max_results),
 }
 

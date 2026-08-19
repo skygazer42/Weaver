@@ -333,6 +333,68 @@ def exa_search(
     return results[: int(max_results or 10)]
 
 
+_BRIGHTDATA_ENDPOINT = "https://api.brightdata.com/request"
+
+
+def brightdata_search(query: str, max_results: int = 10) -> List[Dict[str, Any]]:
+    """Search via Bright Data SERP API.
+
+    Requires both ``BRIGHTDATA_API_KEY`` and ``BRIGHTDATA_SERP_ZONE``.
+    A billed 200 whose envelope cannot be parsed throws — it never returns
+    zero results silently.
+    """
+    api_key = (getattr(settings, "brightdata_api_key", "") or "").strip()
+    zone = (getattr(settings, "brightdata_serp_zone", "") or "").strip()
+    if not _is_valid_api_key(api_key) or not zone:
+        return []
+
+    url = _BRIGHTDATA_ENDPOINT
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}",
+    }
+    payload = {
+        "zone": zone,
+        "url": f"https://www.google.com/search?q={requests.utils.quote(query)}&brd_json=1",
+        "format": "raw",
+    }
+
+    resp = requests.post(url, json=payload, headers=headers, timeout=DEFAULT_TIMEOUT_S)
+    if resp.status_code != 200:
+        msg = _sanitize_error_message(resp.text)
+        raise RuntimeError(f"Bright Data API error ({resp.status_code}): {msg}")
+
+    data = _safe_json(resp)
+    if not isinstance(data, dict):
+        body = (resp.text or "")[:500]
+        msg = _sanitize_error_message(body)
+        raise RuntimeError(f"Bright Data unparseable response (200): {msg}")
+
+    results: List[Dict[str, Any]] = []
+    organic = data.get("organic")
+    if organic is None:
+        body = (resp.text or "")[:500]
+        msg = _sanitize_error_message(body)
+        raise RuntimeError(f"Bright Data response missing 'organic' (200): {msg}")
+    if not isinstance(organic, list):
+        body = (resp.text or "")[:500]
+        msg = _sanitize_error_message(body)
+        raise RuntimeError(f"Bright Data 'organic' is not a list (200): {msg}")
+    for idx, item in enumerate(organic, 1):
+        if not isinstance(item, dict):
+            continue
+        results.append({
+            "title": item.get("title", "") or "",
+            "snippet": item.get("description", "") or "",
+            "url": item.get("link", "") or "",
+            "source": "brightdata",
+            "position": idx,
+            "global_rank": item.get("global_rank"),
+        })
+
+    return results[: int(max_results or 10)]
+
+
 def firecrawl_search(query: str, max_results: int = 10) -> List[Dict[str, Any]]:
     api_key = (getattr(settings, "firecrawl_api_key", "") or "").strip()
     if not _is_valid_api_key(api_key):
