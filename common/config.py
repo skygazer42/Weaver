@@ -180,6 +180,9 @@ class Settings(BaseSettings):
     brave_api_key: str = ""
     exa_api_key: str = ""
     firecrawl_api_key: str = ""
+    # Bright Data
+    brightdata_api_key: str = ""
+    brightdata_serp_zone: str = ""
     google_search_api_key: str = ""  # Google Custom Search API key
     google_search_engine_id: str = ""  # Google Custom Search Engine ID (cx)
     e2b_api_key: str = ""
