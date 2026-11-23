@@ -4,6 +4,7 @@ import * as assert from 'node:assert/strict'
 import {
   createLegacyChatStreamState,
   consumeLegacyChatStreamChunk,
+  consumeSseChatStreamChunk,
 } from '../lib/chatStreamProtocol'
 
 test('buffers partial legacy chat stream lines across chunks', () => {
@@ -21,6 +22,23 @@ test('buffers partial legacy chat stream lines across chunks', () => {
   assert.deepEqual(first, [])
   assert.deepEqual(second.map((event) => event.type), ['text', 'done'])
   assert.equal(second[0]?.data?.content, 'Paris')
+})
+
+test('replays SSE frames split across network chunks and ignores retry and heartbeat frames', () => {
+  const state = createLegacyChatStreamState()
+  const first = consumeSseChatStreamChunk(
+    state,
+    'retry: 2000\r\n\r\n: keepalive\r\n\r\nid: 3\r\nevent: completion\r\ndata: {"type":"completion","data":{"content":"re',
+  )
+  const second = consumeSseChatStreamChunk(
+    state,
+    'port"}}\r\n\r\nid: 4\nevent: done\ndata: {"thread_id":"thread_id"}\n\n',
+  )
+  assert.deepEqual(first, [])
+  assert.deepEqual(second, [
+    { type: 'completion', data: { content: 'report' } },
+    { type: 'done', data: { thread_id: 'thread_id' } },
+  ])
 })
 
 test('ignores blank legacy chat stream lines', () => {

@@ -48,6 +48,12 @@ Weaver 的 `data` 通常是一个 **envelope**：
 
 ---
 
+### Web Deep Research 重连
+
+Web 聊天通过 `POST /api/chat/sse?research_id=<32 位随机小写十六进制标识>` 启动 Deep Research。同一用户重复提交同一标识会接回仍可回放的运行。`GET /api/chat/sse/{research_id}` 回放已有事件并继续接收进度，客户端可通过 `Last-Event-ID` 指定最后收到的事件。后端单独分配 `X-Thread-ID` 供证据和工具视图使用。`DELETE /api/chat/sse/{research_id}` 停止研究。
+
+回放保存在处理请求的 API 进程内。已结束的任务最多保留一小时，也可能随容量淘汰。进程重启会清除回放。
+
 ## 2) SSE Research Stream（推荐）
 
 Research 的 SSE 协议与 Chat 基本一致（复用同一个 SSE parser），差别在于请求体字段。

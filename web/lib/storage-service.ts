@@ -10,12 +10,14 @@ export class StorageService {
     }
   }
 
-  private static setItem<T>(key: string, value: T): void {
-    if (typeof window === 'undefined') return
+  private static setItem<T>(key: string, value: T): boolean {
+    if (typeof window === 'undefined') return false
     try {
       window.localStorage.setItem(key, JSON.stringify(value))
+      return true
     } catch (error) {
       console.error(`Error writing to localStorage key "${key}":`, error)
+      return false
     }
   }
 
@@ -39,12 +41,29 @@ export class StorageService {
     return this.getItem<T[]>(`session_${sessionId}`) || []
   }
 
-  static saveSessionMessages<T>(sessionId: string, messages: T[]): void {
-    this.setItem(`session_${sessionId}`, messages)
+  static saveSessionMessages<T>(sessionId: string, messages: T[]): boolean {
+    return this.setItem(`session_${sessionId}`, messages)
+  }
+
+  static getResearchId(sessionId: string): string | null {
+    return this.getItem<string>('research_' + sessionId)
+  }
+
+  static setResearchId(sessionId: string, researchId: string | null): void {
+    this.setItem('research_' + sessionId, researchId)
+    if (researchId || this.getRecentResearchSession() === sessionId) {
+      this.setItem('weaver-recent-research', researchId ? sessionId : null)
+    }
+  }
+
+  static getRecentResearchSession(): string | null {
+    return this.getItem<string>('weaver-recent-research')
   }
 
   static removeSessionMessages(sessionId: string): void {
     if (typeof window === 'undefined') return
+    this.setResearchId(sessionId, null)
+    window.localStorage.removeItem('research_' + sessionId)
     window.localStorage.removeItem(`session_${sessionId}`)
   }
 
@@ -64,7 +83,7 @@ export class StorageService {
     // This is tricky without a list. We rely on the history list usually.
     // A robust way is to iterate all keys.
     Object.keys(window.localStorage).forEach(key => {
-        if (key.startsWith('session_') || key === 'weaver-history' || key === 'weaver-artifacts') {
+        if (key.startsWith('session_') || key.startsWith('research_') || key === 'weaver-history' || key === 'weaver-artifacts' || key === 'weaver-recent-research') {
              if (!keysToKeep.includes(key)) {
                  window.localStorage.removeItem(key)
              }

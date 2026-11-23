@@ -252,6 +252,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/chat/sse/{research_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resume Chat Sse
+         * @description Replay an existing Deep Research run and then follow its live stream.
+         */
+        get: operations["resume_chat_sse_api_chat_sse__research_id__get"];
+        put?: never;
+        post?: never;
+        /** Cancel Research Stream */
+        delete: operations["cancel_research_stream_api_chat_sse__research_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/config/public": {
         parameters: {
             query?: never;
@@ -3089,7 +3110,9 @@ export interface operations {
     };
     chat_sse_api_chat_sse_post: {
         parameters: {
-            query?: never;
+            query?: {
+                research_id?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3099,6 +3122,68 @@ export interface operations {
                 "application/json": components["schemas"]["ChatRequest"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resume_chat_sse_api_chat_sse__research_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Last-Event-ID"?: number;
+            };
+            path: {
+                research_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_research_stream_api_chat_sse__research_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                research_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

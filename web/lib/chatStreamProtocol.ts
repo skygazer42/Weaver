@@ -48,3 +48,25 @@ export function consumeLegacyChatStreamChunk(
 
   return events
 }
+
+export function consumeSseChatStreamChunk(
+  state: LegacyChatStreamState,
+  chunk: string,
+  options: ConsumeLegacyChatStreamOptions = {},
+): LegacyChatStreamEvent[] {
+  state.buffer += chunk
+  const frames = state.buffer.split(/\r?\n\r?\n/)
+  state.buffer = options.flush ? '' : frames.pop() ?? ''
+  const events: LegacyChatStreamEvent[] = []
+  for (const frame of frames) {
+    const lines = frame.split(/\r?\n/)
+    const type = lines.find((line) => line.startsWith('event:'))?.slice(6).trim()
+    const data = lines.filter((line) => line.startsWith('data:'))
+      .map((line) => line.slice(5).replace(/^ /, '')).join('\n')
+    if (!data) continue
+    const payload = JSON.parse(data)
+    if (payload?.type) events.push(payload)
+    else if (type) events.push({ type, data: payload })
+  }
+  return events
+}

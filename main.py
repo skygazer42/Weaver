@@ -9,16 +9,18 @@ import threading
 import time
 import uuid
 from collections import OrderedDict
-from contextlib import asynccontextmanager, suppress
+from contextlib import asynccontextmanager
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Annotated, Any, Dict, List, Optional
 
 from fastapi import (
     FastAPI,
     File,
+    Header,
     HTTPException,
+    Query,
     Request,
     UploadFile,
     WebSocket,
@@ -72,6 +74,12 @@ from common.config import settings
 from common.logger import get_logger, setup_logging
 from common.metrics import metrics_registry
 from common.proxy_env import normalize_socks_proxy_env
+from common.research_streams import (
+    ResearchStreamCapacity,
+    get_research_stream,
+    start_research_stream,
+    stop_research_streams,
+)
 from common.siliconflow import list_siliconflow_chat_models
 from common.sse import (
     format_sse_event,
@@ -118,6 +126,7 @@ async def lifespan(app: FastAPI):
     finally:
         # Shutdown
         await stop_workspace_runs()
+        await stop_research_streams()
         await shutdown_event()
 
 
@@ -1274,10 +1283,9 @@ async def cancel_chat(thread_id: str, request: Request, payload: CancelRequest |
     cancelled = await cancellation_manager.cancel(thread_id, reason)
 
     # 2. 取消对应的异步任务（如果存在）
-    if thread_id in active_streams:
-        task = active_streams[thread_id]
-        task.cancel()
-        del active_streams[thread_id]
+    task = active_streams.pop(thread_id, None)
+    if task is not None and task.cancel():
+        cancelled = True
         logger.info(f"Async task for {thread_id} cancelled")
 
     if cancelled:
@@ -1799,6 +1807,7 @@ async def stream_agent_events(
 
     emitter.on_event(tool_event_listener)
 
+    graph_iter = None
     try:
         logger.info(f"Agent stream started | Thread: {thread_id} | Model: {model}")
         logger.debug(f"  Input: {input_text[:100]}...")
@@ -1932,8 +1941,7 @@ async def stream_agent_events(
 
                     if cancel_token.is_cancelled:
                         next_event_task.cancel()
-                        with suppress(asyncio.CancelledError):
-                            await next_event_task
+                        await asyncio.gather(next_event_task, return_exceptions=True)
                         logger.info(f"Stream cancelled for thread {thread_id}")
                         yield await format_stream_event(
                             "cancelled",
@@ -1947,6 +1955,12 @@ async def stream_agent_events(
                 event = next_event_task.result()
             except StopAsyncIteration:
                 break
+            finally:
+                if not next_event_task.done():
+                    next_event_task.cancel()
+                    await asyncio.gather(next_event_task, return_exceptions=True)
+                elif not next_event_task.cancelled():
+                    next_event_task.exception()
 
             event_type = event.get("event")
             name = event.get("name", "") or event.get("run_name", "")
@@ -2236,6 +2250,12 @@ async def stream_agent_events(
 
     finally:
         # Cleanup event emitter listener
+        close_graph = getattr(graph_iter, "aclose", None)
+        if close_graph is not None:
+            try:
+                await close_graph()
+            except Exception:
+                logger.warning("Failed to close research graph stream", exc_info=True)
         try:
             emitter.off_event(tool_event_listener)
             await remove_emitter(thread_id)
@@ -2276,7 +2296,11 @@ async def stream_agent_events(
 
 
 @app.post("/api/chat/sse")
-async def chat_sse(request: Request, payload: ChatRequest):
+async def chat_sse(
+    request: Request,
+    payload: ChatRequest,
+    research_id: Annotated[str | None, Query(pattern=r"^[0-9a-f]{32}$")] = None,
+):
     """
     Standard SSE chat endpoint.
 
@@ -2296,7 +2320,38 @@ async def chat_sse(request: Request, payload: ChatRequest):
     mode_info = _normalize_search_mode(payload.search_mode)
     model = (payload.model or settings.primary_model).strip()
     thread_id = f"thread_{uuid.uuid4().hex}"
-    set_thread_owner(thread_id, getattr(request.state, "principal_id", "") or "anonymous")
+    if research_id is not None:
+        if mode_info["mode"] != "deep":
+            raise HTTPException(status_code=400, detail="Resumable streaming requires Deep Research")
+        existing = get_research_stream((principal_id or "anonymous", research_id))
+        if existing is not None:
+            _require_thread_owner(request, existing.thread_id)
+            return _chat_stream_response(existing.thread_id, existing.subscribe())
+
+    def source_events():
+        return stream_agent_events(
+            last_message,
+            thread_id=thread_id,
+            model=model,
+            search_mode=mode_info,
+            agent_id=payload.agent_id,
+            images=_normalize_images_payload(payload.images),
+            user_id=user_id,
+        )
+
+    if research_id is not None and (settings.openai_api_key or "").strip():
+        source = source_events()
+        try:
+            run = start_research_stream((principal_id or "anonymous", research_id), thread_id, source)
+        except ResearchStreamCapacity as error:
+            await source.aclose()
+            raise HTTPException(status_code=503, detail="Deep Research is at capacity") from error
+        set_thread_owner(thread_id, principal_id or "anonymous")
+        active_streams[thread_id] = run.task
+        run.task.add_done_callback(lambda _: active_streams.pop(thread_id, None))
+        return _chat_stream_response(thread_id, run.subscribe())
+
+    set_thread_owner(thread_id, principal_id or "anonymous")
 
     async def _sse_generator():
         gauge = None
@@ -2330,15 +2385,7 @@ async def chat_sse(request: Request, payload: ChatRequest):
                 return
 
             source = iter_with_sse_keepalive(
-                stream_agent_events(
-                    last_message,
-                    thread_id=thread_id,
-                    model=model,
-                    search_mode=mode_info,
-                    agent_id=payload.agent_id,
-                    images=_normalize_images_payload(payload.images),
-                    user_id=user_id,
-                ),
+                source_events(),
                 interval_s=15.0,
             )
 
@@ -2363,8 +2410,40 @@ async def chat_sse(request: Request, payload: ChatRequest):
             except Exception:
                 pass
 
+    return _chat_stream_response(thread_id, _sse_generator())
+
+
+def _require_research_stream(request: Request, research_id: str):
+    principal_id = (getattr(request.state, "principal_id", "") or "").strip() or "anonymous"
+    run = get_research_stream((principal_id, research_id))
+    if run is None:
+        raise HTTPException(status_code=404, detail="Research stream is no longer available")
+    _require_thread_owner(request, run.thread_id)
+    return run
+
+
+@app.get("/api/chat/sse/{research_id}", response_class=StreamingResponse)
+async def resume_chat_sse(
+    research_id: str,
+    request: Request,
+    last_event_id: Annotated[int, Header(alias="Last-Event-ID", ge=0)] = 0,
+):
+    """Replay an existing Deep Research run and then follow its live stream."""
+    run = _require_research_stream(request, research_id)
+    if last_event_id > len(run.frames):
+        raise HTTPException(status_code=400, detail="Last-Event-ID is ahead of the research stream")
+    return _chat_stream_response(run.thread_id, run.subscribe(last_event_id))
+
+
+@app.delete("/api/chat/sse/{research_id}")
+async def cancel_research_stream(research_id: str, request: Request):
+    run = _require_research_stream(request, research_id)
+    return await cancel_chat(run.thread_id, request)
+
+
+def _chat_stream_response(thread_id, source):
     return StreamingResponse(
-        _sse_generator(),
+        source,
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

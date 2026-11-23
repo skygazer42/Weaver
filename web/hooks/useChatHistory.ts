@@ -52,14 +52,14 @@ export function useChatHistory() {
     setHistory(saved)
   }, [])
 
-  const saveToHistory = (messages: Message[], currentSessionId?: string) => {
+  const saveToHistory = useCallback((messages: Message[], currentSessionId?: string) => {
     if (messages.length === 0) return null
 
     const timestamp = Date.now()
-    let sessionId = currentSessionId
+    const sessionId = currentSessionId || timestamp.toString()
 
     setHistory(prev => {
-      const existingIndex = sessionId ? prev.findIndex(s => s.id === sessionId) : -1
+      const existingIndex = prev.findIndex(s => s.id === sessionId)
       
       if (existingIndex !== -1) {
         // Update existing session
@@ -78,7 +78,6 @@ export function useChatHistory() {
         })
       } else {
         // Create new session
-        sessionId = sessionId || timestamp.toString()
         const firstUserMsg = messages.find(m => m.role === 'user')
         const title = firstUserMsg ? firstUserMsg.content.slice(0, 40) : 'New Conversation'
         
@@ -96,15 +95,13 @@ export function useChatHistory() {
     })
 
     // Save messages content
-    if (sessionId) {
-      StorageService.saveSessionMessages(sessionId, messages)
-    }
+    StorageService.saveSessionMessages(sessionId, messages)
     
     return sessionId
-  }
+  }, [])
 
   const loadSession = (id: string): Message[] | null => {
-    return StorageService.getSessionMessages(id)
+    return StorageService.getSessionMessages<Message>(id)
   }
 
   const deleteSession = (id: string) => {

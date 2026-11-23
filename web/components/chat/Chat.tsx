@@ -13,8 +13,9 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { Message } from '@/types/chat'
 import { STORAGE_KEYS, DEFAULT_MODEL } from '@/lib/constants'
+import { StorageService } from '@/lib/storage-service'
 import { useChatHistory } from '@/hooks/useChatHistory'
-import { useChatStream } from '@/hooks/useChatStream'
+import { cancelResearch, useChatStream } from '@/hooks/useChatStream'
 import { filesToImageAttachments } from '@/lib/file-utils'
 import { Discover } from '@/components/views/Discover'
 import { Library } from '@/components/views/Library'
@@ -41,6 +42,7 @@ export function Chat() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   const lastAtBottom = useRef<boolean | null>(null)
+  const restoredResearch = useRef(false)
 
   const { 
     history, 
@@ -57,6 +59,7 @@ export function Chat() {
     messages,
     setMessages,
     isLoading,
+    isResearchSnapshot,
     setIsLoading, // Exposed but maybe not needed directly if handleStop covers it
     currentStatus,
     setCurrentStatus,
@@ -67,9 +70,28 @@ export function Chat() {
     threadId,
     setThreadId,
     processChat,
+    resumeResearch,
+    detachChat,
     handleStop,
     handleApproveInterrupt
   } = useChatStream({ selectedModel, searchMode })
+
+  useEffect(() => {
+    if (isHistoryLoading || restoredResearch.current) return
+    restoredResearch.current = true
+    const sessionId = StorageService.getRecentResearchSession()
+      || history.find((item) => StorageService.getResearchId(item.id))?.id
+    if (!sessionId) return
+    const researchId = StorageService.getResearchId(sessionId)
+    if (!researchId) return
+    const saved = StorageService.getSessionMessages<Message>(sessionId)
+    if (saved.length === 0) return
+    setMessages(saved)
+    setCurrentSessionId(sessionId)
+    setSearchMode('ultra')
+    if (!history.some((item) => item.id === sessionId)) saveToHistory(saved, sessionId)
+    void resumeResearch(sessionId, researchId, saved)
+  }, [history, isHistoryLoading, resumeResearch, saveToHistory, setMessages])
 
   // Debug: Log browser viewer conditions
   useEffect(() => {
@@ -96,16 +118,17 @@ export function Chat() {
 
   // Auto-save messages when they update during streaming or after approval
   useEffect(() => {
-    if (messages.length > 0 && currentSessionId && !isLoading) {
+    if (messages.length > 0 && currentSessionId && !isLoading && !isResearchSnapshot) {
       saveToHistory(messages, currentSessionId)
     }
-  }, [messages, currentSessionId, isLoading, saveToHistory])
+  }, [messages, currentSessionId, isLoading, isResearchSnapshot, saveToHistory])
 
   // Auto-scroll logic handled by Virtuoso's followOutput, 
   // but we can add specific triggers if needed.
 
   const handleNewChat = () => {
-      if (messages.length > 0) {
+      detachChat()
+      if (messages.length > 0 && !isResearchSnapshot) {
         saveToHistory(messages, currentSessionId || undefined)
       }
       
@@ -120,24 +143,37 @@ export function Chat() {
       setThreadId(null)
       setPendingInterrupt(null)
       setSearchMode('') // default to direct LLM
-      handleStop() // Abort any ongoing request
+  }
+
+  const stopSavedResearch = (id: string) => {
+    const researchId = StorageService.getResearchId(id)
+    if (!researchId) return false
+    void cancelResearch(researchId).catch((error) => console.error('Failed to stop research', error))
+    return true
   }
 
   const handleDeleteChat = (id: string) => {
+      const stoppedResearch = stopSavedResearch(id)
       deleteSession(id)
       if (currentSessionId === id) {
+          if (!stoppedResearch) void handleStop()
           handleNewChat()
       }
   }
 
   const handleClearHistory = () => {
+      const ids = new Set(history.map((session) => session.id))
+      if (currentSessionId) ids.add(currentSessionId)
+      for (const id of ids) stopSavedResearch(id)
+      if (!isResearchSnapshot) void handleStop()
       clearHistory()
       handleNewChat() // Reset current view as well
   }
 
   const handleChatSelect = (id: string) => {
+    detachChat()
     // Save current chat if not empty
-    if (messages.length > 0) {
+    if (messages.length > 0 && !isResearchSnapshot) {
         saveToHistory(messages, currentSessionId || undefined)
     }
     
@@ -153,13 +189,22 @@ export function Chat() {
       setInput('')
       setThreadId(null)
       setPendingInterrupt(null)
-      handleStop()
+      const researchId = StorageService.getResearchId(id)
+      if (researchId) {
+        setSearchMode('ultra')
+        void resumeResearch(id, researchId, loadedMessages)
+      }
     }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if ((!input.trim() && attachments.length === 0) || isLoading) return
+    const pendingResearch = currentSessionId && StorageService.getResearchId(currentSessionId)
+    if (currentSessionId && pendingResearch) {
+      await resumeResearch(currentSessionId, pendingResearch, messages)
+      return
+    }
 
     const imagePayloads = await filesToImageAttachments(attachments)
 
@@ -175,19 +220,13 @@ export function Chat() {
     setInput('')
     setAttachments([])
     
-    // Auto-save logic: if it's the first message, it will trigger saveToHistory later
-    // or we can call it here to get an ID.
-    if (!currentSessionId && newHistory.length === 1) {
-        const id = saveToHistory(newHistory)
-        if (id) setCurrentSessionId(id)
-    } else if (currentSessionId) {
-        saveToHistory(newHistory, currentSessionId)
-    }
-
-    await processChat(newHistory, imagePayloads)
+    const id = saveToHistory(newHistory, currentSessionId || undefined)
+    if (id) setCurrentSessionId(id)
+    await processChat(newHistory, imagePayloads, id || undefined)
   }
 
   const handleEditMessage = async (id: string, newContent: string) => {
+      if (isLoading || (currentSessionId && StorageService.getResearchId(currentSessionId))) return
       const index = messages.findIndex(m => m.id === id)
       if (index === -1) return
 
@@ -201,7 +240,9 @@ export function Chat() {
       setMessages(newHistory)
 
       if (updatedMessage.role === 'user') {
-          await processChat(newHistory, updatedMessage.attachments)
+          const session = saveToHistory(newHistory, currentSessionId || undefined)
+          if (session) setCurrentSessionId(session)
+          await processChat(newHistory, updatedMessage.attachments, session || undefined)
       }
   }
 
