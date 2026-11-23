@@ -12,7 +12,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Node.js 20+](https://img.shields.io/badge/node-20+-green.svg)](https://nodejs.org/)
+[![Node.js 24 LTS](https://img.shields.io/badge/node-24%20LTS-green.svg)](https://nodejs.org/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-0.2+-purple.svg)](https://github.com/langchain-ai/langgraph)
 
 [Demo](https://weaver-demo.vercel.app) · [Documentation](./) · [Report Bug](https://github.com/skygazer42/weaver/issues) · [Request Feature](https://github.com/skygazer42/weaver/issues)
@@ -111,7 +111,7 @@
 ### Prerequisites
 
 - **Python 3.11+**- [Download](https://www.python.org/downloads/)
-- **Node.js 20+**- [Download](https://nodejs.org/)
+- **Node.js 24 LTS** - [Download](https://nodejs.org/)
 - **Docker & Docker Compose**- [Install](https://docs.docker.com/get-docker/)
 
 ### 1⃣ Clone & Setup

@@ -1,8 +1,9 @@
 'use client'
 
 import React, { useState, useRef, useEffect } from 'react'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { PanelLeft, Sun, Moon, ChevronDown, Check, LayoutPanelLeft, Settings } from 'lucide-react'
+import { PanelLeft, Sun, Moon, ChevronDown, Check, FileSpreadsheet, LayoutPanelLeft, Settings } from 'lucide-react'
 import { useTheme } from '@/components/theme-provider'
 import { useI18n } from '@/lib/i18n/i18n-context'
 import { SettingsDialog } from '@/components/settings/SettingsDialog'
@@ -105,29 +106,35 @@ export function Header({ sidebarOpen, onToggleSidebar, selectedModel, onModelCha
               <PanelLeft className="h-5 w-5 text-muted-foreground" />
             </Button>
         )}
+        <Button variant="ghost" size="sm" asChild>
+          <Link href="/workspace" className="gap-2 px-2 sm:px-3">
+            <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
+            Workbench
+          </Link>
+        </Button>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex min-w-0 items-center gap-2">
          {/* Artifacts Toggle (Mobile/Tablet) */}
          {hasArtifacts && (
              <Button
                 variant="ghost"
                 size="icon"
                 onClick={onToggleArtifacts}
-                className="xl:hidden hover:bg-muted/50 rounded-full text-orange-500"
+                className="shrink-0 xl:hidden hover:bg-muted/50 rounded-full text-orange-500"
              >
                 <LayoutPanelLeft className="h-5 w-5" />
              </Button>
          )}
 
                   {/* Custom Model Dropdown - Refreshed */}
-                  <div className="relative" ref={dropdownRef}>
+                  <div className="relative min-w-0" ref={dropdownRef}>
                      <button
                        onClick={() => setIsModelOpen(!isModelOpen)}
-                       className="flex items-center gap-2 px-3 py-1.5 rounded-full border bg-muted/20 hover:bg-muted/50 text-sm font-medium transition-colors"
+                       className="flex max-w-full items-center gap-2 px-3 py-1.5 rounded-full border bg-muted/20 hover:bg-muted/50 text-sm font-medium transition-colors"
                      >
-                       <span>{currentModelName}</span>
-                       <ChevronDown className={cn("h-3.5 w-3.5 opacity-50 transition-transform", isModelOpen && "rotate-180")} />
+                       <span className="truncate">{currentModelName}</span>
+                       <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 opacity-50 transition-transform", isModelOpen && "rotate-180")} />
                      </button>
                      
                      {isModelOpen && (
@@ -155,7 +162,7 @@ export function Header({ sidebarOpen, onToggleSidebar, selectedModel, onModelCha
                   <Button 
                     variant="ghost"           size="icon"
            onClick={toggleTheme}
-           className="rounded-full hover:bg-muted/50"
+           className="shrink-0 rounded-full hover:bg-muted/50"
          >
             <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
             <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
@@ -166,7 +173,7 @@ export function Header({ sidebarOpen, onToggleSidebar, selectedModel, onModelCha
            variant="ghost"
            size="icon"
            onClick={() => setIsSettingsOpen(true)}
-           className="rounded-full hover:bg-muted/50"
+           className="shrink-0 rounded-full hover:bg-muted/50"
          >
             <Settings className="h-5 w-5" />
             <span className="sr-only">Settings</span>

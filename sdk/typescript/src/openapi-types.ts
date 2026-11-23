@@ -1442,6 +1442,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspaces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Workspace */
+        post: operations["create_workspace_api_workspaces_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Workspace */
+        get: operations["get_workspace_api_workspaces__workspace_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload Csv */
+        post: operations["upload_csv_api_workspaces__workspace_id__files_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Run */
+        post: operations["create_run_api_workspaces__workspace_id__runs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/runs/{run_id}/artifacts/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Artifact */
+        get: operations["get_artifact_api_workspaces__workspace_id__runs__run_id__artifacts__name__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -1617,6 +1702,11 @@ export interface components {
         };
         /** Body_recognize_speech_upload_api_asr_upload_post */
         Body_recognize_speech_upload_api_asr_upload_post: {
+            /** File */
+            file: string;
+        };
+        /** Body_upload_csv_api_workspaces__workspace_id__files_post */
+        Body_upload_csv_api_workspaces__workspace_id__files_post: {
             /** File */
             file: string;
         };
@@ -2041,10 +2131,18 @@ export interface components {
             /** Tracing Enabled */
             tracing_enabled: boolean;
         };
+        /** PublicConfigModels */
+        PublicConfigModels: {
+            /** Default */
+            default: string;
+            /** Options */
+            options: string[];
+        };
         /** PublicConfigResponse */
         PublicConfigResponse: {
             defaults: components["schemas"]["PublicConfigDefaults"];
             features: components["schemas"]["PublicConfigFeatures"];
+            models: components["schemas"]["PublicConfigModels"];
             streaming: components["schemas"]["PublicConfigStreaming"];
             /** Version */
             version: string;
@@ -2132,6 +2230,24 @@ export interface components {
             run_id: string;
             /** Started At */
             started_at: string;
+        };
+        /** RunRequest */
+        RunRequest: {
+            /**
+             * File Id
+             * Format: uuid4
+             */
+            file_id: string;
+            /**
+             * Model
+             * @default
+             */
+            model: string;
+            /**
+             * Prompt
+             * @default
+             */
+            prompt: string;
         };
         /** SandboxBrowserConfigured */
         SandboxBrowserConfigured: {
@@ -2506,6 +2622,53 @@ export interface components {
             count: number;
             /** Versions */
             versions: components["schemas"]["SessionVersion"][];
+        };
+        /** Workspace */
+        Workspace: {
+            /** Files */
+            files: components["schemas"]["WorkspaceFile"][];
+            /** Id */
+            id: string;
+            /** Runs */
+            runs: components["schemas"]["WorkspaceRun"][];
+        };
+        /** WorkspaceFile */
+        WorkspaceFile: {
+            /** Created At */
+            created_at: string;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Size */
+            size: number;
+        };
+        /** WorkspaceRun */
+        WorkspaceRun: {
+            /** Created At */
+            created_at: string;
+            /** Error */
+            error: string | null;
+            /** File Id */
+            file_id: string;
+            /** Id */
+            id: string;
+            /** Model */
+            model: string;
+            /** Prompt */
+            prompt: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "completed" | "failed";
+            /**
+             * Step
+             * @enum {string}
+             */
+            step: "queued" | "sandbox" | "report" | "completed" | "failed";
+            /** Updated At */
+            updated_at: string;
         };
     };
     responses: never;
@@ -4723,6 +4886,158 @@ export interface operations {
                 content: {
                     "application/json": unknown;
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_workspace_api_workspaces_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Workspace"];
+                };
+            };
+        };
+    };
+    get_workspace_api_workspaces__workspace_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Workspace"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_csv_api_workspaces__workspace_id__files_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_csv_api_workspaces__workspace_id__files_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceFile"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_run_api_workspaces__workspace_id__runs_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_artifact_api_workspaces__workspace_id__runs__run_id__artifacts__name__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                run_id: string;
+                name: "report.md" | "chart.svg";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

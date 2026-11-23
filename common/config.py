@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from common.proxy_env import normalize_socks_proxy_env
+from common.siliconflow import SILICONFLOW_BASE_URL, SILICONFLOW_DEFAULT_MODEL
 
 try:
     import tomllib  # Python 3.11+
@@ -15,7 +16,7 @@ except ModuleNotFoundError:  # pragma: no cover
     # Python 3.10 fallback
     import tomli as tomllib  # type: ignore
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings
 
 logger = logging.getLogger(__name__)
@@ -164,8 +165,9 @@ class Settings(BaseSettings):
         return (init_settings, env_settings, dotenv_settings, file_secret_settings)
 
     # API Keys
-    openai_api_key: str = ""
+    openai_api_key: str = Field(default="", repr=False)
     openai_base_url: str = ""
+    siliconflow_api_key: str = Field(default="", repr=False)
     use_azure: bool = False
     azure_api_key: str = ""
     azure_endpoint: str = ""
@@ -470,6 +472,25 @@ class Settings(BaseSettings):
     prompt_optimizer_model: str = "gpt-4o"  # 用于优化 Prompt 的模型
     prompt_optimization_epochs: int = 3  # 优化迭代轮次
     prompt_optimization_sample_size: int = 50  # 每轮评估样本数
+
+    @model_validator(mode="after")
+    def configure_siliconflow(self) -> Settings:
+        self.siliconflow_api_key = self.siliconflow_api_key.strip()
+        if not self.siliconflow_api_key:
+            return self
+
+        self.openai_api_key = self.siliconflow_api_key
+        self.openai_base_url = SILICONFLOW_BASE_URL
+        self.use_azure = False
+
+        legacy_models = {"", "deepseek-chat", "deepseek-reasoner", "o1-mini"}
+        self.primary_model = self.primary_model.strip()
+        self.reasoning_model = self.reasoning_model.strip()
+        if self.primary_model in legacy_models:
+            self.primary_model = SILICONFLOW_DEFAULT_MODEL
+        if self.reasoning_model in legacy_models:
+            self.reasoning_model = self.primary_model
+        return self
 
     @property
     def cors_origins_list(self) -> List[str]:

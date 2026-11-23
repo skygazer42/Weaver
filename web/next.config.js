@@ -1,12 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  agentRules: false,
   reactStrictMode: true,
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8001',
   },
-  devIndicators: {
-    buildActivity: false,
-  },
+  devIndicators: false,
   // 禁用 IPv6，使用 IPv4
   experimental: {
     // disableIPv6: true,

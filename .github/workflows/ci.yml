@@ -73,7 +73,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version-file: .nvmrc
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
 
@@ -89,7 +89,7 @@ jobs:
       - name: OpenAPI → TS types drift guard
         run: bash scripts/check_openapi_ts_types.sh --openapi-json .tmp/openapi/weaver-openapi.json
 
-      - name: Lint (next lint)
+      - name: Lint (ESLint)
         run: pnpm -C web lint
 
       - name: Build (next build)

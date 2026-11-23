@@ -72,6 +72,7 @@ from common.config import settings
 from common.logger import get_logger, setup_logging
 from common.metrics import metrics_registry
 from common.proxy_env import normalize_socks_proxy_env
+from common.siliconflow import list_siliconflow_chat_models
 from common.sse import (
     format_sse_event,
     format_sse_retry,
@@ -99,6 +100,8 @@ from triggers import (
     init_trigger_manager,
     shutdown_trigger_manager,
 )
+from workbench.api import router as workspace_router
+from workbench.api import start_workspace_runs, stop_workspace_runs
 
 # Initialize logging
 setup_logging()
@@ -110,9 +113,11 @@ async def lifespan(app: FastAPI):
     # Startup
     await startup_event()
     try:
+        await start_workspace_runs()
         yield
     finally:
         # Shutdown
+        await stop_workspace_runs()
         await shutdown_event()
 
 
@@ -123,6 +128,7 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+app.include_router(workspace_router)
 
 APP_STARTED_AT = time.monotonic()
 
@@ -341,7 +347,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["X-Thread-ID", "X-Request-ID"],  # Allow frontend to read these headers
+    expose_headers=["X-Thread-ID", "X-Request-ID", "x-vercel-ai-ui-message-stream"],
 )
 
 
@@ -3017,13 +3023,18 @@ async def public_config():
     tokens, raw MCP server configs, or any user data.
     """
 
-    def _public_model_options() -> List[str]:
+    async def _public_model_options() -> List[str]:
         """
         A conservative allowlist for the frontend model dropdown.
 
         Goal: avoid offering models that are unlikely to work with the configured
         provider/gateway (e.g. selecting GPT-4o when OPENAI_BASE_URL points to DeepSeek).
         """
+
+        if settings.siliconflow_api_key:
+            models = await list_siliconflow_chat_models(settings.siliconflow_api_key)
+            options = models or [settings.reasoning_model]
+            return list(dict.fromkeys([settings.primary_model, *options]))
 
         def _norm(value: Any) -> str:
             if not isinstance(value, str):
@@ -3113,7 +3124,7 @@ async def public_config():
         },
         "models": {
             "default": settings.primary_model,
-            "options": _public_model_options(),
+            "options": await _public_model_options(),
         },
         "features": {
             "mcp_enabled": bool(mcp_enabled),

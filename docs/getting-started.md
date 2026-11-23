@@ -7,7 +7,7 @@
 ## 前置要求
 
 - Python 3.11+
-- Node.js 18+（推荐配合 `pnpm`）
+- Node.js 24 LTS（推荐配合 `pnpm`）
 - Docker & Docker Compose（可选：用于 PostgreSQL/Redis）
 - 至少 1 个 LLM API Key（OpenAI / DeepSeek / Claude 等）
 
@@ -130,7 +130,15 @@ pnpm -C web dev
 
 ---
 
-## 5) 常用开发命令
+## 5) CSV Agent 工作台
+
+启动前在后端 `.env` 中设置 `SILICONFLOW_API_KEY`。模型选择器读取该账号的对话模型，默认使用 `deepseek-ai/DeepSeek-V4.1-Flash`。也可设置 `PRIMARY_MODEL` 指定默认模型。
+
+在聊天页打开 **Workbench**，新建工作区并上传不超过 5 MiB 的 CSV。设置了 `E2B_API_KEY` 时，分析脚本在 E2B 中运行。否则使用本机运行的 Docker 和 `python:3.11-slim` 镜像。报告和图表可在工作台预览和下载。
+
+关闭页面后，后端会继续执行任务。浏览器记住上次使用的工作区，也可用 ID 重新打开。输入、任务状态和产物保存在 `data/workspaces.sqlite3`，可用 `WEAVER_DATA_DIR` 指定数据目录。
+
+## 6) 常用开发命令
 
 ```bash
 # 后端：测试 / Lint / 全量检查

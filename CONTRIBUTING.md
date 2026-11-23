@@ -5,7 +5,7 @@ Thanks for helping improve Weaver!
 ## Prerequisites
 
 - Python 3.11+
-- Node.js 18+ (Node 20+ recommended)
+- Node.js 24 LTS
 - pnpm (for `web/`)
 
 ## Backend Setup
