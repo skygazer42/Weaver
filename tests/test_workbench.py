@@ -6,6 +6,8 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from types import SimpleNamespace
+from xml.etree import ElementTree
 
 import pytest
 from fastapi import FastAPI, Request
@@ -43,6 +45,100 @@ def test_csv_skill_preserves_rows_after_unnamed_header():
     profile = json.loads(result.stdout)
     assert profile["rows"] == 2
     assert [column["name"] for column in profile["columns"]] == ["Column 1", "Column 2"]
+
+
+def use_local_csv_sandbox(monkeypatch):
+    from workbench import analysis
+
+    def run_python(args, **kwargs):
+        return subprocess.run([sys.executable, *args[args.index("-c") :]], **kwargs)
+
+    monkeypatch.setattr(analysis.settings, "e2b_api_key", "")
+    monkeypatch.setattr(analysis, "shutil", SimpleNamespace(which=lambda _: "docker"))
+    monkeypatch.setattr(analysis, "subprocess", SimpleNamespace(run=run_python))
+
+
+def use_csv_plan(monkeypatch, plan):
+    from langchain_core.messages import AIMessage
+
+    from workbench import analysis
+
+    class Model:
+        def bind(self, **_):
+            return self
+
+        async def ainvoke(self, messages):
+            return AIMessage(content=json.dumps(plan))
+
+    monkeypatch.setattr(analysis, "create_chat_model", lambda *_, **__: Model())
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("east", "west", "share"), [(10, 30, "25.00"), (30, 10, "75.00")])
+async def test_workbench_answers_filtered_grouped_sum(monkeypatch, east, west, share):
+    from workbench import analysis
+
+    use_local_csv_sandbox(monkeypatch)
+    use_csv_plan(
+        monkeypatch,
+        {
+            "mode": "sum",
+            "group_by": 2,
+            "value_column": 3,
+            "filters": [{"column": 1, "op": "eq", "value": "2025"}],
+        },
+    )
+    contents = (
+        f"year,region,revenue\n2025,East,{east}\n2025,West,{west}\n2025,North,\n2024,East,100\n"
+    ).encode()
+    report_started = asyncio.Event()
+
+    async def on_report():
+        report_started.set()
+
+    report, chart = await analysis.run_csv_analysis(
+        contents, "provider/model", "Compare 2025 revenue by region", on_report
+    )
+    assert f"| East | {east} | {share}% |" in report
+    assert "匹配 3 行" in report
+    assert "| North | — | — |" in report
+    assert "year = 2025" in report
+    assert f"<title>East: {east}</title>" in chart
+    assert report_started.is_set()
+
+
+@pytest.mark.asyncio
+async def test_workbench_rejects_query_using_unknown_column(monkeypatch):
+    from workbench import analysis
+
+    use_local_csv_sandbox(monkeypatch)
+    use_csv_plan(monkeypatch, {"mode": "sum", "value_column": 3})
+
+    async def on_report():
+        pytest.fail("Invalid plan entered report generation")
+
+    with pytest.raises(analysis.AnalysisError, match="不存在的列"):
+        await analysis.run_csv_analysis(b"region,revenue\nEast,5\n", "model", "Total", on_report)
+
+
+@pytest.mark.asyncio
+async def test_workbench_group_shares_are_undefined_when_decimal_totals_cancel(monkeypatch):
+    from workbench import analysis
+
+    use_local_csv_sandbox(monkeypatch)
+    use_csv_plan(monkeypatch, {"mode": "sum", "group_by": 1, "value_column": 2})
+
+    async def on_report():
+        pass
+
+    report, chart = await analysis.run_csv_analysis(
+        b"region\x00,revenue\nEast,0.1\nEast,0.2\nWest,-0.3\n", "model", "Group shares", on_report
+    )
+    assert "| East | 0.3 | — |" in report
+    assert "| West | -0.3 | — |" in report
+    assert "| 总计 | 0 | — |" in report
+    assert "<title>West: -0.3</title>" in chart
+    ElementTree.fromstring(chart)
 
 
 @pytest.mark.asyncio
