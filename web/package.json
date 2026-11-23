@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test": "node --import tsx --test tests/**/*.test.ts"
+    "test": "node --import tsx --test tests/**/*.test.ts",
+    "e2e": "python ../scripts/web_e2e.py"
   },
   "dependencies": {
     "@ai-sdk/react": "4.0.183",

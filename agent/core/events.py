@@ -35,7 +35,7 @@ import logging
 import threading
 import time
 import uuid
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Union
 
@@ -55,6 +55,7 @@ class ToolEventType(str, Enum):
     # Task list events
     TASK_CREATE = "task_create"  # New task created
     TASK_UPDATE = "task_update"  # Task status changed
+    ARTIFACT = "artifact"
     TASK_COMPLETE = "task_complete"  # Task completed
 
     # Content events

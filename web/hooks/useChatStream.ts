@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback } from 'react'
-import { Message, Artifact, ToolInvocation, ImageAttachment, ProcessEvent, RunMetrics, MessageSource } from '@/types/chat'
+import { useState, useRef, useCallback, useEffect } from 'react'
+import { Message, Artifact, ToolInvocation, ImageAttachment, ProcessEvent, RunMetrics, MessageSource, ChatRun, PendingInterrupt, RUN_STATUS_LABELS, RunStatus } from '@/types/chat'
 import { getApiBaseUrl } from '@/lib/api'
 import { createLegacyChatStreamState, consumeLegacyChatStreamChunk, consumeSseChatStreamChunk } from '@/lib/chatStreamProtocol'
 import { StorageService } from '@/lib/storage-service'
@@ -9,102 +9,100 @@ interface UseChatStreamProps {
   searchMode: string
 }
 
-interface ResearchConnection {
+interface RunConnection {
   sessionId: string
-  researchId: string
+  run: ChatRun
 }
 
 function cancelThread(threadId: string) {
   return fetch(getApiBaseUrl() + '/api/chat/cancel/' + encodeURIComponent(threadId), { method: 'POST' })
 }
 
-export function cancelResearch(researchId: string) {
-  return fetch(getApiBaseUrl() + '/api/chat/sse/' + encodeURIComponent(researchId), { method: 'DELETE' })
+export function cancelRun(runId: string) {
+  return fetch(getApiBaseUrl() + '/api/chat/sse/' + encodeURIComponent(runId), { method: 'DELETE' })
 }
+
+const isTerminalStatus = (status: RunStatus | undefined) =>
+  status === 'completed' || status === 'failed' || status === 'cancelled' || status === 'insufficient_evidence'
 
 export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [currentStatus, setCurrentStatus] = useState<string>('')
-  const [artifacts, setArtifacts] = useState<Artifact[]>([])
-  const [pendingInterrupt, setPendingInterrupt] = useState<any>(null)
+  const [pendingInterrupt, setPendingInterrupt] = useState<PendingInterrupt | null>(null)
   const [threadId, setThreadId] = useState<string | null>(null)
-  const [isResearchSnapshot, setIsResearchSnapshot] = useState(false)
+  const [isRunSnapshot, setIsRunSnapshot] = useState(false)
+  const [connectionLost, setConnectionLost] = useState(false)
+  const [isStopping, setIsStopping] = useState(false)
+  const [isDeciding, setIsDeciding] = useState(false)
   
   const abortControllerRef = useRef<AbortController | null>(null)
-  const observingResearchRef = useRef(false)
-  const researchConnectedRef = useRef(false)
+  const connectedRef = useRef(false)
+  const stoppingRef = useRef(false)
   const stopWhenConnectedRef = useRef(false)
-  const researchRef = useRef<ResearchConnection | null>(null)
+  const runRef = useRef<RunConnection | null>(null)
+  const decisionRef = useRef<symbol | null>(null)
+
+  useEffect(() => () => abortControllerRef.current?.abort(), [])
 
   const detachChat = useCallback(() => {
     const controller = abortControllerRef.current
-    if (!observingResearchRef.current && controller && threadId) {
+    if (!runRef.current && controller && threadId) {
       void cancelThread(threadId).catch((error) => console.error('Failed to stop chat', error))
     }
     abortControllerRef.current = null
-    observingResearchRef.current = false
-    researchRef.current = null
-    setIsResearchSnapshot(false)
+    runRef.current = null
+    decisionRef.current = null
+    stoppingRef.current = false
+    stopWhenConnectedRef.current = false
+    setIsRunSnapshot(false)
+    setConnectionLost(false)
+    setIsDeciding(false)
+    setIsStopping(false)
     controller?.abort()
     setIsLoading(false)
   }, [threadId])
 
-  const handleStop = useCallback(async () => {
-    const controller = abortControllerRef.current
-    const isResearch = observingResearchRef.current
-    if (isResearch && !researchConnectedRef.current) {
-      stopWhenConnectedRef.current = true
-      setCurrentStatus('Stopping Deep Research…')
-      return
-    }
-    // 优先通知后端取消当前线程
-    if (threadId) {
-      try {
-        const response = await cancelThread(threadId)
-        if (!response.ok) throw new Error('Cancellation failed')
-        if (abortControllerRef.current !== controller) return
-        if (isResearch) {
-          setCurrentStatus('Stopping Deep Research…')
-          return
+  const requestStop = useCallback(async (connection: RunConnection, beforeHeaders = false) => {
+    try {
+      let response = await cancelRun(connection.run.id)
+      if (response.status === 404 && beforeHeaders && runRef.current === connection) {
+        if (!connectedRef.current && abortControllerRef.current) {
+          stopWhenConnectedRef.current = true
+          return false
         }
-        setCurrentStatus('已发送取消请求...')
-      } catch (err) {
-        console.error('取消请求失败', err)
-        if (isResearch) {
-          if (abortControllerRef.current === controller) setCurrentStatus('Could not stop Deep Research. Try again.')
-          return
-        }
+        response = await cancelRun(connection.run.id)
       }
+      if (!response.ok) throw new Error('Cancellation failed')
+      return true
+    } catch {
+      if (runRef.current === connection) {
+        stoppingRef.current = false
+        setIsStopping(false)
+        setCurrentStatus('Could not stop this run. Try again.')
+      }
+      return false
     }
-    // 同时中断前端的 SSE
-    if (abortControllerRef.current !== controller) return
-    controller?.abort()
-    abortControllerRef.current = null
-    setIsLoading(false)
-    setCurrentStatus('已取消')
-    setTimeout(() => setCurrentStatus(''), 3000)
-  }, [threadId])
+  }, [])
 
   const readChat = useCallback(async (
     path: string,
     init: RequestInit,
     messageHistory: Message[],
-    research?: ResearchConnection,
+    connection?: RunConnection,
   ) => {
     const controller = new AbortController()
     abortControllerRef.current?.abort()
     abortControllerRef.current = controller
-    observingResearchRef.current = !!research
-    researchRef.current = research ?? null
-    setIsResearchSnapshot(!!research)
-    researchConnectedRef.current = false
-    stopWhenConnectedRef.current = false
+    runRef.current = connection ?? null
+    setIsRunSnapshot(!!connection)
+    setConnectionLost(false)
+    connectedRef.current = false
     setThreadId(null)
-    const reconnecting = !!research && init.method !== 'POST'
-    setCurrentStatus(reconnecting ? 'Reconnecting to Deep Research…' : '')
+    const reconnecting = !!connection && init.method !== 'POST'
+    setCurrentStatus(reconnecting && !stoppingRef.current ? 'Reconnecting…' : '')
     setIsLoading(true)
-    const researchId = research?.researchId
+    const run = connection?.run
 
     try {
       const url = getApiBaseUrl() + path
@@ -119,12 +117,16 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
       if (controller.signal.aborted) return
 
       if (!response.ok) {
-        if (research && (reconnecting ? [403, 404].includes(response.status) : response.status < 500 || response.status === 503)) {
-          if (StorageService.getResearchId(research.sessionId) === researchId) {
-            StorageService.setResearchId(research.sessionId, null)
+        if (connection && (reconnecting ? [403, 404].includes(response.status) : response.status < 500 || response.status === 503)) {
+          if (StorageService.getRun(connection.sessionId)?.id === run?.id) {
+            StorageService.setRun(connection.sessionId, null)
           }
-          setThreadId(null)
-          setCurrentStatus(reconnecting ? 'This research run is no longer available.' : 'Could not start Deep Research. Try again.')
+          runRef.current = null
+          stoppingRef.current = false
+          stopWhenConnectedRef.current = false
+          setIsStopping(false)
+          setPendingInterrupt(null)
+          setCurrentStatus(reconnecting ? 'This run is no longer available.' : 'Could not start this run. Try again.')
           return
         }
         throw new Error('Failed to get response')
@@ -134,14 +136,12 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
       if (threadHeader) {
         setThreadId(threadHeader)
       }
-      researchConnectedRef.current = !!research
-      if (researchId && stopWhenConnectedRef.current) {
-        void cancelResearch(researchId).then((result) => {
-          if (!result.ok) throw new Error('Cancellation failed')
-        }).catch(() => {
-          if (!controller.signal.aborted) setCurrentStatus('Could not stop Deep Research. Try again.')
-        })
+      connectedRef.current = true
+      if (connection && stopWhenConnectedRef.current) {
+        stopWhenConnectedRef.current = false
+        void requestStop(connection)
       }
+      setCurrentStatus(stoppingRef.current ? 'Stopping…' : '')
 
       const reader = response.body?.getReader()
       const decoder = new TextDecoder()
@@ -151,12 +151,13 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
       }
 
       let assistantMessage: Message = {
-        id: 'assistant-' + (researchId || Date.now()),
+        id: 'assistant-' + (run?.id || Date.now()),
         role: 'assistant',
         content: '',
         toolInvocations: [],
         processEvents: [],
         createdAt: Date.now(),
+        ...run?.assistant,
         isStreaming: true,
       }
 
@@ -177,14 +178,8 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
         setCurrentStatus(next)
       }
 
-      console.log('[useChatStream] Creating assistant message:', {
-        id: assistantMessage.id,
-        role: assistantMessage.role,
-        currentMessagesCount: messageHistory.length
-      })
-
       const baseMessages = messageHistory.filter((message) => message.id !== assistantMessage.id)
-      setMessages([...baseMessages, assistantMessage])
+      setMessages([...baseMessages, { ...assistantMessage }])
 
       const pushProcessEvent = (type: string, payload: any) => {
         const now = Date.now()
@@ -215,9 +210,10 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
       }
 
       const streamState = createLegacyChatStreamState()
-      const consumeChunk = research ? consumeSseChatStreamChunk : consumeLegacyChatStreamChunk
-      let interrupted = false
-      let terminal = false
+      const consumeChunk = run ? consumeSseChatStreamChunk : consumeLegacyChatStreamChunk
+      let interrupted = Boolean(run?.interrupt)
+      let terminal = isTerminalStatus(assistantMessage.runStatus)
+      let receivedRunStatus = Boolean(assistantMessage.runStatus)
       while (true) {
         const { done, value } = await reader.read()
         if (controller.signal.aborted) return
@@ -225,43 +221,41 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
         const events = consumeChunk(streamState, chunk, { flush: done })
 
         for (const data of events) {
-          if (data.type === 'status') {
+          if (run && data.id !== undefined) {
+            if (data.id <= (run.lastEventId ?? 0)) continue
+            run.lastEventId = data.id
+          }
+          if (data.type === 'run_status') {
+            const status = data.data?.status as RunStatus
+            if (!Object.hasOwn(RUN_STATUS_LABELS, status)) continue
+            receivedRunStatus = true
+            terminal = isTerminalStatus(status)
+            assistantMessage.runStatus = status
+            if (status !== 'awaiting_approval' && interrupted) {
+              interrupted = false
+              if (run) delete run.interrupt
+              setPendingInterrupt(null)
+            }
+            syncAssistantMessage()
+          } else if (data.type === 'status') {
             setCurrentStatus(data.data.text)
             pushProcessEvent('status', data.data)
             syncAssistantMessage()
           } else if (data.type === 'text') {
             assistantMessage.content += data.data.content
-            console.log('[useChatStream] Updating message (text):', {
-              id: assistantMessage.id,
-              role: assistantMessage.role,
-              contentLength: assistantMessage.content.length
-            })
             syncAssistantMessage()
           } else if (data.type === 'message') {
             assistantMessage.content = data.data.content
             syncAssistantMessage()
           } else if (data.type === 'interrupt') {
             interrupted = true
-            terminal = true
+            if (run) run.interrupt = data.data
             setPendingInterrupt(data.data)
-            const msg = data.data?.message || data.data?.prompts?.[0]?.message
-            setCurrentStatus(msg || 'Approval required before continuing')
             assistantMessage.isStreaming = false
-            assistantMessage.completedAt = Date.now()
+            if (run) assistantMessage.runStatus = 'awaiting_approval'
             pushProcessEvent('interrupt', data.data)
             syncAssistantMessage()
-            if (research) {
-              assistantMessage.content ||= msg || 'Approval required before running a tool.'
-              syncAssistantMessage()
-            } else setMessages((prev) => [
-              ...prev,
-              {
-                id: `interrupt-${Date.now()}`,
-                role: 'assistant',
-                content: msg || 'Approval required before running a tool.',
-              },
-            ])
-            break
+            if (!run) break
           } else if (data.type === 'tool') {
             const toolCallId =
               data.data.toolCallId || `tool-${Date.now()}-${Math.random()}`
@@ -278,6 +272,7 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
               toolName: data.data.name,
               state,
               args: data.data.args || (data.data.query ? { query: data.data.query } : {}),
+              result: data.data.result ?? data.data.summary,
             }
 
             const prevTools = assistantMessage.toolInvocations || []
@@ -376,7 +371,10 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
             assistantMessage.completedAt = Date.now()
             syncAssistantMessage()
           } else if (data.type === 'done') {
-            terminal = true
+            if (!receivedRunStatus && !interrupted) {
+              terminal = true
+              if (run) assistantMessage.runStatus ??= 'completed'
+            }
             const metrics = (data.data?.metrics || {}) as RunMetrics
             assistantMessage.metrics = metrics
             assistantMessage.isStreaming = false
@@ -384,7 +382,10 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
             pushProcessEvent('done', data.data)
             syncAssistantMessage()
           } else if (data.type === 'cancelled') {
-            terminal = true
+            if (!receivedRunStatus) {
+              terminal = true
+              if (run) assistantMessage.runStatus = 'cancelled'
+            }
             const msg = data.data?.message || 'Task was cancelled'
             assistantMessage.content = assistantMessage.content || msg
             assistantMessage.isStreaming = false
@@ -392,7 +393,10 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
             pushProcessEvent('cancelled', data.data)
             syncAssistantMessage()
           } else if (data.type === 'error') {
-            terminal = true
+            if (!receivedRunStatus) {
+              terminal = true
+              if (run) assistantMessage.runStatus = 'failed'
+            }
             const msg = data.data?.message || 'An error occurred'
             assistantMessage.content = assistantMessage.content || msg
             assistantMessage.isStreaming = false
@@ -401,14 +405,19 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
             syncAssistantMessage()
           } else if (data.type === 'artifact') {
             const newArtifact = data.data as Artifact
-            setArtifacts((prev) => {
-              if (prev.some(a => a.id === newArtifact.id)) return prev
-              return [...prev, newArtifact]
-            })
+            const artifacts = assistantMessage.artifacts ?? []
+            if (!artifacts.some(({ id }) => id === newArtifact.id)) {
+              assistantMessage.artifacts = [...artifacts, newArtifact]
+              syncAssistantMessage()
+            }
           }
         }
 
-        if (done || interrupted) break
+        if (run && connection && events.length > 0) {
+          run.assistant = assistantMessage
+          StorageService.saveRunSnapshot(connection.sessionId, run)
+        }
+        if (done || (!run && interrupted)) break
       }
 
       if (assistantMessage.isStreaming) {
@@ -416,23 +425,33 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
         if (!assistantMessage.completedAt) assistantMessage.completedAt = Date.now()
         syncAssistantMessage()
       }
-      if (research && StorageService.getResearchId(research.sessionId) === researchId) {
-        if (!terminal) {
-          setCurrentStatus('Research connection lost. Reopen this chat to reconnect.')
+      if (connection && run) {
+        if (terminal) {
+          stoppingRef.current = false
+          setIsStopping(false)
+        }
+        if (!terminal && !interrupted) {
+          setConnectionLost(true)
+          setCurrentStatus('Connection lost.')
           return
         }
-        const saved = StorageService.saveSessionMessages(research.sessionId, [...baseMessages, assistantMessage])
-        if (saved && !interrupted) StorageService.setResearchId(research.sessionId, null)
-        if (!saved) {
-          setCurrentStatus('Could not save the research report to this browser. Reopen the chat to retrieve it.')
-          return
+        if (terminal && StorageService.getRun(connection.sessionId)?.id === run.id) {
+          const saved = StorageService.saveSessionMessages(connection.sessionId, [...baseMessages, assistantMessage])
+          if (saved) StorageService.setRun(connection.sessionId, null)
+          else {
+            setConnectionLost(true)
+            setCurrentStatus('Could not save this reply to browser history.')
+            return
+          }
         }
+        if (terminal) runRef.current = null
       }
       setCurrentStatus('')
     } catch (error: any) {
       if (controller.signal.aborted) return
-      if (research) {
-        setCurrentStatus('Research connection lost. Reopen this chat to reconnect.')
+      if (connection) {
+        setConnectionLost(true)
+        setCurrentStatus('Connection lost.')
       } else if (error.name === 'AbortError') {
         console.log('Request aborted')
       } else {
@@ -450,21 +469,21 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
       if (abortControllerRef.current === controller) {
         setIsLoading(false)
         abortControllerRef.current = null
-        observingResearchRef.current = false
       }
     }
-  }, [])
+  }, [requestStop])
 
-  const processChat = useCallback((messageHistory: Message[], images?: ImageAttachment[], sessionId?: string) => {
-    let research: ResearchConnection | undefined
+  const processChat = useCallback((messageHistory: Message[], images?: ImageAttachment[], sessionId?: string, mode = searchMode) => {
+    let connection: RunConnection | undefined
     let path = '/api/chat'
-    if (sessionId && ['deep', 'ultra'].includes(searchMode)) {
-      const key = Array.from(crypto.getRandomValues(new Uint32Array(4)), (word) =>
+    if (sessionId && ['agent', 'deep_agent', 'deep', 'ultra'].includes(mode)) {
+      const id = Array.from(crypto.getRandomValues(new Uint32Array(4)), (word) =>
         word.toString(16).padStart(8, '0')
       ).join('')
-      research = { sessionId, researchId: key }
-      StorageService.setResearchId(sessionId, key)
-      path = '/api/chat/sse?research_id=' + key
+      const run = { id, searchMode: mode }
+      connection = { sessionId, run }
+      StorageService.setRun(sessionId, run)
+      path = '/api/chat/sse?research_id=' + id
     }
     return readChat(
       path,
@@ -473,28 +492,70 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: messageHistory.map(({ role, content }) => ({ role, content })),
+          conversation_id: sessionId,
           stream: true,
           model: selectedModel,
-          search_mode: searchMode,
+          search_mode: mode,
           images: (images || []).map(({ name, mime, data }) => ({ name, mime, data })),
         }),
       },
       messageHistory,
-      research,
+      connection,
     )
   }, [readChat, selectedModel, searchMode])
 
-  const resumeResearch = useCallback((sessionId: string, researchId: string, messageHistory: Message[]) => {
-    return readChat('/api/chat/sse/' + encodeURIComponent(researchId), {}, messageHistory, { sessionId, researchId })
+  const reconnect = useCallback((connection: RunConnection, messageHistory: Message[]) => {
+    const { run } = connection
+    setPendingInterrupt(run.interrupt ?? null)
+    const headers = run.lastEventId ? { 'Last-Event-ID': String(run.lastEventId) } : undefined
+    return readChat('/api/chat/sse/' + encodeURIComponent(run.id), { headers }, messageHistory, connection)
   }, [readChat])
 
-  const handleApproveInterrupt = useCallback(async () => {
-    if (!pendingInterrupt || !threadId) return
+  const resumeRun = useCallback((sessionId: string, run: ChatRun, messageHistory: Message[]) => {
+    StorageService.markRunViewed(sessionId)
+    return reconnect({ sessionId, run }, messageHistory)
+  }, [reconnect])
+
+  const handleStop = useCallback(async () => {
+    const controller = abortControllerRef.current
+    const connection = runRef.current
+    if (connection) {
+      if (stoppingRef.current || decisionRef.current) return
+      stoppingRef.current = true
+      setIsStopping(true)
+      const accepted = await requestStop(connection, !!controller && !connectedRef.current)
+      if (accepted && runRef.current === connection && !abortControllerRef.current) {
+        await reconnect(connection, messages)
+      }
+      return
+    }
+
+    if (!controller) return
+    if (threadId) {
+      try {
+        await cancelThread(threadId)
+      } catch (error) {
+        console.error('Failed to stop chat', error)
+      }
+    }
+    if (abortControllerRef.current !== controller) return
+    controller.abort()
+    abortControllerRef.current = null
+    setIsLoading(false)
+    setCurrentStatus('Cancelled')
+  }, [messages, reconnect, requestStop, threadId])
+
+  const decideInterrupt = useCallback(async (approved: boolean) => {
+    if (!pendingInterrupt || !threadId || decisionRef.current || stoppingRef.current) return
+    const decision = Symbol()
+    decisionRef.current = decision
+    setIsDeciding(true)
     setIsLoading(true)
-    setCurrentStatus('Resuming after approval...')
-    const research = researchRef.current
+    setCurrentStatus('Submitting decision…')
+    const connection = runRef.current
     try {
-      const toolCalls = pendingInterrupt?.prompts?.[0]?.tool_calls
+      const prompts = pendingInterrupt.prompts ?? [pendingInterrupt]
+      const toolCalls = prompts.flatMap((prompt) => prompt.tool_calls ?? prompt.action_requests ?? [])
       const res = await fetch(
         `${getApiBaseUrl()}/api/interrupt/resume`,
         {
@@ -502,66 +563,72 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             thread_id: threadId,
-            payload: { tool_approved: true, tool_calls: toolCalls },
+            payload: {
+              tool_approved: approved,
+              tool_calls: toolCalls,
+              interrupt_ids: pendingInterrupt.interrupt_ids,
+            },
             model: selectedModel,
-            search_mode: searchMode
+            search_mode: connection?.run.searchMode ?? searchMode
           })
         }
       )
-      if (!res.ok) throw new Error('Failed to resume')
+      if (!res.ok && !(res.status === 409 && connection)) throw new Error('Failed to resume')
+      if (decisionRef.current !== decision) return
+      if (connection) {
+        delete connection.run.interrupt
+        StorageService.saveRunSnapshot(connection.sessionId, connection.run)
+        decisionRef.current = null
+        setIsDeciding(false)
+        await reconnect(connection, messages)
+        return
+      }
       const data = await res.json()
+      if (decisionRef.current !== decision) return
+      if (data.status === 'interrupted') {
+        setPendingInterrupt({ prompts: data.interrupts })
+        setCurrentStatus('')
+        return
+      }
       const reply: Message = {
         id: 'assistant-' + Date.now(),
         role: 'assistant',
         content: data.content || 'Resumed and completed.',
       }
-      if (research) {
-        if (StorageService.getResearchId(research.sessionId) === research.researchId) {
-          const updated = [...messages, reply]
-          StorageService.saveSessionMessages(research.sessionId, updated)
-          StorageService.setResearchId(research.sessionId, null)
-        }
-        if (researchRef.current !== research) return
-      }
       setMessages(prev => [...prev, reply])
+      setPendingInterrupt(null)
+      setCurrentStatus('')
     } catch (err) {
-      if (research && researchRef.current !== research) return
+      if (decisionRef.current !== decision) return
       console.error('Failed to resume interrupt', err)
-      setMessages(prev => [
-        ...prev,
-        {
-          id: `error-${Date.now()}`,
-          role: 'assistant',
-          content: 'Resume failed. Please retry.',
-        }
-      ])
+      setCurrentStatus('Could not submit this decision. Try again.')
     } finally {
-      if (!research || researchRef.current === research) {
-        setPendingInterrupt(null)
+      if (decisionRef.current === decision) {
+        decisionRef.current = null
+        setIsDeciding(false)
         setIsLoading(false)
-        setCurrentStatus('')
       }
     }
-  }, [pendingInterrupt, threadId, selectedModel, searchMode, messages])
+  }, [pendingInterrupt, threadId, selectedModel, searchMode, messages, reconnect])
 
   return {
     messages,
     setMessages,
     isLoading,
-    isResearchSnapshot,
-    setIsLoading,
+    isRunSnapshot,
+    connectionLost,
+    isDeciding,
+    isStopping,
     currentStatus,
     setCurrentStatus,
-    artifacts,
-    setArtifacts,
     pendingInterrupt,
     setPendingInterrupt,
     threadId,
     setThreadId,
     processChat,
-    resumeResearch,
+    resumeRun,
     detachChat,
     handleStop,
-    handleApproveInterrupt
+    decideInterrupt,
   }
 }

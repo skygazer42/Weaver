@@ -41,6 +41,7 @@ from agent.workflows.query_strategy import (
     is_time_sensitive_topic,
     summarize_freshness,
 )
+from agent.workflows.research_steps import run_research_step as _research_step
 from agent.workflows.research_tree import TreeExplorationBudgetExceeded, TreeExplorer
 from agent.workflows.source_url_utils import canonicalize_source_url, compact_unique_sources
 from common.cancellation import check_cancellation as _check_cancel_token
@@ -1117,7 +1118,7 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
                 # ⏱️ Step 1: 生成查询 (利用知识空白分析结果)
                 query_start = time.time()
                 missing_topics = state.get("missing_topics", []) if epoch > 0 else []
-                queries = _generate_queries(
+                queries = _research_step(config, _generate_queries,
                     planner_llm, topic, have_query, summary_notes, query_num, config,
                     missing_topics=missing_topics,
                 )
@@ -1164,7 +1165,7 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
                         except Exception:
                             pass
 
-                    results = _search_query(
+                    results = _research_step(config, _search_query,
                         q,
                         per_query_results,
                         config,
@@ -1202,7 +1203,9 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
                     # This is best-effort UX only; failures must not break research.
                     if visualize_browser:
                         try:
-                            from agent.workflows.browser_visualizer import visualize_urls_from_results
+                            from agent.workflows.browser_visualizer import (
+                                visualize_urls_from_results,
+                            )
 
                             visualize_urls_from_results(
                                 state=state,
@@ -1358,7 +1361,7 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
 
                 # ⏱️ Step 5: 摘要新知识 + 判断是否足够
                 summary_start = time.time()
-                enough, summary_text = _summarize_new_knowledge(
+                enough, summary_text = _research_step(config, _summarize_new_knowledge,
                     critic_llm, topic, summary_notes, chosen_results, config
                 )
                 if summary_text:
@@ -1485,7 +1488,7 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
         # ⏱️ Step 6: 生成最终报告（带强引用来源编号）
         report_start = time.time()
         final_report = (
-            _final_report(writer_llm, topic, summary_notes, config, sources=sources_block)
+            _research_step(config, _final_report,writer_llm, topic, summary_notes, config, sources=sources_block)
             if summary_notes
             else summary_text_prompt
         )
@@ -1789,7 +1792,7 @@ def run_deepsearch_tree(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[s
                 else config
             )
             tokens_used += _estimate_tokens_from_text(query)
-            results = _search_query(
+            results = _research_step(config, _search_query,
                 query,
                 max_results,
                 effective_config,
@@ -1852,7 +1855,8 @@ def run_deepsearch_tree(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[s
 
         # Run tree exploration (use async if parallel_branches > 0)
         tree = None
-        if parallel_branches > 0:
+        # Durable task replay requires stable ordering of the branch operations.
+        if parallel_branches > 0 and not _configurable_value(config, "checkpoint_research_steps"):
             # Use async parallel exploration
             try:
                 loop = asyncio.get_event_loop()
@@ -1956,7 +1960,7 @@ def run_deepsearch_tree(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[s
 
         # Generate final report (strong citations aligned to extracted_sources order)
         final_report = (
-            _final_report(writer_llm, topic, summary_notes, config, sources=sources_block)
+            _research_step(config, _final_report,writer_llm, topic, summary_notes, config, sources=sources_block)
             if summary_notes
             else summary_text_prompt
         )

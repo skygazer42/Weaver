@@ -17,8 +17,9 @@ from langchain.agents.middleware import (
 from langchain_core.tools import BaseTool
 from langchain_openai import ChatOpenAI
 
-from common.config import settings
 from agent.workflows.provider_safe_middleware import ProviderSafeToolSelectorMiddleware
+from agent.workflows.tool_results import ToolResultBudgetMiddleware, read_tool_result
+from common.config import settings
 from tools.code.code_executor import execute_python_code
 from tools.core.registry import get_registered_tools
 
@@ -67,6 +68,8 @@ def _tool_selector_methods() -> tuple[str, ...]:
 
 def _tool_selector_always_include() -> list[str]:
     names = list(settings.tool_selector_always_include_list)
+    if read_tool_result.name not in names:
+        names.append(read_tool_result.name)
     if settings.enable_todo_middleware and "write_todos" not in names:
         names.append("write_todos")
     return names
@@ -101,6 +104,8 @@ def _build_middlewares() -> List:
             selector_kwargs["system_prompt"] = custom_prompt
 
         mws.append(ProviderSafeToolSelectorMiddleware(**selector_kwargs))
+
+    mws.append(ToolResultBudgetMiddleware())
 
     # Tool retry
     if settings.tool_retry:
@@ -177,14 +182,16 @@ def _build_middlewares() -> List:
     return mws
 
 
-def build_writer_agent(model: str | None = None) -> tuple[object, List[BaseTool]]:
+def build_writer_agent(
+    model: str | None = None, *, thread_id: str | None = None
+) -> tuple[object, List[BaseTool]]:
     """
     Create a tool-calling agent for writer node with configured middleware.
     Returns (agent, tools) so caller can inspect selected toolset.
     """
     model_name = (model or settings.primary_model).strip()
     tools: List[BaseTool] = [execute_python_code]
-    tools.extend(get_registered_tools())
+    tools.extend(get_registered_tools(thread_id=thread_id))
 
     agent = create_agent(
         _build_llm(model_name, temperature=0.7),

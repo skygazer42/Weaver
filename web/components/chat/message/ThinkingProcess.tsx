@@ -14,10 +14,12 @@ import {
   ShieldCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { ProcessEvent, RunMetrics, ToolInvocation } from '@/types/chat'
+import { Artifact, ProcessEvent, RunMetrics, ToolInvocation } from '@/types/chat'
+import { getArtifactDownloadUrl } from '@/lib/api'
 
 interface ThinkingProcessProps {
   tools?: ToolInvocation[]
+  artifacts?: Artifact[]
   events?: ProcessEvent[]
   metrics?: RunMetrics
   isThinking: boolean
@@ -27,6 +29,7 @@ interface ThinkingProcessProps {
 
 export function ThinkingProcess({
   tools = [],
+  artifacts = [],
   events = [],
   metrics,
   isThinking,
@@ -79,11 +82,11 @@ export function ThinkingProcess({
   const displayEvents = useMemo(() => {
     const thoughts = events.filter((e) => e.type === 'thinking').slice(-3)
     const tail = events
-      .filter((e) => e.type !== 'done' && e.type !== 'thinking')
+      .filter((e) => e.type !== 'done' && e.type !== 'thinking' && (e.type !== 'tool' || tools.length === 0))
       .slice(-60)
 
     return [...thoughts, ...tail].sort((a, b) => a.timestamp - b.timestamp)
-  }, [events])
+  }, [events, tools.length])
 
   useEffect(() => {
     if (userToggled) return
@@ -143,15 +146,13 @@ export function ThinkingProcess({
         <div
           className="grid transition-[grid-template-rows] duration-200 ease-out"
           style={{ gridTemplateRows: open ? '1fr' : '0fr' }}
+          inert={!open}
         >
           <div className="overflow-hidden">
             <div className="mt-2 pl-4 ml-2 border-l border-border/60 text-sm text-muted-foreground">
               <div className="space-y-2 py-1">
-                {displayEvents.length > 0 ? (
-                  displayEvents.map((ev) => <EventRow key={ev.id} ev={ev} />)
-                ) : (
-                  <FallbackTools tools={tools} />
-                )}
+                {tools.length > 0 && <ToolRows tools={tools} artifacts={artifacts} />}
+                {displayEvents.map((ev) => <EventRow key={ev.id} ev={ev} />)}
               </div>
             </div>
           </div>
@@ -387,13 +388,14 @@ function EventRow({ ev }: { ev: ProcessEvent }) {
   )
 }
 
-function FallbackTools({ tools }: { tools: ToolInvocation[] }) {
-  if (!tools.length) {
-    return <div className="text-xs text-muted-foreground">No process details.</div>
-  }
+function ToolRows({ tools, artifacts }: { tools: ToolInvocation[]; artifacts: Artifact[] }) {
   return (
     <div className="space-y-2">
-      {tools.slice(-20).map((tool) => (
+      {tools.slice(-20).map((tool) => {
+        const artifact = artifacts.find(({ tool_call_id }) => tool_call_id === tool.toolCallId)
+        const summary = artifact?.content ?? (typeof tool.result === 'string' ? tool.result : null)
+        const downloadUrl = getArtifactDownloadUrl(artifact?.download_url)
+        return (
         <div key={tool.toolCallId} className="flex items-start gap-2">
           <Wrench className="mt-0.5 h-4 w-4 text-muted-foreground/60" />
           <div className="min-w-0">
@@ -406,9 +408,12 @@ function FallbackTools({ tools }: { tools: ToolInvocation[] }) {
             {tool.args?.query ? (
               <div className="truncate font-mono text-xs">{String(tool.args.query)}</div>
             ) : null}
+            {summary && <p className="line-clamp-3 whitespace-pre-wrap break-words text-xs">{summary}</p>}
+            {downloadUrl && <a className="text-xs text-primary underline" href={downloadUrl} download>Download full output</a>}
           </div>
         </div>
-      ))}
+        )
+      })}
     </div>
   )
 }

@@ -37,6 +37,9 @@ from tools.sandbox import (
     build_sandbox_web_dev_tools,
     build_sandbox_web_search_tools,
 )
+from tools.search.fallback_search import fallback_search, uses_fallback_search
+
+from .agent_skills import read_skill, skill_catalog
 
 logger = logging.getLogger(__name__)
 
@@ -114,10 +117,7 @@ def build_agent_tools(config: RunnableConfig) -> List[BaseTool]:
         # Keep stable API search tools available even when visual sandbox search is enabled.
         # When API web search is available, omit the specialized sandbox search tools to
         # steer the agent away from anti-bot-prone search pages.
-        # Use fallback search if multiple engines configured
-        if len(settings.search_engines_list) > 1:
-            from tools import fallback_search
-
+        if uses_fallback_search(settings.search_engines_list):
             tools.append(fallback_search)
         else:
             tools.append(tavily_search)
@@ -229,8 +229,11 @@ def build_agent_tools(config: RunnableConfig) -> List[BaseTool]:
     if _enabled(profile, "planning", default=True):
         tools.append(plan_steps)
 
+    if _enabled(profile, "skills", default=True) and skill_catalog():
+        tools.append(read_skill)
+
     if _enabled(profile, "mcp", default=True):
-        tools.extend(get_registered_tools())
+        tools.extend(get_registered_tools(thread_id=thread_id))
 
     # Daytona remote sandbox tools (only when mode=daytona)
     if settings.sandbox_mode == "daytona" and _enabled(profile, "sandbox_daytona", default=True):
@@ -238,14 +241,6 @@ def build_agent_tools(config: RunnableConfig) -> List[BaseTool]:
 
         tools.append(daytona_create)
         tools.append(daytona_stop)
-
-    # Align per-thread emitters for tools that support it (e.g., MCPClientTool)
-    for t in tools:
-        if hasattr(t, "thread_id"):
-            try:
-                setattr(t, "thread_id", thread_id)
-            except Exception:
-                pass
 
     # De-dup by tool name to avoid collisions
     deduped: Dict[str, BaseTool] = {}

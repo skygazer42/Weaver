@@ -53,7 +53,6 @@ async def _noop_async(*args, **kwargs):
 @pytest.mark.asyncio
 async def test_stream_does_not_forward_intermediate_messages_or_planner_tokens(monkeypatch):
     monkeypatch.setattr(main, "research_graph", _DummyGraph())
-    monkeypatch.setattr(main, "add_memory_entry", lambda *args, **kwargs: None)
     monkeypatch.setattr(main, "store_interaction", lambda *args, **kwargs: None)
     monkeypatch.setattr(main, "fetch_memories", lambda *args, **kwargs: [])
     monkeypatch.setattr(main, "remove_emitter", _noop_async)

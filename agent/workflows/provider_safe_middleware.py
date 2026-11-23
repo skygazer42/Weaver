@@ -143,7 +143,7 @@ class ProviderSafeToolSelectorMiddleware(LLMToolSelectorMiddleware):
         last_error: Exception | None = None
         for method in self.selection_methods:
             try:
-                return handler(self._select_tools_once(request, method=method, is_async=False))
+                selected = self._select_tools_once(request, method=method, is_async=False)
             except Exception as exc:
                 last_error = exc
                 logger.warning(
@@ -151,6 +151,8 @@ class ProviderSafeToolSelectorMiddleware(LLMToolSelectorMiddleware):
                     method,
                     exc,
                 )
+            else:
+                return handler(selected)
         if last_error is not None:
             logger.warning(
                 "Tool selector disabled for this request after exhausting methods %s. "
@@ -168,7 +170,7 @@ class ProviderSafeToolSelectorMiddleware(LLMToolSelectorMiddleware):
         last_error: Exception | None = None
         for method in self.selection_methods:
             try:
-                return await handler(await self._aselect_tools_once(request, method=method))
+                selected = await self._aselect_tools_once(request, method=method)
             except Exception as exc:
                 last_error = exc
                 logger.warning(
@@ -176,6 +178,8 @@ class ProviderSafeToolSelectorMiddleware(LLMToolSelectorMiddleware):
                     method,
                     exc,
                 )
+            else:
+                return await handler(selected)
         if last_error is not None:
             logger.warning(
                 "Tool selector disabled for this request after exhausting methods %s. "

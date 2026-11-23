@@ -9,7 +9,7 @@ import threading
 import time
 import uuid
 from collections import OrderedDict
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, aclosing, asynccontextmanager
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -27,8 +27,9 @@ from fastapi import (
     WebSocketDisconnect,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
-from langchain_core.messages import HumanMessage, SystemMessage
+from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
+from langchain_core.messages.utils import count_tokens_approximately, trim_messages
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import Command
 from prometheus_client import (
@@ -44,7 +45,6 @@ from starlette.concurrency import run_in_threadpool
 from agent import (
     AgentState,
     ToolEvent,
-    create_checkpointer,
     create_research_graph,
     event_stream_generator,
     get_deep_agent_prompt,
@@ -71,15 +71,19 @@ from common.agents_store import (
 from common.cancellation import TaskStatus, cancellation_manager
 from common.chat_stream_translate import translate_legacy_line_to_sse
 from common.config import settings
+from common.durable_streams import DurableStreams
 from common.logger import get_logger, setup_logging
 from common.metrics import metrics_registry
 from common.proxy_env import normalize_socks_proxy_env
 from common.research_streams import (
     ResearchStreamCapacity,
+    find_research_stream,
     get_research_stream,
+    run_status_line,
     start_research_stream,
     stop_research_streams,
 )
+from common.run_journal import RunJournal, RunRecord
 from common.siliconflow import list_siliconflow_chat_models
 from common.sse import (
     format_sse_event,
@@ -88,9 +92,10 @@ from common.sse import (
     iter_with_sse_keepalive,
 )
 from common.thread_ownership import get_thread_owner, set_thread_owner
+from common.tool_artifacts import get_tool_artifact
 from support_agent import create_support_graph
 from tools.browser.browser_session import browser_sessions
-from tools.core.memory_client import add_memory_entry, fetch_memories, store_interaction
+from tools.core.memory_client import fetch_memories, store_interaction
 from tools.core.registry import set_registered_tools
 from tools.io.asr import get_asr_service, init_asr_service
 from tools.io.screenshot_service import get_screenshot_service
@@ -118,16 +123,33 @@ logger = get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
-    await startup_event()
-    try:
-        await start_workspace_runs()
-        yield
-    finally:
-        # Shutdown
-        await stop_workspace_runs()
-        await stop_research_streams()
-        await shutdown_event()
+    global durable_streams
+    async with AsyncExitStack() as resources:
+        if settings.database_url:
+            from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+
+            saver = await resources.enter_async_context(
+                AsyncPostgresSaver.from_conn_string(settings.database_url)
+            )
+            await saver.setup()
+            _configure_graphs(saver)
+        try:
+            await startup_event()
+            await start_workspace_runs()
+            if settings.database_url:
+                journal = RunJournal(settings.database_url)
+                await journal.setup()
+                durable_streams = DurableStreams(journal, _durable_source)
+            yield
+        finally:
+            if durable_streams is not None:
+                await durable_streams.close()
+                durable_streams = None
+            await stop_workspace_runs()
+            await stop_research_streams()
+            await shutdown_event()
+            if settings.database_url:
+                _configure_graphs(MemorySaver())
 
 
 # Initialize FastAPI app
@@ -384,7 +406,7 @@ def _apply_rate_limit_headers(response: Any, *, limit: int, remaining: int, rese
     response.headers["X-RateLimit-Reset"] = str(reset_ts)
 
 
-def _require_thread_owner(request: Request, thread_id: str) -> None:
+async def _require_thread_owner(request: Request, thread_id: str) -> None:
     """
     Enforce per-user thread isolation when internal auth is enabled.
 
@@ -401,8 +423,16 @@ def _require_thread_owner(request: Request, thread_id: str) -> None:
         raise HTTPException(status_code=403, detail="Forbidden")
 
     owner_id = (get_thread_owner(thread_id) or "").strip()
-    if owner_id and owner_id != principal_id:
-        raise HTTPException(status_code=403, detail="Forbidden")
+    if owner_id:
+        if owner_id != principal_id:
+            raise HTTPException(status_code=403, detail="Forbidden")
+        return
+    if durable_streams is not None:
+        record = await durable_streams.journal.get_by_thread(thread_id)
+        if record is not None:
+            if record.owner != principal_id:
+                raise HTTPException(status_code=403, detail="Forbidden")
+            return
 
     if not checkpointer:
         return
@@ -411,7 +441,7 @@ def _require_thread_owner(request: Request, thread_id: str) -> None:
         from common.session_manager import get_session_manager
 
         manager = get_session_manager(checkpointer)
-        session_state = manager.get_session_state(thread_id)
+        session_state = await run_in_threadpool(manager.get_session_state, thread_id)
         if not session_state or not isinstance(session_state.state, dict):
             return
         persisted_owner = session_state.state.get("user_id")
@@ -419,9 +449,8 @@ def _require_thread_owner(request: Request, thread_id: str) -> None:
             raise HTTPException(status_code=403, detail="Forbidden")
     except HTTPException:
         raise
-    except Exception:
-        # Authorization is best-effort; never 500 due to ownership lookups.
-        return
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Could not check thread ownership") from exc
 
 
 # Periodic cleanup of stale rate-limit buckets (runs every 5 minutes)
@@ -439,14 +468,6 @@ async def _cleanup_rate_limit_buckets():
                 _rate_limit_buckets.pop(k, None)
     except asyncio.CancelledError:
         return
-
-
-# Initialize agent graphs with short-term memory (checkpointer)
-if settings.database_url:
-    checkpointer = create_checkpointer(settings.database_url)
-else:
-    # Fallback to in-memory checkpointer for short-term memory
-    checkpointer = MemorySaver()
 
 
 def _init_store():
@@ -478,12 +499,17 @@ def _init_store():
 # Long-term memory store (configurable via .env)
 store = _init_store()
 
-research_graph = create_research_graph(
-    checkpointer=checkpointer,
-    interrupt_before=settings.interrupt_nodes_list,
-    store=store,
-)
-support_graph = create_support_graph(checkpointer=checkpointer, store=store)
+def _configure_graphs(saver):
+    global checkpointer, research_graph, support_graph
+    checkpointer = saver
+    research_graph = create_research_graph(
+        checkpointer=saver, interrupt_before=settings.interrupt_nodes_list, store=store
+    )
+    support_graph = create_support_graph(checkpointer=saver, store=store)
+
+
+_configure_graphs(MemorySaver())
+durable_streams: DurableStreams | None = None
 mcp_thread_id = "default"  # thread id for MCP event emission; per-request tools will override
 mcp_enabled = settings.enable_mcp
 mcp_servers_config = settings.mcp_servers
@@ -956,6 +982,7 @@ class ImagePayload(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: List[Message]
+    conversation_id: str | None = Field(default=None, max_length=128)
     stream: bool = True
     model: Optional[str] = None
     search_mode: Optional[SearchMode] = None
@@ -1087,6 +1114,10 @@ def _serialize_interrupts(interrupts: Any) -> List[Any]:
         else:
             result.append(str(item))
     return result
+
+
+def _interrupt_ids(interrupts):
+    return [interrupt.id for interrupt in interrupts if getattr(interrupt, "id", None)]
 
 
 def _normalize_interrupt_resume_payload(payload: Any) -> Any:
@@ -1274,7 +1305,15 @@ async def cancel_chat(thread_id: str, request: Request, payload: CancelRequest |
         thread_id: 浠诲姟绾跨▼ ID
         request: 鍙€夌殑鍙栨秷鍘熷洜
     """
-    _require_thread_owner(request, thread_id)
+    await _require_thread_owner(request, thread_id)
+    if durable_streams is not None:
+        record = await durable_streams.journal.get_by_thread(thread_id)
+        if record is not None:
+            await durable_streams.journal.request_cancel(
+                record.owner, record.run_id, final_line=run_status_line("cancelled")
+            )
+            row = await durable_streams.journal.get(record.owner, record.run_id)
+            return {"status": row.status, "thread_id": thread_id}
 
     reason = payload.reason if payload else "User requested cancellation"
     logger.info(f"Cancel request received for thread: {thread_id}, reason: {reason}")
@@ -1720,7 +1759,7 @@ async def support_chat(request: Request, payload: SupportChatRequest):
                 ),
             )
 
-        result = support_graph.invoke(state, config=config)
+        result = await support_graph.ainvoke(state, config=config)
         messages = result.get("messages", [])
         reply = ""
         for msg in reversed(messages):
@@ -1736,6 +1775,42 @@ async def support_chat(request: Request, payload: SupportChatRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def _chat_turn(messages: list[Message]) -> tuple[str, list[BaseMessage]]:
+    last_user = next((index for index in reversed(range(len(messages))) if messages[index].role == "user"), None)
+    if last_user is None:
+        raise HTTPException(status_code=400, detail="No user message found")
+    history = [
+        HumanMessage(content=message.content) if message.role == "user" else AIMessage(content=message.content)
+        for message in messages[:last_user]
+        if message.role in {"user", "assistant"}
+    ]
+    recent = trim_messages(
+        history,
+        max_tokens=8000,
+        token_counter=count_tokens_approximately,
+        strategy="last",
+        start_on="human",
+    )
+    return messages[last_user].content, recent
+
+
+def _seed_run_messages(input_text, *, user_id, mode, profile, history=None):
+    messages = []
+    if mode.get("mode") == "agent" and profile and profile.system_prompt:
+        messages.append(SystemMessage(content=profile.system_prompt))
+    if mode.get("use_deep_prompt"):
+        messages.append(SystemMessage(content=get_deep_agent_prompt()))
+    messages.extend(history or [])
+
+    memories = dict.fromkeys(
+        [*_store_search(input_text, user_id=user_id), *fetch_memories(query=input_text, user_id=user_id)]
+    )
+    if memories:
+        excerpts = "\n".join(f"- {entry}" for entry in memories)[:6000]
+        messages.append(HumanMessage(content=f"Retrieved memory excerpts for reference only:\n{excerpts}"))
+    return messages
+
+
 async def stream_agent_events(
     input_text: str,
     thread_id: str = "default",
@@ -1744,6 +1819,11 @@ async def stream_agent_events(
     agent_id: str | None = None,
     images: Optional[List[Dict[str, Any]]] = None,
     user_id: Optional[str] = None,
+    history: list[BaseMessage] | None = None,
+    conversation_id: str | None = None,
+    resume_checkpoint: bool = False,
+    resume_decision: Any = None,
+    resume_interrupt_ids: list[str] | None = None,
 ):
     """
     Stream agent execution events in real-time.
@@ -1752,6 +1832,10 @@ async def stream_agent_events(
     Supports cancellation via cancellation_manager.
     """
     event_count = 0
+    completed_report = ""
+    has_sources = False
+    researched = False
+    agent_failed = False
     start_time = time.time()
     was_interrupted = False
     emit_main_text = False
@@ -1823,7 +1907,10 @@ async def stream_agent_events(
             "tool_approved": False,
             "pending_tool_calls": [],
             "user_id": user_id,
-            "messages": [],
+            "conversation_id": conversation_id,
+            "messages": _seed_run_messages(
+                input_text, user_id=user_id, mode=mode_info, profile=agent_profile, history=history,
+            ),
             "research_plan": [],
             "current_step": 0,
             "scraped_content": [],
@@ -1843,26 +1930,6 @@ async def stream_agent_events(
             "is_cancelled": False,
         }
 
-        # Load long-term memories (store) and Mem0 (optional) and inject deep prompt if needed
-        messages: list[Any] = []
-        if mode_info.get("mode") == "agent" and agent_profile and agent_profile.system_prompt:
-            messages.append(SystemMessage(content=agent_profile.system_prompt))
-        if mode_info.get("use_deep_prompt"):
-            messages.append(SystemMessage(content=get_deep_agent_prompt()))
-
-        store_memories = _store_search(input_text, user_id=user_id)
-        if store_memories:
-            store_text = "\n".join(f"- {m}" for m in store_memories)
-            messages.append(SystemMessage(content=f"Stored memories:\n{store_text}"))
-
-        mem_entries = fetch_memories(query=input_text, user_id=user_id)
-        if mem_entries:
-            memory_text = "\n".join(f"- {m}" for m in mem_entries)
-            messages.append(SystemMessage(content=f"Relevant past knowledge:\n{memory_text}"))
-
-        if messages:
-            initial_state["messages"] = messages
-
         config = {
             "configurable": {
                 "thread_id": thread_id,
@@ -1874,6 +1941,7 @@ async def stream_agent_events(
                 "tool_approval": settings.tool_approval or False,
                 "human_review": settings.human_review or False,
                 "max_revisions": settings.max_revisions,
+                "checkpoint_research_steps": resume_checkpoint,
             },
             "recursion_limit": 50,
         }
@@ -1895,6 +1963,8 @@ async def stream_agent_events(
                     yield_event = await format_stream_event("tool_error", tool_event.data)
                 elif tool_event.type == ToolEvent.TASK_UPDATE:
                     yield_event = await format_stream_event("task_update", tool_event.data)
+                elif tool_event.type == ToolEvent.ARTIFACT:
+                    yield_event = await format_stream_event("artifact", tool_event.data)
                 elif tool_event.type == ToolEvent.RESEARCH_NODE_START:
                     yield_event = await format_stream_event("research_node_start", tool_event.data)
                 elif tool_event.type == ToolEvent.RESEARCH_NODE_COMPLETE:
@@ -1916,8 +1986,58 @@ async def stream_agent_events(
             {"text": "Initializing research agent...", "step": "init", "thread_id": thread_id},
         )
 
-        # Stream graph execution
-        graph_events = research_graph.astream_events(initial_state, config=config)
+        graph_input = initial_state
+        if resume_checkpoint:
+            checkpoint = await research_graph.aget_state(config)
+            if checkpoint.values:
+                interrupts = getattr(checkpoint, "interrupts", ())
+                pending = _serialize_interrupts(interrupts)
+                pending_ids = _interrupt_ids(interrupts)
+                if pending and (resume_decision is None or resume_interrupt_ids != pending_ids):
+                    was_interrupted = True
+                    yield await format_stream_event(
+                        "interrupt", {"thread_id": thread_id, "prompts": pending, "interrupt_ids": pending_ids}
+                    )
+                    return
+                if resume_decision is not None and pending:
+                    graph_input = Command(resume=resume_decision)
+                elif checkpoint.next:
+                    graph_input = None
+                else:
+                    value = checkpoint.values
+                    if value.get("is_cancelled") or value.get("status") == "cancelled":
+                        yield await format_stream_event("cancelled", {"message": "Task was cancelled"})
+                        return
+                    if value.get("status") == "failed" or (
+                        mode_info.get("mode") == "agent" and value.get("errors")
+                    ):
+                        yield await format_stream_event("error", {"message": "The Agent run failed."})
+                        return
+                    artifact_data = value.get("deepsearch_artifacts") or {}
+                    sources = extract_message_sources([
+                        *(value.get("scraped_content") or []), *(value.get("sources") or []),
+                        *(artifact_data.get("sources") or []),
+                    ])
+                    if sources:
+                        yield await format_stream_event("sources", {"items": sources})
+                    if value.get("route") == "deep" and not sources:
+                        yield await format_stream_event("insufficient_evidence", {"message": "No supporting sources were found."})
+                    elif value.get("final_report"):
+                        yield await format_stream_event("completion", {"content": value["final_report"]})
+                        yield await format_stream_event(
+                            "artifact",
+                            {"id": f"report_{thread_id}", "type": "report",
+                             "title": "Research Report", "content": value["final_report"]},
+                        )
+                    yield await format_stream_event("done", {})
+                    return
+        elif resume_decision is not None:
+            graph_input = Command(resume=resume_decision)
+
+        if resume_checkpoint:
+            graph_events = research_graph.astream_events(graph_input, config=config, durability="sync")
+        else:
+            graph_events = research_graph.astream_events(graph_input, config=config)
         graph_iter = graph_events.__aiter__()
 
         while True:
@@ -1996,6 +2116,7 @@ async def stream_agent_events(
                         "status", {"text": "Creating research plan...", "step": "planning"}
                     )
                 elif "deepsearch" in node_name:
+                    researched = True
                     logger.debug(f"  Deep research node started | Thread: {thread_id}")
                     text = (
                         "正在进行 Deep Research（多轮检索→阅读→汇总），可能需要几分钟…"
@@ -2028,13 +2149,21 @@ async def stream_agent_events(
 
                 # Extract messages from output
                 if isinstance(output, dict):
+                    if node_name == "agent" and output.get("errors"):
+                        agent_failed = True
+                        yield await format_stream_event("error", {"message": "The Agent run failed."})
+
                     # Interrupt handling
                     interrupts = output.get("__interrupt__")
                     if interrupts:
                         was_interrupted = True
                         yield await format_stream_event(
                             "interrupt",
-                            {"thread_id": thread_id, "prompts": _serialize_interrupts(interrupts)},
+                            {
+                                "thread_id": thread_id,
+                                "prompts": _serialize_interrupts(interrupts),
+                                "interrupt_ids": _interrupt_ids(interrupts),
+                            },
                         )
                         return
 
@@ -2055,7 +2184,7 @@ async def stream_agent_events(
                             pass
 
                     # Check for completion and final report artifact
-                    if output.get("is_complete"):
+                    if output.get("is_complete") and not agent_failed:
                         final_report = output.get("final_report", "")
                         if final_report:
                             try:
@@ -2069,31 +2198,30 @@ async def stream_agent_events(
 
                                 sources = extract_message_sources(candidates)
                                 if sources:
+                                    has_sources = True
                                     yield await format_stream_event(
                                         "sources", {"items": sources}
                                     )
                             except Exception:
                                 pass
 
+                            if completed_report == final_report:
+                                continue
+                            completed_report = final_report
+                            if researched and mode_info.get("mode") == "deep" and not has_sources:
+                                continue
                             yield await format_stream_event("completion", {"content": final_report})
 
                             # Also emit as artifact
                             yield await format_stream_event(
                                 "artifact",
                                 {
-                                    "id": f"report_{datetime.now().timestamp()}",
+                                    "id": f"report_{thread_id}",
                                     "type": "report",
                                     "title": "Research Report",
                                     "content": final_report,
                                 },
                             )
-                            # Store memory for future sessions
-                            # Store memory (long-term)
-                            add_memory_entry(final_report)
-                            # Store interaction (question + answer)
-                            store_interaction(input_text, final_report)
-                            # Store to graph store
-                            _store_add(input_text, final_report, user_id=user_id)
 
             elif event_type == "on_tool_start":
                 tool_name = str(data_dict.get("name", "unknown") or "unknown")
@@ -2210,7 +2338,28 @@ async def stream_agent_events(
         async for queued_chunk in _drain_pending_tool_events():
             yield queued_chunk
 
+        load_state = getattr(research_graph, "aget_state", None)
+        if checkpointer and load_state is not None:
+            snapshot = await load_state(config)
+            pending = getattr(snapshot, "interrupts", ())
+            if pending:
+                was_interrupted = True
+                yield await format_stream_event(
+                    "interrupt",
+                    {
+                        "thread_id": thread_id,
+                        "prompts": _serialize_interrupts(pending),
+                        "interrupt_ids": _interrupt_ids(pending),
+                    },
+                )
+                return
+
         # Send final completion
+        if researched and mode_info.get("mode") == "deep" and not has_sources:
+            yield await format_stream_event("insufficient_evidence", {"message": "No supporting sources were found."})
+        elif completed_report and not resume_checkpoint:
+            store_interaction(input_text, completed_report, user_id=user_id)
+            _store_add(input_text, completed_report, user_id=user_id)
         duration = time.time() - start_time
         cancel_token.mark_completed()
         metrics_registry.finish(thread_id, cancelled=False)
@@ -2232,6 +2381,8 @@ async def stream_agent_events(
         duration = time.time() - start_time
         metrics_registry.finish(thread_id, cancelled=True)
         logger.info(f"? Agent stream cancelled | Thread: {thread_id} | Duration: {duration:.2f}s")
+        if resume_checkpoint:
+            raise
         yield await format_stream_event(
             "cancelled",
             {"message": "Task was cancelled", "thread_id": thread_id, "duration": duration},
@@ -2295,6 +2446,44 @@ async def stream_agent_events(
                         pass
 
 
+async def _saved_run_source(thread_id: str, saved: dict, *, durable: bool):
+    request = ChatRequest.model_validate(saved["request"])
+    last_message, history = _chat_turn(request.messages)
+    if durable and request.conversation_id and not history:
+        owner = get_thread_owner(thread_id)
+        if owner:
+            transcript: list[Message] = []
+            for messages, answer in await durable_streams.journal.conversation_turns(owner, request.conversation_id):
+                earlier = [Message.model_validate(message) for message in messages]
+                index = max(i for i, item in enumerate(earlier) if item.role == "user")
+                if index:
+                    transcript = earlier[:index]
+                transcript.extend([earlier[index], Message(role="assistant", content=answer)])
+            _, history = _chat_turn([*transcript, Message(role="user", content=last_message)])
+    events = stream_agent_events(
+        last_message,
+        thread_id=thread_id,
+        model=request.model,
+        search_mode=_normalize_search_mode(request.search_mode),
+        agent_id=request.agent_id,
+        images=_normalize_images_payload(request.images),
+        user_id=saved["user_id"],
+        history=history,
+        conversation_id=request.conversation_id,
+        resume_checkpoint=durable,
+        resume_decision=saved.get("approval"),
+        resume_interrupt_ids=saved.get("approval_interrupt_ids"),
+    )
+    async with aclosing(events):
+        async for line in events:
+            yield line
+
+
+def _durable_source(record: RunRecord):
+    set_thread_owner(record.thread_id, record.owner)
+    return _saved_run_source(record.thread_id, record.payload, durable=True)
+
+
 @app.post("/api/chat/sse")
 async def chat_sse(
     request: Request,
@@ -2308,12 +2497,7 @@ async def chat_sse(
     into standard SSE frames (`event:` / `data:`) so the frontend can use an
     off-the-shelf SSE parser.
     """
-    # Get the last user message (same rule as /api/chat).
-    user_messages = [msg for msg in payload.messages if msg.role == "user"]
-    if not user_messages:
-        raise HTTPException(status_code=400, detail="No user message found")
-
-    last_message = user_messages[-1].content
+    last_message, history = _chat_turn(payload.messages)
     internal_key = (getattr(settings, "internal_api_key", "") or "").strip()
     principal_id = (getattr(request.state, "principal_id", "") or "").strip()
     user_id = principal_id if internal_key and principal_id else (payload.user_id or settings.memory_user_id)
@@ -2321,11 +2505,18 @@ async def chat_sse(
     model = (payload.model or settings.primary_model).strip()
     thread_id = f"thread_{uuid.uuid4().hex}"
     if research_id is not None:
-        if mode_info["mode"] != "deep":
-            raise HTTPException(status_code=400, detail="Resumable streaming requires Deep Research")
+        if mode_info["mode"] not in {"agent", "deep"}:
+            raise HTTPException(status_code=400, detail="Resumable streaming requires Agent or Deep Research")
+        if durable_streams is not None and (settings.openai_api_key or "").strip():
+            record = await durable_streams.journal.submit(
+                principal_id or "anonymous", research_id, thread_id,
+                {"request": payload.model_copy(update={"model": model}).model_dump(mode="json"), "user_id": user_id},
+            )
+            durable_streams.schedule(record)
+            return _chat_stream_response(record.thread_id, durable_streams.subscribe(record))
         existing = get_research_stream((principal_id or "anonymous", research_id))
         if existing is not None:
-            _require_thread_owner(request, existing.thread_id)
+            await _require_thread_owner(request, existing.thread_id)
             return _chat_stream_response(existing.thread_id, existing.subscribe())
 
     def source_events():
@@ -2337,6 +2528,8 @@ async def chat_sse(
             agent_id=payload.agent_id,
             images=_normalize_images_payload(payload.images),
             user_id=user_id,
+            history=history,
+            conversation_id=payload.conversation_id,
         )
 
     if research_id is not None and (settings.openai_api_key or "").strip():
@@ -2348,6 +2541,7 @@ async def chat_sse(
             raise HTTPException(status_code=503, detail="Deep Research is at capacity") from error
         set_thread_owner(thread_id, principal_id or "anonymous")
         active_streams[thread_id] = run.task
+        run.payload = {"request": payload.model_dump(mode="json"), "user_id": user_id}
         run.task.add_done_callback(lambda _: active_streams.pop(thread_id, None))
         return _chat_stream_response(thread_id, run.subscribe())
 
@@ -2413,12 +2607,16 @@ async def chat_sse(
     return _chat_stream_response(thread_id, _sse_generator())
 
 
-def _require_research_stream(request: Request, research_id: str):
+async def _require_research_stream(request: Request, research_id: str):
     principal_id = (getattr(request.state, "principal_id", "") or "").strip() or "anonymous"
+    if durable_streams is not None:
+        record = await durable_streams.journal.get(principal_id, research_id)
+        if record is not None:
+            return record
     run = get_research_stream((principal_id, research_id))
     if run is None:
         raise HTTPException(status_code=404, detail="Research stream is no longer available")
-    _require_thread_owner(request, run.thread_id)
+    await _require_thread_owner(request, run.thread_id)
     return run
 
 
@@ -2429,7 +2627,11 @@ async def resume_chat_sse(
     last_event_id: Annotated[int, Header(alias="Last-Event-ID", ge=0)] = 0,
 ):
     """Replay an existing Deep Research run and then follow its live stream."""
-    run = _require_research_stream(request, research_id)
+    run = await _require_research_stream(request, research_id)
+    if isinstance(run, RunRecord):
+        if last_event_id > run.event_seq:
+            raise HTTPException(status_code=400, detail="Last-Event-ID is ahead of the research stream")
+        return _chat_stream_response(run.thread_id, durable_streams.subscribe(run, last_event_id))
     if last_event_id > len(run.frames):
         raise HTTPException(status_code=400, detail="Last-Event-ID is ahead of the research stream")
     return _chat_stream_response(run.thread_id, run.subscribe(last_event_id))
@@ -2437,7 +2639,15 @@ async def resume_chat_sse(
 
 @app.delete("/api/chat/sse/{research_id}")
 async def cancel_research_stream(research_id: str, request: Request):
-    run = _require_research_stream(request, research_id)
+    run = await _require_research_stream(request, research_id)
+    if isinstance(run, RunRecord):
+        await durable_streams.journal.request_cancel(
+            run.owner, run.run_id, final_line=run_status_line("cancelled"),
+        )
+        current = await durable_streams.journal.get(run.owner, run.run_id)
+        return {"status": current.status, "thread_id": run.thread_id}
+    if run.cancel_pending_approval():
+        return {"status": "cancelled", "thread_id": run.thread_id}
     return await cancel_chat(run.thread_id, request)
 
 
@@ -2454,6 +2664,18 @@ def _chat_stream_response(thread_id, source):
     )
 
 
+@app.get("/api/tool-artifacts/{artifact_id}", response_class=PlainTextResponse)
+async def download_tool_artifact(artifact_id: str, request: Request):
+    owner = (getattr(request.state, "principal_id", "") or "").strip() or "anonymous"
+    artifact = await run_in_threadpool(get_tool_artifact, artifact_id, owner)
+    if artifact is None:
+        raise HTTPException(status_code=404, detail="Tool artifact not found")
+    return PlainTextResponse(
+        artifact.content,
+        headers={"X-Content-Type-Options": "nosniff", "Content-Disposition": "attachment"},
+    )
+
+
 @app.post("/api/chat")
 async def chat(request: Request, payload: ChatRequest):
     """
@@ -2461,15 +2683,9 @@ async def chat(request: Request, payload: ChatRequest):
 
     Compatible with Vercel AI SDK useChat hook.
     """
-    thread_id = None
+    last_message, history = _chat_turn(payload.messages)
+    thread_id = f"thread_{uuid.uuid4().hex}"
     try:
-        # Get the last user message
-        user_messages = [msg for msg in payload.messages if msg.role == "user"]
-        if not user_messages:
-            logger.warning("Chat request received with no user messages")
-            raise HTTPException(status_code=400, detail="No user message found")
-
-        last_message = user_messages[-1].content
         internal_key = (getattr(settings, "internal_api_key", "") or "").strip()
         principal_id = (getattr(request.state, "principal_id", "") or "").strip()
         user_id = principal_id if internal_key and principal_id else (payload.user_id or settings.memory_user_id)
@@ -2487,10 +2703,9 @@ async def chat(request: Request, payload: ChatRequest):
         logger.info(f"  Message length: {len(last_message)} chars")
         logger.debug(f"  Message preview: {last_message[:200]}...")
 
+        set_thread_owner(thread_id, principal_id or "anonymous")
         if payload.stream:
-            thread_id = f"thread_{uuid.uuid4().hex}"
             logger.info(f"Starting streaming response | Thread: {thread_id}")
-            set_thread_owner(thread_id, principal_id or "anonymous")
 
             # Return streaming response with thread_id in header for cancellation
             return StreamingResponse(
@@ -2502,6 +2717,8 @@ async def chat(request: Request, payload: ChatRequest):
                     agent_id=payload.agent_id,
                     images=_normalize_images_payload(payload.images),
                     user_id=user_id,
+                    history=history,
+                    conversation_id=payload.conversation_id,
                 ),
                 media_type="text/event-stream",
                 headers={
@@ -2520,7 +2737,10 @@ async def chat(request: Request, payload: ChatRequest):
                 "tool_approved": False,
                 "pending_tool_calls": [],
                 "user_id": user_id,
-                "messages": [],
+                "conversation_id": payload.conversation_id,
+                "messages": _seed_run_messages(
+                    last_message, user_id=user_id, mode=mode_info, profile=agent_profile, history=history,
+                ),
                 "research_plan": [],
                 "current_step": 0,
                 "scraped_content": [],
@@ -2536,28 +2756,9 @@ async def chat(request: Request, payload: ChatRequest):
                 "errors": [],
             }
 
-            messages: list[Any] = []
-            if mode_info.get("mode") == "agent" and agent_profile and agent_profile.system_prompt:
-                messages.append(SystemMessage(content=agent_profile.system_prompt))
-            if mode_info.get("use_deep_prompt"):
-                messages.append(SystemMessage(content=get_deep_agent_prompt()))
-
-            store_memories = _store_search(last_message, user_id=user_id)
-            if store_memories:
-                store_text = "\n".join(f"- {m}" for m in store_memories)
-                messages.append(SystemMessage(content=f"Stored memories:\n{store_text}"))
-
-            mem_entries = fetch_memories(query=last_message, user_id=user_id)
-            if mem_entries:
-                memory_text = "\n".join(f"- {m}" for m in mem_entries)
-                messages.append(SystemMessage(content=f"Relevant past knowledge:\n{memory_text}"))
-
-            if messages:
-                initial_state["messages"] = messages
-
             config = {
                 "configurable": {
-                    "thread_id": "default",
+                    "thread_id": thread_id,
                     "model": model,
                     "search_mode": mode_info,
                     "agent_profile": agent_profile.model_dump(mode="json")
@@ -2571,14 +2772,12 @@ async def chat(request: Request, payload: ChatRequest):
                 },
                 "recursion_limit": 50,
             }
-            thread_id = thread_id or f"thread_{uuid.uuid4().hex}"
             metrics = metrics_registry.start(
                 thread_id, model=model, route=mode_info.get("mode", "direct")
             )
             result = await research_graph.ainvoke(initial_state, config=config)
             final_report = result.get("final_report", "No response generated")
-            add_memory_entry(final_report)
-            store_interaction(last_message, final_report)
+            store_interaction(last_message, final_report, user_id=user_id)
             _store_add(last_message, final_report, user_id=user_id)
             metrics_registry.finish(thread_id, cancelled=False)
 
@@ -2613,8 +2812,8 @@ async def resume_interrupt(request: Request, payload: GraphInterruptResumeReques
     # Fast path: avoid invoking the graph when no checkpoint exists for this thread.
     if not payload.thread_id or not str(payload.thread_id).strip():
         raise HTTPException(status_code=400, detail="thread_id is required")
-    _require_thread_owner(request, payload.thread_id)
-    existing = checkpointer.get_tuple({"configurable": {"thread_id": payload.thread_id}})
+    await _require_thread_owner(request, payload.thread_id)
+    existing = await run_in_threadpool(checkpointer.get_tuple, {"configurable": {"thread_id": payload.thread_id}})
     if not existing:
         raise HTTPException(status_code=404, detail="No checkpoint found for this thread_id")
     config = {
@@ -2636,6 +2835,48 @@ async def resume_interrupt(request: Request, payload: GraphInterruptResumeReques
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+    local = find_research_stream(payload.thread_id)
+    record = await durable_streams.journal.get_by_thread(payload.thread_id) if durable_streams is not None else None
+    if (record is not None or local is not None) and isinstance(payload.payload, dict):
+        if payload.payload.get("tool_approved") is True:
+            # A confirmation resumes the stored action and its original arguments.
+            resume_payload = {"decisions": [{"type": "approve"} for _ in resume_payload["decisions"]]}
+    pending_ids = []
+    expected_seq = len(local[1].frames) if local is not None else 0
+    awaiting = record.status == "awaiting_approval" if record is not None else (
+        local is not None and local[1].status == "awaiting_approval"
+    )
+    if awaiting:
+        snapshot = await research_graph.aget_state(config)
+        pending_ids = _interrupt_ids(snapshot.interrupts)
+        expected = payload.payload.get("interrupt_ids") if isinstance(payload.payload, dict) else None
+        if not pending_ids or expected != pending_ids:
+            raise HTTPException(status_code=409, detail="The pending approval changed")
+    if durable_streams is not None:
+        if record is not None:
+            changed = await durable_streams.journal.requeue(
+                record.owner, record.run_id,
+                payload_update={"approval": resume_payload, "approval_interrupt_ids": pending_ids},
+                expected_seq=record.event_seq,
+            )
+            current = await durable_streams.journal.get(record.owner, record.run_id)
+            if changed:
+                durable_streams.schedule(current)
+            return JSONResponse(
+                status_code=202,
+                content={"status": current.status, "run_id": current.run_id, "thread_id": current.thread_id},
+            )
+    if local is not None:
+        key, run = local
+        source = _saved_run_source(run.thread_id, {**run.payload, "approval": resume_payload}, durable=False)
+        if run.resume(source, expected_seq=expected_seq):
+            active_streams[run.thread_id] = run.task
+            run.task.add_done_callback(lambda _: active_streams.pop(run.thread_id, None))
+        else:
+            await source.aclose()
+        return JSONResponse(
+            status_code=202, content={"status": run.status, "run_id": key[1], "thread_id": run.thread_id},
+        )
     result = await research_graph.ainvoke(Command(resume=resume_payload), config=config)
     interrupts = _serialize_interrupts(result.get("__interrupt__"))
     if interrupts:
@@ -3326,7 +3567,7 @@ async def get_traces(thread_id: str, request: Request):
     if not settings.enable_tracing:
         raise HTTPException(status_code=400, detail="Tracing is not enabled")
 
-    _require_thread_owner(request, thread_id)
+    await _require_thread_owner(request, thread_id)
 
     trace = get_trace(thread_id)
     if not trace:
@@ -3347,7 +3588,7 @@ async def get_trace_summary(thread_id: str, request: Request):
     if not settings.enable_tracing:
         raise HTTPException(status_code=400, detail="Tracing is not enabled")
 
-    _require_thread_owner(request, thread_id)
+    await _require_thread_owner(request, thread_id)
 
     summary = _get_summary(thread_id)
     if not summary:
@@ -3368,7 +3609,7 @@ async def get_all_traces(thread_id: str, request: Request):
     if not settings.enable_tracing:
         raise HTTPException(status_code=400, detail="Tracing is not enabled")
 
-    _require_thread_owner(request, thread_id)
+    await _require_thread_owner(request, thread_id)
 
     traces = _get_all(thread_id)
     return {"thread_id": thread_id, "count": len(traces), "traces": traces}
@@ -3439,9 +3680,9 @@ async def export_report_endpoint(
         raise HTTPException(status_code=400, detail="No checkpointer configured")
 
     try:
-        _require_thread_owner(request, thread_id)
+        await _require_thread_owner(request, thread_id)
         config = {"configurable": {"thread_id": thread_id}}
-        checkpoint = checkpointer.get_tuple(config)
+        checkpoint = await run_in_threadpool(checkpointer.get_tuple, config)
         if not checkpoint:
             raise HTTPException(status_code=404, detail=f"No checkpoint found for thread {thread_id}")
 
@@ -3840,7 +4081,7 @@ async def list_sessions(
         user_filter = None
         if internal_key:
             user_filter = (getattr(request.state, "principal_id", "") or "").strip() or "internal"
-        sessions = manager.list_sessions(limit=limit, status_filter=status, user_id_filter=user_filter)
+        sessions = await run_in_threadpool(manager.list_sessions, limit=limit, status_filter=status, user_id_filter=user_filter)
 
         return {
             "count": len(sessions),
@@ -3859,6 +4100,7 @@ async def get_session(thread_id: str, request: Request):
     """
     if not checkpointer:
         raise HTTPException(status_code=400, detail="No checkpointer configured")
+    await _require_thread_owner(request, thread_id)
 
     try:
         from common.session_manager import get_session_manager
@@ -3868,13 +4110,13 @@ async def get_session(thread_id: str, request: Request):
         internal_key = (getattr(settings, "internal_api_key", "") or "").strip()
         if internal_key:
             principal_id = (getattr(request.state, "principal_id", "") or "").strip()
-            session_state = manager.get_session_state(thread_id)
+            session_state = await run_in_threadpool(manager.get_session_state, thread_id)
             if session_state and isinstance(session_state.state, dict):
                 owner = session_state.state.get("user_id")
                 if isinstance(owner, str) and owner.strip() and owner.strip() != principal_id:
                     raise HTTPException(status_code=403, detail="Forbidden")
 
-        session = manager.get_session(thread_id)
+        session = await run_in_threadpool(manager.get_session, thread_id)
 
         if not session:
             raise HTTPException(status_code=404, detail=f"Session not found: {thread_id}")
@@ -3895,12 +4137,13 @@ async def get_session_state(thread_id: str, request: Request):
     """
     if not checkpointer:
         raise HTTPException(status_code=400, detail="No checkpointer configured")
+    await _require_thread_owner(request, thread_id)
 
     try:
         from common.session_manager import get_session_manager
 
         manager = get_session_manager(checkpointer)
-        state = manager.get_session_state(thread_id)
+        state = await run_in_threadpool(manager.get_session_state, thread_id)
 
         if not state:
             raise HTTPException(status_code=404, detail=f"Session not found: {thread_id}")
@@ -3928,12 +4171,13 @@ async def get_session_evidence(thread_id: str, request: Request):
     """
     if not checkpointer:
         raise HTTPException(status_code=400, detail="No checkpointer configured")
+    await _require_thread_owner(request, thread_id)
 
     try:
         from common.session_manager import get_session_manager
 
         manager = get_session_manager(checkpointer)
-        session_state = manager.get_session_state(thread_id)
+        session_state = await run_in_threadpool(manager.get_session_state, thread_id)
         if not session_state:
             raise HTTPException(status_code=404, detail=f"Session not found: {thread_id}")
 
@@ -3990,21 +4234,21 @@ async def resume_session(
     try:
         from common.session_manager import get_session_manager
 
-        _require_thread_owner(request, thread_id)
+        await _require_thread_owner(request, thread_id)
 
         manager = get_session_manager(checkpointer)
 
         # Check if session can be resumed
-        can_resume, reason = manager.can_resume(thread_id)
+        can_resume, reason = await run_in_threadpool(manager.can_resume, thread_id)
         if not can_resume:
             raise HTTPException(status_code=400, detail=reason)
 
         # Get current state
-        state = manager.get_session_state(thread_id)
+        state = await run_in_threadpool(manager.get_session_state, thread_id)
         if not state:
             raise HTTPException(status_code=404, detail=f"Session not found: {thread_id}")
 
-        restored_state = manager.build_resume_state(
+        restored_state = await run_in_threadpool(manager.build_resume_state,
             thread_id=thread_id,
             additional_input=payload.additional_input if payload else None,
             update_state=payload.update_state if payload else None,
@@ -4099,10 +4343,10 @@ async def delete_session(thread_id: str, request: Request):
     try:
         from common.session_manager import get_session_manager
 
-        _require_thread_owner(request, thread_id)
+        await _require_thread_owner(request, thread_id)
 
         manager = get_session_manager(checkpointer)
-        success = manager.delete_session(thread_id)
+        success = await run_in_threadpool(manager.delete_session, thread_id)
 
         if not success:
             raise HTTPException(status_code=400, detail=f"Failed to delete session: {thread_id}")
@@ -4168,7 +4412,7 @@ class VersionsResponse(BaseModel):
 async def create_share(thread_id: str, request: Request, req: ShareRequest):
     """Create a share link for a session."""
     try:
-        _require_thread_owner(request, thread_id)
+        await _require_thread_owner(request, thread_id)
         from common.collaboration import create_share_link
 
         link = create_share_link(
@@ -4202,7 +4446,7 @@ async def get_share(share_id: str):
             from common.session_manager import get_session_manager
 
             manager = get_session_manager(checkpointer)
-            session_state = manager.get_session_state(link["thread_id"])
+            session_state = await run_in_threadpool(manager.get_session_state, link["thread_id"])
             if session_state and isinstance(session_state.state, dict):
                 state = session_state.state
                 raw_messages = state.get("messages", [])
@@ -4284,7 +4528,7 @@ async def delete_share(share_id: str):
 async def add_comment(thread_id: str, request: Request, req: CommentRequest):
     """Add a comment to a session."""
     try:
-        _require_thread_owner(request, thread_id)
+        await _require_thread_owner(request, thread_id)
         from common.collaboration import add_comment
 
         comment = add_comment(
@@ -4303,7 +4547,7 @@ async def add_comment(thread_id: str, request: Request, req: CommentRequest):
 async def get_comments(thread_id: str, request: Request, message_id: Optional[str] = None):
     """Get comments for a session."""
     try:
-        _require_thread_owner(request, thread_id)
+        await _require_thread_owner(request, thread_id)
         from common.collaboration import get_comments
 
         comments = get_comments(thread_id, message_id)
@@ -4317,7 +4561,7 @@ async def get_comments(thread_id: str, request: Request, message_id: Optional[st
 async def get_versions(thread_id: str, request: Request):
     """Get version history for a session."""
     try:
-        _require_thread_owner(request, thread_id)
+        await _require_thread_owner(request, thread_id)
         from common.collaboration import list_versions
 
         versions = list_versions(thread_id)
@@ -4334,13 +4578,13 @@ async def create_version(thread_id: str, request: Request, label: Optional[str] 
         if not checkpointer:
             raise HTTPException(status_code=400, detail="No checkpointer configured")
 
-        _require_thread_owner(request, thread_id)
+        await _require_thread_owner(request, thread_id)
 
         from common.collaboration import save_version
         from common.session_manager import get_session_manager
 
         manager = get_session_manager(checkpointer)
-        session = manager.get_session(thread_id)
+        session = await run_in_threadpool(manager.get_session, thread_id)
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")
 
@@ -4365,7 +4609,7 @@ async def create_version(thread_id: str, request: Request, label: Optional[str] 
 async def restore_version(thread_id: str, version_id: str, request: Request):
     """Restore a session from a version snapshot."""
     try:
-        _require_thread_owner(request, thread_id)
+        await _require_thread_owner(request, thread_id)
         from common.collaboration import get_version_snapshot
 
         snapshot = get_version_snapshot(version_id)
@@ -4415,9 +4659,9 @@ async def get_interrupt_status(thread_id: str, request: Request):
         raise HTTPException(status_code=400, detail="No checkpointer configured")
 
     try:
-        _require_thread_owner(request, thread_id)
+        await _require_thread_owner(request, thread_id)
         config = {"configurable": {"thread_id": thread_id}}
-        checkpoint_tuple = checkpointer.get_tuple(config)
+        checkpoint_tuple = await run_in_threadpool(checkpointer.get_tuple, config)
 
         if not checkpoint_tuple:
             raise HTTPException(status_code=404, detail=f"Session not found: {thread_id}")
@@ -4496,9 +4740,9 @@ async def resume_from_interrupt(thread_id: str, request: Request, payload: Inter
         raise HTTPException(status_code=400, detail="No checkpointer configured")
 
     try:
-        _require_thread_owner(request, thread_id)
+        await _require_thread_owner(request, thread_id)
         config = {"configurable": {"thread_id": thread_id}}
-        checkpoint_tuple = checkpointer.get_tuple(config)
+        checkpoint_tuple = await run_in_threadpool(checkpointer.get_tuple, config)
 
         if not checkpoint_tuple:
             raise HTTPException(status_code=404, detail=f"Session not found: {thread_id}")
@@ -4912,7 +5156,7 @@ async def list_screenshots(request: Request, thread_id: Optional[str] = None, li
     if internal_key:
         if not thread_id or not str(thread_id).strip():
             raise HTTPException(status_code=400, detail="thread_id is required")
-        _require_thread_owner(request, str(thread_id))
+        await _require_thread_owner(request, str(thread_id))
 
     service = get_screenshot_service()
     screenshots = service.list_screenshots(thread_id=thread_id, limit=limit)
@@ -4954,7 +5198,7 @@ async def stream_tool_events(thread_id: str, request: Request, last_event_id: Op
             console.log(data.type, data.data);
         };
     """
-    _require_thread_owner(request, thread_id)
+    await _require_thread_owner(request, thread_id)
 
     async def event_generator():
         def _as_message_event(frame: str) -> str:
@@ -5039,7 +5283,7 @@ async def get_browser_session_info(thread_id: str, request: Request):
 
     Returns browser session status and capabilities for real-time viewing.
     """
-    _require_thread_owner(request, thread_id)
+    await _require_thread_owner(request, thread_id)
 
     result = {
         "active": False,
@@ -5085,7 +5329,7 @@ async def trigger_browser_screenshot(thread_id: str, request: Request):
     """
     Trigger a manual screenshot capture for the browser session.
     """
-    _require_thread_owner(request, thread_id)
+    await _require_thread_owner(request, thread_id)
 
     # Avoid cold-starting a sandbox here: manual screenshots should only be
     # available once a live session already exists (e.g. via the WS viewer or
@@ -5210,7 +5454,7 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
                 from common.session_manager import get_session_manager
 
                 manager = get_session_manager(checkpointer)
-                session_state = manager.get_session_state(thread_id)
+                session_state = await run_in_threadpool(manager.get_session_state, thread_id)
                 if session_state and isinstance(session_state.state, dict):
                     persisted_owner = session_state.state.get("user_id")
                     if (
@@ -6662,6 +6906,8 @@ async def handle_webhook(
 
 
 if __name__ == "__main__":
+    import sys
+
     import uvicorn
 
     # `settings` reads from `.env` (see `common/config.py`). This makes the
@@ -6697,4 +6943,5 @@ if __name__ == "__main__":
         reload_dirs=reload_dirs,
         reload_excludes=reload_excludes,
         log_level="info",
+        loop="common.server_loop:postgres_event_loop" if sys.platform == "win32" and settings.database_url else "auto",
     )

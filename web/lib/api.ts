@@ -8,3 +8,7 @@ export function getApiBaseUrl(): string {
 export function getApiWsBaseUrl(): string {
   return getApiBaseUrl().replace(/^http/, 'ws')
 }
+
+export function getArtifactDownloadUrl(path?: string): string | undefined {
+  return path?.startsWith('/') && !path.startsWith('//') ? getApiBaseUrl() + path : undefined
+}

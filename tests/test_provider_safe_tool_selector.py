@@ -1,15 +1,8 @@
-import sys
-from pathlib import Path
-
+import pytest
 from langchain.agents.middleware.types import ModelRequest, ModelResponse
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
-
-# Ensure project root is on sys.path for direct test execution
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
 from agent.workflows.provider_safe_middleware import ProviderSafeToolSelectorMiddleware
 
@@ -101,3 +94,18 @@ def test_provider_safe_tool_selector_caches_same_request_signature():
 
     assert model.methods == ["function_calling"]
     assert captured == [["beta_tool"], ["beta_tool"]]
+
+
+def test_primary_model_failure_does_not_retry_tool_selection():
+    model = _FakeSelectionModel()
+    middleware = ProviderSafeToolSelectorMiddleware(model=model, max_tools=1)
+    calls = []
+
+    def fail(request):
+        calls.append([tool.name for tool in request.tools])
+        raise RuntimeError("fixture model failure")
+
+    request = ModelRequest(model=model, messages=[HumanMessage("Use beta")], tools=[alpha_tool, beta_tool])
+    with pytest.raises(RuntimeError, match="fixture model failure"):
+        middleware.wrap_model_call(request, fail)
+    assert calls == [["beta_tool"]]

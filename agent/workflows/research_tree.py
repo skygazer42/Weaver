@@ -26,6 +26,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
+from agent.workflows.research_steps import run_research_step
 from common.cancellation import check_cancellation as _check_cancel_token
 from common.config import settings
 
@@ -394,7 +395,7 @@ class TreeExplorer:
             num_subtopics=num_subtopics,
         )
 
-        response = self.planner_llm.invoke(msg, config=self.config)
+        response = run_research_step(self.config, self.planner_llm.invoke, msg, config=self.config)
         content = getattr(response, "content", "") or ""
 
         parsed = _parse_json_output(content)
@@ -509,7 +510,7 @@ class TreeExplorer:
                     query_num=remaining,
                 )
 
-                response = self.planner_llm.invoke(msg, config=self.config)
+                response = run_research_step(self.config, self.planner_llm.invoke, msg, config=self.config)
                 queries = self._parse_list_output(getattr(response, "content", ""))
 
                 seen = {q.strip().lower() for q in (node.queries or []) if isinstance(q, str)}
@@ -584,7 +585,7 @@ class TreeExplorer:
             findings="\n\n".join(findings_text),
         )
 
-        response = self.researcher_llm.invoke(msg, config=self.config)
+        response = run_research_step(self.config, self.researcher_llm.invoke, msg, config=self.config)
         return getattr(response, "content", "") or ""
 
     def merge_branches(self, nodes: List[ResearchTreeNode]) -> str:
@@ -629,7 +630,7 @@ class TreeExplorer:
             branch_summaries="\n\n".join(branch_summaries),
         )
 
-        response = self.writer_llm.invoke(msg, config=self.config)
+        response = run_research_step(self.config, self.writer_llm.invoke, msg, config=self.config)
         return getattr(response, "content", "") or ""
 
     def run(

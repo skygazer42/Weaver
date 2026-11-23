@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { Artifact } from '@/types/chat'
 import { CodeBlock } from './message/CodeBlock'
+import { getArtifactDownloadUrl } from '@/lib/api'
 
 interface ArtifactsPanelProps {
   artifacts: Artifact[]
@@ -66,7 +67,7 @@ export function ArtifactsPanel({ artifacts, isOpen = true, onToggle }: Artifacts
   }
 
   return (
-    <div className="flex flex-col h-full bg-muted/30 border-l backdrop-blur-sm transition-all duration-300 w-full">
+    <section aria-label="Artifacts" className="flex flex-col h-full bg-muted/30 border-l backdrop-blur-sm transition-all duration-300 w-full">
       <div className="flex items-center justify-between p-4 border-b bg-background/50">
         <div className="flex items-center gap-2">
             {onToggle && (
@@ -93,11 +94,12 @@ export function ArtifactsPanel({ artifacts, isOpen = true, onToggle }: Artifacts
           ))}
         </div>
       </ScrollArea>
-    </div>
+    </section>
   )
 }
 
 function ArtifactCard({ artifact, isFullscreen }: { artifact: Artifact, isFullscreen?: boolean }) {
+  const downloadUrl = getArtifactDownloadUrl(artifact.download_url)
   const getIcon = () => {
     switch (artifact.type) {
       case 'report': return <FileText className="h-4 w-4 text-orange-500" />
@@ -121,6 +123,13 @@ function ArtifactCard({ artifact, isFullscreen }: { artifact: Artifact, isFullsc
                 {artifact.title}
              </CardTitle>
         </div>
+        {downloadUrl && (
+          <Button asChild variant="ghost" size="icon" className="h-6 w-6 shrink-0">
+            <a href={downloadUrl} download aria-label={`Download ${artifact.title}`}>
+              <Download aria-hidden="true" className="h-3 w-3" />
+            </a>
+          </Button>
+        )}
         {artifact.type === 'chart' && (
              <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity">
                  <Download className="h-3 w-3" />
@@ -128,7 +137,7 @@ function ArtifactCard({ artifact, isFullscreen }: { artifact: Artifact, isFullsc
         )}
       </CardHeader>
       
-      <CardContent className={cn("p-0 text-xs", artifact.type === 'report' ? "p-3 bg-background" : "bg-zinc-950")}>
+      <CardContent className={cn("p-0 text-xs", ['report', 'tool_output'].includes(artifact.type) ? "bg-background" : "bg-zinc-950")}>
         {artifact.type === 'chart' && artifact.image ? (
           <div className="relative group/image">
              <div className="absolute inset-0 bg-black/0 group-hover/image:bg-black/5 transition-colors" />
@@ -138,6 +147,8 @@ function ArtifactCard({ artifact, isFullscreen }: { artifact: Artifact, isFullsc
                 className={cn("w-full object-contain bg-white", isFullscreen ? "h-auto max-h-[600px]" : "h-auto")}
              />
           </div>
+        ) : artifact.type === 'tool_output' ? (
+          <pre className="whitespace-pre-wrap break-words p-3">{artifact.content}</pre>
         ) : artifact.type === 'code' ? (
           <div className="p-2">
              <CodeBlock language="python" value={artifact.content} />

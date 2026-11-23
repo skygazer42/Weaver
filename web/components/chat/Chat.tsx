@@ -11,11 +11,11 @@ import { ChatInput } from './ChatInput'
 import { Loader2, ArrowDown, X, Monitor } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { Message } from '@/types/chat'
+import { Message, RUN_STATUS_LABELS } from '@/types/chat'
 import { STORAGE_KEYS, DEFAULT_MODEL } from '@/lib/constants'
 import { StorageService } from '@/lib/storage-service'
 import { useChatHistory } from '@/hooks/useChatHistory'
-import { cancelResearch, useChatStream } from '@/hooks/useChatStream'
+import { cancelRun, useChatStream } from '@/hooks/useChatStream'
 import { filesToImageAttachments } from '@/lib/file-utils'
 import { Discover } from '@/components/views/Discover'
 import { Library } from '@/components/views/Library'
@@ -42,7 +42,8 @@ export function Chat() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   const lastAtBottom = useRef<boolean | null>(null)
-  const restoredResearch = useRef(false)
+  const restoredRun = useRef(false)
+  const submissionRef = useRef<symbol | null>(null)
 
   const { 
     history, 
@@ -59,49 +60,44 @@ export function Chat() {
     messages,
     setMessages,
     isLoading,
-    isResearchSnapshot,
-    setIsLoading, // Exposed but maybe not needed directly if handleStop covers it
+    isRunSnapshot,
+    connectionLost,
+    isDeciding,
+    isStopping,
     currentStatus,
     setCurrentStatus,
-    artifacts,
-    setArtifacts,
     pendingInterrupt,
     setPendingInterrupt,
     threadId,
     setThreadId,
     processChat,
-    resumeResearch,
+    resumeRun,
     detachChat,
     handleStop,
-    handleApproveInterrupt
+    decideInterrupt,
   } = useChatStream({ selectedModel, searchMode })
 
+  const runStatus = messages.at(-1)?.runStatus
+  const artifacts = messages.flatMap((message) => message.artifacts ?? [])
+  const activeRun = currentSessionId ? StorageService.getRun(currentSessionId) : null
+  const approvalPrompts = pendingInterrupt?.prompts ?? (pendingInterrupt ? [pendingInterrupt] : [])
+
   useEffect(() => {
-    if (isHistoryLoading || restoredResearch.current) return
-    restoredResearch.current = true
-    const sessionId = StorageService.getRecentResearchSession()
-      || history.find((item) => StorageService.getResearchId(item.id))?.id
+    if (isHistoryLoading || restoredRun.current) return
+    restoredRun.current = true
+    const sessionId = StorageService.getRecentRunSession()
+      || history.find((item) => StorageService.getRun(item.id))?.id
     if (!sessionId) return
-    const researchId = StorageService.getResearchId(sessionId)
-    if (!researchId) return
+    const run = StorageService.getRun(sessionId)
+    if (!run) return
     const saved = StorageService.getSessionMessages<Message>(sessionId)
     if (saved.length === 0) return
     setMessages(saved)
     setCurrentSessionId(sessionId)
-    setSearchMode('ultra')
-    if (!history.some((item) => item.id === sessionId)) saveToHistory(saved, sessionId)
-    void resumeResearch(sessionId, researchId, saved)
-  }, [history, isHistoryLoading, resumeResearch, saveToHistory, setMessages])
-
-  // Debug: Log browser viewer conditions
-  useEffect(() => {
-    console.log('[Chat] Browser Viewer Debug:', {
-      currentView,
-      threadId,
-      showBrowserViewer,
-      shouldShow: currentView === 'dashboard' && !!threadId
-    })
-  }, [currentView, threadId, showBrowserViewer])
+    setSearchMode(run.searchMode)
+    if (!history.some((item) => item.id === sessionId)) saveToHistory(saved, sessionId, run.searchMode)
+    void resumeRun(sessionId, run, saved)
+  }, [history, isHistoryLoading, resumeRun, saveToHistory, setMessages])
 
   // Load Model from LocalStorage
   useEffect(() => {
@@ -118,45 +114,43 @@ export function Chat() {
 
   // Auto-save messages when they update during streaming or after approval
   useEffect(() => {
-    if (messages.length > 0 && currentSessionId && !isLoading && !isResearchSnapshot) {
+    if (messages.length > 0 && currentSessionId && !isLoading && !isRunSnapshot) {
       saveToHistory(messages, currentSessionId)
     }
-  }, [messages, currentSessionId, isLoading, isResearchSnapshot, saveToHistory])
+  }, [messages, currentSessionId, isLoading, isRunSnapshot, saveToHistory])
 
   // Auto-scroll logic handled by Virtuoso's followOutput, 
   // but we can add specific triggers if needed.
 
   const handleNewChat = () => {
       detachChat()
-      if (messages.length > 0 && !isResearchSnapshot) {
-        saveToHistory(messages, currentSessionId || undefined)
-      }
+      submissionRef.current = null
       
       setCurrentView('dashboard') // Switch back to chat view
       setCurrentSessionId(null)
       
       // Reset state
       setMessages([])
-      setArtifacts([])
       setCurrentStatus('')
       setInput('')
+      setAttachments([])
       setThreadId(null)
       setPendingInterrupt(null)
       setSearchMode('') // default to direct LLM
   }
 
-  const stopSavedResearch = (id: string) => {
-    const researchId = StorageService.getResearchId(id)
-    if (!researchId) return false
-    void cancelResearch(researchId).catch((error) => console.error('Failed to stop research', error))
+  const stopSavedRun = (id: string) => {
+    const run = StorageService.getRun(id)
+    if (!run) return false
+    void cancelRun(run.id).catch((error) => console.error('Failed to stop run', error))
     return true
   }
 
   const handleDeleteChat = (id: string) => {
-      const stoppedResearch = stopSavedResearch(id)
+      const stoppedRun = stopSavedRun(id)
       deleteSession(id)
       if (currentSessionId === id) {
-          if (!stoppedResearch) void handleStop()
+          if (!stoppedRun) void handleStop()
           handleNewChat()
       }
   }
@@ -164,16 +158,17 @@ export function Chat() {
   const handleClearHistory = () => {
       const ids = new Set(history.map((session) => session.id))
       if (currentSessionId) ids.add(currentSessionId)
-      for (const id of ids) stopSavedResearch(id)
-      if (!isResearchSnapshot) void handleStop()
+      for (const id of ids) stopSavedRun(id)
+      if (!isRunSnapshot) void handleStop()
       clearHistory()
       handleNewChat() // Reset current view as well
   }
 
   const handleChatSelect = (id: string) => {
     detachChat()
+    submissionRef.current = null
     // Save current chat if not empty
-    if (messages.length > 0 && !isResearchSnapshot) {
+    if (messages.length > 0 && !isRunSnapshot) {
         saveToHistory(messages, currentSessionId || undefined)
     }
     
@@ -184,49 +179,53 @@ export function Chat() {
       setCurrentSessionId(id)
       setCurrentView('dashboard') // Ensure we are on the chat view
       // Reset other state
-      setArtifacts([]) 
       setCurrentStatus('')
       setInput('')
+      setAttachments([])
       setThreadId(null)
       setPendingInterrupt(null)
-      const researchId = StorageService.getResearchId(id)
-      if (researchId) {
-        setSearchMode('ultra')
-        void resumeResearch(id, researchId, loadedMessages)
-      }
+      const run = StorageService.getRun(id)
+      setSearchMode(run?.searchMode ?? history.find((item) => item.id === id)?.searchMode ?? '')
+      if (run) void resumeRun(id, run, loadedMessages)
     }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if ((!input.trim() && attachments.length === 0) || isLoading) return
-    const pendingResearch = currentSessionId && StorageService.getResearchId(currentSessionId)
-    if (currentSessionId && pendingResearch) {
-      await resumeResearch(currentSessionId, pendingResearch, messages)
+    if ((!input.trim() && attachments.length === 0) || isLoading || pendingInterrupt || submissionRef.current) return
+    if (currentSessionId && activeRun) {
+      await resumeRun(currentSessionId, activeRun, messages)
       return
     }
 
-    const imagePayloads = await filesToImageAttachments(attachments)
+    const submission = Symbol()
+    submissionRef.current = submission
+    try {
+      const imagePayloads = await filesToImageAttachments(attachments)
+      if (submissionRef.current !== submission) return
 
-    const userMessage: Message = {
-      id: `user-${Date.now()}`,
-      role: 'user',
-      content: input.trim(),
-      attachments: imagePayloads
-    }
+      const userMessage: Message = {
+        id: `user-${Date.now()}`,
+        role: 'user',
+        content: input.trim(),
+        attachments: imagePayloads
+      }
 
-    const newHistory = [...messages, userMessage]
-    setMessages(newHistory)
-    setInput('')
-    setAttachments([])
+      const newHistory = [...messages, userMessage]
+      setMessages(newHistory)
+      setInput('')
+      setAttachments([])
     
-    const id = saveToHistory(newHistory, currentSessionId || undefined)
-    if (id) setCurrentSessionId(id)
-    await processChat(newHistory, imagePayloads, id || undefined)
+      const id = saveToHistory(newHistory, currentSessionId || undefined, searchMode)
+      if (id) setCurrentSessionId(id)
+      await processChat(newHistory, imagePayloads, id || undefined)
+    } finally {
+      if (submissionRef.current === submission) submissionRef.current = null
+    }
   }
 
   const handleEditMessage = async (id: string, newContent: string) => {
-      if (isLoading || (currentSessionId && StorageService.getResearchId(currentSessionId))) return
+      if (isLoading || activeRun || pendingInterrupt) return
       const index = messages.findIndex(m => m.id === id)
       if (index === -1) return
 
@@ -240,10 +239,22 @@ export function Chat() {
       setMessages(newHistory)
 
       if (updatedMessage.role === 'user') {
-          const session = saveToHistory(newHistory, currentSessionId || undefined)
+          const session = saveToHistory(newHistory, currentSessionId || undefined, searchMode)
           if (session) setCurrentSessionId(session)
           await processChat(newHistory, updatedMessage.attachments, session || undefined)
       }
+  }
+
+  const retryResearch = () => {
+    if (!currentSessionId || isLoading || activeRun) return
+    const index = messages.findLastIndex((message) => message.role === 'user')
+    if (index < 0) return
+    const previousMessages = messages.slice(0, index + 1)
+    const mode = history.find((session) => session.id === currentSessionId)?.searchMode ?? searchMode
+    setSearchMode(mode)
+    setMessages(previousMessages)
+    saveToHistory(previousMessages, currentSessionId, mode)
+    void processChat(previousMessages, messages[index].attachments, currentSessionId, mode)
   }
 
   const handleStarterClick = (text: string, mode: string) => {
@@ -297,19 +308,6 @@ export function Chat() {
                         <MessageItem key={message.id} message={message} onEdit={handleEditMessage} />
                     </div>
                 )}
-                components={{
-                    Footer: () => (
-                        <div className="max-w-5xl mx-auto px-4 sm:px-0 pb-4">
-                            {currentStatus && (
-                                <div className="flex items-center gap-2 text-sm text-muted-foreground py-2 animate-in fade-in slide-in-from-bottom-2">
-                                    {isLoading && <Loader2 className="h-3 w-3 animate-spin text-primary" />}
-                                    <span className="font-medium animate-pulse">{currentStatus}</span>
-                                </div>
-                            )}
-                            <div className="h-4" /> 
-                        </div>
-                    )
-                }}
             />
           )}
         </div>
@@ -367,21 +365,46 @@ export function Chat() {
                     </Button>
                 </div>
 
+                {(runStatus || currentStatus || isStopping) && (
+                  <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-2 px-4 py-2 text-sm text-muted-foreground">
+                    {isLoading && <Loader2 aria-hidden="true" className="h-3 w-3 animate-spin text-primary" />}
+                    {runStatus && <span role="status" aria-label="Run status" className="font-medium">{RUN_STATUS_LABELS[runStatus]}</span>}
+                    {isStopping ? <span>Stopping…</span> : currentStatus && <span>{currentStatus}</span>}
+                    {connectionLost && currentSessionId && activeRun && (
+                      <Button size="sm" variant="outline" onClick={() => void resumeRun(currentSessionId, activeRun, messages)}>Reconnect</Button>
+                    )}
+                    {runStatus === 'insufficient_evidence' && !activeRun && (
+                      <Button size="sm" variant="outline" onClick={retryResearch}>Retry research</Button>
+                    )}
+                  </div>
+                )}
+
                 {pendingInterrupt && (
-                <div className="mx-4 mb-3 p-3 border rounded-xl bg-amber-50 text-amber-900 shadow-sm flex flex-col gap-2">
-                    <div className="text-sm font-semibold">Tool approval required</div>
-                    <div className="text-xs text-amber-800">
-                    {pendingInterrupt.message || pendingInterrupt?.prompts?.[0]?.message || 'Approve tool execution to continue.'}
-                    </div>
+                <section aria-labelledby="tool-approval-title" className="mx-4 mb-3 max-h-[40vh] overflow-auto p-3 border rounded-xl bg-amber-50 text-amber-900 shadow-sm flex flex-col gap-2">
+                    <h2 id="tool-approval-title" className="text-sm font-semibold">Tool approval required</h2>
+                    {approvalPrompts.map((prompt, index) => (
+                      <div key={index} className="space-y-2 text-xs text-amber-800">
+                        {prompt.message && <p>{prompt.message}</p>}
+                        {(prompt.action_requests ?? prompt.tool_calls ?? []).map((action, actionIndex) => (
+                          <div key={action.id ?? actionIndex}>
+                            <div className="font-medium">{action.name}</div>
+                            {action.description && <p className="whitespace-pre-wrap">{action.description}</p>}
+                            {action.args && (
+                              <pre className="overflow-x-auto whitespace-pre-wrap break-words">{typeof action.args === 'string' ? action.args : JSON.stringify(action.args, null, 2)}</pre>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ))}
                     <div className="flex gap-2">
-                    <Button size="sm" onClick={handleApproveInterrupt} disabled={isLoading}>
+                    <Button size="sm" onClick={() => void decideInterrupt(true)} disabled={!threadId || isLoading || isStopping}>
                         Approve & Continue
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => setPendingInterrupt(null)} disabled={isLoading}>
-                        Dismiss
+                    <Button size="sm" variant="ghost" onClick={() => void decideInterrupt(false)} disabled={!threadId || isLoading || isStopping}>
+                        Reject
                     </Button>
                     </div>
-                </div>
+                </section>
                 )}
            </>
         )}
@@ -397,6 +420,9 @@ export function Chat() {
             setAttachments={setAttachments}
             onSubmit={handleSubmit}
             isLoading={isLoading}
+            awaitingApproval={Boolean(pendingInterrupt)}
+            canStop={!isDeciding && (isLoading || (!!activeRun && (!!pendingInterrupt || connectionLost)))}
+            isStopping={isStopping}
             onStop={handleStop}
             searchMode={searchMode}
             setSearchMode={setSearchMode}

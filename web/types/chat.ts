@@ -6,6 +6,44 @@ export interface ToolInvocation {
   result?: any
 }
 
+export const RUN_STATUS_LABELS = {
+  queued: 'Queued',
+  running: 'Running',
+  awaiting_approval: 'Awaiting approval',
+  completed: 'Completed',
+  failed: 'Failed',
+  cancelled: 'Cancelled',
+  insufficient_evidence: 'Insufficient evidence',
+} as const
+
+export type RunStatus = keyof typeof RUN_STATUS_LABELS
+
+export interface ApprovalAction {
+  id?: string
+  name: string
+  args?: Record<string, unknown> | string
+  description?: string
+}
+
+export interface ApprovalPrompt {
+  message?: string
+  action_requests?: ApprovalAction[]
+  tool_calls?: ApprovalAction[]
+}
+
+export interface PendingInterrupt extends ApprovalPrompt {
+  interrupt_ids?: string[]
+  prompts?: ApprovalPrompt[]
+}
+
+export interface ChatRun {
+  id: string
+  searchMode: string
+  lastEventId?: number
+  assistant?: Message
+  interrupt?: PendingInterrupt
+}
+
 export interface ProcessEvent {
   id: string
   type: string
@@ -51,6 +89,8 @@ export interface Message {
   createdAt?: number
   completedAt?: number
   isStreaming?: boolean
+  runStatus?: RunStatus
+  artifacts?: Artifact[]
 }
 
 export interface ChatSession {
@@ -62,18 +102,21 @@ export interface ChatSession {
   tags?: string[]
   isPinned?: boolean
   summary?: string
+  searchMode?: string
 }
 
 export interface Artifact {
   id: string
   sessionId?: string
   // Backend may emit richer artifact types (e.g. reports/charts) during streaming.
-  type: 'code' | 'image' | 'text' | 'file' | 'report' | 'chart'
+  type: 'code' | 'image' | 'text' | 'file' | 'report' | 'chart' | 'tool_output'
   title: string
   content: string
   image?: string // Base64 image payload (e.g. chart screenshots)
   mimeType?: string
   fileSize?: number
+  download_url?: string
+  tool_call_id?: string
   createdAt: number
   updatedAt: number
   tags?: string[]

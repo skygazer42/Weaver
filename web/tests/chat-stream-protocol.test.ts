@@ -36,8 +36,8 @@ test('replays SSE frames split across network chunks and ignores retry and heart
   )
   assert.deepEqual(first, [])
   assert.deepEqual(second, [
-    { type: 'completion', data: { content: 'report' } },
-    { type: 'done', data: { thread_id: 'thread_id' } },
+    { id: 3, type: 'completion', data: { content: 'report' } },
+    { id: 4, type: 'done', data: { thread_id: 'thread_id' } },
   ])
 })
 

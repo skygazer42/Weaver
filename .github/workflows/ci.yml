@@ -92,8 +92,35 @@ jobs:
       - name: Lint (ESLint)
         run: pnpm -C web lint
 
+      - name: Unit tests
+        run: pnpm -C web test
+
+      - name: Type check
+        run: pnpm -C web exec tsc --noEmit
+
       - name: Build (next build)
         run: pnpm -C web build
+
+      - name: Set up Python for browser tests
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install Playwright Chromium
+        run: |
+          python -m pip install playwright==1.65.2
+          python -m playwright install --with-deps chromium
+
+      - name: Browser E2E
+        run: pnpm -C web e2e
+
+      - name: Upload browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: weaver-browser-failures
+          path: web/test-results/
+          if-no-files-found: ignore
 
   docker:
     runs-on: ubuntu-latest

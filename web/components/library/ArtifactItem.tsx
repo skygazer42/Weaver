@@ -25,6 +25,7 @@ export function ArtifactItem({ artifact, onDelete, onDownload }: ArtifactItemPro
     file: File,
     report: FileText,
     chart: BarChart,
+    tool_output: FileText,
   }[artifact.type] || File
 
   return (

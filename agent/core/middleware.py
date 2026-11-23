@@ -71,8 +71,13 @@ def enforce_tool_call_limit(state: Dict[str, Any], limit: int) -> None:
 
 def maybe_strip_tool_messages(messages: List[BaseMessage]) -> List[BaseMessage]:
     """
-    Optionally remove ToolMessage from history to save tokens.
+    Optionally clear saved tool output while preserving its call ID.
     """
     if not settings.strip_tool_messages:
         return messages
-    return [m for m in messages if not isinstance(m, ToolMessage)]
+    return [
+        message.model_copy(update={"content": "[Tool result omitted]"})
+        if isinstance(message, ToolMessage)
+        else message
+        for message in messages
+    ]

@@ -1,4 +1,5 @@
 export interface LegacyChatStreamEvent {
+  id?: number
   type: string
   data: any
 }
@@ -60,13 +61,14 @@ export function consumeSseChatStreamChunk(
   const events: LegacyChatStreamEvent[] = []
   for (const frame of frames) {
     const lines = frame.split(/\r?\n/)
+    const id = Number(lines.find((line) => line.startsWith('id:'))?.slice(3).trim())
     const type = lines.find((line) => line.startsWith('event:'))?.slice(6).trim()
     const data = lines.filter((line) => line.startsWith('data:'))
       .map((line) => line.slice(5).replace(/^ /, '')).join('\n')
     if (!data) continue
     const payload = JSON.parse(data)
-    if (payload?.type) events.push(payload)
-    else if (type) events.push({ type, data: payload })
+    const event = payload?.type ? payload : type ? { type, data: payload } : null
+    if (event) events.push(Number.isSafeInteger(id) && id > 0 ? { ...event, id } : event)
   }
   return events
 }

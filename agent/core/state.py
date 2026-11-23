@@ -1,7 +1,7 @@
 import operator
 from typing import Annotated, Any, Dict, List, Literal, Optional, TypedDict
 
-from langchain_core.messages import BaseMessage, SystemMessage
+from langchain_core.messages import BaseMessage, HumanMessage, ToolMessage
 from langgraph.graph.message import add_messages
 
 from agent.core.message_utils import summarize_messages
@@ -32,15 +32,24 @@ def capped_add_messages(
     if keep_first + keep_last == 0 or len(merged) <= keep_first + keep_last:
         return merged
 
-    head = merged[:keep_first] if keep_first else []
-    tail = merged[-keep_last:] if keep_last else []
+    head_end = keep_first
+    tail_start = len(merged) - keep_last
+    # Keep every reply with the assistant message that called the tool.
+    while head_end < len(merged) and isinstance(merged[head_end], ToolMessage):
+        head_end += 1
+    while 0 < tail_start < len(merged) and isinstance(merged[tail_start], ToolMessage):
+        tail_start -= 1
+    if head_end >= tail_start:
+        return merged
+    head = merged[:head_end]
+    tail = merged[tail_start:]
     trimmed = head + tail
 
     # Optional summarization of middle history
     if settings.summary_messages and len(merged) > settings.summary_messages_trigger:
-        middle = merged[keep_first : len(merged) - keep_last]
+        middle = merged[head_end:tail_start]
         summary_msg = summarize_messages(middle)
-        trimmed = head + [summary_msg] + tail
+        trimmed = head + [HumanMessage(content=summary_msg.content)] + tail
 
     return trimmed
 
@@ -72,6 +81,7 @@ class AgentState(TypedDict):
     user_id: str
     # Thread/conversation identifier
     thread_id: str
+    conversation_id: str | None
     # Agent profile ID (for GPTs-like behavior)
     agent_id: str
 

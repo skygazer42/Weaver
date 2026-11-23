@@ -1109,6 +1109,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tool-artifacts/{artifact_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download Tool Artifact */
+        get: operations["download_tool_artifact_api_tool_artifacts__artifact_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tools/registry": {
         parameters: {
             query?: never;
@@ -1751,6 +1768,8 @@ export interface components {
         ChatRequest: {
             /** Agent Id */
             agent_id?: string | null;
+            /** Conversation Id */
+            conversation_id?: string | null;
             /** Images */
             images?: components["schemas"]["ImagePayload"][] | null;
             /** Messages */
@@ -4442,6 +4461,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    download_tool_artifact_api_tool_artifacts__artifact_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                artifact_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

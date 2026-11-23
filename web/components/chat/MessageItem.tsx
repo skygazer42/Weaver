@@ -179,10 +179,11 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
 
   const tools = message.toolInvocations || []
   const processEvents = message.processEvents || []
-  const isThinking = Boolean(message.isStreaming) || tools.some(t => t.state === 'running')
+  const isThinking = Boolean(message.isStreaming)
+  const sources = (message.sources ?? []).filter(({ url }) => /^https?:\/\//i.test(url))
   const showThinking = !isUser && !isEditing && (isThinking || tools.length > 0 || processEvents.length > 0)
   const hideAssistantBubble =
-    !isUser && !isEditing && !displayContent.trim() && isThinking
+    !isUser && !isEditing && !displayContent.trim() && sources.length === 0 && (isThinking || !!message.runStatus)
 
   return (
     <div
@@ -201,6 +202,7 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
         {showThinking && (
           <ThinkingProcess
             tools={tools}
+            artifacts={message.artifacts}
             events={processEvents}
             metrics={message.metrics}
             startedAt={message.createdAt}
@@ -301,6 +303,19 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
                 >
                   {displayContent}
                 </ReactMarkdown>
+
+                {sources.length > 0 && (
+                  <details open={message.runStatus === 'insufficient_evidence'} className="mt-3 text-sm text-muted-foreground">
+                    <summary className="cursor-pointer">Sources ({sources.length})</summary>
+                    <ol className="ml-5 mt-2 list-decimal">
+                      {sources.map((source, index) => (
+                        <li key={`${source.url}-${index}`}>
+                          <a href={source.url} target="_blank" rel="noreferrer" className="break-words underline">{source.title || source.url}</a>
+                        </li>
+                      ))}
+                    </ol>
+                  </details>
+                )}
 
                 {message.attachments && message.attachments.length > 0 && (
                   <div className="mt-3 grid grid-cols-2 gap-2">

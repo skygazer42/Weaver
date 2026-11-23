@@ -52,7 +52,7 @@ export function useChatHistory() {
     setHistory(saved)
   }, [])
 
-  const saveToHistory = useCallback((messages: Message[], currentSessionId?: string) => {
+  const saveToHistory = useCallback((messages: Message[], currentSessionId?: string, searchMode?: string) => {
     if (messages.length === 0) return null
 
     const timestamp = Date.now()
@@ -67,6 +67,7 @@ export function useChatHistory() {
         updatedHistory[existingIndex] = {
           ...updatedHistory[existingIndex],
           updatedAt: timestamp,
+          searchMode: searchMode ?? updatedHistory[existingIndex].searchMode,
           // Update title if it's still the default "New Conversation" or generic
           // (Logic can be refined, here we just update timestamp primarily)
         }
@@ -88,6 +89,7 @@ export function useChatHistory() {
           createdAt: timestamp,
           updatedAt: timestamp,
           isPinned: false,
+          searchMode,
           tags: []
         }
         return [newSession, ...prev]

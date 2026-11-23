@@ -23,11 +23,11 @@ import importlib
 import inspect
 import json
 import logging
-from fnmatch import fnmatch
 from dataclasses import dataclass, field
 from datetime import datetime
+from fnmatch import fnmatch
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set, Type
+from typing import Any, Callable, Dict, List, Optional, Set
 
 from langchain.tools import BaseTool
 
@@ -36,7 +36,7 @@ try:  # LangChain 1.x canonical location
 except Exception:  # pragma: no cover
     CoreBaseTool = None  # type: ignore[assignment]
 
-from tools.core.base import ToolResult, WeaverTool, tool_schema
+from tools.core.base import WeaverTool
 
 logger = logging.getLogger(__name__)
 
@@ -379,7 +379,7 @@ class ToolRegistry:
             try:
                 metadata = self.register(
                     name=tool_name,
-                    tool=getattr(obj, "invoke"),
+                    tool=obj.invoke,
                     description=str(tool_desc),
                     parameters=parameters,
                     tags=(tags or []) + ["langchain_tool", "auto_discovered"],
@@ -635,13 +635,13 @@ class ToolRegistry:
                 # Extract type annotation
                 if param.annotation != inspect.Parameter.empty:
                     annotation = param.annotation
-                    if annotation == str:
+                    if annotation is str:
                         param_info["type"] = "string"
-                    elif annotation == int:
+                    elif annotation is int:
                         param_info["type"] = "integer"
-                    elif annotation == float:
+                    elif annotation is float:
                         param_info["type"] = "number"
-                    elif annotation == bool:
+                    elif annotation is bool:
                         param_info["type"] = "boolean"
                     elif hasattr(annotation, "__origin__"):
                         # Handle List, Dict, etc.
@@ -754,14 +754,19 @@ def set_registered_tools(tools: List) -> None:
             logger.warning(f"Failed to register tool in new registry: {e}")
 
 
-def get_registered_tools() -> List:
+def get_registered_tools(*, thread_id: str | None = None) -> List:
     """
     Get registered tools (backward compatible).
 
     Returns:
         List of registered tools
     """
-    return list(_REGISTERED_TOOLS)
+    return [
+        tool.model_copy(update={"thread_id": thread_id})
+        if thread_id is not None and BaseTool and isinstance(tool, BaseTool) and hasattr(tool, "thread_id")
+        else tool
+        for tool in _REGISTERED_TOOLS
+    ]
 
 
 # ==================== Example Usage ====================

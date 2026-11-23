@@ -22,6 +22,7 @@ async def test_chat_stream_uses_principal_user_when_internal_auth_enabled(monkey
         agent_id=None,
         images=None,
         user_id: str,
+        **_,
     ):
         seen["user_id"] = user_id
         yield '0:{"type":"done","data":{}}\n'

@@ -68,7 +68,8 @@ def setup_logging():
     root_logger.handlers.clear()
 
     # Choose formatter
-    if settings.enable_json_logging:
+    use_json_logging = settings.enable_json_logging or settings.log_format.strip().lower() == "json"
+    if use_json_logging:
         formatter = JSONFormatter()
     else:
         formatter = logging.Formatter(settings.log_format, datefmt="%Y-%m-%d %H:%M:%S")
@@ -108,11 +109,11 @@ def setup_logging():
     logger = logging.getLogger(__name__)
     logger.info("=" * 80)
     logger.info(f"Logging initialized - Level: {log_level_str}")
-    logger.info(f"Console logging: Enabled")
+    logger.info("Console logging: Enabled")
     logger.info(f"File logging: {'Enabled' if settings.enable_file_logging else 'Disabled'}")
     if settings.enable_file_logging:
         logger.info(f"Log file: {settings.log_file}")
-    logger.info(f"JSON logging: {'Enabled' if settings.enable_json_logging else 'Disabled'}")
+    logger.info(f"JSON logging: {'Enabled' if use_json_logging else 'Disabled'}")
     logger.info("=" * 80)
 
     root_logger._weaver_configured = True

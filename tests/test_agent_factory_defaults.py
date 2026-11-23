@@ -16,7 +16,7 @@ from common.config import Settings
 
 
 def test_build_middlewares_include_retry_and_limit_by_default(monkeypatch):
-    settings_with_defaults = Settings(_env_file=None)
+    settings_with_defaults = Settings(_env_file=None, openai_api_key="fixture")
     monkeypatch.setattr(agent_factory, "settings", settings_with_defaults)
 
     middlewares = agent_factory._build_middlewares()
@@ -38,6 +38,7 @@ def test_build_middlewares_include_retry_and_limit_by_default(monkeypatch):
 def test_build_middlewares_keep_todo_defaults_when_settings_blank(monkeypatch):
     settings_with_defaults = Settings(
         _env_file=None,
+        openai_api_key="fixture",
         enable_todo_middleware=True,
         todo_system_prompt="",
         todo_tool_description="",

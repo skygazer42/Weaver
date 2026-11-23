@@ -4,8 +4,8 @@ import json
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from agent.core.events import EventEmitter, ToolEvent
 import main
+from agent.core.events import EventEmitter, ToolEvent
 
 
 @pytest.mark.asyncio
@@ -50,7 +50,6 @@ async def test_stream_flushes_queued_quality_update_before_graph_completion(monk
     monkeypatch.setattr(main, "research_graph", _DummyGraph())
     monkeypatch.setattr(main, "get_emitter", _noop_async)
     monkeypatch.setattr(main, "remove_emitter", _noop_async)
-    monkeypatch.setattr(main, "add_memory_entry", lambda *args, **kwargs: None)
     monkeypatch.setattr(main, "store_interaction", lambda *args, **kwargs: None)
     monkeypatch.setattr(main, "fetch_memories", lambda *args, **kwargs: [])
     monkeypatch.setattr(main.browser_sessions, "reset", lambda *args, **kwargs: None)

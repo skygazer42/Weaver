@@ -16,6 +16,9 @@ interface ChatInputProps {
   setAttachments: (files: File[]) => void
   onSubmit: (e: React.FormEvent) => void
   isLoading: boolean
+  canStop: boolean
+  isStopping: boolean
+  awaitingApproval: boolean
   onStop: () => void
   searchMode: string
   setSearchMode: (mode: string) => void
@@ -34,6 +37,9 @@ export function ChatInput({
   setAttachments,
   onSubmit,
   isLoading,
+  canStop,
+  isStopping,
+  awaitingApproval,
   onStop,
   searchMode,
   setSearchMode
@@ -359,6 +365,7 @@ export function ChatInput({
                <button
                  key={mode.id}
                  type="button"
+                 aria-pressed={isActive}
                  onClick={() => {
                      // 再次点击已选中的模式则取消选中，回到默认直答
                      if (isActive) {
@@ -512,7 +519,8 @@ export function ChatInput({
                 onFocus={() => setIsFocused(true)}
                 onBlur={() => setIsFocused(false)}
                 placeholder={searchMode === 'mcp' ? `${mcpOptions.find(o => o.id === selectedMcp)?.label || 'MCP'}...` : t('askAnything')}
-                disabled={isLoading}
+                aria-label={t('askAnything')}
+                disabled={isLoading || awaitingApproval}
                 rows={1}
                 className={cn(
                     "w-full resize-none bg-transparent px-14 min-h-[56px] max-h-[200px] text-base focus:outline-none placeholder:text-muted-foreground/50 scrollbar-thin scrollbar-thumb-muted",
@@ -545,12 +553,12 @@ export function ChatInput({
                  </Button>
             )}
 
-            {isLoading ? (
-              <Button type="button" size="icon" variant="ghost" onClick={onStop} className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive rounded-full">
+            {canStop ? (
+              <Button type="button" size="icon" variant="ghost" aria-label={t('stopGenerating')} disabled={isStopping} onClick={onStop} className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive rounded-full">
                 <div className="h-2.5 w-2.5 bg-current rounded-sm animate-pulse" />
               </Button>
             ) : (
-              <Button type="button" size="icon" onClick={(e) => onSubmit(e as any)} disabled={!input.trim() && attachments.length === 0} className={cn("h-8 w-8 rounded-full transition-all duration-300 shadow-sm", (input.trim() || attachments.length > 0) ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-110" : "bg-muted text-muted-foreground")}>
+              <Button type="button" size="icon" aria-label={t('sendMessage')} onClick={onSubmit} disabled={isLoading || awaitingApproval || (!input.trim() && attachments.length === 0)} className={cn("h-8 w-8 rounded-full transition-all duration-300 shadow-sm", (input.trim() || attachments.length > 0) ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-110" : "bg-muted text-muted-foreground")}>
                 <Send className="h-4 w-4 ml-0.5" />
               </Button>
             )}

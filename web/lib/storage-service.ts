@@ -1,3 +1,5 @@
+import type { ChatRun } from '@/types/chat'
+
 export class StorageService {
   private static getItem<T>(key: string): T | null {
     if (typeof window === 'undefined') return null
@@ -45,24 +47,36 @@ export class StorageService {
     return this.setItem(`session_${sessionId}`, messages)
   }
 
-  static getResearchId(sessionId: string): string | null {
-    return this.getItem<string>('research_' + sessionId)
+  static getRun(sessionId: string): ChatRun | null {
+    const saved = this.getItem<ChatRun | string>('research_' + sessionId)
+    return typeof saved === 'string' ? { id: saved, searchMode: 'ultra' } : saved
   }
 
-  static setResearchId(sessionId: string, researchId: string | null): void {
-    this.setItem('research_' + sessionId, researchId)
-    if (researchId || this.getRecentResearchSession() === sessionId) {
-      this.setItem('weaver-recent-research', researchId ? sessionId : null)
+  static setRun(sessionId: string, run: ChatRun | null): void {
+    this.setItem('research_' + sessionId, run)
+    if (run || this.getRecentRunSession() === sessionId) {
+      this.setItem('weaver-recent-research', run ? sessionId : null)
     }
   }
 
-  static getRecentResearchSession(): string | null {
+  static saveRunSnapshot(sessionId: string, run: ChatRun): void {
+    const saved = this.getRun(sessionId)
+    if (saved?.id === run.id && (saved.lastEventId ?? 0) <= (run.lastEventId ?? 0)) {
+      this.setItem('research_' + sessionId, run)
+    }
+  }
+
+  static getRecentRunSession(): string | null {
     return this.getItem<string>('weaver-recent-research')
+  }
+
+  static markRunViewed(sessionId: string): void {
+    this.setItem('weaver-recent-research', sessionId)
   }
 
   static removeSessionMessages(sessionId: string): void {
     if (typeof window === 'undefined') return
-    this.setResearchId(sessionId, null)
+    this.setRun(sessionId, null)
     window.localStorage.removeItem('research_' + sessionId)
     window.localStorage.removeItem(`session_${sessionId}`)
   }

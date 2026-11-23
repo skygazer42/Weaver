@@ -55,6 +55,10 @@ _ENGINE_ALIASES = {
 }
 
 
+def uses_fallback_search(engines: List[str]) -> bool:
+    return any(engine.lower() != "tavily" for engine in engines)
+
+
 def run_fallback_search(
     *,
     query: str,
@@ -74,11 +78,20 @@ def run_fallback_search(
             continue
         key = _ENGINE_ALIASES.get(key, key)
         handler = _ENGINE_HANDLERS.get(key)
-        if not handler:
-            logger.warning(f"Unknown search engine '{eng}', skipping")
-            continue
         try:
-            results = handler(query=query, max_results=max_results)
+            if handler:
+                results = handler(query=query, max_results=max_results)
+            else:
+                from tools.search.multi_search import get_search_orchestrator
+
+                provider = next(
+                    (item for item in get_search_orchestrator().get_available_providers() if item.name == key),
+                    None,
+                )
+                if provider is None:
+                    logger.warning("Configured search engine %s is unavailable", key)
+                    continue
+                results = [item.to_dict() for item in provider.search(query=query, max_results=max_results)]
             if results:
                 return key, results
         except Exception as e:

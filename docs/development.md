@@ -27,6 +27,8 @@ pnpm -C web install --frozen-lockfile
 pnpm -C web dev
 ```
 
+在 Windows 上配置 PostgreSQL 时，通过 `.venv\Scripts\python.exe main.py` 启动后端。该入口会为 psycopg 选择兼容的异步事件循环。
+
 ---
 
 ## 测试与质量检查
