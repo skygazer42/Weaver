@@ -110,22 +110,17 @@ Expected: PASS
 ### Task 5: Finish the session cleanly
 
 **Files:**
-- Modify: issue tracker state if needed
 - Verify: git history / remote sync
 
-**Step 1: Sync issue tracker**
-
-Run: `bd sync`
-
-**Step 2: Commit**
+**Step 1: Commit**
 
 Run: `git add ... && git commit -m "fix: reduce deepsearch latency"`
 
-**Step 3: Rebase and push**
+**Step 2: Rebase and push**
 
 Run: `git pull --rebase && git push`
 
-**Step 4: Final verification**
+**Step 3: Final verification**
 
 Run: `git status`
 

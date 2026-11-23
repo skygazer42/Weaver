@@ -103,7 +103,6 @@ Run:
 
 **Push:**
 - `git pull --rebase`
-- `bd sync`
 - `git push`
 - `git status` shows clean and up-to-date
 
