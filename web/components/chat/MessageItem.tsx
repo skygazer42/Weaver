@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, memo } from 'react'
-import ReactMarkdown from 'react-markdown'
+import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
@@ -17,7 +17,7 @@ import { ThinkingProcess } from './message/ThinkingProcess'
 import { CodeBlock } from './message/CodeBlock'
 import { CitationBadge } from './message/CitationBadge'
 import { useArtifacts } from '@/hooks/useArtifacts'
-import { getApiBaseUrl } from '@/lib/api'
+import { getApiBaseUrl, getArtifactDownloadUrl } from '@/lib/api'
 
 // Lazy load MermaidBlock as it's a heavy dependency
 const MermaidBlock = dynamic(() => import('./MermaidBlock').then(mod => mod.MermaidBlock), {
@@ -50,9 +50,10 @@ const preprocessContent = (content: string) => {
 interface MessageItemProps {
     message: Message
     onEdit?: (id: string, newContent: string) => void
+    workspaceId?: string
 }
 
-const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
+const MessageItemBase = ({ message, onEdit, workspaceId }: MessageItemProps) => {
   const isUser = (message.role || '').toLowerCase() === 'user'
   const [copied, setCopied] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -62,7 +63,7 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
   const [isTTSLoading, setIsTTSLoading] = useState(false)
   const [audioRef, setAudioRef] = useState<HTMLAudioElement | null>(null)
 
-  const { saveArtifact } = useArtifacts()
+  const { saveArtifact } = useArtifacts(workspaceId)
 
   // Preprocess content for Math rendering
   const displayContent = preprocessContent(message.content || '')
@@ -239,6 +240,10 @@ const MessageItemBase = ({ message, onEdit }: MessageItemProps) => {
                 <ReactMarkdown 
                     remarkPlugins={[remarkGfm, remarkMath]}
                     rehypePlugins={[rehypeKatex]}
+                    disallowedElements={workspaceId ? ['img'] : undefined}
+                    urlTransform={(url) => workspaceId && url.startsWith('/api/workspaces/' + workspaceId + '/')
+                        ? getArtifactDownloadUrl(url) ?? ''
+                        : defaultUrlTransform(url)}
                     components={{
                         pre: ({children}) => <>{children}</>,
                         p: ({node, children, ...props}) => (

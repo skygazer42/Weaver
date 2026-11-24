@@ -20,10 +20,42 @@ export interface WorkspaceRun {
   updated_at: string
 }
 
-export interface Workspace {
+export interface WorkspaceMetadata {
+  name: string
+  instructions: string
+  decisions: string
+}
+
+export interface Workspace extends WorkspaceMetadata {
   id: string
   files: WorkspaceFile[]
   runs: WorkspaceRun[]
+}
+
+export type ProjectWorkflow = 'requirements-spec' | 'release-brief'
+
+export interface ProjectTask {
+  id: string
+  workflow: ProjectWorkflow
+  prompt: string
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled' | 'insufficient_evidence' | 'awaiting_approval'
+  repository?: string | null
+  release_tag?: string | null
+  file_ids?: string[] | null
+  artifact_id?: string | null
+  error?: string | null
+  created_at?: string
+}
+
+export interface WorkspaceDeliverable {
+  id: string
+  task_id: string
+  title: string
+  content: string
+  sources: { id: string; title: string; kind: string; snippet: string; url?: string | null; release_tag?: string | null }[]
+  workflow: ProjectWorkflow
+  based_on?: string | null
+  created_at: string
 }
 
 export type WorkspaceMessage = UIMessage<unknown, { run: WorkspaceRun }>
@@ -63,6 +95,13 @@ export async function workspaceRequest(input: RequestInfo | URL, init?: RequestI
     throw new Error(typeof message === 'string' ? message : `Workspace request failed (${response.status}).`)
   }
   return response
+}
+
+export async function uploadWorkspaceFile(workspaceUrl: string, file: File): Promise<WorkspaceFile> {
+  const form = new FormData()
+  form.set('file', file)
+  const response = await workspaceRequest(`${workspaceUrl}/files`, { method: 'POST', body: form })
+  return response.json()
 }
 
 export function createWorkspaceRunTransport(url: string): DefaultChatTransport<WorkspaceMessage> {

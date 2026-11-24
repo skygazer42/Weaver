@@ -1,5 +1,5 @@
 import operator
-from typing import Annotated, Any, Dict, List, Literal, Optional, TypedDict
+from typing import Annotated, Any, Dict, List, Literal, NotRequired, Optional, TypedDict
 
 from langchain_core.messages import BaseMessage, HumanMessage, ToolMessage
 from langgraph.graph.message import add_messages
@@ -82,6 +82,7 @@ class AgentState(TypedDict):
     # Thread/conversation identifier
     thread_id: str
     conversation_id: str | None
+    project_context: NotRequired[dict[str, Any]]
     # Agent profile ID (for GPTs-like behavior)
     agent_id: str
 

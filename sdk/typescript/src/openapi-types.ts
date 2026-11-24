@@ -1511,6 +1511,41 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
+        /** Update Workspace */
+        patch: operations["update_workspace_api_workspaces__workspace_id__patch"];
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/deliverables": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Project Deliverables */
+        get: operations["list_project_deliverables_api_workspaces__workspace_id__deliverables_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/deliverables/{artifact_id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download Project Deliverable */
+        get: operations["download_project_deliverable_api_workspaces__workspace_id__deliverables__artifact_id__download_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
         patch?: never;
         trace?: never;
     };
@@ -1523,8 +1558,25 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Upload Csv */
-        post: operations["upload_csv_api_workspaces__workspace_id__files_post"];
+        /** Upload File */
+        post: operations["upload_file_api_workspaces__workspace_id__files_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/files/{file_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download File */
+        get: operations["download_file_api_workspaces__workspace_id__files__file_id__get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1557,6 +1609,58 @@ export interface paths {
         };
         /** Get Artifact */
         get: operations["get_artifact_api_workspaces__workspace_id__runs__run_id__artifacts__name__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Project Tasks */
+        get: operations["list_project_tasks_api_workspaces__workspace_id__tasks_get"];
+        put?: never;
+        /** Submit Project Task */
+        post: operations["submit_project_task_api_workspaces__workspace_id__tasks_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/tasks/{task_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Stop Project Task */
+        delete: operations["stop_project_task_api_workspaces__workspace_id__tasks__task_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/tasks/{task_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stream Project Task */
+        get: operations["stream_project_task_api_workspaces__workspace_id__tasks__task_id__events_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1743,13 +1847,13 @@ export interface components {
             /** File */
             file: string;
         };
-        /** Body_upload_csv_api_workspaces__workspace_id__files_post */
-        Body_upload_csv_api_workspaces__workspace_id__files_post: {
+        /** Body_upload_document_api_documents_upload_post */
+        Body_upload_document_api_documents_upload_post: {
             /** File */
             file: string;
         };
-        /** Body_upload_document_api_documents_upload_post */
-        Body_upload_document_api_documents_upload_post: {
+        /** Body_upload_file_api_workspaces__workspace_id__files_post */
+        Body_upload_file_api_workspaces__workspace_id__files_post: {
             /** File */
             file: string;
         };
@@ -1784,6 +1888,8 @@ export interface components {
             stream: boolean;
             /** User Id */
             user_id?: string | null;
+            /** Workspace Id */
+            workspace_id?: string | null;
         };
         /**
          * CommentRequest
@@ -2139,6 +2245,102 @@ export interface components {
             content: string;
             /** Role */
             role: string;
+        };
+        /** ProjectDeliverable */
+        ProjectDeliverable: {
+            /** Based On */
+            based_on: string | null;
+            /** Content */
+            content: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: string;
+            /** Sources */
+            sources: components["schemas"]["ProjectSource"][];
+            /** Task Id */
+            task_id: string;
+            /** Title */
+            title: string;
+            /**
+             * Workflow
+             * @enum {string}
+             */
+            workflow: "requirements-spec" | "release-brief";
+        };
+        /** ProjectSource */
+        ProjectSource: {
+            /** Id */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Release Tag */
+            release_tag?: string | null;
+            /** Repository */
+            repository?: string | null;
+            /** Snippet */
+            snippet: string;
+            /** Title */
+            title: string;
+            /** Url */
+            url?: string | null;
+        };
+        /** ProjectTask */
+        ProjectTask: {
+            /** Artifact Id */
+            artifact_id: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Error */
+            error?: string | null;
+            /** File Ids */
+            file_ids: string[];
+            /** Id */
+            id: string;
+            /** Prompt */
+            prompt: string;
+            /** Release Tag */
+            release_tag: string | null;
+            /** Repository */
+            repository: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "completed" | "failed" | "cancelled" | "insufficient_evidence" | "awaiting_approval";
+            /**
+             * Workflow
+             * @enum {string}
+             */
+            workflow: "requirements-spec" | "release-brief";
+        };
+        /** ProjectTaskRequest */
+        ProjectTaskRequest: {
+            /** Artifact Id */
+            artifact_id?: string | null;
+            /** File Ids */
+            file_ids?: string[] | null;
+            /** Model */
+            model?: string | null;
+            /** Prompt */
+            prompt: string;
+            /** Release Tag */
+            release_tag?: string | null;
+            /** Repository */
+            repository?: string | null;
+            /** Request Id */
+            request_id: string;
+            /**
+             * Workflow
+             * @enum {string}
+             */
+            workflow: "requirements-spec" | "release-brief";
         };
         /** ProviderCircuitSnapshot */
         ProviderCircuitSnapshot: {
@@ -2665,10 +2867,25 @@ export interface components {
         };
         /** Workspace */
         Workspace: {
+            /**
+             * Decisions
+             * @default
+             */
+            decisions: string;
             /** Files */
             files: components["schemas"]["WorkspaceFile"][];
             /** Id */
             id: string;
+            /**
+             * Instructions
+             * @default
+             */
+            instructions: string;
+            /**
+             * Name
+             * @default Workspace
+             */
+            name: string;
             /** Runs */
             runs: components["schemas"]["WorkspaceRun"][];
         };
@@ -2682,6 +2899,24 @@ export interface components {
             name: string;
             /** Size */
             size: number;
+        };
+        /** WorkspaceMetadata */
+        WorkspaceMetadata: {
+            /**
+             * Decisions
+             * @default
+             */
+            decisions: string;
+            /**
+             * Instructions
+             * @default
+             */
+            instructions: string;
+            /**
+             * Name
+             * @default Workspace
+             */
+            name: string;
         };
         /** WorkspaceRun */
         WorkspaceRun: {
@@ -5084,7 +5319,7 @@ export interface operations {
             };
         };
     };
-    upload_csv_api_workspaces__workspace_id__files_post: {
+    update_workspace_api_workspaces__workspace_id__patch: {
         parameters: {
             query?: never;
             header?: never;
@@ -5095,7 +5330,103 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "multipart/form-data": components["schemas"]["Body_upload_csv_api_workspaces__workspace_id__files_post"];
+                "application/json": components["schemas"]["WorkspaceMetadata"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Workspace"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_project_deliverables_api_workspaces__workspace_id__deliverables_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectDeliverable"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_project_deliverable_api_workspaces__workspace_id__deliverables__artifact_id__download_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                artifact_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_file_api_workspaces__workspace_id__files_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_file_api_workspaces__workspace_id__files_post"];
             };
         };
         responses: {
@@ -5107,6 +5438,36 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["WorkspaceFile"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_file_api_workspaces__workspace_id__files__file_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                file_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -5162,6 +5523,136 @@ export interface operations {
                 workspace_id: string;
                 run_id: string;
                 name: "report.md" | "chart.svg";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_project_tasks_api_workspaces__workspace_id__tasks_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectTask"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_project_task_api_workspaces__workspace_id__tasks_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectTaskRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectTask"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stop_project_task_api_workspaces__workspace_id__tasks__task_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectTask"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stream_project_task_api_workspaces__workspace_id__tasks__task_id__events_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Last-Event-ID"?: number;
+            };
+            path: {
+                workspace_id: string;
+                task_id: string;
             };
             cookie?: never;
         };

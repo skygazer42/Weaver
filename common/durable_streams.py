@@ -1,10 +1,13 @@
 """Claim durable runs, publish replay events and cancel work across API processes."""
 
 import asyncio
+import json
 import logging
 import time
 from collections.abc import AsyncGenerator, Callable
 from contextlib import aclosing
+
+from anyio import CancelScope
 
 from common.chat_stream_translate import translate_legacy_line_to_sse
 from common.research_streams import MAX_STREAMS, run_status_line, status_from_line
@@ -62,10 +65,11 @@ class DurableStreams:
         if await self.journal.append(*key, attempt, run_status_line("running")) is None:
             return
         state = "completed"
+        artifact = None
         work = asyncio.create_task(self._write_events(current, attempt))
         monitor = asyncio.create_task(self._monitor(record, attempt, work))
         try:
-            state = await work
+            state, artifact = await work
         except asyncio.CancelledError:
             if self._closing:
                 raise
@@ -80,7 +84,11 @@ class DurableStreams:
             monitor.cancel()
             await asyncio.gather(monitor, return_exceptions=True)
         if not self._closing and not await self.journal.finish(
-            *key, attempt, state, final_line=run_status_line(state)
+            *key,
+            attempt,
+            state,
+            final_line=run_status_line(state),
+            artifact_line=artifact if state == "completed" else None,
         ):
             current = await self.journal.get(*key)
             if current and current.cancel_requested:
@@ -88,18 +96,25 @@ class DurableStreams:
                     *key, attempt, "cancelled", final_line=run_status_line("cancelled")
                 )
 
-    async def _write_events(self, record: RunRecord, attempt: str) -> str:
+    async def _write_events(self, record: RunRecord, attempt: str) -> tuple[str, str | None]:
         state = "completed"
+        artifact = None
         async with aclosing(self.source(record)) as source:
             async for line in source:
                 if self._closing:
                     break
                 if line.startswith("0:"):
+                    if (
+                        record.payload.get("project_task")
+                        and json.loads(line[2:]).get("type") == "artifact"
+                    ):
+                        artifact = line
+                        continue
                     seq = await self.journal.append(record.owner, record.run_id, attempt, line)
                     if seq is None:
                         break
                     state = status_from_line(line, state)
-        return state
+        return state, artifact
 
     async def _monitor(self, record: RunRecord, attempt: str, task: asyncio.Task) -> None:
         key = (record.owner, record.run_id)
@@ -122,8 +137,11 @@ class DurableStreams:
         key = (record.owner, record.run_id)
         keepalive_at = time.monotonic()
         while True:
-            row = await self.journal.get(*key)
-            for seq, line in await self.journal.events_after(*key, after):
+            # Let in-flight reads finish on the shared connection when an SSE client disconnects.
+            with CancelScope(shield=True):
+                row = await self.journal.get(*key)
+                events = await self.journal.events_after(*key, after)
+            for seq, line in events:
                 after = seq
                 frame = translate_legacy_line_to_sse(line, seq=seq)
                 if frame:

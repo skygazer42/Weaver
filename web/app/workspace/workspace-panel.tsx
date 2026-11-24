@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from 'react'
 import { useChat } from '@ai-sdk/react'
 import { FileSpreadsheet, Loader2, Play } from 'lucide-react'
 import { badgeVariants } from '@/components/ui/badge'
@@ -13,7 +13,7 @@ import { usePublicModels } from '@/hooks/usePublicModels'
 import { useI18n } from '@/lib/i18n/i18n-context'
 import { cn } from '@/lib/utils'
 import {
-  createWorkspaceRunTransport, getWorkspaceUrl, mergeWorkspaceRuns, workspaceRequest,
+  createWorkspaceRunTransport, getWorkspaceUrl, mergeWorkspaceRuns, uploadWorkspaceFile, workspaceRequest,
   type Workspace, type WorkspaceFile, type WorkspaceMessage, type WorkspaceRun,
 } from '@/lib/workspace'
 import { WorkspaceArtifacts } from './workspace-artifacts'
@@ -40,11 +40,14 @@ function RunStatus({ run }: { run: WorkspaceRun }) {
   )
 }
 
-export function WorkspacePanel({ initialWorkspace }: { initialWorkspace: Workspace }) {
+export function WorkspacePanel({ initialWorkspace, files, setFiles }: {
+  initialWorkspace: Workspace
+  files: WorkspaceFile[]
+  setFiles: Dispatch<SetStateAction<WorkspaceFile[]>>
+}) {
   const { language, t } = useI18n()
   const { models, isLoading: loadingModels } = usePublicModels()
   const dateFormat = useMemo(() => new Intl.DateTimeFormat(language, { dateStyle: 'medium', timeStyle: 'medium' }), [language])
-  const [files, setFiles] = useState(initialWorkspace.files)
   const [runs, setRuns] = useState(() => mergeWorkspaceRuns([], initialWorkspace.runs))
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
   const [savedFileId, setSavedFileId] = useState('')
@@ -77,7 +80,8 @@ export function WorkspacePanel({ initialWorkspace }: { initialWorkspace: Workspa
     },
   })
 
-  const fileId = savedFileId || files[0]?.id || ''
+  const csvFiles = files.filter((file) => file.name.toLowerCase().endsWith('.csv'))
+  const fileId = savedFileId || csvFiles[0]?.id || ''
   const model = chosenModel || models?.default || ''
   const modelOptions = models ? Array.from(new Set([models.default, ...models.options].filter(Boolean))) : []
   const submitting = phase !== null
@@ -99,7 +103,7 @@ export function WorkspacePanel({ initialWorkspace }: { initialWorkspace: Workspa
     } catch (cause) {
       if (!signal?.aborted) setRefreshError(cause instanceof Error ? cause.message : 'Could not refresh runs.')
     }
-  }, [workspaceUrl])
+  }, [setFiles, workspaceUrl])
 
   useEffect(() => {
     if (!pendingRuns || submitting) return
@@ -137,11 +141,8 @@ export function WorkspacePanel({ initialWorkspace }: { initialWorkspace: Workspa
     try {
       let runFileId = fileId
       if (upload) {
-        const form = new FormData()
-        form.set('file', upload)
-        const response = await workspaceRequest(`${workspaceUrl}/files`, { method: 'POST', body: form })
-        const saved: WorkspaceFile = await response.json()
-        setFiles((current) => [saved, ...current])
+        const saved = await uploadWorkspaceFile(workspaceUrl, upload)
+        setFiles((current) => [saved, ...current.filter((file) => file.id !== saved.id)])
         setSavedFileId(saved.id)
         clearUpload()
         runFileId = saved.id
@@ -163,11 +164,7 @@ export function WorkspacePanel({ initialWorkspace }: { initialWorkspace: Workspa
   }
 
   return (
-    <div className="space-y-5">
-      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-        Workspace ID <code className="break-all rounded bg-muted px-2 py-1 font-mono text-xs text-foreground">{initialWorkspace.id}</code>
-      </p>
-
+    <div>
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
         <div className="min-w-0 space-y-5">
           <Card>
@@ -185,7 +182,7 @@ export function WorkspacePanel({ initialWorkspace }: { initialWorkspace: Workspa
                   <p id="workspace-upload-limit" className="text-xs text-muted-foreground">Up to 5 MiB</p>
                 </div>
 
-                {files.length > 0 && (
+                {csvFiles.length > 0 && (
                   <div className="space-y-2">
                     <Label htmlFor="workspace-saved-file">Saved CSV</Label>
                     <select id="workspace-saved-file" value={upload ? '' : fileId} disabled={submitting} className={selectClass} onChange={(event) => {
@@ -193,7 +190,7 @@ export function WorkspacePanel({ initialWorkspace }: { initialWorkspace: Workspa
                       clearUpload()
                     }}>
                       {upload && <option value="" disabled>Using new upload</option>}
-                      {files.map((file) => <option key={file.id} value={file.id}>{file.name}</option>)}
+                      {csvFiles.map((file) => <option key={file.id} value={file.id}>{file.name}</option>)}
                     </select>
                   </div>
                 )}

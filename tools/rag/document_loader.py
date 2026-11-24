@@ -6,13 +6,15 @@ Parses various document formats into text chunks for embedding.
 
 import hashlib
 import logging
-import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from threading import Lock
+from typing import Any
 
 logger = logging.getLogger(__name__)
+# PyMuPDF uses a single native context across requests in this process.
+_pdf_lock = Lock()
 
 # Check for optional dependencies
 try:
@@ -34,7 +36,7 @@ except ImportError:
 class Document:
     """A document chunk with metadata."""
     content: str
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
     doc_id: str = ""
     chunk_id: str = ""
 
@@ -70,7 +72,7 @@ class DocumentLoader:
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
 
-    def load(self, file_path: Union[str, Path]) -> List[Document]:
+    def load(self, file_path: str | Path) -> list[Document]:
         """
         Load a document from file path.
 
@@ -115,8 +117,10 @@ class DocumentLoader:
         self,
         content: bytes,
         filename: str,
-        file_type: str = None,
-    ) -> List[Document]:
+        file_type: str | None = None,
+        *,
+        max_chars: int | None = None,
+    ) -> list[Document]:
         """
         Load a document from bytes.
 
@@ -124,6 +128,7 @@ class DocumentLoader:
             content: File content as bytes
             filename: Original filename
             file_type: File type (pdf, docx, txt, etc.)
+            max_chars: Maximum extracted characters before chunking
 
         Returns:
             List of Document chunks
@@ -140,7 +145,7 @@ class DocumentLoader:
         text = ""
 
         if file_type in (".pdf", "pdf"):
-            text = self._parse_pdf_bytes(content)
+            text = self._parse_pdf_bytes(content, max_chars)
         elif file_type in (".docx", ".doc", "docx", "doc"):
             text = self._parse_docx_bytes(content)
         else:
@@ -149,6 +154,7 @@ class DocumentLoader:
             except UnicodeDecodeError:
                 text = content.decode("latin-1")
 
+        text = text[:max_chars]
         if not text.strip():
             logger.warning(f"No text extracted from {filename}")
             return []
@@ -163,27 +169,28 @@ class DocumentLoader:
                 "Install with: pip install pymupdf"
             )
 
-        text_parts = []
-        with fitz.open(path) as doc:
-            for page_num, page in enumerate(doc, 1):
-                page_text = page.get_text()
-                if page_text.strip():
-                    text_parts.append(f"[Page {page_num}]\n{page_text}")
+        with _pdf_lock, fitz.open(path) as doc:
+            return self._pdf_text(doc)
 
-        return "\n\n".join(text_parts)
-
-    def _parse_pdf_bytes(self, content: bytes) -> str:
+    def _parse_pdf_bytes(self, content: bytes, max_chars: int | None) -> str:
         """Parse PDF from bytes."""
         if not PYMUPDF_AVAILABLE:
             raise ImportError("PyMuPDF is required for PDF parsing.")
 
-        text_parts = []
-        with fitz.open(stream=content, filetype="pdf") as doc:
-            for page_num, page in enumerate(doc, 1):
-                page_text = page.get_text()
-                if page_text.strip():
-                    text_parts.append(f"[Page {page_num}]\n{page_text}")
+        with _pdf_lock, fitz.open(stream=content, filetype="pdf") as doc:
+            return self._pdf_text(doc, max_chars)
 
+    def _pdf_text(self, doc, max_chars: int | None = None) -> str:
+        text_parts = []
+        size = 0
+        for page_num, page in enumerate(doc, 1):
+            page_text = page.get_text()
+            if page_text.strip():
+                part = f"[Page {page_num}]\n{page_text[:max_chars]}"
+                text_parts.append(part)
+                size += len(part) + 2
+                if max_chars is not None and size >= max_chars:
+                    break
         return "\n\n".join(text_parts)
 
     def _load_docx(self, path: Path) -> str:
@@ -218,8 +225,8 @@ class DocumentLoader:
     def _chunk_text(
         self,
         text: str,
-        metadata: Dict[str, Any],
-    ) -> List[Document]:
+        metadata: dict[str, Any],
+    ) -> list[Document]:
         """
         Split text into chunks with overlap.
 
@@ -288,10 +295,10 @@ class DocumentLoader:
 
 
 def load_documents(
-    paths: List[Union[str, Path]],
+    paths: list[str | Path],
     chunk_size: int = 1000,
     chunk_overlap: int = 200,
-) -> List[Document]:
+) -> list[Document]:
     """
     Load multiple documents.
 

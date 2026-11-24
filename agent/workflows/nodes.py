@@ -15,6 +15,7 @@ from langgraph.types import Send, interrupt
 from pydantic import BaseModel, Field
 
 from agent.core.events import ToolEventType, get_emitter_sync
+from agent.core.message_utils import project_context_message
 from agent.core.middleware import enforce_tool_call_limit, retry_call
 from agent.core.state import AgentState, QueryState
 from agent.workflows.browser_context_helper import build_browser_context_hint
@@ -283,7 +284,7 @@ def _is_narrow_comparison_prompt(user_input: str) -> bool:
 
 def _should_use_fast_agent_path(state: AgentState, config: RunnableConfig) -> bool:
     user_input = str(state.get("input", "") or "").strip()
-    if not user_input or state.get("images"):
+    if not user_input or state.get("images") or state.get("project_context") is not None:
         return False
     if not (_auto_mode_prefers_linear(user_input) or _is_narrow_comparison_prompt(user_input)):
         return False
@@ -1194,6 +1195,7 @@ def direct_answer_node(state: AgentState, config: RunnableConfig) -> Dict[str, A
     llm = _chat_model(_model_for_task("writing", config), temperature=0.7)
     messages = [
         SystemMessage(content="You are a helpful assistant. Answer succinctly and accurately."),
+        *project_context_message(state.get("project_context")),
         HumanMessage(content=_build_user_content(state["input"], state.get("images"))),
     ]
     response = llm.invoke(messages, config=config)
@@ -1818,6 +1820,7 @@ You can also use XML format for tool calls:
         if browser_hint:
             messages.append(SystemMessage(content=browser_hint))
 
+        messages.extend(project_context_message(state.get("project_context")))
         messages.append(
             HumanMessage(content=_build_user_content(state.get("input", ""), state.get("images")))
         )
@@ -2009,6 +2012,7 @@ def writer_node(state: AgentState, config: RunnableConfig) -> Dict[str, Any]:
 
         messages: List[Any] = [
             SystemMessage(content=writer_system_prompt),
+            *project_context_message(state.get("project_context")),
             HumanMessage(content=_build_user_content(state["input"], state.get("images"))),
         ]
 

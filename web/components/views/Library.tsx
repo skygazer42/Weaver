@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from 'react'
 import { FolderOpen, History, FileCode, Star, Trash2 } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { useChatHistory } from '@/hooks/useChatHistory'
+import type { useChatHistory } from '@/hooks/useChatHistory'
 import { useArtifacts } from '@/hooks/useArtifacts'
 import { SessionItem } from '@/components/library/SessionItem'
 import { ArtifactItem } from '@/components/library/ArtifactItem'
@@ -12,14 +12,20 @@ import { FilterGroup } from '@/components/ui/filter-group'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { EditDialog } from '@/components/ui/edit-dialog'
 import { Button } from '@/components/ui/button'
-import { useRouter } from 'next/navigation'
 
 type LibraryTab = 'all' | 'sessions' | 'artifacts' | 'pinned'
 
-export function Library() {
-  const router = useRouter()
-  const { history, deleteSession, togglePin, renameSession, isHistoryLoading } = useChatHistory()
-  const { artifacts, deleteArtifact, isLoading: isArtifactsLoading } = useArtifacts()
+interface LibraryProps {
+  workspaceId?: string
+  chatHistory: ReturnType<typeof useChatHistory>
+  onNewChat: () => void
+  onSelectChat: (id: string) => void
+  onDeleteChat: (id: string) => void
+}
+
+export function Library({ workspaceId, chatHistory, onNewChat, onSelectChat, onDeleteChat }: LibraryProps) {
+  const { history, togglePin, renameSession, isHistoryLoading } = chatHistory
+  const { artifacts, deleteArtifact, isLoading: isArtifactsLoading } = useArtifacts(workspaceId)
 
   const [activeTab, setActiveTab] = useState<LibraryTab>('all')
   const [searchQuery, setSearchQuery] = useState('')
@@ -64,7 +70,7 @@ export function Library() {
 
   const handleDelete = () => {
     if (!deleteId || !deleteType) return
-    if (deleteType === 'session') deleteSession(deleteId)
+    if (deleteType === 'session') onDeleteChat(deleteId)
     else deleteArtifact(deleteId)
     setDeleteId(null)
   }
@@ -94,7 +100,7 @@ export function Library() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-             <Button variant="outline" size="sm" onClick={() => router.push('/')}>
+             <Button variant="outline" size="sm" onClick={onNewChat}>
                 New Chat
              </Button>
           </div>
@@ -130,7 +136,7 @@ export function Library() {
                     <SessionItem 
                       key={item.id} 
                       session={item} 
-                      onSelect={(id) => router.push(`/?session=${id}`)}
+                      onSelect={onSelectChat}
                       onDelete={(id) => { setDeleteId(id); setDeleteType('session'); }}
                       onRename={(id) => setEditSession({ id, title: item.title })}
                       onTogglePin={togglePin}

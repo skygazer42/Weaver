@@ -4,14 +4,14 @@ import { useState, useEffect } from 'react'
 import { Artifact } from '@/types/chat'
 import { StorageService } from '@/lib/storage-service'
 
-export function useArtifacts() {
+export function useArtifacts(workspaceId?: string) {
   const [artifacts, setArtifacts] = useState<Artifact[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     const loadArtifacts = () => {
       try {
-        const saved = StorageService.getArtifacts<Artifact>()
+        const saved = StorageService.getArtifacts<Artifact>(workspaceId)
         setArtifacts(saved.sort((a, b) => b.createdAt - a.createdAt))
       } catch (e) {
         console.error('Failed to load artifacts', e)
@@ -20,13 +20,13 @@ export function useArtifacts() {
       }
     }
     loadArtifacts()
-  }, [])
+  }, [workspaceId])
 
   useEffect(() => {
     if (!isLoading) {
-      StorageService.saveArtifacts(artifacts)
+      StorageService.saveArtifacts(artifacts, workspaceId)
     }
-  }, [artifacts, isLoading])
+  }, [artifacts, isLoading, workspaceId])
 
   const saveArtifact = (artifact: Omit<Artifact, 'id' | 'createdAt' | 'updatedAt'>) => {
     const now = Date.now()

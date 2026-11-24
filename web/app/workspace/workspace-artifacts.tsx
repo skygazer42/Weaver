@@ -2,12 +2,27 @@
 
 import { useEffect, useState } from 'react'
 import { Download } from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
+import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Button } from '@/components/ui/button'
+import { getArtifactDownloadUrl } from '@/lib/api'
 import { workspaceRequest } from '@/lib/workspace'
 
 type ArtifactState = { error: string } | { report: string; reportUrl: string; chartUrl: string }
+
+export function WorkspaceMarkdown({ content }: { content: string }) {
+  return (
+    <div className="overflow-x-auto break-words rounded-md border bg-background px-4 py-3 text-sm leading-relaxed [&_a]:underline [&_h1]:my-3 [&_h1]:text-xl [&_h1]:font-semibold [&_h2]:mb-2 [&_h2]:mt-4 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:my-2 [&_h3]:font-semibold [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:my-2 [&_pre]:overflow-x-auto [&_table]:my-3 [&_td]:border [&_td]:p-2 [&_th]:border [&_th]:bg-muted [&_th]:p-2 [&_ul]:ml-5 [&_ul]:list-disc">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        disallowedElements={['img']}
+        urlTransform={(url) => url.startsWith('/api/workspaces/') ? getArtifactDownloadUrl(url) ?? '' : defaultUrlTransform(url)}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
+  )
+}
 
 export function WorkspaceArtifacts({ url }: { url: string }) {
   const [artifacts, setArtifacts] = useState<ArtifactState | null>(null)
@@ -77,9 +92,7 @@ export function WorkspaceArtifacts({ url }: { url: string }) {
             <a href={artifacts.reportUrl} download="report.md" className="gap-2"><Download className="h-4 w-4" aria-hidden="true" />Download Markdown</a>
           </Button>
         </div>
-        <div className="overflow-x-auto break-words rounded-md border bg-background px-4 py-3 text-sm leading-relaxed [&_a]:underline [&_h1]:my-3 [&_h1]:text-xl [&_h1]:font-semibold [&_h2]:mb-2 [&_h2]:mt-4 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:my-2 [&_h3]:font-semibold [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:my-2 [&_pre]:overflow-x-auto [&_table]:my-3 [&_td]:border [&_td]:p-2 [&_th]:border [&_th]:bg-muted [&_th]:p-2 [&_ul]:ml-5 [&_ul]:list-disc">
-          <ReactMarkdown remarkPlugins={[remarkGfm]} disallowedElements={['img']}>{artifacts.report}</ReactMarkdown>
-        </div>
+        <WorkspaceMarkdown content={artifacts.report} />
       </section>
     </div>
   )

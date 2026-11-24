@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { ChatSession, Message } from '@/types/chat'
 import { StorageService } from '@/lib/storage-service'
 
-export function useChatHistory() {
+export function useChatHistory(workspaceId?: string) {
   const [history, setHistory] = useState<ChatSession[]>([])
   const [isHistoryLoading, setIsHistoryLoading] = useState(true)
 
@@ -12,7 +12,7 @@ export function useChatHistory() {
   useEffect(() => {
     const loadHistory = () => {
       try {
-        const savedHistory = StorageService.getHistory<ChatSession>()
+        const savedHistory = StorageService.getHistory<ChatSession>(workspaceId)
         // Migrate legacy data if necessary
         const migratedHistory = savedHistory.map(session => ({
           ...session,
@@ -38,25 +38,25 @@ export function useChatHistory() {
     }
 
     loadHistory()
-  }, [])
+  }, [workspaceId])
 
   // Persist changes whenever history updates
   useEffect(() => {
     if (!isHistoryLoading) {
-      StorageService.saveHistory(history)
+      StorageService.saveHistory(history, workspaceId)
     }
-  }, [history, isHistoryLoading])
+  }, [history, isHistoryLoading, workspaceId])
 
   const refreshHistory = useCallback(() => {
-    const saved = StorageService.getHistory<ChatSession>()
+    const saved = StorageService.getHistory<ChatSession>(workspaceId)
     setHistory(saved)
-  }, [])
+  }, [workspaceId])
 
   const saveToHistory = useCallback((messages: Message[], currentSessionId?: string, searchMode?: string) => {
     if (messages.length === 0) return null
 
     const timestamp = Date.now()
-    const sessionId = currentSessionId || timestamp.toString()
+    const sessionId = currentSessionId || (workspaceId ? `${workspaceId}-${timestamp}` : timestamp.toString())
 
     setHistory(prev => {
       const existingIndex = prev.findIndex(s => s.id === sessionId)
@@ -97,22 +97,22 @@ export function useChatHistory() {
     })
 
     // Save messages content
-    StorageService.saveSessionMessages(sessionId, messages)
+    StorageService.saveSessionMessages(sessionId, messages, workspaceId)
     
     return sessionId
-  }, [])
+  }, [workspaceId])
 
   const loadSession = (id: string): Message[] | null => {
-    return StorageService.getSessionMessages<Message>(id)
+    return StorageService.getSessionMessages<Message>(id, workspaceId)
   }
 
   const deleteSession = (id: string) => {
     setHistory(prev => prev.filter(s => s.id !== id))
-    StorageService.removeSessionMessages(id)
+    StorageService.removeSessionMessages(id, workspaceId)
   }
 
   const clearHistory = () => {
-    StorageService.clearAll()
+    StorageService.clearAll(workspaceId)
     setHistory([])
   }
 

@@ -312,7 +312,10 @@ class ChatBrowserTests(unittest.TestCase):
         self.input.press("Enter")
 
     def choose_agent(self):
-        self.page.get_by_role("button", name="Agent", exact=True).click()
+        expect(self.page.get_by_text("No recent chats", exact=True)).to_be_visible()
+        agent = self.page.get_by_role("button", name="Agent", exact=True)
+        agent.click()
+        expect(agent).to_have_attribute("aria-pressed", "true")
 
     def test_agent_history_survives_reload_and_reopen(self):
         self.choose_agent()

@@ -7,6 +7,7 @@ import { StorageService } from '@/lib/storage-service'
 interface UseChatStreamProps {
   selectedModel: string
   searchMode: string
+  workspaceId?: string
 }
 
 interface RunConnection {
@@ -25,7 +26,7 @@ export function cancelRun(runId: string) {
 const isTerminalStatus = (status: RunStatus | undefined) =>
   status === 'completed' || status === 'failed' || status === 'cancelled' || status === 'insufficient_evidence'
 
-export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps) {
+export function useChatStream({ selectedModel, searchMode, workspaceId }: UseChatStreamProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [currentStatus, setCurrentStatus] = useState<string>('')
@@ -118,8 +119,8 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
 
       if (!response.ok) {
         if (connection && (reconnecting ? [403, 404].includes(response.status) : response.status < 500 || response.status === 503)) {
-          if (StorageService.getRun(connection.sessionId)?.id === run?.id) {
-            StorageService.setRun(connection.sessionId, null)
+          if (StorageService.getRun(connection.sessionId, workspaceId)?.id === run?.id) {
+            StorageService.setRun(connection.sessionId, null, workspaceId)
           }
           runRef.current = null
           stoppingRef.current = false
@@ -415,7 +416,7 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
 
         if (run && connection && events.length > 0) {
           run.assistant = assistantMessage
-          StorageService.saveRunSnapshot(connection.sessionId, run)
+          StorageService.saveRunSnapshot(connection.sessionId, run, workspaceId)
         }
         if (done || (!run && interrupted)) break
       }
@@ -435,9 +436,9 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
           setCurrentStatus('Connection lost.')
           return
         }
-        if (terminal && StorageService.getRun(connection.sessionId)?.id === run.id) {
-          const saved = StorageService.saveSessionMessages(connection.sessionId, [...baseMessages, assistantMessage])
-          if (saved) StorageService.setRun(connection.sessionId, null)
+        if (terminal && StorageService.getRun(connection.sessionId, workspaceId)?.id === run.id) {
+          const saved = StorageService.saveSessionMessages(connection.sessionId, [...baseMessages, assistantMessage], workspaceId)
+          if (saved) StorageService.setRun(connection.sessionId, null, workspaceId)
           else {
             setConnectionLost(true)
             setCurrentStatus('Could not save this reply to browser history.')
@@ -471,7 +472,7 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
         abortControllerRef.current = null
       }
     }
-  }, [requestStop])
+  }, [requestStop, workspaceId])
 
   const processChat = useCallback((messageHistory: Message[], images?: ImageAttachment[], sessionId?: string, mode = searchMode) => {
     let connection: RunConnection | undefined
@@ -482,7 +483,7 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
       ).join('')
       const run = { id, searchMode: mode }
       connection = { sessionId, run }
-      StorageService.setRun(sessionId, run)
+      StorageService.setRun(sessionId, run, workspaceId)
       path = '/api/chat/sse?research_id=' + id
     }
     return readChat(
@@ -493,6 +494,7 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
         body: JSON.stringify({
           messages: messageHistory.map(({ role, content }) => ({ role, content })),
           conversation_id: sessionId,
+          workspace_id: workspaceId,
           stream: true,
           model: selectedModel,
           search_mode: mode,
@@ -502,7 +504,7 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
       messageHistory,
       connection,
     )
-  }, [readChat, selectedModel, searchMode])
+  }, [readChat, selectedModel, searchMode, workspaceId])
 
   const reconnect = useCallback((connection: RunConnection, messageHistory: Message[]) => {
     const { run } = connection
@@ -512,9 +514,9 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
   }, [readChat])
 
   const resumeRun = useCallback((sessionId: string, run: ChatRun, messageHistory: Message[]) => {
-    StorageService.markRunViewed(sessionId)
+    StorageService.markRunViewed(sessionId, workspaceId)
     return reconnect({ sessionId, run }, messageHistory)
-  }, [reconnect])
+  }, [reconnect, workspaceId])
 
   const handleStop = useCallback(async () => {
     const controller = abortControllerRef.current
@@ -577,7 +579,7 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
       if (decisionRef.current !== decision) return
       if (connection) {
         delete connection.run.interrupt
-        StorageService.saveRunSnapshot(connection.sessionId, connection.run)
+        StorageService.saveRunSnapshot(connection.sessionId, connection.run, workspaceId)
         decisionRef.current = null
         setIsDeciding(false)
         await reconnect(connection, messages)
@@ -609,7 +611,7 @@ export function useChatStream({ selectedModel, searchMode }: UseChatStreamProps)
         setIsLoading(false)
       }
     }
-  }, [pendingInterrupt, threadId, selectedModel, searchMode, messages, reconnect])
+  }, [pendingInterrupt, threadId, selectedModel, searchMode, messages, reconnect, workspaceId])
 
   return {
     messages,

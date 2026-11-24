@@ -9,8 +9,10 @@ import { useI18n } from '@/lib/i18n/i18n-context'
 import { SettingsDialog } from '@/components/settings/SettingsDialog'
 import { cn } from '@/lib/utils'
 import { usePublicModels } from '@/hooks/usePublicModels'
+import type { Workspace } from '@/lib/workspace'
 
 interface HeaderProps {
+  project?: Pick<Workspace, 'id' | 'name'>
   sidebarOpen: boolean
   onToggleSidebar: () => void
   selectedModel: string
@@ -19,7 +21,7 @@ interface HeaderProps {
   hasArtifacts?: boolean
 }
 
-export function Header({ sidebarOpen, onToggleSidebar, selectedModel, onModelChange, onToggleArtifacts, hasArtifacts }: HeaderProps) {
+export function Header({ project, sidebarOpen, onToggleSidebar, selectedModel, onModelChange, onToggleArtifacts, hasArtifacts }: HeaderProps) {
   const { theme, setTheme } = useTheme()
   const { t } = useI18n()
   const { models: publicModels } = usePublicModels()
@@ -95,7 +97,7 @@ export function Header({ sidebarOpen, onToggleSidebar, selectedModel, onModelCha
 
   return (
     <header className="flex h-16 items-center justify-between border-b px-4 bg-background/80 backdrop-blur-md sticky top-0 z-30 transition-all">
-      <div className="flex items-center gap-3">
+      <div className="flex min-w-0 items-center gap-3">
         {!sidebarOpen && (
             <Button 
               variant="ghost" 
@@ -107,9 +109,10 @@ export function Header({ sidebarOpen, onToggleSidebar, selectedModel, onModelCha
             </Button>
         )}
         <Button variant="ghost" size="sm" asChild>
-          <Link href="/workspace" className="gap-2 px-2 sm:px-3">
-            <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
-            Workbench
+          <Link href={project ? `/workspace?workspace_id=${encodeURIComponent(project.id)}` : '/workspace'}
+            aria-label={project ? `Back to project ${project.name}` : undefined} className="min-w-0 gap-2 px-2 sm:px-3">
+            <FileSpreadsheet className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <span className="truncate">{project?.name ?? 'Workbench'}</span>
           </Link>
         </Button>
       </div>

@@ -203,12 +203,12 @@ def test_workbench_persists_inputs_runs_and_artifacts(tmp_path, monkeypatch):
         workspace = f"/api/workspaces/{created.json()['id']}"
         assert client.get(workspace, headers={"X-Test-User": "bob"}).status_code == 404
         assert (
-            client.post(f"{workspace}/files", files={"file": ("notes.txt", b"hi")}).status_code
+            client.post(f"{workspace}/files", files={"file": ("notes.exe", b"hi")}).status_code
             == 415
         )
         oversized = client.post(
             f"{workspace}/files",
-            content=b"x" * (api.MAX_CSV_SIZE + 65536),
+            content=b"x" * (api.MAX_FILE_SIZE + 65536),
             headers={"content-type": "multipart/form-data; boundary=wrong"},
         )
         assert oversized.status_code == 413

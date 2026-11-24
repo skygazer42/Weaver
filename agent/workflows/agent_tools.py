@@ -122,7 +122,11 @@ def build_agent_tools(config: RunnableConfig) -> List[BaseTool]:
         else:
             tools.append(tavily_search)
 
-    if _enabled(profile, "rag", default=False) and bool(getattr(settings, "rag_enabled", False)):
+    if (
+        not cfg.get("project_scoped")
+        and _enabled(profile, "rag", default=False)
+        and settings.rag_enabled
+    ):
         try:
             from tools.rag.rag_tool import rag_search
 

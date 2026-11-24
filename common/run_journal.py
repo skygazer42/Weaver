@@ -70,6 +70,9 @@ class RunJournal:
                     CREATE INDEX IF NOT EXISTS weaver_runs_runnable
                         ON weaver_runs (created_at, owner, run_id)
                         WHERE status IN ('queued', 'running');
+                    CREATE INDEX IF NOT EXISTS weaver_runs_workspace
+                        ON weaver_runs (owner, (payload->>'workspace_id'), created_at DESC)
+                        WHERE payload ? 'project_task';
                     CREATE TABLE IF NOT EXISTS weaver_run_events (
                         owner TEXT NOT NULL,
                         run_id TEXT NOT NULL,
@@ -126,7 +129,9 @@ class RunJournal:
         row = await cursor.fetchone()
         return RunRecord(**row) if row is not None else None
 
-    async def conversation_turns(self, owner: str, conversation_id: str) -> list[tuple[list, str]]:
+    async def conversation_turns(
+        self, owner: str, conversation_id: str, *, workspace_id: str | None = None
+    ) -> list[tuple[list, str]]:
         """Return the most recent committed turns in transcript order."""
         cursor = await self._db.execute(
             """SELECT recent.messages, completion.answer
@@ -135,6 +140,7 @@ class RunJournal:
                     FROM weaver_runs
                     WHERE owner=%s AND status='completed'
                         AND payload->'request'->>'conversation_id'=%s
+                        AND payload->'request'->>'workspace_id' IS NOT DISTINCT FROM %s
                     ORDER BY created_at DESC LIMIT 16
                 ) recent
                 JOIN LATERAL (
@@ -145,9 +151,44 @@ class RunJournal:
                     ORDER BY seq DESC LIMIT 1
                 ) completion ON completion.answer IS NOT NULL
                 ORDER BY recent.created_at""",
-            (owner, conversation_id),
+            (owner, conversation_id, workspace_id),
         )
         return [(row["messages"], row["answer"]) for row in await cursor.fetchall()]
+
+    async def project_tasks(self, owner: str, workspace_id: str) -> list[dict]:
+        cursor = await self._db.execute(
+            """SELECT r.thread_id, r.status, r.created_at, r.payload->'project_task' AS task,
+                       CASE WHEN r.status='failed' THEN e.raw_line END AS error_event
+                FROM weaver_runs r
+                LEFT JOIN weaver_run_events e
+                    ON r.status='failed' AND e.owner=r.owner AND e.run_id=r.run_id
+                    AND e.seq=r.event_seq-1
+                WHERE r.owner=%s AND r.payload->>'workspace_id'=%s AND r.payload ? 'project_task'
+                ORDER BY r.created_at DESC, r.run_id""",
+            (owner, workspace_id),
+        )
+        return await cursor.fetchall()
+
+    async def project_deliverables(
+        self,
+        owner: str,
+        workspace_id: str,
+        *,
+        thread_id: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict]:
+        cursor = await self._db.execute(
+            """SELECT substring(e.raw_line from 3)::jsonb->'data' AS artifact
+                FROM weaver_runs r
+                JOIN weaver_run_events e
+                    ON e.owner=r.owner AND e.run_id=r.run_id AND e.seq=r.event_seq-1
+                WHERE r.owner=%s AND r.payload->>'workspace_id'=%s AND r.payload ? 'project_task'
+                    AND r.status='completed' AND (%s::text IS NULL OR r.thread_id=%s)
+                    AND substring(e.raw_line from 3)::jsonb->>'type'='artifact'
+                ORDER BY r.created_at DESC, r.run_id LIMIT %s""",
+            (owner, workspace_id, thread_id, thread_id, limit),
+        )
+        return [row["artifact"] for row in await cursor.fetchall()]
 
     async def runnable(self, limit: int) -> list[RunRecord]:
         cursor = await self._db.execute(
@@ -205,7 +246,14 @@ class RunJournal:
         return [(row["seq"], row["raw_line"]) for row in await cursor.fetchall()]
 
     async def finish(
-        self, owner: str, run_id: str, attempt: str, status: str, *, final_line: str | None = None
+        self,
+        owner: str,
+        run_id: str,
+        attempt: str,
+        status: str,
+        *,
+        final_line: str | None = None,
+        artifact_line: str | None = None,
     ) -> bool:
         """Transition this attempt and commit its final replay frame together."""
         if status not in _FINISH_STATUSES:
@@ -213,12 +261,17 @@ class RunJournal:
         cursor = await self._db.execute(
             f"""WITH finished AS (
                     UPDATE weaver_runs SET status = %(status)s, attempt = NULL, lease_until = NULL,
-                        event_seq = event_seq + CASE WHEN %(line)s::text IS NULL THEN 0 ELSE 1 END
+                        event_seq = event_seq
+                            + (%(line)s::text IS NOT NULL)::int
+                            + (%(artifact)s::text IS NOT NULL)::int
                     WHERE {_ACTIVE_ATTEMPT} AND (NOT cancel_requested OR %(status)s = 'cancelled')
                     RETURNING owner, run_id, event_seq
                 ), final_event AS (
                     INSERT INTO weaver_run_events (owner, run_id, seq, raw_line)
-                    SELECT owner, run_id, event_seq, %(line)s FROM finished WHERE %(line)s IS NOT NULL
+                    SELECT owner, run_id, event_seq, %(line)s FROM finished WHERE %(line)s::text IS NOT NULL
+                    UNION ALL
+                    SELECT owner, run_id, event_seq - (%(line)s::text IS NOT NULL)::int, %(artifact)s
+                    FROM finished WHERE %(artifact)s::text IS NOT NULL
                 )
                 SELECT 1 FROM finished""",
             {
@@ -227,6 +280,7 @@ class RunJournal:
                 "attempt": attempt,
                 "status": status,
                 "line": final_line,
+                "artifact": artifact_line,
             },
         )
         return await cursor.fetchone() is not None

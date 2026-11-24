@@ -17,16 +17,19 @@ import { StorageService } from '@/lib/storage-service'
 import { useChatHistory } from '@/hooks/useChatHistory'
 import { cancelRun, useChatStream } from '@/hooks/useChatStream'
 import { filesToImageAttachments } from '@/lib/file-utils'
+import type { Workspace } from '@/lib/workspace'
 import { Discover } from '@/components/views/Discover'
 import { Library } from '@/components/views/Library'
 import { SettingsDialog } from '@/components/settings/SettingsDialog'
 import { BrowserViewer } from './BrowserViewer'
 
-export function Chat() {
+export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) {
+  const workspaceId = project?.id
+  const initialMode = project ? 'agent' : ''
   // UI State
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL)
-  const [searchMode, setSearchMode] = useState('') // empty = direct LLM only
+  const [searchMode, setSearchMode] = useState(initialMode)
   const [showScrollButton, setShowScrollButton] = useState(false)
   const [showMobileArtifacts, setShowMobileArtifacts] = useState(false)
   const [isArtifactsOpen, setIsArtifactsOpen] = useState(true)
@@ -45,7 +48,8 @@ export function Chat() {
   const restoredRun = useRef(false)
   const submissionRef = useRef<symbol | null>(null)
 
-  const { 
+  const chatHistory = useChatHistory(workspaceId)
+  const {
     history, 
     isHistoryLoading, 
     saveToHistory, 
@@ -54,7 +58,7 @@ export function Chat() {
     clearHistory,
     togglePin,
     renameSession
-  } = useChatHistory()
+  } = chatHistory
   
   const {
     messages,
@@ -75,29 +79,29 @@ export function Chat() {
     detachChat,
     handleStop,
     decideInterrupt,
-  } = useChatStream({ selectedModel, searchMode })
+  } = useChatStream({ selectedModel, searchMode, workspaceId })
 
   const runStatus = messages.at(-1)?.runStatus
   const artifacts = messages.flatMap((message) => message.artifacts ?? [])
-  const activeRun = currentSessionId ? StorageService.getRun(currentSessionId) : null
+  const activeRun = currentSessionId ? StorageService.getRun(currentSessionId, workspaceId) : null
   const approvalPrompts = pendingInterrupt?.prompts ?? (pendingInterrupt ? [pendingInterrupt] : [])
 
   useEffect(() => {
     if (isHistoryLoading || restoredRun.current) return
     restoredRun.current = true
-    const sessionId = StorageService.getRecentRunSession()
-      || history.find((item) => StorageService.getRun(item.id))?.id
+    const sessionId = StorageService.getRecentRunSession(workspaceId)
+      || history.find((item) => StorageService.getRun(item.id, workspaceId))?.id
     if (!sessionId) return
-    const run = StorageService.getRun(sessionId)
+    const run = StorageService.getRun(sessionId, workspaceId)
     if (!run) return
-    const saved = StorageService.getSessionMessages<Message>(sessionId)
+    const saved = StorageService.getSessionMessages<Message>(sessionId, workspaceId)
     if (saved.length === 0) return
     setMessages(saved)
     setCurrentSessionId(sessionId)
     setSearchMode(run.searchMode)
     if (!history.some((item) => item.id === sessionId)) saveToHistory(saved, sessionId, run.searchMode)
     void resumeRun(sessionId, run, saved)
-  }, [history, isHistoryLoading, resumeRun, saveToHistory, setMessages])
+  }, [history, isHistoryLoading, resumeRun, saveToHistory, setMessages, workspaceId])
 
   // Load Model from LocalStorage
   useEffect(() => {
@@ -136,11 +140,11 @@ export function Chat() {
       setAttachments([])
       setThreadId(null)
       setPendingInterrupt(null)
-      setSearchMode('') // default to direct LLM
+      setSearchMode(initialMode)
   }
 
   const stopSavedRun = (id: string) => {
-    const run = StorageService.getRun(id)
+    const run = StorageService.getRun(id, workspaceId)
     if (!run) return false
     void cancelRun(run.id).catch((error) => console.error('Failed to stop run', error))
     return true
@@ -184,8 +188,8 @@ export function Chat() {
       setAttachments([])
       setThreadId(null)
       setPendingInterrupt(null)
-      const run = StorageService.getRun(id)
-      setSearchMode(run?.searchMode ?? history.find((item) => item.id === id)?.searchMode ?? '')
+      const run = StorageService.getRun(id, workspaceId)
+      setSearchMode(run?.searchMode ?? history.find((item) => item.id === id)?.searchMode ?? initialMode)
       if (run) void resumeRun(id, run, loadedMessages)
     }
   }
@@ -283,7 +287,9 @@ export function Chat() {
   // Render Content based on View
   const renderContent = () => {
       if (currentView === 'discover') return <Discover />
-      if (currentView === 'library') return <Library />
+      if (currentView === 'library') {
+        return <Library workspaceId={workspaceId} chatHistory={chatHistory} onNewChat={handleNewChat} onSelectChat={handleChatSelect} onDeleteChat={handleDeleteChat} />
+      }
       
       // Default: Dashboard/Chat
       return (
@@ -305,7 +311,7 @@ export function Chat() {
                 className="scrollbar-thin scrollbar-thumb-muted/20"
                 itemContent={(index, message) => (
                     <div className="max-w-5xl mx-auto px-4 sm:px-0">
-                        <MessageItem key={message.id} message={message} onEdit={handleEditMessage} />
+                        <MessageItem key={message.id} message={message} onEdit={handleEditMessage} workspaceId={workspaceId} />
                     </div>
                 )}
             />
@@ -337,6 +343,7 @@ export function Chat() {
       <div className="flex-1 flex flex-col min-w-0 relative">
         {/* Header */}
         <Header 
+          project={project}
           sidebarOpen={sidebarOpen}
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
           selectedModel={selectedModel}

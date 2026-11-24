@@ -4,25 +4,40 @@ import asyncio
 import json
 import logging
 import os
+import re
 import sqlite3
 import time
 from collections.abc import AsyncIterator, Iterator
 from contextlib import closing, contextmanager
 from datetime import UTC, datetime
+from io import BytesIO
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
+from urllib.parse import quote
 from uuid import uuid4
+from zipfile import BadZipFile, ZipFile
 
 from fastapi import APIRouter, HTTPException, Request, UploadFile
 from fastapi.responses import Response, StreamingResponse
 from fastapi.routing import APIRoute
-from pydantic import UUID4, BaseModel, Field
+from pydantic import UUID4, BaseModel, Field, StringConstraints
 
 from common.config import settings
 from workbench.analysis import AnalysisError, run_csv_analysis
 
 logger = logging.getLogger(__name__)
-MAX_CSV_SIZE = 5 * 1024 * 1024
+MAX_FILE_SIZE = 5 * 1024 * 1024
+MAX_DOCX_EXPANDED_SIZE = 25 * 1024 * 1024
+MAX_CONTEXT_CHARS = 24_000
+MAX_CONTEXT_FILES = 6
+FILE_MEDIA_TYPES = {
+    ".csv": "text/csv",
+    ".txt": "text/plain",
+    ".md": "text/markdown",
+    ".pdf": "application/pdf",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+}
+BINARY_CONTROL_BYTES = re.compile(rb"[\x00-\x08\x0b\x0e-\x1f\x7f]")
 RECOVERY_INTERVAL_S = 5.0
 RUN_FIELDS = "id, file_id, model, prompt, status, step, error, created_at, updated_at"
 AVAILABLE = "(status = 'queued' OR (status = 'running' AND lease_until < ?))"
@@ -33,14 +48,14 @@ _recovery_task: asyncio.Task[None] | None = None
 class WorkspaceRoute(APIRoute):
     def get_route_handler(self):
         handler = super().get_route_handler()
-        if self.name != "upload_csv":
+        if self.name != "upload_file":
             return handler
 
         async def bounded_upload(request: Request) -> Response:
-            limit = MAX_CSV_SIZE + 16 * 1024
+            limit = MAX_FILE_SIZE + 16 * 1024
             size = request.headers.get("content-length", "")
             if size.isdecimal() and int(size) > limit:
-                raise HTTPException(status_code=413, detail="CSV file exceeds 5 MiB.")
+                raise HTTPException(status_code=413, detail="File exceeds 5 MiB.")
             received = 0
 
             async def receive():
@@ -48,7 +63,7 @@ class WorkspaceRoute(APIRoute):
                 message = await request.receive()
                 received += len(message.get("body", b""))
                 if received > limit:
-                    raise HTTPException(status_code=413, detail="CSV file exceeds 5 MiB.")
+                    raise HTTPException(status_code=413, detail="File exceeds 5 MiB.")
                 return message
 
             return await handler(Request(request.scope, receive))
@@ -78,7 +93,15 @@ class WorkspaceRun(BaseModel):
     updated_at: str
 
 
-class Workspace(BaseModel):
+class WorkspaceMetadata(BaseModel):
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)] = (
+        "Workspace"
+    )
+    instructions: str = Field(default="", max_length=4000)
+    decisions: str = Field(default="", max_length=4000)
+
+
+class Workspace(WorkspaceMetadata):
     id: str
     files: list[WorkspaceFile]
     runs: list[WorkspaceRun]
@@ -107,6 +130,10 @@ def _database(path: Path) -> Iterator[sqlite3.Connection]:
         db.executescript("""
             PRAGMA foreign_keys = ON;
             CREATE TABLE IF NOT EXISTS workspaces (id TEXT PRIMARY KEY, owner TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS workspace_metadata (
+                workspace_id TEXT PRIMARY KEY REFERENCES workspaces(id),
+                name TEXT NOT NULL, instructions TEXT NOT NULL, decisions TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS files (
                 id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES workspaces(id),
                 name TEXT NOT NULL, size INTEGER NOT NULL, created_at TEXT NOT NULL, content BLOB NOT NULL
@@ -122,15 +149,142 @@ def _database(path: Path) -> Iterator[sqlite3.Connection]:
         yield db
 
 
-def _require_workspace(db: sqlite3.Connection, workspace_id: str, request: Request) -> None:
-    owner = getattr(request.state, "principal_id", "anonymous")
-    if (
-        db.execute(
-            "SELECT 1 FROM workspaces WHERE id = ? AND owner = ?", (workspace_id, owner)
-        ).fetchone()
-        is None
-    ):
+def _request_owner(request: Request) -> str:
+    return getattr(request.state, "principal_id", "anonymous")
+
+
+def _require_workspace(db: sqlite3.Connection, workspace_id: str, owner: str) -> dict[str, str]:
+    row = db.execute(
+        """SELECT workspace_metadata.name, workspace_metadata.instructions, workspace_metadata.decisions
+           FROM workspaces LEFT JOIN workspace_metadata ON workspace_metadata.workspace_id = workspaces.id
+           WHERE workspaces.id = ? AND workspaces.owner = ?""",
+        (workspace_id, owner),
+    ).fetchone()
+    if row is None:
         raise HTTPException(status_code=404, detail="Workspace not found")
+    return dict(row) if row["name"] is not None else WorkspaceMetadata().model_dump()
+
+
+def _workspace_response(db: sqlite3.Connection, workspace_id: str, owner: str) -> Workspace:
+    metadata = _require_workspace(db, workspace_id, owner)
+    files = db.execute(
+        "SELECT id, name, size, created_at FROM files WHERE workspace_id = ? ORDER BY created_at DESC, rowid DESC",
+        (workspace_id,),
+    )
+    runs = db.execute(
+        f"SELECT {RUN_FIELDS} FROM runs WHERE workspace_id = ? ORDER BY created_at DESC, rowid DESC",
+        (workspace_id,),
+    )
+    return Workspace(
+        id=workspace_id,
+        **metadata,
+        files=[WorkspaceFile(**dict(row)) for row in files],
+        runs=[WorkspaceRun(**dict(row)) for row in runs],
+    )
+
+
+def _require_file(
+    db: sqlite3.Connection, workspace_id: str, file_id: str, *, include_content: bool = False
+) -> sqlite3.Row:
+    fields = "id, name, content" if include_content else "id, name"
+    row = db.execute(
+        f"SELECT {fields} FROM files WHERE workspace_id = ? AND id = ?", (workspace_id, file_id)
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="File not found")
+    return row
+
+
+def _decode_file_text(contents: bytes, suffix: str) -> str:
+    if BINARY_CONTROL_BYTES.search(contents):
+        raise ValueError("Binary bytes in a text file")
+    try:
+        return contents.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        if suffix != ".csv":
+            raise
+        return contents.decode("gb18030")
+
+
+def _validate_upload(contents: bytes, suffix: str) -> None:
+    if not contents.strip():
+        raise HTTPException(status_code=422, detail="File is empty.")
+    if suffix == ".pdf":
+        if b"%PDF-" not in contents[:1024]:
+            raise HTTPException(status_code=422, detail="Invalid PDF file.")
+    elif suffix == ".docx":
+        try:
+            with ZipFile(BytesIO(contents)) as package:
+                if {"[Content_Types].xml", "word/document.xml"} - set(package.namelist()):
+                    raise BadZipFile("Missing DOCX document parts")
+                if sum(entry.file_size for entry in package.infolist()) > MAX_DOCX_EXPANDED_SIZE:
+                    raise HTTPException(
+                        status_code=413, detail="DOCX file exceeds 25 MiB when unpacked."
+                    )
+        except BadZipFile as error:
+            raise HTTPException(status_code=422, detail="Invalid DOCX file.") from error
+    else:
+        try:
+            content = _decode_file_text(contents, suffix)
+        except ValueError as error:
+            raise HTTPException(
+                status_code=422, detail="Invalid text file encoding or content."
+            ) from error
+        if not content.strip():
+            raise HTTPException(status_code=422, detail="File is empty.")
+
+
+def _project_file_text(contents: bytes, name: str, limit: int) -> str:
+    suffix = Path(name).suffix.lower()
+    if suffix in {".csv", ".md", ".txt"}:
+        return _decode_file_text(contents, suffix).strip()[:limit]
+    if suffix in {".docx", ".pdf"}:
+        from tools.rag.document_loader import DocumentLoader
+
+        documents = DocumentLoader(chunk_size=limit).load_from_bytes(
+            contents, name, max_chars=limit
+        )
+        return "\n\n".join(document.content for document in documents)
+    raise ValueError("Unsupported file format")
+
+
+def load_project_context(workspace_id: str, owner: str, file_ids: list[str] | None = None) -> dict:
+    """Load bounded source excerpts for one workspace and owner."""
+    with _database(_db_path()) as db:
+        metadata = _require_workspace(db, workspace_id, owner)
+        if file_ids is None:
+            candidates = db.execute(
+                """SELECT id, name FROM files WHERE workspace_id = ? AND lower(substr(name, -4)) != '.csv'
+                   ORDER BY created_at DESC, rowid DESC""",
+                (workspace_id,),
+            ).fetchall()
+            limit = MAX_CONTEXT_CHARS // MAX_CONTEXT_FILES
+        else:
+            candidates = [
+                _require_file(db, workspace_id, file_id) for file_id in dict.fromkeys(file_ids)
+            ]
+            limit = min(6_000, MAX_CONTEXT_CHARS // max(1, len(candidates)))
+
+        files = []
+        for row in candidates:
+            file = _require_file(db, workspace_id, row["id"], include_content=True)
+            try:
+                excerpt = _project_file_text(file["content"], file["name"], limit)
+            except Exception as error:
+                logger.warning(
+                    "Workspace file %s extraction failed (%s)", file["id"], type(error).__name__
+                )
+                excerpt = ""
+            if not excerpt.strip():
+                if file_ids is not None:
+                    raise HTTPException(
+                        status_code=422, detail=f"Could not extract text from {file['name']}."
+                    )
+                continue
+            files.append({"id": file["id"], "name": file["name"], "text": excerpt})
+            if file_ids is None and len(files) == MAX_CONTEXT_FILES:
+                break
+    return {**metadata, "files": files}
 
 
 def _schedule(path: Path, run_id: str) -> None:
@@ -236,46 +390,59 @@ def create_workspace(request: Request) -> Workspace:
     with _database(_db_path()) as db:
         db.execute(
             "INSERT INTO workspaces (id, owner) VALUES (?, ?)",
-            (workspace_id, getattr(request.state, "principal_id", "anonymous")),
+            (workspace_id, _request_owner(request)),
         )
     return Workspace(id=workspace_id, files=[], runs=[])
 
 
 @router.get("/{workspace_id}", response_model=Workspace)
-async def get_workspace(workspace_id: UUID4, request: Request) -> Workspace:
-    path = _db_path()
-    with _database(path) as db:
-        _require_workspace(db, workspace_id.hex, request)
-        files = db.execute(
-            "SELECT id, name, size, created_at FROM files WHERE workspace_id = ? ORDER BY created_at DESC, rowid DESC",
-            (workspace_id.hex,),
-        ).fetchall()
-        runs = db.execute(
-            f"SELECT {RUN_FIELDS} FROM runs WHERE workspace_id = ? ORDER BY created_at DESC, rowid DESC",
-            (workspace_id.hex,),
-        ).fetchall()
-    return Workspace(
-        id=workspace_id.hex,
-        files=[WorkspaceFile(**dict(row)) for row in files],
-        runs=[WorkspaceRun(**dict(row)) for row in runs],
-    )
+def get_workspace(workspace_id: UUID4, request: Request) -> Workspace:
+    with _database(_db_path()) as db:
+        return _workspace_response(db, workspace_id.hex, _request_owner(request))
+
+
+@router.patch("/{workspace_id}", response_model=Workspace)
+def update_workspace(
+    workspace_id: UUID4, request: Request, payload: WorkspaceMetadata
+) -> Workspace:
+    owner = _request_owner(request)
+    changes = payload.model_dump(exclude_unset=True)
+    with _database(_db_path()) as db:
+        _require_workspace(db, workspace_id.hex, owner)
+        if changes:
+            db.execute(
+                """INSERT INTO workspace_metadata (workspace_id, name, instructions, decisions)
+                   VALUES (:id, COALESCE(:name, 'Workspace'), COALESCE(:instructions, ''), COALESCE(:decisions, ''))
+                   ON CONFLICT(workspace_id) DO UPDATE SET
+                       name = COALESCE(:name, name), instructions = COALESCE(:instructions, instructions),
+                       decisions = COALESCE(:decisions, decisions)""",
+                {
+                    "id": workspace_id.hex,
+                    "name": changes.get("name"),
+                    "instructions": changes.get("instructions"),
+                    "decisions": changes.get("decisions"),
+                },
+            )
+        return _workspace_response(db, workspace_id.hex, owner)
 
 
 @router.post("/{workspace_id}/files", response_model=WorkspaceFile, status_code=201)
-async def upload_csv(workspace_id: UUID4, request: Request, file: UploadFile) -> WorkspaceFile:
+async def upload_file(workspace_id: UUID4, request: Request, file: UploadFile) -> WorkspaceFile:
     path = _db_path()
     with _database(path) as db:
-        _require_workspace(db, workspace_id.hex, request)
+        _require_workspace(db, workspace_id.hex, _request_owner(request))
     name = Path((file.filename or "").replace("\\", "/")).name
-    if not name.lower().endswith(".csv"):
-        raise HTTPException(status_code=415, detail="Upload a CSV file.")
-    if len(name) > 255:
-        raise HTTPException(status_code=422, detail="CSV filename exceeds 255 characters.")
-    contents = await file.read(MAX_CSV_SIZE + 1)
-    if not contents.strip():
-        raise HTTPException(status_code=422, detail="CSV file is empty.")
-    if len(contents) > MAX_CSV_SIZE:
-        raise HTTPException(status_code=413, detail="CSV file exceeds 5 MiB.")
+    suffix = Path(name).suffix.lower()
+    if suffix not in FILE_MEDIA_TYPES:
+        raise HTTPException(status_code=415, detail="Upload a TXT, MD, PDF, DOCX, or CSV file.")
+    if len(name) > 255 or not name.isprintable():
+        raise HTTPException(
+            status_code=422, detail="Use a printable filename of at most 255 characters."
+        )
+    contents = await file.read(MAX_FILE_SIZE + 1)
+    if len(contents) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=413, detail="File exceeds 5 MiB.")
+    await asyncio.to_thread(_validate_upload, contents, suffix)
 
     saved = WorkspaceFile(id=uuid4().hex, name=name, size=len(contents), created_at=_now())
     with _database(path) as db:
@@ -284,6 +451,24 @@ async def upload_csv(workspace_id: UUID4, request: Request, file: UploadFile) ->
             (saved.id, workspace_id.hex, name, saved.size, saved.created_at, contents),
         )
     return saved
+
+
+@router.get("/{workspace_id}/files/{file_id}", response_class=Response)
+def download_file(workspace_id: UUID4, file_id: UUID4, request: Request) -> Response:
+    with _database(_db_path()) as db:
+        _require_workspace(db, workspace_id.hex, _request_owner(request))
+        file = _require_file(db, workspace_id.hex, file_id.hex, include_content=True)
+    filename = quote(file["name"], safe="")
+    media_type = FILE_MEDIA_TYPES.get(Path(file["name"]).suffix.lower(), "application/octet-stream")
+    return Response(
+        file["content"],
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{filename}",
+            "Cache-Control": "private, no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
 
 
 def _frame(part: dict) -> str:
@@ -324,12 +509,10 @@ async def create_run(
 ) -> StreamingResponse:
     path = _db_path()
     with _database(path) as db:
-        _require_workspace(db, workspace_id.hex, request)
-        if not db.execute(
-            "SELECT 1 FROM files WHERE workspace_id = ? AND id = ?",
-            (workspace_id.hex, payload.file_id.hex),
-        ).fetchone():
-            raise HTTPException(status_code=404, detail="CSV file not found")
+        _require_workspace(db, workspace_id.hex, _request_owner(request))
+        file = _require_file(db, workspace_id.hex, payload.file_id.hex)
+        if not file["name"].lower().endswith(".csv"):
+            raise HTTPException(status_code=415, detail="Select a CSV file for analysis.")
         if settings.use_azure or not settings.openai_api_key.strip():
             raise HTTPException(
                 status_code=503,
@@ -371,7 +554,7 @@ def get_artifact(
     request: Request,
 ) -> Response:
     with _database(_db_path()) as db:
-        _require_workspace(db, workspace_id.hex, request)
+        _require_workspace(db, workspace_id.hex, _request_owner(request))
         row = db.execute(
             "SELECT report, chart FROM runs WHERE id = ? AND workspace_id = ? AND status = 'completed'",
             (run_id.hex, workspace_id.hex),

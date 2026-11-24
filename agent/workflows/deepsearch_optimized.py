@@ -30,6 +30,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
 from agent.core.llm_factory import create_chat_model
+from agent.core.message_utils import project_context_message
 from agent.core.search_cache import get_search_cache
 from agent.workflows.domain_router import ResearchDomain, build_provider_profile
 from agent.workflows.evidence_passages import split_into_passages
@@ -534,6 +535,7 @@ def _final_report(
     config: Dict[str, Any],
     *,
     sources: str = "",
+    project_context: dict | None = None,
 ) -> str:
     """Generate final report based on all summaries."""
     prompt = ChatPromptTemplate.from_messages([("user", final_summary_prompt)])
@@ -542,7 +544,7 @@ def _final_report(
         summary_search="\n\n".join(summary_notes) or "暂无",
         sources=sources or "暂无",
     )
-    response = llm.invoke(msg, config=config)
+    response = llm.invoke([*project_context_message(project_context), *msg], config=config)
     return getattr(response, "content", "") or summary_text_prompt
 
 
@@ -1488,7 +1490,10 @@ def run_deepsearch_optimized(state: Dict[str, Any], config: Dict[str, Any]) -> D
         # ⏱️ Step 6: 生成最终报告（带强引用来源编号）
         report_start = time.time()
         final_report = (
-            _research_step(config, _final_report,writer_llm, topic, summary_notes, config, sources=sources_block)
+            _research_step(
+                config, _final_report, writer_llm, topic, summary_notes, config,
+                sources=sources_block, project_context=state.get("project_context"),
+            )
             if summary_notes
             else summary_text_prompt
         )
@@ -1960,7 +1965,10 @@ def run_deepsearch_tree(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[s
 
         # Generate final report (strong citations aligned to extracted_sources order)
         final_report = (
-            _research_step(config, _final_report,writer_llm, topic, summary_notes, config, sources=sources_block)
+            _research_step(
+                config, _final_report, writer_llm, topic, summary_notes, config,
+                sources=sources_block, project_context=state.get("project_context"),
+            )
             if summary_notes
             else summary_text_prompt
         )

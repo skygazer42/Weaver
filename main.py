@@ -39,7 +39,7 @@ from prometheus_client import (
     Gauge,
     generate_latest,
 )
-from pydantic import BaseModel, Field, field_validator
+from pydantic import UUID4, BaseModel, Field, field_validator
 from starlette.concurrency import run_in_threadpool
 
 from agent import (
@@ -115,6 +115,8 @@ from triggers import (
 )
 from workbench.api import router as workspace_router
 from workbench.api import start_workspace_runs, stop_workspace_runs
+from workbench.project_tasks import project_chat_context, project_task_source
+from workbench.project_tasks import router as project_tasks_router
 
 # Initialize logging
 setup_logging()
@@ -140,9 +142,11 @@ async def lifespan(app: FastAPI):
                 journal = RunJournal(settings.database_url)
                 await journal.setup()
                 durable_streams = DurableStreams(journal, _durable_source)
+                app.state.project_streams = durable_streams
             yield
         finally:
             if durable_streams is not None:
+                app.state.project_streams = None
                 await durable_streams.close()
                 durable_streams = None
             await stop_workspace_runs()
@@ -160,6 +164,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.include_router(workspace_router)
+app.include_router(project_tasks_router)
 
 APP_STARTED_AT = time.monotonic()
 
@@ -983,6 +988,7 @@ class ImagePayload(BaseModel):
 class ChatRequest(BaseModel):
     messages: List[Message]
     conversation_id: str | None = Field(default=None, max_length=128)
+    workspace_id: UUID4 | None = None
     stream: bool = True
     model: Optional[str] = None
     search_mode: Optional[SearchMode] = None
@@ -1794,13 +1800,15 @@ def _chat_turn(messages: list[Message]) -> tuple[str, list[BaseMessage]]:
     return messages[last_user].content, recent
 
 
-def _seed_run_messages(input_text, *, user_id, mode, profile, history=None):
+def _seed_run_messages(input_text, *, user_id, mode, profile, history=None, project_context=None):
     messages = []
     if mode.get("mode") == "agent" and profile and profile.system_prompt:
         messages.append(SystemMessage(content=profile.system_prompt))
     if mode.get("use_deep_prompt"):
         messages.append(SystemMessage(content=get_deep_agent_prompt()))
     messages.extend(history or [])
+    if project_context is not None:
+        return messages
 
     memories = dict.fromkeys(
         [*_store_search(input_text, user_id=user_id), *fetch_memories(query=input_text, user_id=user_id)]
@@ -1824,6 +1832,7 @@ async def stream_agent_events(
     resume_checkpoint: bool = False,
     resume_decision: Any = None,
     resume_interrupt_ids: list[str] | None = None,
+    project_context: dict | None = None,
 ):
     """
     Stream agent execution events in real-time.
@@ -1908,8 +1917,10 @@ async def stream_agent_events(
             "pending_tool_calls": [],
             "user_id": user_id,
             "conversation_id": conversation_id,
+            **({"project_context": project_context} if project_context is not None else {}),
             "messages": _seed_run_messages(
                 input_text, user_id=user_id, mode=mode_info, profile=agent_profile, history=history,
+                project_context=project_context,
             ),
             "research_plan": [],
             "current_step": 0,
@@ -1937,6 +1948,7 @@ async def stream_agent_events(
                 "search_mode": mode_info,
                 "agent_profile": agent_profile.model_dump(mode="json") if agent_profile else None,
                 "user_id": user_id,
+                "project_scoped": project_context is not None,
                 "allow_interrupts": bool(checkpointer),
                 "tool_approval": settings.tool_approval or False,
                 "human_review": settings.human_review or False,
@@ -2357,7 +2369,7 @@ async def stream_agent_events(
         # Send final completion
         if researched and mode_info.get("mode") == "deep" and not has_sources:
             yield await format_stream_event("insufficient_evidence", {"message": "No supporting sources were found."})
-        elif completed_report and not resume_checkpoint:
+        elif completed_report and not resume_checkpoint and project_context is None:
             store_interaction(input_text, completed_report, user_id=user_id)
             _store_add(input_text, completed_report, user_id=user_id)
         duration = time.time() - start_time
@@ -2453,7 +2465,11 @@ async def _saved_run_source(thread_id: str, saved: dict, *, durable: bool):
         owner = get_thread_owner(thread_id)
         if owner:
             transcript: list[Message] = []
-            for messages, answer in await durable_streams.journal.conversation_turns(owner, request.conversation_id):
+            turns = await durable_streams.journal.conversation_turns(
+                owner, request.conversation_id,
+                workspace_id=str(request.workspace_id) if request.workspace_id else None,
+            )
+            for messages, answer in turns:
                 earlier = [Message.model_validate(message) for message in messages]
                 index = max(i for i, item in enumerate(earlier) if item.role == "user")
                 if index:
@@ -2473,6 +2489,7 @@ async def _saved_run_source(thread_id: str, saved: dict, *, durable: bool):
         resume_checkpoint=durable,
         resume_decision=saved.get("approval"),
         resume_interrupt_ids=saved.get("approval_interrupt_ids"),
+        **({"project_context": saved["project_context"]} if saved.get("project_context") is not None else {}),
     )
     async with aclosing(events):
         async for line in events:
@@ -2480,6 +2497,8 @@ async def _saved_run_source(thread_id: str, saved: dict, *, durable: bool):
 
 
 def _durable_source(record: RunRecord):
+    if "project_task" in record.payload:
+        return project_task_source(record)
     set_thread_owner(record.thread_id, record.owner)
     return _saved_run_source(record.thread_id, record.payload, durable=True)
 
@@ -2504,19 +2523,28 @@ async def chat_sse(
     mode_info = _normalize_search_mode(payload.search_mode)
     model = (payload.model or settings.primary_model).strip()
     thread_id = f"thread_{uuid.uuid4().hex}"
+    owner = principal_id or "anonymous"
+    project_context = (
+        await project_chat_context(payload.workspace_id, request) if payload.workspace_id else None
+    )
+    saved_request = payload.model_copy(update={"model": model}).model_dump(mode="json")
+    saved = {"request": saved_request, "user_id": user_id, "project_context": project_context}
     if research_id is not None:
         if mode_info["mode"] not in {"agent", "deep"}:
             raise HTTPException(status_code=400, detail="Resumable streaming requires Agent or Deep Research")
         if durable_streams is not None and (settings.openai_api_key or "").strip():
             record = await durable_streams.journal.submit(
-                principal_id or "anonymous", research_id, thread_id,
-                {"request": payload.model_copy(update={"model": model}).model_dump(mode="json"), "user_id": user_id},
+                owner, research_id, thread_id, saved,
             )
+            if record.payload["request"].get("workspace_id") != saved_request["workspace_id"]:
+                raise HTTPException(status_code=409, detail="This run ID belongs to a different workspace")
             durable_streams.schedule(record)
             return _chat_stream_response(record.thread_id, durable_streams.subscribe(record))
-        existing = get_research_stream((principal_id or "anonymous", research_id))
+        existing = get_research_stream((owner, research_id))
         if existing is not None:
             await _require_thread_owner(request, existing.thread_id)
+            if existing.payload["request"].get("workspace_id") != saved_request["workspace_id"]:
+                raise HTTPException(status_code=409, detail="This run ID belongs to a different workspace")
             return _chat_stream_response(existing.thread_id, existing.subscribe())
 
     def source_events():
@@ -2530,18 +2558,19 @@ async def chat_sse(
             user_id=user_id,
             history=history,
             conversation_id=payload.conversation_id,
+            **({"project_context": project_context} if project_context is not None else {}),
         )
 
     if research_id is not None and (settings.openai_api_key or "").strip():
         source = source_events()
         try:
-            run = start_research_stream((principal_id or "anonymous", research_id), thread_id, source)
+            run = start_research_stream((owner, research_id), thread_id, source)
         except ResearchStreamCapacity as error:
             await source.aclose()
             raise HTTPException(status_code=503, detail="Deep Research is at capacity") from error
-        set_thread_owner(thread_id, principal_id or "anonymous")
+        set_thread_owner(thread_id, owner)
         active_streams[thread_id] = run.task
-        run.payload = {"request": payload.model_dump(mode="json"), "user_id": user_id}
+        run.payload = saved
         run.task.add_done_callback(lambda _: active_streams.pop(thread_id, None))
         return _chat_stream_response(thread_id, run.subscribe())
 
@@ -2611,7 +2640,7 @@ async def _require_research_stream(request: Request, research_id: str):
     principal_id = (getattr(request.state, "principal_id", "") or "").strip() or "anonymous"
     if durable_streams is not None:
         record = await durable_streams.journal.get(principal_id, research_id)
-        if record is not None:
+        if record is not None and "project_task" not in record.payload:
             return record
     run = get_research_stream((principal_id, research_id))
     if run is None:
@@ -2685,6 +2714,9 @@ async def chat(request: Request, payload: ChatRequest):
     """
     last_message, history = _chat_turn(payload.messages)
     thread_id = f"thread_{uuid.uuid4().hex}"
+    project_context = (
+        await project_chat_context(payload.workspace_id, request) if payload.workspace_id else None
+    )
     try:
         internal_key = (getattr(settings, "internal_api_key", "") or "").strip()
         principal_id = (getattr(request.state, "principal_id", "") or "").strip()
@@ -2719,6 +2751,7 @@ async def chat(request: Request, payload: ChatRequest):
                     user_id=user_id,
                     history=history,
                     conversation_id=payload.conversation_id,
+                    **({"project_context": project_context} if project_context is not None else {}),
                 ),
                 media_type="text/event-stream",
                 headers={
@@ -2738,8 +2771,10 @@ async def chat(request: Request, payload: ChatRequest):
                 "pending_tool_calls": [],
                 "user_id": user_id,
                 "conversation_id": payload.conversation_id,
+                **({"project_context": project_context} if project_context is not None else {}),
                 "messages": _seed_run_messages(
                     last_message, user_id=user_id, mode=mode_info, profile=agent_profile, history=history,
+                    project_context=project_context,
                 ),
                 "research_plan": [],
                 "current_step": 0,
@@ -2765,6 +2800,7 @@ async def chat(request: Request, payload: ChatRequest):
                     if agent_profile
                     else None,
                     "user_id": user_id,
+                    "project_scoped": project_context is not None,
                     "allow_interrupts": bool(checkpointer),
                     "tool_approval": settings.tool_approval or False,
                     "human_review": settings.human_review or False,
@@ -2777,8 +2813,9 @@ async def chat(request: Request, payload: ChatRequest):
             )
             result = await research_graph.ainvoke(initial_state, config=config)
             final_report = result.get("final_report", "No response generated")
-            store_interaction(last_message, final_report, user_id=user_id)
-            _store_add(last_message, final_report, user_id=user_id)
+            if project_context is None:
+                store_interaction(last_message, final_report, user_id=user_id)
+                _store_add(last_message, final_report, user_id=user_id)
             metrics_registry.finish(thread_id, cancelled=False)
 
             return ChatResponse(

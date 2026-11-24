@@ -1,13 +1,17 @@
 import asyncio
 import os
 import sys
+from contextlib import aclosing
 from uuid import uuid4
 
 import pytest
 import pytest_asyncio
+from anyio import CancelScope, create_task_group, wait_all_tasks_blocked
 from psycopg import AsyncConnection, sql
 from psycopg.conninfo import make_conninfo
 
+from common.durable_streams import DurableStreams
+from common.research_streams import run_status_line
 from common.run_journal import RunJournal
 
 
@@ -43,6 +47,49 @@ async def journal(journal_dsn):
         yield journal
     finally:
         await journal.close()
+
+
+@pytest.mark.asyncio
+async def test_disconnected_subscriber_keeps_shared_postgres_connection_usable(journal, journal_dsn):
+    run = await journal.submit("alice", "request", "thread-a", {})
+    attempt = await journal.claim(run.owner, run.run_id)
+    assert attempt is not None
+    completed = run_status_line("completed")
+    assert await journal.finish(run.owner, run.run_id, attempt, "completed", final_line=completed)
+
+    async def source(_record):
+        yield completed
+
+    streams = DurableStreams(journal, source)
+
+    async def read_stream(*, task_status):
+        with CancelScope() as scope:
+            task_status.started(scope)
+            async with aclosing(streams.subscribe(run)) as events:
+                await anext(events)
+
+    try:
+        async with (
+            await AsyncConnection.connect(journal_dsn, autocommit=True) as blocker,
+            create_task_group() as clients,
+        ):
+            async with blocker.transaction():
+                await blocker.execute("LOCK TABLE weaver_run_events IN ACCESS EXCLUSIVE MODE")
+                client = await clients.start(read_stream)
+                async with asyncio.timeout(5):
+                    while True:
+                        cursor = await blocker.execute(
+                            "SELECT pg_backend_pid() = ANY(pg_blocking_pids(%s)) AS blocked",
+                            (journal._db.info.backend_pid,),
+                        )
+                        if (await cursor.fetchone())[0]:
+                            break
+                        await asyncio.sleep(0.01)
+                client.cancel()
+                await wait_all_tasks_blocked()
+        assert await journal.events_after(run.owner, run.run_id, 0) == [(1, completed)]
+    finally:
+        await streams.close()
 
 
 @pytest.mark.asyncio

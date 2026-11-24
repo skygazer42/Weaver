@@ -1,6 +1,10 @@
 import type { ChatRun } from '@/types/chat'
 
 export class StorageService {
+  private static key(key: string, workspaceId?: string): string {
+    return workspaceId ? `weaver-project:${workspaceId}:${key}` : key
+  }
+
   private static getItem<T>(key: string): T | null {
     if (typeof window === 'undefined') return null
     try {
@@ -23,85 +27,73 @@ export class StorageService {
     }
   }
 
-  static getHistory<T>(): T[] {
-    return this.getItem<T[]>('weaver-history') || []
+  static getHistory<T>(workspaceId?: string): T[] {
+    return this.getItem<T[]>(this.key('weaver-history', workspaceId)) || []
   }
 
-  static saveHistory<T>(history: T[]): void {
-    this.setItem('weaver-history', history)
+  static saveHistory<T>(history: T[], workspaceId?: string): void {
+    this.setItem(this.key('weaver-history', workspaceId), history)
   }
 
-  static getArtifacts<T>(): T[] {
-    return this.getItem<T[]>('weaver-artifacts') || []
+  static getArtifacts<T>(workspaceId?: string): T[] {
+    return this.getItem<T[]>(this.key('weaver-artifacts', workspaceId)) || []
   }
 
-  static saveArtifacts<T>(artifacts: T[]): void {
-    this.setItem('weaver-artifacts', artifacts)
+  static saveArtifacts<T>(artifacts: T[], workspaceId?: string): void {
+    this.setItem(this.key('weaver-artifacts', workspaceId), artifacts)
   }
 
-  static getSessionMessages<T>(sessionId: string): T[] {
-    return this.getItem<T[]>(`session_${sessionId}`) || []
+  static getSessionMessages<T>(sessionId: string, workspaceId?: string): T[] {
+    return this.getItem<T[]>(this.key('session_' + sessionId, workspaceId)) || []
   }
 
-  static saveSessionMessages<T>(sessionId: string, messages: T[]): boolean {
-    return this.setItem(`session_${sessionId}`, messages)
+  static saveSessionMessages<T>(sessionId: string, messages: T[], workspaceId?: string): boolean {
+    return this.setItem(this.key('session_' + sessionId, workspaceId), messages)
   }
 
-  static getRun(sessionId: string): ChatRun | null {
-    const saved = this.getItem<ChatRun | string>('research_' + sessionId)
+  static getRun(sessionId: string, workspaceId?: string): ChatRun | null {
+    const saved = this.getItem<ChatRun | string>(this.key('research_' + sessionId, workspaceId))
     return typeof saved === 'string' ? { id: saved, searchMode: 'ultra' } : saved
   }
 
-  static setRun(sessionId: string, run: ChatRun | null): void {
-    this.setItem('research_' + sessionId, run)
-    if (run || this.getRecentRunSession() === sessionId) {
-      this.setItem('weaver-recent-research', run ? sessionId : null)
+  static setRun(sessionId: string, run: ChatRun | null, workspaceId?: string): void {
+    this.setItem(this.key('research_' + sessionId, workspaceId), run)
+    if (run || this.getRecentRunSession(workspaceId) === sessionId) {
+      this.setItem(this.key('weaver-recent-research', workspaceId), run ? sessionId : null)
     }
   }
 
-  static saveRunSnapshot(sessionId: string, run: ChatRun): void {
-    const saved = this.getRun(sessionId)
+  static saveRunSnapshot(sessionId: string, run: ChatRun, workspaceId?: string): void {
+    const saved = this.getRun(sessionId, workspaceId)
     if (saved?.id === run.id && (saved.lastEventId ?? 0) <= (run.lastEventId ?? 0)) {
-      this.setItem('research_' + sessionId, run)
+      this.setItem(this.key('research_' + sessionId, workspaceId), run)
     }
   }
 
-  static getRecentRunSession(): string | null {
-    return this.getItem<string>('weaver-recent-research')
+  static getRecentRunSession(workspaceId?: string): string | null {
+    return this.getItem<string>(this.key('weaver-recent-research', workspaceId))
   }
 
-  static markRunViewed(sessionId: string): void {
-    this.setItem('weaver-recent-research', sessionId)
+  static markRunViewed(sessionId: string, workspaceId?: string): void {
+    this.setItem(this.key('weaver-recent-research', workspaceId), sessionId)
   }
 
-  static removeSessionMessages(sessionId: string): void {
+  static removeSessionMessages(sessionId: string, workspaceId?: string): void {
     if (typeof window === 'undefined') return
-    this.setRun(sessionId, null)
-    window.localStorage.removeItem('research_' + sessionId)
-    window.localStorage.removeItem(`session_${sessionId}`)
+    this.setRun(sessionId, null, workspaceId)
+    window.localStorage.removeItem(this.key('research_' + sessionId, workspaceId))
+    window.localStorage.removeItem(this.key('session_' + sessionId, workspaceId))
   }
 
-  static clearAll(keysToKeep: string[] = []): void {
+  static clearAll(workspaceId?: string): void {
     if (typeof window === 'undefined') return
-    // Simple clear, in a real app might need more logic to only clear app-specific keys
-    // For now we iterate known keys or just clear all
-    // Strategy: Clear known main keys and iterate to find sessions
-    
-    // 1. Get all session IDs first to clean them up if needed, but localStorage.clear() does it all.
-    // However, we might want to keep some settings.
-    
-    // For now, let's just clear the specific app keys we manage
-    this.saveHistory([])
-    this.saveArtifacts([])
-    // Also need to find and remove session_ keys. 
-    // This is tricky without a list. We rely on the history list usually.
-    // A robust way is to iterate all keys.
-    Object.keys(window.localStorage).forEach(key => {
-        if (key.startsWith('session_') || key.startsWith('research_') || key === 'weaver-history' || key === 'weaver-artifacts' || key === 'weaver-recent-research') {
-             if (!keysToKeep.includes(key)) {
-                 window.localStorage.removeItem(key)
-             }
-        }
-    })
+    const projectPrefix = this.key('', workspaceId)
+    for (const key of Object.keys(window.localStorage)) {
+      const inScope = workspaceId
+        ? key.startsWith(projectPrefix)
+        : key.startsWith('session_') || key.startsWith('research_')
+          || ['weaver-history', 'weaver-artifacts', 'weaver-recent-research'].includes(key)
+      if (inScope) window.localStorage.removeItem(key)
+    }
   }
 }
