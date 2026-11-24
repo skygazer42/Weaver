@@ -59,7 +59,7 @@ export const translations = {
     typeMessage: 'Type your message...',
     askAnything: 'Ask anything...',
     forCommands: 'for commands',
-    aiCanMakeMistakes: 'AI can make mistakes.',
+    aiCanMakeMistakes: 'AI-generated content may contain errors. Please verify important information.',
     dropFilesHere: 'Drop files here',
 
     // Commands
@@ -167,7 +167,7 @@ export const translations = {
     typeMessage: '输入您的消息...',
     askAnything: '询问任何问题...',
     forCommands: '输入命令',
-    aiCanMakeMistakes: 'AI 可能会犯错。',
+    aiCanMakeMistakes: '内容由 AI 生成，请注意甄别重要信息。',
     dropFilesHere: '将文件拖放到此处',
 
     // Commands
@@ -275,7 +275,7 @@ export const translations = {
     typeMessage: 'メッセージを入力...',
     askAnything: '何でも聞いてください...',
     forCommands: 'コマンド用',
-    aiCanMakeMistakes: 'AIは間違える可能性があります。',
+    aiCanMakeMistakes: 'AI による生成内容には誤りが含まれる場合があります。重要な情報はご確認ください。',
     dropFilesHere: 'ファイルをここにドロップ',
 
     // Commands
@@ -371,7 +371,7 @@ export const translations = {
     typeMessage: '메시지를 입력하세요...',
     askAnything: '무엇이든 물어보세요...',
     forCommands: '명령어용',
-    aiCanMakeMistakes: 'AI는 실수할 수 있습니다.',
+    aiCanMakeMistakes: 'AI가 생성한 내용에는 오류가 있을 수 있습니다. 중요한 정보는 확인해 주세요.',
     dropFilesHere: '여기에 파일을 드롭하세요',
 
     // Commands

@@ -499,10 +499,9 @@ export function ChatInput({
         </div>
       </div>
 
-      <div className="mt-2 flex flex-wrap justify-between gap-x-4 gap-y-1 px-1 text-xs leading-5 text-muted-foreground">
-        <span><span className="font-mono">/</span> {t('forCommands')}</span>
-        <span>{t('aiCanMakeMistakes')}</span>
-      </div>
+      <p className="mt-2 px-2 text-center text-xs leading-5 text-muted-foreground">
+        {t('aiCanMakeMistakes')}
+      </p>
     </div>
   )
 }
