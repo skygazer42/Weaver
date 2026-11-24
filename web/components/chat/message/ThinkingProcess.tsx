@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useId, useMemo, useState } from 'react'
 import {
   ChevronDown,
   Loader2,
@@ -36,6 +36,7 @@ export function ThinkingProcess({
   startedAt,
   completedAt,
 }: ThinkingProcessProps) {
+  const detailsId = useId()
   const [open, setOpen] = useState(false)
   const [userToggled, setUserToggled] = useState(false)
   const [now, setNow] = useState(() => Date.now())
@@ -107,17 +108,18 @@ export function ThinkingProcess({
   }
 
   return (
-    <div className="w-full my-2">
+    <div className="my-2 w-full overflow-hidden rounded-lg border border-border/70 bg-surface-subtle/80 [&_svg]:shrink-0">
       <button
         type="button"
         onClick={toggle}
         className={cn(
-          'group inline-flex items-center gap-2 rounded-full px-3 py-1.5',
+          'flex w-full items-center gap-2.5 rounded-lg px-3.5 py-2.5 text-left',
           'text-sm text-muted-foreground hover:text-foreground',
-          'hover:bg-muted/40 transition-colors duration-150',
+          'transition-colors duration-150 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset',
           !hasDetails && 'cursor-default hover:bg-transparent'
         )}
         aria-expanded={open}
+        aria-controls={hasDetails ? detailsId : undefined}
       >
         <span
           className={cn(
@@ -131,7 +133,7 @@ export function ThinkingProcess({
             <CheckCircle2 className="h-4 w-4" />
           )}
         </span>
-        <span className="font-medium">{headerText}</span>
+        <span className="flex-1 text-xs font-medium tabular-nums">{headerText}</span>
         {hasDetails && (
           <ChevronDown
             className={cn(
@@ -144,13 +146,14 @@ export function ThinkingProcess({
 
       {hasDetails && (
         <div
+          id={detailsId}
           className="grid transition-[grid-template-rows] duration-200 ease-out"
           style={{ gridTemplateRows: open ? '1fr' : '0fr' }}
           inert={!open}
         >
           <div className="overflow-hidden">
-            <div className="mt-2 pl-4 ml-2 border-l border-border/60 text-sm text-muted-foreground">
-              <div className="space-y-2 py-1">
+            <div className="mx-3.5 mb-3.5 mt-1 border-l-2 border-border pl-4 text-sm text-muted-foreground">
+              <div className="space-y-3 py-1">
                 {tools.length > 0 && <ToolRows tools={tools} artifacts={artifacts} />}
                 {displayEvents.map((ev) => <EventRow key={ev.id} ev={ev} />)}
               </div>
@@ -205,13 +208,13 @@ function EventRow({ ev }: { ev: ProcessEvent }) {
             <span className="font-medium text-foreground/80">Task</span>
             <span className="ml-2">{label}</span>
             {status ? (
-              <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+              <span className="ml-2 rounded border border-border/70 bg-card px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
                 {status}
               </span>
             ) : null}
           </div>
           {typeof progress === 'number' ? (
-            <div className="text-xs text-muted-foreground">{Math.round(progress)}%</div>
+            <div className="text-xs tabular-nums text-muted-foreground">{Math.round(progress)}%</div>
           ) : null}
         </div>
       </div>
@@ -237,7 +240,7 @@ function EventRow({ ev }: { ev: ProcessEvent }) {
         <div className="min-w-0">
           <div className="truncate">
             <span className="font-medium text-foreground/80">Research start</span>
-            {nodeId ? <span className="ml-2 font-mono text-[12px]">{nodeId}</span> : null}
+            {nodeId ? <span className="ml-2 font-mono text-xs tabular-nums">{nodeId}</span> : null}
           </div>
           {subtitle ? <div className="text-xs text-muted-foreground">{subtitle}</div> : null}
           {topic ? <div className="truncate text-xs text-muted-foreground">{topic}</div> : null}
@@ -259,7 +262,7 @@ function EventRow({ ev }: { ev: ProcessEvent }) {
         <div className="min-w-0">
           <div className="truncate">
             <span className="font-medium text-foreground/80">Research done</span>
-            {nodeId ? <span className="ml-2 font-mono text-[12px]">{nodeId}</span> : null}
+            {nodeId ? <span className="ml-2 font-mono text-xs tabular-nums">{nodeId}</span> : null}
             {subtitle ? <span className="ml-2 text-xs text-muted-foreground">{subtitle}</span> : null}
           </div>
           {summary ? (
@@ -291,7 +294,7 @@ function EventRow({ ev }: { ev: ProcessEvent }) {
             <span className="font-medium text-foreground/80">Quality</span>
             {typeof epoch === 'number' ? <span className="ml-2 text-xs">epoch {epoch}</span> : null}
             {stage ? <span className="ml-2 text-xs text-muted-foreground">{stage}</span> : null}
-            {scorePct ? <span className="ml-2 font-mono text-[12px]">{scorePct}</span> : null}
+            {scorePct ? <span className="ml-2 font-mono text-xs tabular-nums">{scorePct}</span> : null}
           </div>
         </div>
       </div>
@@ -366,7 +369,7 @@ function EventRow({ ev }: { ev: ProcessEvent }) {
           <div className="flex items-center gap-2">
             <span className="font-medium text-foreground/80 truncate">{toolName}</span>
             {status ? (
-              <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+              <span className="rounded border border-border/70 bg-card px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
                 {status}
               </span>
             ) : null}
@@ -401,7 +404,7 @@ function ToolRows({ tools, artifacts }: { tools: ToolInvocation[]; artifacts: Ar
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span className="truncate font-medium text-foreground/80">{tool.toolName}</span>
-              <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+              <span className="rounded border border-border/70 bg-card px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
                 {tool.state}
               </span>
             </div>

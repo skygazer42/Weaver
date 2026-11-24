@@ -5,7 +5,6 @@ import Papa from 'papaparse'
 import { Download, Table as TableIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { cn } from '@/lib/utils'
 
 interface DataTableViewProps {
   data: string
@@ -60,13 +59,13 @@ export function DataTableView({ data, type }: DataTableViewProps) {
   }
 
   return (
-    <div className="my-4 rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden">
-      <div className="flex items-center justify-between p-3 border-b bg-muted/30">
-        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+    <div className="not-prose my-4 overflow-hidden rounded-lg border border-border/80 bg-card text-card-foreground shadow-surface">
+      <div className="flex items-center justify-between gap-3 border-b border-border/80 bg-surface-subtle px-3.5 py-2">
+        <div className="flex items-center gap-2 text-xs font-medium tabular-nums text-foreground">
             <TableIcon className="h-4 w-4" />
             <span>Data View ({parsedData.length} rows)</span>
         </div>
-        <Button variant="ghost" size="sm" onClick={handleDownload} className="h-7 px-2">
+        <Button type="button" variant="ghost" size="sm" aria-label="Download data" onClick={handleDownload} className="h-7 px-2 text-muted-foreground">
             <Download className="h-3.5 w-3.5 mr-1" />
             Download
         </Button>
@@ -74,11 +73,11 @@ export function DataTableView({ data, type }: DataTableViewProps) {
       
       <ScrollArea className="w-full">
           <div className="w-full overflow-auto">
-            <table className="w-full caption-bottom text-sm text-left">
-                <thead className="[&_tr]:border-b">
-                    <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
+            <table aria-label="Data preview" className="w-full border-collapse text-left text-[13px] tabular-nums">
+                <thead className="sticky top-0 bg-surface-subtle">
+                    <tr className="border-b border-border/80">
                         {headers.map(header => (
-                            <th key={header} className="h-10 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 whitespace-nowrap">
+                            <th key={header} scope="col" className="whitespace-nowrap px-3.5 py-2.5 text-left align-middle text-xs font-semibold text-muted-foreground">
                                 {header}
                             </th>
                         ))}
@@ -86,11 +85,11 @@ export function DataTableView({ data, type }: DataTableViewProps) {
                 </thead>
                 <tbody className="[&_tr:last-child]:border-0">
                     {rows.map((row: any, i) => (
-                        <tr key={i} className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
+                        <tr key={i} className="border-b border-border/60 transition-colors even:bg-surface-subtle/50 hover:bg-accent/40">
                             {headers.map(header => {
                                 const cellValue = isPrimitive ? row : row[header]
                                 return (
-                                    <td key={header} className="p-4 align-middle [&:has([role=checkbox])]:pr-0 whitespace-nowrap">
+                                    <td key={header} className="whitespace-nowrap px-3.5 py-2.5 align-middle">
                                         {typeof cellValue === 'object' && cellValue !== null ? JSON.stringify(cellValue) : String(cellValue)}
                                     </td>
                                 )
@@ -100,12 +99,15 @@ export function DataTableView({ data, type }: DataTableViewProps) {
                 </tbody>
             </table>
           </div>
-          <div className="flex items-center justify-end p-2 border-t gap-2">
-              <span className="text-xs text-muted-foreground">
+      </ScrollArea>
+          <div className="flex items-center justify-end gap-3 border-t border-border/70 bg-surface-subtle/50 px-3.5 py-2">
+              <span className="text-xs tabular-nums text-muted-foreground">
                   Page {page + 1} of {totalPages}
               </span>
               <div className="flex gap-1">
                   <Button 
+                    type="button"
+                    aria-label="Previous data page"
                     variant="outline" 
                     size="sm" 
                     className="h-7 px-2" 
@@ -115,6 +117,8 @@ export function DataTableView({ data, type }: DataTableViewProps) {
                       Prev
                   </Button>
                   <Button 
+                    type="button"
+                    aria-label="Next data page"
                     variant="outline" 
                     size="sm" 
                     className="h-7 px-2" 
@@ -125,7 +129,6 @@ export function DataTableView({ data, type }: DataTableViewProps) {
                   </Button>
               </div>
           </div>
-      </ScrollArea>
     </div>
   )
 }

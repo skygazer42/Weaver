@@ -1,10 +1,11 @@
 'use client'
 
 import React, { useMemo, useState } from 'react'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useI18n } from '@/lib/i18n/i18n-context'
-import { Plus, Compass, LayoutGrid, FolderOpen, MessageSquare, PanelLeft, Trash2, Settings, Pin, PinOff } from 'lucide-react'
+import { Plus, Compass, LayoutGrid, FolderOpen, MessageSquare, PanelLeft, Trash2, Pin, PinOff, type LucideIcon } from 'lucide-react'
 import { ChatSession } from '@/types/chat'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
@@ -19,6 +20,7 @@ interface SidebarProps {
   onClearHistory: () => void
   onOpenSettings: () => void
   activeView: string
+  activeSessionId?: string | null
   onViewChange: (view: string) => void
   history: ChatSession[]
   isLoading?: boolean
@@ -31,10 +33,9 @@ export function Sidebar({
     onSelectChat, 
     onDeleteChat,
     onTogglePin,
-    onRenameChat,
     onClearHistory,
-    onOpenSettings,
     activeView, 
+    activeSessionId,
     onViewChange, 
     history, 
     isLoading = false 
@@ -93,7 +94,7 @@ export function Sidebar({
       {/* Mobile Overlay */}
       <div 
         className={cn(
-          "fixed inset-0 z-40 bg-background/80 backdrop-blur-sm md:hidden transition-opacity duration-500",
+          "fixed inset-0 z-40 bg-foreground/20 backdrop-blur-[2px] transition-opacity duration-200 dark:bg-black/60 md:hidden",
           isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
         )}
         onClick={onToggle}
@@ -101,22 +102,23 @@ export function Sidebar({
 
       {/* Sidebar Container */}
       <div
+        inert={!isOpen}
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex flex-col border-r bg-card/50 backdrop-blur-xl transition-all duration-300 ease-out md:relative",
+          "fixed inset-y-0 left-0 z-50 flex shrink-0 flex-col border-r border-border/80 bg-surface-subtle transition-[width,transform] duration-200 ease-out md:relative",
           isOpen ? "w-[260px] translate-x-0" : "-translate-x-full w-0 md:translate-x-0 md:w-0 md:border-r-0 overflow-hidden"
         )}
       >
-        <div className="flex h-full flex-col p-3 gap-2">
+        <div className="flex h-full w-[260px] flex-col gap-3 p-3 pt-0">
           
           {/* Sidebar Header */}
-          <div className="flex items-center justify-between px-2 mb-2 pt-1">
+          <div className="-mx-3 flex h-14 shrink-0 items-center justify-between border-b border-border/80 px-4">
              <div className="flex items-center gap-2 select-none">
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground text-xs font-bold">
-                    W
+                <div className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-md border border-border/70 bg-white shadow-xs">
+                    <Image src="/logo.png" alt="" width={24} height={24} className="object-contain" />
                 </div>
-                <span className="font-bold text-base tracking-tight">{t('weaver')}</span>
+                <span className="text-base font-semibold tracking-tight">{t('weaver')}</span>
              </div>
-             <Button variant="ghost" size="icon" onClick={onToggle} className="h-7 w-7 text-muted-foreground">
+             <Button type="button" variant="ghost" size="icon" onClick={onToggle} aria-label="Collapse sidebar" className="text-muted-foreground">
                 <PanelLeft className="h-4 w-4" />
              </Button>
           </div>
@@ -125,10 +127,11 @@ export function Sidebar({
           <div className="mb-2">
              <Button 
                 className={cn(
-                    "w-full justify-start gap-2 h-10 shadow-sm border bg-background hover:bg-muted/50 transition-all font-medium text-sm", 
+                    "h-9 w-full justify-start gap-2 border-border bg-card text-sm font-medium shadow-xs hover:bg-accent/60",
                     !isOpen && "px-2"
                 )}
                 variant="outline"
+                type="button"
                 onClick={onNewChat}
              >
                 <Plus className="h-4 w-4" />
@@ -137,11 +140,11 @@ export function Sidebar({
           </div>
 
           {/* Navigation Groups */}
-          <div className="flex-1 overflow-y-auto space-y-6 py-2 pr-1 scrollbar-thin scrollbar-thumb-muted/50">
+          <div className="min-h-0 flex-1 space-y-6 overflow-y-auto py-1">
             
             {/* Workspace */}
             <div className="space-y-1">
-               <div className="px-3 text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-widest mb-1">
+               <div className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                  {t('workspace')}
                </div>
                <SidebarItem icon={LayoutGrid} label={t('dashboard')} active={activeView === 'dashboard'} onClick={() => onViewChange('dashboard')} />
@@ -157,19 +160,20 @@ export function Sidebar({
                       ))}
                   </div>
               ) : history.length === 0 ? (
-                  <div className="px-3 text-xs text-muted-foreground italic py-2">{t('noRecentChats')}</div>
+                  <div className="px-3 py-2 text-xs text-muted-foreground">{t('noRecentChats')}</div>
               ) : (
                   <div className="space-y-4">
                       {/* Pinned Section */}
                       {pinnedItems.length > 0 && (
                           <div className="space-y-1">
-                              <div className="px-3 text-[10px] font-semibold text-primary uppercase tracking-widest mb-1 flex items-center gap-1">
+                              <div className="mb-2 flex items-center gap-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                                   <Pin className="h-3 w-3 fill-primary" /> Pinned
                               </div>
                               {pinnedItems.map(item => (
                                   <SidebarChatItem 
                                     key={item.id} 
                                     item={item} 
+                                    active={activeView === 'dashboard' && activeSessionId === item.id}
                                     onSelect={onSelectChat} 
                                     onDelete={setDeleteId} 
                                     onTogglePin={onTogglePin}
@@ -185,13 +189,14 @@ export function Sidebar({
                           
                           return (
                               <div key={dateLabel} className="space-y-1">
-                                  <div className="px-3 text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-widest mb-1">
+                                  <div className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                                       {dateLabel}
                                   </div>
                                   {items.map((item) => (
                                       <SidebarChatItem 
                                         key={item.id} 
                                         item={item} 
+                                        active={activeView === 'dashboard' && activeSessionId === item.id}
                                         onSelect={onSelectChat} 
                                         onDelete={setDeleteId} 
                                         onTogglePin={onTogglePin}
@@ -213,43 +218,57 @@ export function Sidebar({
 
 function SidebarChatItem({ 
     item, 
+    active,
     onSelect, 
     onDelete, 
     onTogglePin 
 }: { 
     item: ChatSession, 
+    active: boolean,
     onSelect: (id: string) => void, 
     onDelete: (id: string) => void,
     onTogglePin: (id: string) => void
 }) {
     return (
-        <div className="group relative">
+        <div className={cn("group relative rounded-md", active && "bg-card shadow-xs")}>
+            {active && <span aria-hidden="true" className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-primary" />}
             <button 
+                type="button"
+                aria-label={item.title}
+                aria-current={active ? 'page' : undefined}
+                title={item.title}
                 onClick={() => onSelect(item.id)}
-                className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm transition-all duration-200 text-muted-foreground hover:bg-muted/60 hover:text-foreground text-left pr-12"
+                className={cn(
+                    "flex w-full items-center gap-2.5 rounded-md px-3 py-2 pr-16 text-left text-sm transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset",
+                    active ? "font-medium text-foreground" : "text-muted-foreground"
+                )}
             >
                 <MessageSquare className="h-4 w-4 shrink-0 transition-colors group-hover:text-primary" />
                 <span className="truncate">{item.title}</span>
             </button>
-            <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 flex items-center transition-all bg-gradient-to-l from-muted/60 pl-2">
+            <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center rounded-md bg-surface-subtle opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
                 <button 
+                    type="button"
+                    aria-label={`${item.isPinned ? 'Unpin' : 'Pin'} ${item.title}`}
                     onClick={(e) => {
                         e.stopPropagation()
                         onTogglePin(item.id)
                     }}
                     className={cn(
-                        "p-1 text-muted-foreground hover:text-primary transition-all",
+                        "flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
                         item.isPinned && "text-primary"
                     )}
                 >
                     {item.isPinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
                 </button>
                 <button 
+                    type="button"
+                    aria-label={`Delete ${item.title}`}
                     onClick={(e) => {
                         e.stopPropagation()
                         onDelete(item.id)
                     }}
-                    className="p-1 text-muted-foreground hover:text-destructive transition-all"
+                    className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive-surface hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                 >
                     <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -259,15 +278,17 @@ function SidebarChatItem({
 }
 
 
-function SidebarItem({ icon: Icon, label, active, onClick }: { icon: any, label: string, active?: boolean, onClick?: () => void }) {
+function SidebarItem({ icon: Icon, label, active, onClick }: { icon: LucideIcon, label: string, active?: boolean, onClick?: () => void }) {
     return (
         <button 
+            type="button"
+            aria-current={active ? 'page' : undefined}
             onClick={onClick}
             className={cn(
-            "flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm transition-all duration-200 group",
+            "group flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset",
             active 
-              ? "bg-primary/10 text-primary font-medium" 
-              : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+              ? "bg-accent/70 font-medium text-foreground"
+              : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
         )}>
             <Icon className={cn("h-4 w-4 transition-colors", active ? "text-primary" : "text-muted-foreground group-hover:text-foreground")} />
             <span className="truncate">{label}</span>

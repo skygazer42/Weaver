@@ -1,18 +1,19 @@
 'use client'
 
 import React, { useState, memo } from 'react'
+import Image from 'next/image'
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import dynamic from 'next/dynamic'
 import { cn } from '@/lib/utils'
-import { Bot, Check, Copy, Pencil, Volume2, VolumeX, Loader2, FolderPlus } from 'lucide-react'
+import { Check, Copy, Pencil, Volume2, VolumeX, Loader2, FolderPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DataTableView } from './DataTableView'
 import { ErrorBoundary } from 'react-error-boundary'
 import { toast } from 'sonner'
-import { Message, Artifact } from '@/types/chat'
+import { Message } from '@/types/chat'
 import { ThinkingProcess } from './message/ThinkingProcess'
 import { CodeBlock } from './message/CodeBlock'
 import { CitationBadge } from './message/CitationBadge'
@@ -22,7 +23,7 @@ import { getApiBaseUrl, getArtifactDownloadUrl } from '@/lib/api'
 // Lazy load MermaidBlock as it's a heavy dependency
 const MermaidBlock = dynamic(() => import('./MermaidBlock').then(mod => mod.MermaidBlock), {
     loading: () => (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground py-8 justify-center border rounded-lg bg-muted/10">
+        <div className="flex items-center justify-center gap-2 rounded-lg border border-border/70 bg-surface-subtle py-8 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
             <span>Loading visualization...</span>
         </div>
@@ -32,7 +33,7 @@ const MermaidBlock = dynamic(() => import('./MermaidBlock').then(mod => mod.Merm
 
 function ErrorFallback({ error }: { error: Error }) {
     return (
-        <div className="p-4 rounded-lg bg-destructive/10 text-destructive text-xs">
+        <div className="rounded-lg border border-destructive-border bg-destructive-surface p-4 text-xs text-destructive">
             <p className="font-semibold">Visualization Error</p>
             <pre className="mt-1 opacity-70">{error.message}</pre>
         </div>
@@ -46,6 +47,87 @@ const preprocessContent = (content: string) => {
         .replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$') // \( ... \) -> $ ... $
         .replace(/\\\[([\s\S]*?)\\\]/g, '$$$$$1$$$$') // \[ ... \] -> $$ ... $$
 }
+
+// Keep code and table state when surrounding chat controls rerender.
+const MarkdownContent = memo(function MarkdownContent({ content, isUser, workspaceId }: {
+  content: string
+  isUser: boolean
+  workspaceId?: string
+}) {
+  return (
+    <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[rehypeKatex]}
+        disallowedElements={workspaceId ? ['img'] : undefined}
+        urlTransform={(url) => workspaceId && url.startsWith('/api/workspaces/' + workspaceId + '/')
+            ? getArtifactDownloadUrl(url) ?? ''
+            : defaultUrlTransform(url)}
+        components={{
+            pre: ({children}) => <>{children}</>,
+            p: ({node, children, ...props}) => (
+                 <p className="mb-2 last:mb-0 leading-7" {...props}>
+                    {React.Children.map(children, child => {
+                        if (typeof child === 'string') {
+                            const parts = child.split(/(\[\d+\])/g)
+                            return parts.map((part, i) => {
+                                const match = part.match(/^\[(\d+)\]$/)
+                                if (match) {
+                                    return <CitationBadge key={i} num={match[1]} />
+                                }
+                                return part
+                            })
+                        }
+                        return child
+                    })}
+                 </p>
+            ),
+            code: ({node, className, children, ...props}: any) => {
+                const match = /language-(\w+)/.exec(className || '')
+                const isInline = !match && !String(children).includes('\n')
+                const content = String(children).replace(/\n$/, '')
+
+                // Check for Mermaid
+                if (match && match[1] === 'mermaid') {
+                    return (
+                        <ErrorBoundary FallbackComponent={ErrorFallback}>
+                            <MermaidBlock code={content} />
+                        </ErrorBoundary>
+                    )
+                }
+
+                // Check for JSON/CSV
+                if (match && (match[1] === 'json' || match[1] === 'csv')) {
+                    return (
+                        <div className="flex flex-col gap-2">
+                            <ErrorBoundary FallbackComponent={() => null}>
+                                <DataTableView data={content} type={match[1] as 'json'|'csv'} />
+                            </ErrorBoundary>
+                            <CodeBlock language={match[1]} value={content} />
+                        </div>
+                    )
+                }
+
+                if (isInline) {
+                   return (
+                        <code className="whitespace-pre-wrap break-words font-mono" {...props}>
+                            {children}
+                        </code>
+                   )
+                }
+
+                return (
+                    <CodeBlock language={match ? match[1] : 'text'} value={content} />
+                )
+            },
+            a: ({node, ...props}) => (
+                <a className={cn("font-medium underline underline-offset-4", isUser ? "text-primary-foreground" : "text-primary hover:text-primary/80")} {...props} />
+            )
+        }}
+    >
+      {content}
+    </ReactMarkdown>
+  )
+})
 
 interface MessageItemProps {
     message: Message
@@ -186,18 +268,26 @@ const MessageItemBase = ({ message, onEdit, workspaceId }: MessageItemProps) => 
   const hideAssistantBubble =
     !isUser && !isEditing && !displayContent.trim() && sources.length === 0 && (isThinking || !!message.runStatus)
 
+
   return (
     <div
       className={cn(
-        'group flex w-full gap-2 py-4 animate-in fade-in slide-in-from-bottom-1 duration-300',
+        'group flex w-full gap-3 py-5 sm:py-6',
         isUser ? 'justify-end' : 'justify-start'
       )}
     >
-            {/* Bot Avatar - Removed */}
             <div className={cn(
-                'flex flex-col',
+                'flex min-w-0 flex-col',
                 isUser ? "max-w-[90%] md:max-w-[85%] items-end ml-auto" : "w-full max-w-full items-start mr-auto",
       )}>
+        {!isUser && (
+          <div className="mb-3 flex items-center gap-2.5 text-sm font-semibold tracking-tight text-foreground">
+            <span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-md border border-border/80 bg-white">
+              <Image src="/logo.png" alt="" width={20} height={20} />
+            </span>
+            Weaver
+          </div>
+        )}
         
         {/* Thinking Process */}
         {showThinking && (
@@ -214,8 +304,9 @@ const MessageItemBase = ({ message, onEdit, workspaceId }: MessageItemProps) => 
 
         {/* Message Bubble OR Edit Mode */}
         {isEditing ? (
-            <div className="w-full bg-muted/30 p-4 rounded-xl border border-primary/20 shadow-sm animate-in fade-in zoom-in-95">
+            <div className="w-full rounded-lg border border-primary/40 bg-card p-4 shadow-surface">
                 <textarea 
+                    aria-label="Edit message"
                     value={editContent} 
                     onChange={e => setEditContent(e.target.value)} 
                     className="w-full bg-transparent resize-none focus:outline-none min-h-[100px] text-sm leading-relaxed"
@@ -226,96 +317,27 @@ const MessageItemBase = ({ message, onEdit, workspaceId }: MessageItemProps) => 
                 </div>
             </div>
         ) : hideAssistantBubble ? null : (
+          <>
             <div className={cn(
-                "relative px-5 py-3.5 shadow-sm",
+                "relative min-w-0",
                 isUser
-                  ? "bg-primary text-primary-foreground rounded-2xl rounded-tr-sm"
-                  : "bg-muted/30 border text-foreground rounded-2xl rounded-tl-sm backdrop-blur-sm"
+                  ? "rounded-xl rounded-tr-sm bg-primary px-4 py-3 text-primary-foreground shadow-surface"
+                  : "w-full text-foreground"
               )}
             >
               <div className={cn(
-                  "prose prose-neutral dark:prose-invert max-w-none break-words leading-7",
-                  "text-[15px] md:text-base" // Slightly larger font
+                  "prose max-w-none break-words text-[15px] leading-7",
+                  isUser && "prose-on-primary"
               )}>
-                <ReactMarkdown 
-                    remarkPlugins={[remarkGfm, remarkMath]}
-                    rehypePlugins={[rehypeKatex]}
-                    disallowedElements={workspaceId ? ['img'] : undefined}
-                    urlTransform={(url) => workspaceId && url.startsWith('/api/workspaces/' + workspaceId + '/')
-                        ? getArtifactDownloadUrl(url) ?? ''
-                        : defaultUrlTransform(url)}
-                    components={{
-                        pre: ({children}) => <>{children}</>,
-                        p: ({node, children, ...props}) => (
-                             <p className="mb-2 last:mb-0 leading-7" {...props}>
-                                {React.Children.map(children, child => {
-                                    if (typeof child === 'string') {
-                                        const parts = child.split(/(\[\d+\])/g)
-                                        return parts.map((part, i) => {
-                                            const match = part.match(/^\[(\d+)\]$/)
-                                            if (match) {
-                                                return <CitationBadge key={i} num={match[1]} />
-                                            }
-                                            return part
-                                        })
-                                    }
-                                    return child
-                                })}
-                             </p>
-                        ),
-                        code: ({node, className, children, ...props}: any) => {
-                            const match = /language-(\w+)/.exec(className || '')
-                            const isInline = !match && !String(children).includes('\n')
-                            const content = String(children).replace(/\n$/, '')
-                            
-                            // Check for Mermaid
-                            if (match && match[1] === 'mermaid') {
-                                return (
-                                    <ErrorBoundary FallbackComponent={ErrorFallback}>
-                                        <MermaidBlock code={content} />
-                                    </ErrorBoundary>
-                                )
-                            }
-                            
-                            // Check for JSON/CSV
-                            if (match && (match[1] === 'json' || match[1] === 'csv')) {
-                                return (
-                                    <div className="flex flex-col gap-2">
-                                        <ErrorBoundary FallbackComponent={() => null}>
-                                            <DataTableView data={content} type={match[1] as 'json'|'csv'} />
-                                        </ErrorBoundary>
-                                        <CodeBlock language={match[1]} value={content} />
-                                    </div>
-                                )
-                            }
-                            
-                            if (isInline) {
-                               return (
-                                    <code className="bg-black/10 dark:bg-black/30 px-1.5 py-0.5 rounded text-sm font-mono break-words whitespace-pre-wrap" {...props}>
-                                        {children}
-                                    </code>
-                               )
-                            }
-
-                            return (
-                                <CodeBlock language={match ? match[1] : 'text'} value={content} />
-                            )
-                        },
-                        a: ({node, ...props}) => (
-                            <a className={cn("underline underline-offset-2 font-medium", isUser ? "text-white" : "text-primary hover:text-primary/80")} {...props} />
-                        )
-                    }}
-                >
-                  {displayContent}
-                </ReactMarkdown>
+                <MarkdownContent content={displayContent} isUser={isUser} workspaceId={workspaceId} />
 
                 {sources.length > 0 && (
-                  <details open={message.runStatus === 'insufficient_evidence'} className="mt-3 text-sm text-muted-foreground">
-                    <summary className="cursor-pointer">Sources ({sources.length})</summary>
-                    <ol className="ml-5 mt-2 list-decimal">
+                  <details open={message.runStatus === 'insufficient_evidence'} className="not-prose mt-5 overflow-hidden rounded-lg border border-border/80 bg-card text-sm text-muted-foreground shadow-xs">
+                    <summary className="cursor-pointer px-3.5 py-2.5 font-medium text-foreground transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset">Sources ({sources.length})</summary>
+                    <ol className="ml-8 list-decimal space-y-2 border-t border-border/70 py-3 pr-4 marker:text-muted-foreground">
                       {sources.map((source, index) => (
                         <li key={`${source.url}-${index}`}>
-                          <a href={source.url} target="_blank" rel="noreferrer" className="break-words underline">{source.title || source.url}</a>
+                          <a href={source.url} target="_blank" rel="noreferrer" className="break-words text-primary underline decoration-primary/30 underline-offset-4 hover:decoration-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">{source.title || source.url}</a>
                         </li>
                       ))}
                     </ol>
@@ -323,7 +345,7 @@ const MessageItemBase = ({ message, onEdit, workspaceId }: MessageItemProps) => 
                 )}
 
                 {message.attachments && message.attachments.length > 0 && (
-                  <div className="mt-3 grid grid-cols-2 gap-2">
+                  <div className="not-prose mt-3 grid grid-cols-2 gap-2">
                     {message.attachments.map((att, idx) => (
                       <div key={idx} className="rounded-md overflow-hidden border bg-background/60">
                         {att.preview ? (
@@ -337,7 +359,7 @@ const MessageItemBase = ({ message, onEdit, workspaceId }: MessageItemProps) => 
                             {att.name || 'Image attachment'}
                           </div>
                         )}
-                        <div className="px-2 py-1 text-[10px] text-muted-foreground truncate border-t border-border/50">
+                        <div className="truncate border-t border-border/70 px-2 py-1.5 text-xs text-muted-foreground">
                           {att.name || att.mime || 'Image'}
                         </div>
                       </div>
@@ -347,15 +369,18 @@ const MessageItemBase = ({ message, onEdit, workspaceId }: MessageItemProps) => 
                 
                 {/* Intentionally no typing indicator here; the Thinking row covers streaming state. */}
               </div>
+            </div>
 
               {/* Actions: Copy, Speak & Edit */}
-              <div className="absolute -bottom-6 right-0 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+              <div className={cn("mt-2 flex items-center gap-1 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100", (copied || saved || isPlaying || isTTSLoading) && "opacity-100")}>
                  {/* Copy Button - Available for both roles */}
                  {message.content && (
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                        type="button"
+                        aria-label={copied ? 'Message copied' : 'Copy message'}
+                        className="h-7 w-7 text-muted-foreground hover:text-foreground"
                         onClick={handleCopy}
                     >
                         {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
@@ -367,8 +392,10 @@ const MessageItemBase = ({ message, onEdit, workspaceId }: MessageItemProps) => 
                       <Button
                           variant="ghost"
                           size="icon"
+                          type="button"
+                          aria-label={isPlaying ? 'Stop speaking' : 'Speak message'}
                           className={cn(
-                            "h-6 w-6 text-muted-foreground hover:text-foreground",
+                            "h-7 w-7 text-muted-foreground hover:text-foreground",
                             isPlaying && "text-primary"
                           )}
                           onClick={handleSpeak}
@@ -385,10 +412,12 @@ const MessageItemBase = ({ message, onEdit, workspaceId }: MessageItemProps) => 
                       <Button
                           variant="ghost"
                           size="icon"
-                          className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                          type="button"
+                          aria-label={saved ? 'Saved to Library' : 'Save to Library'}
+                          className="h-7 w-7 text-muted-foreground hover:text-foreground"
                           onClick={handleSaveToLibrary}
                       >
-                          {saved ? <Check className="h-3.5 w-3.5 text-green-500" /> : <FolderPlus className="h-3.5 w-3.5" />}
+                          {saved ? <Check className="h-3.5 w-3.5 text-success" /> : <FolderPlus className="h-3.5 w-3.5" />}
                       </Button>
                     </>
                  )}
@@ -396,14 +425,16 @@ const MessageItemBase = ({ message, onEdit, workspaceId }: MessageItemProps) => 
                     <Button 
                         variant="ghost" 
                         size="icon" 
-                        className="h-6 w-6 text-muted-foreground hover:text-foreground ml-auto"
+                        type="button"
+                        aria-label="Edit message"
+                        className="h-7 w-7 text-muted-foreground hover:text-foreground"
                         onClick={() => setIsEditing(true)}
                     >
                         <Pencil className="h-3.5 w-3.5" />
                     </Button>
                  )}
               </div>
-            </div>
+          </>
         )}
       </div>
     </div>

@@ -8,7 +8,7 @@ import { Sidebar } from './Sidebar'
 import { Header } from './Header'
 import { EmptyState } from './EmptyState'
 import { ChatInput } from './ChatInput'
-import { Loader2, ArrowDown, X, Monitor } from 'lucide-react'
+import { Loader2, ArrowDown, X, Monitor, ShieldAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { Message, RUN_STATUS_LABELS } from '@/types/chat'
@@ -310,7 +310,7 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
                 atBottomStateChange={handleAtBottomChange}
                 className="scrollbar-thin scrollbar-thumb-muted/20"
                 itemContent={(index, message) => (
-                    <div className="max-w-5xl mx-auto px-4 sm:px-0">
+                    <div className="mx-auto max-w-5xl px-4 sm:px-8">
                         <MessageItem key={message.id} message={message} onEdit={handleEditMessage} workspaceId={workspaceId} />
                     </div>
                 )}
@@ -321,7 +321,7 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
   }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background text-foreground font-sans selection:bg-primary/20">
+    <div className="flex h-dvh w-full overflow-hidden bg-background font-sans text-foreground selection:bg-primary/20">
       {/* Sidebar */}
       <Sidebar 
         isOpen={sidebarOpen} 
@@ -334,6 +334,7 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
         onClearHistory={handleClearHistory}
         onOpenSettings={() => setShowSettings(true)}
         activeView={currentView}
+        activeSessionId={currentSessionId}
         onViewChange={setCurrentView}
         history={history}
         isLoading={isHistoryLoading}
@@ -348,6 +349,7 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
           selectedModel={selectedModel}
           onModelChange={setSelectedModel}
+          onOpenSettings={() => setShowSettings(true)}
           onToggleArtifacts={() => setShowMobileArtifacts(!showMobileArtifacts)}
           hasArtifacts={artifacts.length > 0}
         />
@@ -366,16 +368,18 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
         {currentView === 'dashboard' && (
            <>
                 {/* Scroll To Bottom Button */}
-                <div className={cn("absolute bottom-24 right-6 z-30 transition-all duration-500", showScrollButton ? "translate-y-0 opacity-100" : "translate-y-10 opacity-0 pointer-events-none")}>
-                    <Button variant="outline" size="icon" className="rounded-full shadow-lg bg-background/80 backdrop-blur border-primary/20 hover:bg-background" onClick={() => scrollToBottom()}>
+                <div className={cn("absolute bottom-44 right-5 z-30 transition-[opacity,transform] duration-150", showScrollButton ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-2 opacity-0")} inert={!showScrollButton}>
+                    <Button type="button" variant="outline" size="icon" aria-label="Scroll to latest message" className="rounded-lg border-border bg-card shadow-elevated hover:bg-accent" onClick={() => scrollToBottom()}>
                         <ArrowDown className="h-4 w-4" />
                     </Button>
                 </div>
 
                 {(runStatus || currentStatus || isStopping) && (
-                  <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-2 px-4 py-2 text-sm text-muted-foreground">
-                    {isLoading && <Loader2 aria-hidden="true" className="h-3 w-3 animate-spin text-primary" />}
-                    {runStatus && <span role="status" aria-label="Run status" className="font-medium">{RUN_STATUS_LABELS[runStatus]}</span>}
+                  <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-2 border-t border-border/70 px-4 py-2.5 text-xs text-muted-foreground sm:px-5">
+                    {isLoading ? <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin text-primary" /> : (
+                      <span aria-hidden="true" className={cn('h-1.5 w-1.5 rounded-full', runStatus === 'completed' ? 'bg-success' : runStatus === 'failed' ? 'bg-destructive' : runStatus === 'awaiting_approval' || runStatus === 'insufficient_evidence' ? 'bg-warning' : 'bg-muted-foreground')} />
+                    )}
+                    {runStatus && <span role="status" aria-label="Run status" className="font-medium text-foreground">{RUN_STATUS_LABELS[runStatus]}</span>}
                     {isStopping ? <span>Stopping…</span> : currentStatus && <span>{currentStatus}</span>}
                     {connectionLost && currentSessionId && activeRun && (
                       <Button size="sm" variant="outline" onClick={() => void resumeRun(currentSessionId, activeRun, messages)}>Reconnect</Button>
@@ -387,17 +391,17 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
                 )}
 
                 {pendingInterrupt && (
-                <section aria-labelledby="tool-approval-title" className="mx-4 mb-3 max-h-[40vh] overflow-auto p-3 border rounded-xl bg-amber-50 text-amber-900 shadow-sm flex flex-col gap-2">
-                    <h2 id="tool-approval-title" className="text-sm font-semibold">Tool approval required</h2>
+                <section aria-labelledby="tool-approval-title" className="mx-3 mb-2 flex max-h-[40vh] flex-col gap-3 overflow-auto rounded-lg border border-warning/40 bg-warning-surface p-4 text-foreground shadow-surface sm:mx-5">
+                    <h2 id="tool-approval-title" className="flex items-center gap-2 text-sm font-semibold"><ShieldAlert aria-hidden="true" className="h-4 w-4 text-warning" />Tool approval required</h2>
                     {approvalPrompts.map((prompt, index) => (
-                      <div key={index} className="space-y-2 text-xs text-amber-800">
+                      <div key={index} className="space-y-2 text-sm leading-relaxed">
                         {prompt.message && <p>{prompt.message}</p>}
                         {(prompt.action_requests ?? prompt.tool_calls ?? []).map((action, actionIndex) => (
-                          <div key={action.id ?? actionIndex}>
-                            <div className="font-medium">{action.name}</div>
-                            {action.description && <p className="whitespace-pre-wrap">{action.description}</p>}
+                          <div key={action.id ?? actionIndex} className="space-y-2 rounded-md border border-border/80 bg-card p-3">
+                            <div className="font-mono text-xs font-medium">{action.name}</div>
+                            {action.description && <p className="whitespace-pre-wrap text-xs text-muted-foreground">{action.description}</p>}
                             {action.args && (
-                              <pre className="overflow-x-auto whitespace-pre-wrap break-words">{typeof action.args === 'string' ? action.args : JSON.stringify(action.args, null, 2)}</pre>
+                              <pre className="overflow-x-auto whitespace-pre-wrap break-words border-t border-border/70 pt-2 font-mono text-xs leading-6">{typeof action.args === 'string' ? action.args : JSON.stringify(action.args, null, 2)}</pre>
                             )}
                           </div>
                         ))}
@@ -407,7 +411,7 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
                     <Button size="sm" onClick={() => void decideInterrupt(true)} disabled={!threadId || isLoading || isStopping}>
                         Approve & Continue
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => void decideInterrupt(false)} disabled={!threadId || isLoading || isStopping}>
+                    <Button size="sm" variant="outline" onClick={() => void decideInterrupt(false)} disabled={!threadId || isLoading || isStopping}>
                         Reject
                     </Button>
                     </div>
@@ -440,7 +444,7 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
       {/* Desktop Artifacts Panel */}
       {artifacts.length > 0 && (
         <div className={cn(
-            "border-l hidden xl:flex flex-col bg-card animate-in slide-in-from-right duration-500 shadow-2xl z-20 transition-all",
+            "z-20 hidden shrink-0 flex-col bg-surface-subtle transition-[width] duration-200 xl:flex",
             isArtifactsOpen ? "w-[400px]" : "w-[50px]"
         )}>
           <ArtifactsPanel
@@ -458,19 +462,20 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
           <Button
             variant="outline"
             size="icon"
-            className="fixed bottom-32 right-6 z-50 rounded-full shadow-lg bg-background"
+            className="fixed bottom-44 right-5 z-50 rounded-lg border-border bg-card shadow-elevated"
             onClick={() => setShowBrowserViewer(!showBrowserViewer)}
             title={showBrowserViewer ? "Hide Browser" : "Show Browser"}
+            aria-label={showBrowserViewer ? "Hide Browser" : "Show Browser"}
           >
             <Monitor className={cn("h-4 w-4", showBrowserViewer && "text-primary")} />
           </Button>
 
           {/* Browser Viewer Panel */}
           {showBrowserViewer && (
-            <div className="fixed bottom-48 right-6 z-40">
+            <div className="fixed bottom-56 right-5 z-40">
               <BrowserViewer
                 threadId={threadId}
-                className="shadow-2xl"
+                className="shadow-elevated"
                 defaultExpanded={true}
                 alwaysShow={true}
                 mode="stream"
@@ -483,10 +488,10 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
 
       {/* Mobile Artifacts Overlay */}
       {showMobileArtifacts && (
-         <div className="fixed inset-0 z-50 bg-background xl:hidden flex flex-col animate-in slide-in-from-right duration-300">
-             <div className="flex items-center justify-between p-4 border-b">
+         <div className="fixed inset-0 z-50 flex flex-col bg-surface-subtle xl:hidden">
+             <div className="flex h-14 shrink-0 items-center justify-between border-b border-border/80 px-4">
                  <h2 className="font-semibold">Artifacts</h2>
-                 <Button variant="ghost" size="icon" onClick={() => setShowMobileArtifacts(false)}>
+                 <Button type="button" variant="ghost" size="icon" aria-label="Close artifacts" onClick={() => setShowMobileArtifacts(false)}>
                      <X className="h-5 w-5" />
                  </Button>
              </div>

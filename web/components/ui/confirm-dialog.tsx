@@ -41,12 +41,13 @@ export function ConfirmDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-        {children && <div className="py-4">{children}</div>}
+        {children && <div className="text-sm leading-relaxed">{children}</div>}
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             {cancelText}
           </Button>
           <Button 
+            type="button"
             variant={variant} 
             onClick={() => {
                 onConfirm()

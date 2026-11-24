@@ -2,7 +2,7 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
-import { Send, Globe, Bot, Paperclip, X, Mic, MicOff, ChevronDown, Check, Trash2, File as FileIcon, Image as ImageIcon, Bug, BookOpen, PenTool, TestTube, Plug, Rocket, MessageSquare } from 'lucide-react'
+import { Send, Globe, Bot, Paperclip, X, Mic, MicOff, ChevronDown, Check, Trash2, File as FileIcon, Bug, BookOpen, PenTool, TestTube, Plug, Rocket } from 'lucide-react'
 import { useI18n } from '@/lib/i18n/i18n-context'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -47,7 +47,6 @@ export function ChatInput({
   const { t } = useI18n()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [isFocused, setIsFocused] = useState(false)
   const [showCommandMenu, setShowCommandMenu] = useState(false)
   const [isMcpOpen, setIsMcpOpen] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
@@ -133,7 +132,7 @@ export function ChatInput({
     if (textareaRef.current) {
       textareaRef.current.style.height = 'inherit'
       const scrollHeight = textareaRef.current.scrollHeight
-      textareaRef.current.style.height = `${Math.min(Math.max(scrollHeight, 56), 200)}px`
+      textareaRef.current.style.height = `${Math.min(Math.max(scrollHeight, 72), 200)}px`
     }
   }, [input])
 
@@ -317,9 +316,9 @@ export function ChatInput({
   ]
 
   const modes = [
-    { id: 'web', label: t('web'), icon: Globe, color: "text-blue-500", bg: "bg-blue-500/10", border: "border-blue-500/20" },
-    { id: 'agent', label: t('agent'), icon: Bot, color: "text-purple-500", bg: "bg-purple-500/10", border: "border-purple-500/20" },
-    { id: 'ultra', label: t('ultra'), icon: Rocket, color: "text-indigo-500", bg: "bg-indigo-500/10", border: "border-indigo-500/20" },
+    { id: 'web', label: t('web'), icon: Globe },
+    { id: 'agent', label: t('agent'), icon: Bot },
+    { id: 'ultra', label: t('ultra'), icon: Rocket },
   ]
 
   const commands = [
@@ -334,241 +333,213 @@ export function ChatInput({
   ]
   
   return (
-    <div className="relative z-20 mx-auto w-full max-w-5xl px-4 pb-6">
-      <div className="flex flex-col gap-2">
-        
-        {/* Command Menu */}
-        {showCommandMenu && (
-            <div className="absolute bottom-full left-4 mb-2 w-64 bg-popover border rounded-xl shadow-xl overflow-hidden animate-in slide-in-from-bottom-2 fade-in z-50">
-                <div className="px-3 py-2 text-xs font-semibold text-muted-foreground bg-muted/50 border-b">{t('commands')}</div>
-                <div className="p-1">
-                    {commands.map(cmd => (
-                        <button key={cmd.id} onClick={() => handleCommandSelect(cmd.id)} className="flex items-center gap-3 w-full px-2 py-2 text-sm rounded-lg hover:bg-accent hover:text-accent-foreground text-left transition-colors">
-                            <div className="flex items-center justify-center h-6 w-6 rounded bg-background border shadow-sm">
-                                <cmd.icon className="h-3.5 w-3.5" />
-                            </div>
-                            <div>
-                                <div className="font-medium">{cmd.label}</div>
-                                <div className="text-[10px] text-muted-foreground">{cmd.desc}</div>
-                            </div>
-                        </button>
-                    ))}
+    <div
+      className="relative z-20 mx-auto w-full max-w-5xl px-3 pb-4 pt-2 sm:px-5"
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          setShowCommandMenu(false)
+          setIsMcpOpen(false)
+        }
+      }}
+    >
+      {showCommandMenu && (
+        <div className="absolute bottom-full left-3 z-50 mb-2 w-80 max-w-[calc(100%-2rem)] overflow-hidden rounded-lg border border-border/80 bg-popover text-popover-foreground shadow-elevated sm:left-5">
+          <div className="border-b border-border/70 bg-surface-subtle px-3 py-2 text-[11px] font-semibold tracking-wide text-muted-foreground">{t('commands')}</div>
+          <div className="max-h-80 overflow-y-auto p-1.5">
+            {commands.map(cmd => (
+              <button
+                key={cmd.id}
+                type="button"
+                onClick={() => handleCommandSelect(cmd.id)}
+                className="flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-left text-sm transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
+              >
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border/70 bg-card text-muted-foreground">
+                  <cmd.icon className="h-3.5 w-3.5" />
                 </div>
+                <div>
+                  <div className="font-medium">{cmd.label}</div>
+                  <div className="text-xs text-muted-foreground">{cmd.desc}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className={cn(
+          'relative rounded-xl border border-border bg-card shadow-surface transition-[border-color,box-shadow] focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/15',
+          isDragging && 'border-primary bg-primary/5 ring-2 ring-primary/25'
+        )}
+      >
+        {isDragging && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center rounded-xl bg-card/95 backdrop-blur-[2px]">
+            <div className="flex items-center gap-3 text-sm font-medium text-primary">
+              <Paperclip className="h-5 w-5" />
+              <span>{t('dropFilesHere')}</span>
             </div>
+          </div>
         )}
 
-        {/* Mode Tabs */}
-        <div className="flex items-center gap-1 self-start ml-1 mb-1">
-           {modes.map((mode) => {
-             const isActive = searchMode === mode.id
-             return (
-               <button
-                 key={mode.id}
-                 type="button"
-                 aria-pressed={isActive}
-                 onClick={() => {
-                     // 再次点击已选中的模式则取消选中，回到默认直答
-                     if (isActive) {
-                         setSearchMode('')
-                     } else {
-                         setSearchMode(mode.id)
-                     }
-                     setIsMcpOpen(false)
-                 }}
-                 className={cn(
-                   "relative flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-300 border",
-                   isActive
-                     ? cn("text-foreground shadow-sm", mode.bg, mode.border)
-                     : "text-muted-foreground border-transparent hover:bg-muted/50"
-                 )}
-               >
-                 <mode.icon className={cn("h-3.5 w-3.5 transition-colors", isActive ? mode.color : "text-muted-foreground")} />
-                 {mode.label}
-               </button>
-             )
-           })}
-
-           {/* MCP Dropdown */}
-           <div className="relative">
-               <button
-                 onClick={() => {
-                     // 再次点击已选中的 MCP 则取消选中，回到默认直答
-                     if (searchMode === 'mcp') {
-                         setSearchMode('')
-                         setIsMcpOpen(false)
-                     } else {
-                         setSearchMode('mcp')
-                         setIsMcpOpen(!isMcpOpen)
-                     }
-                 }}
-                 className={cn(
-                   "relative flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-300 border",
-                   searchMode === 'mcp'
-                     ? "bg-pink-500/10 text-foreground border-pink-500/20 shadow-sm"
-                     : "text-muted-foreground border-transparent hover:bg-muted/50"
-                 )}
-               >
-                 <Plug className={cn("h-3.5 w-3.5 transition-colors", searchMode === 'mcp' ? "text-pink-500" : "text-muted-foreground")} />
-                 {searchMode === 'mcp' ? (mcpOptions.find(o => o.id === selectedMcp)?.label || 'MCP') : 'MCP'}
-                 <ChevronDown className="h-3 w-3 opacity-50" />
-               </button>
-
-               {isMcpOpen && (
-                   <div className="absolute bottom-full left-0 mb-2 w-40 bg-popover border rounded-xl shadow-lg animate-in fade-in zoom-in-95 z-50 overflow-hidden">
-                       <div className="p-1">
-                           {mcpOptions.map(opt => (
-                               <button
-                                   key={opt.id}
-                                   onClick={() => {
-                                       setSelectedMcp(opt.id)
-                                       setSearchMode('mcp')
-                                       setIsMcpOpen(false)
-                                   }}
-                                   className={cn(
-                                       "flex w-full items-center justify-between rounded-lg px-2 py-2 text-xs transition-colors hover:bg-muted",
-                                       selectedMcp === opt.id && searchMode === 'mcp' && "bg-muted font-medium text-pink-500"
-                                   )}
-                               >
-                                   {opt.label}
-                                   {selectedMcp === opt.id && searchMode === 'mcp' && <Check className="h-3 w-3" />}
-                               </button>
-                           ))}
-                       </div>
-                   </div>
-               )}
-           </div>
-        </div>
-
-        {/* Input Container */}
-        <div 
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          className={cn(
-            "relative group rounded-3xl border bg-background shadow-lg shadow-black/5 transition-all duration-300 overflow-hidden",
-            isFocused ? "ring-2 ring-primary/20 border-primary shadow-xl shadow-primary/5 scale-[1.005]" : "border-border/50 hover:border-primary/30",
-            isDragging ? "ring-2 ring-primary border-primary bg-primary/5" : "",
-            isLoading && "opacity-80"
-          )}
-        >
-           {/* Drag Overlay */}
-           {isDragging && (
-             <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-                <div className="text-primary font-medium flex flex-col items-center gap-2">
-                    <div className="p-4 rounded-full bg-primary/10">
-                        <Paperclip className="h-8 w-8" />
+        <input type="file" multiple className="hidden" ref={fileInputRef} onChange={handleFileSelect} />
+        {previews.length > 0 && (
+          <div className="flex gap-2 overflow-x-auto px-4 pb-1 pt-3">
+            {previews.map((item, index) => (
+              <div key={index} className="group/attachment relative shrink-0 pr-1 pt-1">
+                <div className="flex max-w-[220px] items-center gap-2 rounded-md border border-border/80 bg-surface-subtle px-2 py-1.5 text-xs font-medium">
+                  {item.file.type.startsWith('image/') ? (
+                    <div className="h-8 w-8 shrink-0 overflow-hidden rounded bg-card">
+                      <img src={item.previewUrl} alt={item.file.name} className="h-full w-full object-cover" />
                     </div>
-                    <span>{t('dropFilesHere')}</span>
+                  ) : (
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-card text-muted-foreground">
+                      <FileIcon className="h-4 w-4" />
+                    </div>
+                  )}
+                  <span className="truncate pr-2" title={item.file.name}>{item.file.name}</span>
                 </div>
-             </div>
-           )}
+                <button
+                  type="button"
+                  aria-label={`Remove ${item.file.name}`}
+                  onClick={() => removeAttachment(index)}
+                  className="absolute right-0 top-0 flex h-5 w-5 items-center justify-center rounded border border-border bg-card text-muted-foreground opacity-100 shadow-xs transition-opacity hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 md:opacity-0 md:group-hover/attachment:opacity-100 md:group-focus-within/attachment:opacity-100"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
 
-           <div className="absolute top-3 left-3 flex gap-1 z-10">
-               <input 
-                  type="file" 
-                  multiple 
-                  className="hidden" 
-                  ref={fileInputRef}
-                  onChange={handleFileSelect}
-               />
-               <Button 
-                  type="button" 
-                  variant="ghost" 
-                  size="icon" 
-                  className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-full transition-colors"
-                  onClick={() => fileInputRef.current?.click()}
-               >
-                <Paperclip className="h-4 w-4" />
-              </Button>
-           </div>
+        <textarea
+          ref={textareaRef}
+          value={input}
+          onChange={handleInputChange}
+          onKeyDown={handleKeyDown}
+          placeholder={searchMode === 'mcp' ? `${mcpOptions.find(option => option.id === selectedMcp)?.label || 'MCP'}...` : t('askAnything')}
+          aria-label={t('askAnything')}
+          disabled={isLoading || awaitingApproval}
+          rows={1}
+          className="block max-h-[200px] min-h-[72px] w-full resize-none rounded-t-xl bg-transparent px-4 py-4 text-[15px] leading-6 text-foreground placeholder:text-muted-foreground focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+        />
 
-          <div className="flex flex-col w-full">
-              {/* Attachments Preview */}
-              {previews.length > 0 && (
-                  <div className="flex gap-2 px-14 pt-4 overflow-x-auto py-2 scrollbar-none">
-                      {previews.map((item, i) => (
-                          <div key={i} className="relative group/attachment flex-shrink-0">
-                              <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-muted/50 border text-xs font-medium max-w-[200px] overflow-hidden">
-                                  {item.file.type.startsWith('image/') ? (
-                                      <div className="h-8 w-8 rounded overflow-hidden flex-shrink-0 bg-background">
-                                         <img src={item.previewUrl} alt="preview" className="h-full w-full object-cover" />
-                                      </div>
-                                  ) : (
-                                      <div className="h-8 w-8 rounded bg-background flex items-center justify-center flex-shrink-0">
-                                          <FileIcon className="h-4 w-4 text-orange-500" />
-                                      </div>
-                                  )}
-                                  <span className="truncate flex-1">{item.file.name}</span>
-                              </div>
-                              <button 
-                                  onClick={() => removeAttachment(i)}
-                                  className="absolute -top-1 -right-1 bg-background border rounded-full p-0.5 text-muted-foreground hover:text-destructive shadow-sm opacity-0 group-hover/attachment:opacity-100 transition-opacity"
-                              >
-                                  <X className="h-3 w-3" />
-                              </button>
-                          </div>
-                      ))}
-                  </div>
-              )}
-
-              <textarea
-                ref={textareaRef}
-                value={input}
-                onChange={handleInputChange}
-                onKeyDown={handleKeyDown}
-                onFocus={() => setIsFocused(true)}
-                onBlur={() => setIsFocused(false)}
-                placeholder={searchMode === 'mcp' ? `${mcpOptions.find(o => o.id === selectedMcp)?.label || 'MCP'}...` : t('askAnything')}
-                aria-label={t('askAnything')}
-                disabled={isLoading || awaitingApproval}
-                rows={1}
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-b-xl border-t border-border/70 bg-surface-subtle/50 p-2">
+          <div className="flex flex-wrap items-center gap-0.5">
+            {modes.map(mode => {
+              const isActive = searchMode === mode.id
+              return (
+                <button
+                  key={mode.id}
+                  type="button"
+                  aria-pressed={isActive}
+                  onClick={() => {
+                    setSearchMode(isActive ? '' : mode.id)
+                    setIsMcpOpen(false)
+                  }}
+                  className={cn(
+                    'flex h-8 items-center gap-1.5 rounded-md px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+                    isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+                  )}
+                >
+                  <mode.icon aria-hidden="true" className="h-3.5 w-3.5" />
+                  {mode.label}
+                </button>
+              )
+            })}
+            <div className="relative">
+              <button
+                type="button"
+                aria-pressed={searchMode === 'mcp'}
+                aria-expanded={isMcpOpen}
+                aria-controls="composer-mcp-options"
+                title={searchMode === 'mcp' ? mcpOptions.find(option => option.id === selectedMcp)?.label : undefined}
+                onClick={() => {
+                  if (searchMode === 'mcp') {
+                    setSearchMode('')
+                    setIsMcpOpen(false)
+                  } else {
+                    setSearchMode('mcp')
+                    setIsMcpOpen(true)
+                  }
+                }}
                 className={cn(
-                    "w-full resize-none bg-transparent px-14 min-h-[56px] max-h-[200px] text-base focus:outline-none placeholder:text-muted-foreground/50 scrollbar-thin scrollbar-thumb-muted",
-                    attachments.length > 0 ? "pt-2 pb-4" : "py-4"
+                  'flex h-8 items-center gap-1.5 rounded-md px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+                  searchMode === 'mcp' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
                 )}
-              />
+              >
+                <Plug aria-hidden="true" className="h-3.5 w-3.5" />
+                MCP
+                <ChevronDown aria-hidden="true" className="h-3 w-3" />
+              </button>
+              {isMcpOpen && (
+                <div id="composer-mcp-options" className="absolute bottom-full left-0 z-50 mb-2 w-44 rounded-lg border border-border/80 bg-popover p-1.5 text-popover-foreground shadow-elevated">
+                  {mcpOptions.map(option => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      aria-pressed={selectedMcp === option.id && searchMode === 'mcp'}
+                      onClick={() => {
+                        setSelectedMcp(option.id)
+                        setSearchMode('mcp')
+                        setIsMcpOpen(false)
+                      }}
+                      className={cn(
+                        'flex w-full items-center justify-between rounded-md px-2.5 py-2 text-sm transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset',
+                        selectedMcp === option.id && searchMode === 'mcp' && 'bg-primary/10 font-medium text-primary'
+                      )}
+                    >
+                      {option.label}
+                      {selectedMcp === option.id && <Check aria-hidden="true" className="h-3.5 w-3.5" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="absolute bottom-3 right-3 flex items-center gap-2">
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            <Button type="button" variant="ghost" size="icon" aria-label="Attach files" onClick={() => fileInputRef.current?.click()} className="text-muted-foreground hover:text-foreground">
+              <Paperclip className="h-4 w-4" />
+            </Button>
             {!isLoading && (
-                 <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    onClick={isListening ? stopListening : startListening}
-                    disabled={isProcessingAudio}
-                    className={cn(
-                        "h-8 w-8 rounded-full hover:bg-muted transition-all duration-300",
-                        isListening && "bg-red-500/10 text-red-500 animate-pulse hover:bg-red-500/20",
-                        isProcessingAudio && "bg-blue-500/10 text-blue-500 animate-spin"
-                    )}
-                 >
-                    {isProcessingAudio ? (
-                      <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                    ) : isListening ? (
-                      <MicOff className="h-4 w-4" />
-                    ) : (
-                      <Mic className="h-4 w-4" />
-                    )}
-                 </Button>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                aria-label={isListening ? 'Stop recording' : 'Record voice message'}
+                aria-pressed={isListening}
+                onClick={isListening ? stopListening : startListening}
+                disabled={isProcessingAudio}
+                className={cn(
+                  'text-muted-foreground hover:text-foreground',
+                  isListening && 'bg-destructive-surface text-destructive hover:bg-destructive/15',
+                  isProcessingAudio && 'text-info'
+                )}
+              >
+                {isProcessingAudio ? (
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                ) : isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+              </Button>
             )}
-
             {canStop ? (
-              <Button type="button" size="icon" variant="ghost" aria-label={t('stopGenerating')} disabled={isStopping} onClick={onStop} className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive rounded-full">
-                <div className="h-2.5 w-2.5 bg-current rounded-sm animate-pulse" />
+              <Button type="button" size="icon" variant="outline" aria-label={t('stopGenerating')} disabled={isStopping} onClick={onStop} className="border-destructive-border text-destructive hover:bg-destructive-surface hover:text-destructive">
+                <div className="h-2.5 w-2.5 rounded-sm bg-current" />
               </Button>
             ) : (
-              <Button type="button" size="icon" aria-label={t('sendMessage')} onClick={onSubmit} disabled={isLoading || awaitingApproval || (!input.trim() && attachments.length === 0)} className={cn("h-8 w-8 rounded-full transition-all duration-300 shadow-sm", (input.trim() || attachments.length > 0) ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-110" : "bg-muted text-muted-foreground")}>
-                <Send className="h-4 w-4 ml-0.5" />
+              <Button type="button" size="icon" aria-label={t('sendMessage')} onClick={onSubmit} disabled={isLoading || awaitingApproval || (!input.trim() && attachments.length === 0)}>
+                <Send className="h-4 w-4" />
               </Button>
             )}
           </div>
         </div>
+      </div>
 
-        <div className="flex justify-between px-4 text-[10px] text-muted-foreground opacity-60">
-            <span><strong>/</strong> {t('forCommands')}</span>
-            <span>{t('aiCanMakeMistakes')}</span>
-        </div>
+      <div className="mt-2 flex flex-wrap justify-between gap-x-4 gap-y-1 px-1 text-xs leading-5 text-muted-foreground">
+        <span><span className="font-mono">/</span> {t('forCommands')}</span>
+        <span>{t('aiCanMakeMistakes')}</span>
       </div>
     </div>
   )

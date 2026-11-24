@@ -43,16 +43,16 @@ export function MermaidBlock({ code }: MermaidBlockProps) {
 
   if (error) {
     return (
-      <div className="p-4 rounded-lg bg-destructive/10 text-destructive text-sm border border-destructive/20">
+      <div className="not-prose rounded-lg border border-destructive-border bg-destructive-surface p-4 text-sm text-destructive">
         <p className="font-semibold mb-1">Chart rendering failed</p>
-        <pre className="text-xs opacity-70 whitespace-pre-wrap">{error}</pre>
-        <pre className="mt-2 text-xs bg-black/5 p-2 rounded">{code}</pre>
+        <pre className="whitespace-pre-wrap text-xs">{error}</pre>
+        <pre className="mt-3 overflow-x-auto rounded-md border border-border/70 bg-card p-3 text-xs text-foreground">{code}</pre>
       </div>
     )
   }
 
   return (
-    <div className="my-4 overflow-hidden rounded-lg border bg-white dark:bg-zinc-950 p-4 flex justify-center">
+    <div className="not-prose my-4 flex justify-center overflow-hidden rounded-lg border border-border/80 bg-card p-4 shadow-surface">
       {isLoading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground py-8">
           <Loader2 className="h-4 w-4 animate-spin" />
@@ -60,7 +60,7 @@ export function MermaidBlock({ code }: MermaidBlockProps) {
         </div>
       ) : (
         <div 
-            className="w-full overflow-x-auto flex justify-center bg-white dark:bg-zinc-950/50"
+            className="flex w-full justify-center overflow-x-auto rounded bg-white p-3"
             dangerouslySetInnerHTML={{ __html: svg }} 
         />
       )}

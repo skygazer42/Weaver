@@ -18,8 +18,8 @@ const jetbrainsMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "Weaver - Deep Research AI Agent",
-  description: "AI-powered research assistant with deep search and code execution",
+  title: "Weaver — AI Research Workbench",
+  description: "An AI agent and deep research workbench for evidence, analysis, and execution.",
   icons: {
     icon: '/favicon.ico', 
   }

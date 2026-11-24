@@ -4,48 +4,80 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
+    --background: 210 20% 98.5%;
+    --surface-subtle: 214 22% 96%;
+    --foreground: 222 32% 11%;
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
+    --card-foreground: 222 32% 11%;
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 240 5.9% 10%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 5.9% 10%;
-    --radius: 0.75rem;
+    --popover-foreground: 222 32% 11%;
+    --primary: 221 72% 46%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 214 20% 94%;
+    --secondary-foreground: 222 28% 16%;
+    --muted: 214 20% 94.5%;
+    --muted-foreground: 215 16% 42%;
+    --accent: 214 24% 92.5%;
+    --accent-foreground: 222 32% 11%;
+    --destructive: 0 72% 48%;
+    --destructive-foreground: 0 0% 100%;
+    --destructive-surface: 0 85% 97%;
+    --destructive-border: 0 65% 85%;
+    --success: 152 60% 34%;
+    --success-foreground: 0 0% 100%;
+    --success-surface: 150 55% 95%;
+    --success-border: 152 35% 79%;
+    --warning: 35 88% 40%;
+    --warning-foreground: 35 90% 14%;
+    --warning-surface: 40 92% 95%;
+    --warning-border: 38 65% 78%;
+    --info: 213 78% 46%;
+    --info-foreground: 0 0% 100%;
+    --info-surface: 213 85% 96%;
+    --info-border: 213 65% 84%;
+    --border: 214 18% 88%;
+    --input: 214 18% 83%;
+    --ring: 221 72% 46%;
+    --radius: 0.5rem;
+    --shadow-color: 222 32% 11%;
   }
 
   .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
+    --background: 222 24% 7.5%;
+    --surface-subtle: 222 24% 10%;
+    --foreground: 210 20% 95%;
+    --card: 222 22% 12%;
+    --card-foreground: 210 20% 95%;
+    --popover: 222 22% 13.5%;
+    --popover-foreground: 210 20% 95%;
+    --primary: 217 85% 62%;
+    --primary-foreground: 222 32% 9%;
+    --secondary: 220 18% 16.5%;
+    --secondary-foreground: 210 20% 93%;
+    --muted: 220 18% 15.5%;
+    --muted-foreground: 215 14% 64%;
+    --accent: 220 18% 19%;
+    --accent-foreground: 210 20% 96%;
+    --destructive: 0 72% 58%;
+    --destructive-foreground: 0 0% 100%;
+    --destructive-surface: 0 42% 16%;
+    --destructive-border: 0 42% 30%;
+    --success: 152 55% 48%;
+    --success-foreground: 222 30% 8%;
+    --success-surface: 152 38% 15%;
+    --success-border: 152 35% 28%;
+    --warning: 38 92% 56%;
+    --warning-foreground: 38 95% 90%;
+    --warning-surface: 38 40% 16%;
+    --warning-border: 38 42% 30%;
+    --info: 213 85% 62%;
+    --info-foreground: 222 30% 8%;
+    --info-surface: 213 42% 16%;
+    --info-border: 213 42% 31%;
+    --border: 220 16% 20%;
+    --input: 220 16% 24%;
+    --ring: 217 85% 62%;
+    --shadow-color: 222 32% 2%;
   }
 }
 
@@ -54,26 +86,113 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground antialiased transition-colors duration-300;
+    @apply bg-background text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  ::selection {
+    background: hsl(var(--primary) / 0.18);
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.25) transparent;
   }
 }
 
 /* Custom Scrollbar for Webkit */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  @apply bg-muted-foreground/20 rounded-full hover:bg-muted-foreground/40 transition-colors;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: hsl(var(--muted-foreground) / 0.25);
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(var(--muted-foreground) / 0.45);
+}
+
+@layer components {
+  .prose {
+    @apply text-foreground;
+    font-size: 0.9375rem;
+    line-height: 1.8;
+    overflow-wrap: anywhere;
+  }
+
+  .prose :where(h1, h2, h3, h4, h5, h6):not(:where(.not-prose, .not-prose *)) {
+    @apply mb-3 mt-7 font-semibold tracking-tight text-foreground;
+    line-height: 1.4;
+  }
+  .prose :where(h1):not(:where(.not-prose, .not-prose *)) { @apply text-2xl; }
+  .prose :where(h2):not(:where(.not-prose, .not-prose *)) { @apply text-xl; }
+  .prose :where(h3):not(:where(.not-prose, .not-prose *)) { @apply text-lg; }
+  .prose :where(h4, h5, h6):not(:where(.not-prose, .not-prose *)) { @apply text-base; }
+  .prose > :first-child { margin-top: 0; }
+  .prose > :last-child { margin-bottom: 0; }
+  .prose :where(p):not(:where(.not-prose, .not-prose *)) { @apply my-3; }
+  .prose :where(ul, ol):not(:where(.not-prose, .not-prose *)) { @apply my-4 space-y-1.5 pl-6; }
+  .prose :where(ul):not(:where(.not-prose, .not-prose *)) { list-style-type: disc; }
+  .prose :where(ol):not(:where(.not-prose, .not-prose *)) { list-style-type: decimal; }
+  .prose :where(li):not(:where(.not-prose, .not-prose *))::marker { color: hsl(var(--muted-foreground)); }
+  .prose :where(li > ul, li > ol):not(:where(.not-prose, .not-prose *)) { @apply my-2; }
+  .prose :where(blockquote):not(:where(.not-prose, .not-prose *)) {
+    @apply my-5 border-l-2 border-primary/40 pl-4 text-muted-foreground;
+  }
+  .prose :where(hr):not(:where(.not-prose, .not-prose *)) { @apply my-7 border-border; }
+  .prose :where(a):not(:where(.not-prose, .not-prose *)) { @apply text-primary underline decoration-primary/30 underline-offset-4; }
+  .prose :where(a:hover):not(:where(.not-prose, .not-prose *)) { @apply decoration-primary; }
+  .prose :where(a:focus-visible):not(:where(.not-prose, .not-prose *)) { @apply rounded-sm outline-none ring-2 ring-ring/50; }
+  .prose :where(strong):not(:where(.not-prose, .not-prose *)) { @apply font-semibold; }
+  .prose :where(:not(pre) > code):not(:where(.not-prose, .not-prose *)) {
+    @apply rounded border border-border/70 bg-surface-subtle px-1.5 py-0.5 font-mono text-[0.85em];
+  }
+  .prose :where(pre):not(:where(.not-prose, .not-prose *)) { @apply my-4 overflow-x-auto rounded-lg bg-surface-subtle p-4 font-mono text-sm; }
+  .prose :where(table):not(:where(.not-prose, .not-prose *)) {
+    @apply my-5 block max-w-full overflow-x-auto rounded-lg border border-border text-sm tabular-nums;
+    border-spacing: 0;
+  }
+  .prose :where(thead):not(:where(.not-prose, .not-prose *)) { @apply bg-surface-subtle; }
+  .prose :where(th):not(:where(.not-prose, .not-prose *)) { @apply text-left font-semibold text-foreground; }
+  .prose :where(th, td):not(:where(.not-prose, .not-prose *)) { @apply border-b border-border/70 px-3.5 py-2.5 align-top; }
+  .prose :where(tbody tr:last-child td):not(:where(.not-prose, .not-prose *)) { border-bottom: 0; }
+  .prose :where(tbody tr:nth-child(even)):not(:where(.not-prose, .not-prose *)) { background: hsl(var(--surface-subtle) / 0.5); }
+  .prose :where(img):not(:where(.not-prose, .not-prose *)) { @apply my-4 h-auto max-w-full rounded-lg; }
+  .prose :where(input[type="checkbox"]):not(:where(.not-prose, .not-prose *)) { @apply mr-2 accent-primary; }
+
+  .prose-on-primary {
+    color: hsl(var(--primary-foreground));
+  }
+  .prose-on-primary :where(h1, h2, h3, h4, h5, h6, a, blockquote):not(:where(.not-prose, .not-prose *)) { color: inherit; }
+  .prose-on-primary :where(a):not(:where(.not-prose, .not-prose *)) { text-decoration-color: currentColor; }
+  .prose-on-primary :where(:not(pre) > code):not(:where(.not-prose, .not-prose *)) {
+    color: inherit;
+    border-color: currentColor;
+    background: hsl(var(--primary-foreground) / 0.1);
+  }
 }
 
 /* Typography Utilities */
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

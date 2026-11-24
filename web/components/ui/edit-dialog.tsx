@@ -42,11 +42,11 @@ export function EditDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-        <div className="py-4 space-y-2">
+        <div className="space-y-2">
           <Label htmlFor="edit-input">{label}</Label>
           <Input
             id="edit-input"
@@ -57,10 +57,10 @@ export function EditDialog({
           />
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleSave}>
+          <Button type="button" onClick={handleSave}>
             Save Changes
           </Button>
         </DialogFooter>

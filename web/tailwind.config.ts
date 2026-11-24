@@ -27,6 +27,7 @@ const config = {
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
+        "surface-subtle": "hsl(var(--surface-subtle))",
         foreground: "hsl(var(--foreground))",
         primary: {
           DEFAULT: "hsl(var(--primary))",
@@ -39,6 +40,26 @@ const config = {
         destructive: {
           DEFAULT: "hsl(var(--destructive))",
           foreground: "hsl(var(--destructive-foreground))",
+          surface: "hsl(var(--destructive-surface))",
+          border: "hsl(var(--destructive-border))",
+        },
+        success: {
+          DEFAULT: "hsl(var(--success))",
+          foreground: "hsl(var(--success-foreground))",
+          surface: "hsl(var(--success-surface))",
+          border: "hsl(var(--success-border))",
+        },
+        warning: {
+          DEFAULT: "hsl(var(--warning))",
+          foreground: "hsl(var(--warning-foreground))",
+          surface: "hsl(var(--warning-surface))",
+          border: "hsl(var(--warning-border))",
+        },
+        info: {
+          DEFAULT: "hsl(var(--info))",
+          foreground: "hsl(var(--info-foreground))",
+          surface: "hsl(var(--info-surface))",
+          border: "hsl(var(--info-border))",
         },
         muted: {
           DEFAULT: "hsl(var(--muted))",
@@ -61,6 +82,11 @@ const config = {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+      },
+      boxShadow: {
+        xs: "0 1px 2px hsl(var(--shadow-color) / 0.05)",
+        surface: "0 1px 2px hsl(var(--shadow-color) / 0.04), 0 3px 8px hsl(var(--shadow-color) / 0.03)",
+        elevated: "0 2px 4px hsl(var(--shadow-color) / 0.06), 0 12px 32px hsl(var(--shadow-color) / 0.12)",
       },
       keyframes: {
         "accordion-down": {

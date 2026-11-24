@@ -17,16 +17,18 @@ interface FilterGroupProps {
 
 export function FilterGroup({ options, value, onChange, className }: FilterGroupProps) {
   return (
-    <div className={cn("flex flex-wrap gap-2", className)}>
+    <div className={cn("inline-flex flex-wrap gap-1 rounded-lg border border-border/70 bg-surface-subtle p-1", className)}>
       {options.map((option) => (
         <button
           key={option.value}
+          type="button"
+          aria-pressed={value === option.value}
           onClick={() => onChange(option.value)}
           className={cn(
-            "px-3 py-1.5 text-sm font-medium rounded-full border transition-all",
+            "rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
             value === option.value
-              ? "bg-primary text-primary-foreground border-primary"
-              : "bg-background text-muted-foreground hover:border-foreground/20 hover:text-foreground"
+              ? "bg-card text-foreground shadow-xs"
+              : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
           )}
         >
           {option.label}

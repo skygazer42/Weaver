@@ -14,6 +14,7 @@ import {
   CornerDownLeft
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 import { BrowserScreenshot } from '@/types/browser'
 import { useBrowserEvents } from '@/hooks/useBrowserEvents'
 import { useBrowserStream } from '@/hooks/useBrowserStream'
@@ -248,160 +249,87 @@ export function BrowserViewer({
   return (
     <div
       className={cn(
-        'border rounded-lg overflow-hidden bg-background shadow-lg transition-all duration-200',
-        isExpanded ? 'w-[480px] max-w-[calc(100vw-3rem)]' : 'w-80',
+        'overflow-hidden rounded-lg border border-border/80 bg-card shadow-elevated transition-[width] duration-200',
+        isExpanded ? 'w-[480px] max-w-[calc(100vw-2rem)]' : 'w-80 max-w-[calc(100vw-2rem)]',
         className
       )}
     >
-      {/* Browser Chrome - Title Bar */}
-      <div className="bg-muted/80 px-3 py-2 flex items-center gap-2 border-b">
-        {/* Traffic Light Buttons */}
-        <div className="flex gap-1.5">
-          <button
-            onClick={handleClose}
-            className="w-3 h-3 rounded-full bg-red-500 hover:bg-red-600 transition-colors"
-            title="Close"
-          />
-          <button
-            onClick={() => setIsExpanded(false)}
-            className="w-3 h-3 rounded-full bg-yellow-500 hover:bg-yellow-600 transition-colors"
-            title="Minimize"
-          />
-          <button
-            onClick={toggleExpand}
-            className="w-3 h-3 rounded-full bg-green-500 hover:bg-green-600 transition-colors"
-            title={isExpanded ? 'Collapse' : 'Expand'}
-          />
-        </div>
+      <div className="flex items-center gap-1 border-b border-border/80 bg-surface-subtle px-2 py-2">
+        <Button type="button" variant="ghost" size="icon" onClick={handleClose} aria-label="Close browser viewer" className="h-7 w-7 shrink-0 text-muted-foreground">
+          <X className="h-3.5 w-3.5" />
+        </Button>
 
-        {/* Address Bar */}
-        <div className="flex-1 flex items-center gap-2 bg-background/60 rounded px-2 py-1 text-xs">
-          <Globe className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+        <div className="flex h-7 min-w-0 flex-1 items-center gap-2 rounded-md border border-border/80 bg-card px-2 text-xs focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-ring/25">
+          <Globe aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           {isLiveMode ? (
             <form
-              className="flex-1 flex items-center gap-2 min-w-0"
-              onSubmit={(e) => {
-                e.preventDefault()
+              className="flex min-w-0 flex-1 items-center gap-1"
+              onSubmit={(event) => {
+                event.preventDefault()
                 sendNavigate(urlDraft)
                 setIsEditingUrl(false)
               }}
             >
               <input
+                aria-label="Browser address"
                 value={urlDraft}
-                onChange={(e) => setUrlDraft(e.target.value)}
+                onChange={(event) => setUrlDraft(event.target.value)}
                 onFocus={() => setIsEditingUrl(true)}
                 onBlur={() => setIsEditingUrl(false)}
-                placeholder={canOpenAddressUrl ? '' : 'Enter URL (https://...)'}
-                className={cn(
-                  'flex-1 min-w-0 bg-transparent outline-none placeholder:text-muted-foreground/60',
-                  isEditingUrl ? 'text-foreground' : 'text-muted-foreground'
-                )}
+                placeholder={canOpenAddressUrl ? '' : 'Enter URL'}
+                className={cn('min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground', isEditingUrl ? 'text-foreground' : 'text-muted-foreground')}
               />
-              <button
-                type="submit"
-                className="flex-shrink-0 p-0.5 rounded hover:bg-background/60 transition-colors"
-                title="Navigate"
-              >
-                <CornerDownLeft className="w-3.5 h-3.5 text-muted-foreground" />
+              <button type="submit" aria-label="Navigate browser" className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+                <CornerDownLeft className="h-3.5 w-3.5" />
               </button>
             </form>
-          ) : (
-            <span className="truncate text-muted-foreground">
-              {addressLabel}
-            </span>
-          )}
+          ) : <span className="truncate text-muted-foreground" title={addressLabel}>{addressLabel}</span>}
           {canOpenAddressUrl && (
-            <a
-              href={addressUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex-shrink-0 hover:text-primary"
-              title="Open in new tab"
-            >
-              <ExternalLink className="w-3 h-3" />
+            <a href={addressUrl} target="_blank" rel="noopener noreferrer" aria-label="Open browser page in new tab" className="shrink-0 rounded text-muted-foreground hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+              <ExternalLink className="h-3 w-3" />
             </a>
           )}
         </div>
 
-        {/* Mode Toggle */}
-        <button
-          onClick={toggleMode}
-          className="p-1 hover:bg-background/60 rounded transition-colors"
-          title={isLiveMode ? 'Switch to screenshots' : 'Switch to live view'}
-        >
-          {isLiveMode ? (
-            <Camera className="w-3.5 h-3.5 text-muted-foreground" />
-          ) : (
-            <Play className="w-3.5 h-3.5 text-muted-foreground" />
-          )}
-        </button>
-
-        {/* Status Indicator */}
-        {isActive && (
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Loader2 className="w-3 h-3 animate-spin text-primary" />
-            <span className="hidden sm:inline">
-              {currentAction || 'Working...'}
-              {typeof currentProgress === 'number' ? ` (${currentProgress}%)` : ''}
-            </span>
-          </div>
-        )}
-
-        {/* Live Stream Controls */}
+        <Button type="button" variant="ghost" size="icon" onClick={toggleMode} aria-label={isLiveMode ? 'Switch to screenshots' : 'Switch to live view'} title={isLiveMode ? 'Switch to screenshots' : 'Switch to live view'} className="h-7 w-7 shrink-0 text-muted-foreground">
+          {isLiveMode ? <Camera className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+        </Button>
         {isLiveMode && isConnected && (
-          <div className="flex items-center gap-1">
-            {isStreaming ? (
-              <button
-                onClick={stopStream}
-                className="p-1 hover:bg-background/60 rounded transition-colors"
-                title="Stop streaming"
-              >
-                <Pause className="w-3.5 h-3.5 text-red-500" />
-              </button>
-            ) : (
-              <button
-                onClick={startStream}
-                className="p-1 hover:bg-background/60 rounded transition-colors"
-                title="Start streaming"
-              >
-                <Play className="w-3.5 h-3.5 text-green-500" />
-              </button>
-            )}
-            <button
-              onClick={captureFrame}
-              className="p-1 hover:bg-background/60 rounded transition-colors"
-              title="Capture frame"
-            >
-              <Camera className="w-3.5 h-3.5 text-muted-foreground" />
-            </button>
-            {isStreaming && (fps > 0 || updatesFps > 0) && (
-              <span className="text-[10px] text-muted-foreground">
-                RX {fps} FPS · UI {updatesFps} upd/s
-                {fps > 0 && updatesFps === 0 ? ' · static' : ''}
-              </span>
-            )}
-          </div>
+          <>
+            <Button type="button" variant="ghost" size="icon" onClick={isStreaming ? stopStream : startStream} aria-label={isStreaming ? 'Pause browser stream' : 'Start browser stream'} title={isStreaming ? 'Pause stream' : 'Start stream'} className="h-7 w-7 shrink-0 text-muted-foreground">
+              {isStreaming ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+            </Button>
+            <Button type="button" variant="ghost" size="icon" onClick={captureFrame} aria-label="Capture browser frame" title="Capture frame" className="h-7 w-7 shrink-0 text-muted-foreground">
+              <Camera className="h-3.5 w-3.5" />
+            </Button>
+          </>
         )}
-
-        {/* Expand/Collapse Button */}
-        <button
-          onClick={toggleExpand}
-          className="p-1 hover:bg-background/60 rounded transition-colors"
-          title={isExpanded ? 'Collapse' : 'Expand'}
-        >
-          {isExpanded ? (
-            <Minimize2 className="w-3.5 h-3.5 text-muted-foreground" />
-          ) : (
-            <Maximize2 className="w-3.5 h-3.5 text-muted-foreground" />
-          )}
-        </button>
+        <Button type="button" variant="ghost" size="icon" onClick={toggleExpand} aria-label={isExpanded ? 'Collapse browser viewer' : 'Expand browser viewer'} className="h-7 w-7 shrink-0 text-muted-foreground">
+          {isExpanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+        </Button>
       </div>
+
+      {(isActive || (isLiveMode && isStreaming)) && (
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border/70 bg-surface-subtle/50 px-3 py-1.5 text-[11px] tabular-nums text-muted-foreground">
+          {isActive && (
+            <span className="flex min-w-0 items-center gap-1.5">
+              <Loader2 aria-hidden="true" className="h-3 w-3 shrink-0 animate-spin text-primary" />
+              <span className="truncate">{currentAction || 'Working…'}{typeof currentProgress === 'number' ? ` (${currentProgress}%)` : ''}</span>
+            </span>
+          )}
+          {isLiveMode && isStreaming && (fps > 0 || updatesFps > 0) && (
+            <span className="whitespace-nowrap font-mono">
+              RX {fps} FPS · UI {updatesFps} upd/s{fps > 0 && updatesFps === 0 ? ' · static' : ''}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Browser Content */}
       {isExpanded && (
         <>
           {/* Main Screenshot/Frame Display */}
-          <div className="relative bg-muted/30">
+          <div className="relative bg-surface-subtle">
             <div className="max-h-[60vh] min-h-[240px] overflow-auto">
               {/* Live stream mode */}
               {isLiveMode ? (
@@ -426,7 +354,7 @@ export function BrowserViewer({
                     />
 
                     <div className="absolute top-2 left-2">
-                      <div className="rounded bg-background/80 backdrop-blur px-2 py-1 text-[10px] text-muted-foreground shadow-sm border">
+                      <div className="rounded-md border border-border/80 bg-card/95 px-2 py-1 text-[11px] text-muted-foreground shadow-xs backdrop-blur-sm">
                         {isInteracting ? (
                           <span>
                             Control: <span className="text-foreground/80">ON</span> · Press{' '}
@@ -535,15 +463,15 @@ export function BrowserViewer({
 
             {/* Live Indicator */}
             {(isLiveMode && isStreaming) || displayScreenshot?.isLive ? (
-              <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-0.5 bg-red-600 text-white text-xs rounded">
-                <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+              <div className="absolute right-2 top-2 flex items-center gap-1.5 rounded-md border border-success-border bg-success-surface px-2 py-1 text-[11px] font-semibold tracking-wide text-success">
+                <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-success" />
                 LIVE
               </div>
             ) : null}
 
             {/* Stream Error */}
             {isLiveMode && streamError && (
-              <div className="absolute bottom-2 left-2 right-2 px-2 py-1 bg-red-600/90 text-white text-xs rounded">
+              <div role="alert" className="absolute bottom-2 left-2 right-2 rounded-md border border-destructive-border bg-destructive-surface px-3 py-2 text-xs text-destructive">
                 {streamError}
               </div>
             )}
@@ -551,14 +479,17 @@ export function BrowserViewer({
 
           {/* Screenshot Timeline - only show in events mode */}
           {!isLiveMode && screenshots.length > 1 && (
-            <div className="bg-muted/40 p-2 border-t">
+            <div className="border-t border-border/70 bg-surface-subtle p-2">
               <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-thin">
                 {screenshots.map((ss, index) => (
                   <button
                     key={ss.id}
+                    type="button"
+                    aria-label={`View screenshot ${index + 1}`}
+                    aria-pressed={selectedScreenshot?.id === ss.id || (!selectedScreenshot && index === screenshots.length - 1)}
                     onClick={() => setSelectedScreenshot(ss)}
                     className={cn(
-                      'relative flex-shrink-0 rounded border-2 overflow-hidden transition-all',
+                      'relative shrink-0 overflow-hidden rounded-md border-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
                       'hover:border-primary/50',
                       (selectedScreenshot?.id === ss.id || (!selectedScreenshot && index === screenshots.length - 1))
                         ? 'border-primary ring-1 ring-primary/30'
@@ -581,7 +512,7 @@ export function BrowserViewer({
                   </button>
                 ))}
               </div>
-              <div className="text-[10px] text-muted-foreground mt-1 text-center">
+              <div className="mt-1 text-center text-[11px] tabular-nums text-muted-foreground">
                 {screenshots.length} screenshot{screenshots.length !== 1 ? 's' : ''}
               </div>
             </div>
@@ -591,8 +522,10 @@ export function BrowserViewer({
 
       {/* Collapsed View - Show mini preview */}
       {!isExpanded && ((isLiveMode && liveImageUrl) || displayScreenshot) && (
-        <div
-          className="h-24 cursor-pointer hover:opacity-80 transition-opacity"
+        <button
+          type="button"
+          aria-label="Expand browser preview"
+          className="block h-24 w-full transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
           onClick={toggleExpand}
         >
           <img
@@ -600,7 +533,7 @@ export function BrowserViewer({
             alt="Browser preview"
             className="w-full h-full object-cover"
           />
-        </div>
+        </button>
       )}
     </div>
   )
@@ -621,7 +554,7 @@ export function FloatingBrowserViewer({
 
   // Simple drag implementation
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest('button, a, img')) return
+    if ((e.target as HTMLElement).closest('button, a, img, input')) return
     setIsDragging(true)
   }, [])
 
@@ -650,7 +583,7 @@ export function FloatingBrowserViewer({
         threadId={threadId}
         onClose={onClose}
         className={cn(
-          'w-96 shadow-xl',
+          'w-96 shadow-elevated',
           isDragging && 'cursor-grabbing'
         )}
       />
