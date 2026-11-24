@@ -77,6 +77,8 @@ def test_project_task_replay_revision_and_ownership(monkeypatch, tmp_path):
                 transport=transport, base_url="http://weaver.test", headers=auth
             ) as client,
         ):
+            health = await client.get("/health")
+            assert health.status_code == 200 and health.json()["database"] == "configured"
             workspace = (await client.post("/api/workspaces")).json()
             another = (await client.post("/api/workspaces")).json()
             path = f"/api/workspaces/{workspace['id']}"

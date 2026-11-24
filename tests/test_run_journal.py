@@ -33,7 +33,7 @@ async def journal_dsn():
     async with await AsyncConnection.connect(dsn, autocommit=True) as connection:
         await connection.execute(sql.SQL("CREATE SCHEMA {}").format(sql.Identifier(schema)))
         try:
-            yield make_conninfo(dsn, options=f"-c search_path={schema}")
+            yield make_conninfo(dsn, options=f"-c search_path={schema}", application_name=schema)
         finally:
             await connection.execute(
                 sql.SQL("DROP SCHEMA {} CASCADE").format(sql.Identifier(schema))
@@ -48,6 +48,35 @@ async def journal(journal_dsn):
         yield journal
     finally:
         await journal.close()
+
+
+@pytest.mark.asyncio
+async def test_worker_recovers_persisted_run_after_postgres_disconnect(journal, journal_dsn):
+    run = await journal.submit("alice", "request", "thread-a", {})
+    async with await AsyncConnection.connect(journal_dsn, autocommit=True) as control:
+        killed = await control.execute(
+            """SELECT pg_terminate_backend(pid, 1000) FROM pg_stat_activity
+                WHERE application_name=%s AND pid <> pg_backend_pid()""",
+            (control.info.parameter_status("application_name"),),
+        )
+        terminated = await killed.fetchall()
+        assert terminated and all(row[0] for row in terminated)
+
+    completed = run_status_line("completed")
+
+    async def source(record):
+        assert record.thread_id == run.thread_id
+        yield completed
+
+    streams = DurableStreams(journal, source)
+    try:
+        async with asyncio.timeout(10):
+            async with aclosing(streams.subscribe(run)) as replay:
+                frames = [frame async for frame in replay]
+        assert '"status": "completed"' in "".join(frames)
+        assert (await journal.get(run.owner, run.run_id)).status == "completed"
+    finally:
+        await streams.close()
 
 
 @pytest.mark.asyncio
@@ -109,10 +138,10 @@ async def test_disconnected_subscriber_keeps_shared_postgres_connection_usable(
                 client = await clients.start(read_stream)
                 async with asyncio.timeout(5):
                     while True:
-                        cursor = await blocker.execute(
-                            "SELECT pg_backend_pid() = ANY(pg_blocking_pids(%s)) AS blocked",
-                            (journal._db.info.backend_pid,),
-                        )
+                        cursor = await blocker.execute("""SELECT EXISTS (
+                            SELECT 1 FROM pg_locks
+                            WHERE relation='weaver_run_events'::regclass AND NOT granted
+                        )""")
                         if (await cursor.fetchone())[0]:
                             break
                         await asyncio.sleep(0.01)

@@ -60,6 +60,20 @@ jobs:
   frontend:
     needs: test
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: weaver_test
+          POSTGRES_PASSWORD: weaver_fixture_pw
+          POSTGRES_DB: weaver_test
+        ports:
+          - 5432/tcp
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U weaver_test -d weaver_test"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
 
     steps:
       - name: Checkout
@@ -105,14 +119,25 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: "3.11"
+          cache: pip
 
       - name: Install Playwright Chromium
         run: |
-          python -m pip install playwright==1.65.2
+          python -m pip install -r requirements.txt -r requirements-dev.txt playwright==1.65.2
           python -m playwright install --with-deps chromium
 
       - name: Browser E2E
         run: pnpm -C web e2e
+
+      - name: PostgreSQL integration and project browser E2E
+        env:
+          WEAVER_TEST_POSTGRES_DSN: postgresql://weaver_test:weaver_fixture_pw@127.0.0.1:${{ job.services.postgres.ports[5432] }}/weaver_test
+          WEAVER_PROJECT_BROWSER_E2E: "1"
+          ENABLE_FILE_LOGGING: "false"
+        run: >-
+          python -m pytest -q
+          tests/test_run_journal.py tests/test_durable_runtime.py
+          tests/test_project_task_runtime.py tests/test_project_browser.py
 
       - name: Upload browser failure evidence
         if: failure()

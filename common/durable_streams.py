@@ -8,6 +8,7 @@ from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import aclosing
 
 from anyio import CancelScope
+from psycopg import OperationalError
 
 from common.chat_stream_translate import translate_legacy_line_to_sse
 from common.research_streams import MAX_STREAMS, run_status_line, status_from_line
@@ -87,6 +88,9 @@ class DurableStreams:
             if current is None or not current.cancel_requested:
                 return
             state = "cancelled"
+        except OperationalError:
+            # The lease lets another attempt recover after a database connection failure.
+            raise
         except Exception:
             logger.exception("Durable run %s failed", record.run_id)
             state = "failed"
@@ -170,4 +174,3 @@ class DurableStreams:
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
-        await self.journal.close()

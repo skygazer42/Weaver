@@ -131,20 +131,20 @@ logger = get_logger(__name__)
 async def lifespan(app: FastAPI):
     global durable_streams
     async with AsyncExitStack() as resources:
+        journal = None
         if settings.database_url:
             from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
-            saver = await resources.enter_async_context(
-                AsyncPostgresSaver.from_conn_string(settings.database_url)
-            )
+            journal = RunJournal(settings.database_url)
+            await journal.setup()
+            resources.push_async_callback(journal.close)
+            saver = AsyncPostgresSaver(journal.pool)
             await saver.setup()
             _configure_graphs(saver)
         try:
             await startup_event()
             await start_workspace_runs()
-            if settings.database_url:
-                journal = RunJournal(settings.database_url)
-                await journal.setup()
+            if journal is not None:
                 durable_streams = DurableStreams(journal, _durable_source, enqueue_due=enqueue_due_project_tasks)
                 app.state.project_streams = durable_streams
             yield
@@ -1258,15 +1258,23 @@ async def root():
 
 
 @app.get("/health")
-async def health():
+async def health(request: Request):
     """Detailed health check."""
-    return {
-        "status": "healthy",
-        "database": "configured" if settings.database_url else "not configured",
-        "version": app.version,
-        "uptime_seconds": time.monotonic() - APP_STARTED_AT,
-        "timestamp": datetime.now().isoformat(),
-    }
+    database = "not configured"
+    if settings.database_url:
+        streams = getattr(request.app.state, "project_streams", None)
+        database = "configured" if streams is not None and await streams.journal.is_ready() else "unavailable"
+    ready = database != "unavailable"
+    return JSONResponse(
+        status_code=200 if ready else 503,
+        content={
+            "status": "healthy" if ready else "unhealthy",
+            "database": database,
+            "version": app.version,
+            "uptime_seconds": time.monotonic() - APP_STARTED_AT,
+            "timestamp": datetime.now().isoformat(),
+        },
+    )
 
 
 @app.get("/api/health/agent", response_model=AgentHealthResponse)

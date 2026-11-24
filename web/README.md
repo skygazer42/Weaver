@@ -24,3 +24,5 @@ In **New task**, choose **Every 24 hours** or **Every 7 days** under **Repeat**,
 The API service runs schedules in the background. On startup, an overdue active plan queues one run and advances to its next interval. A resumed plan starts at its next future interval. The intervals are fixed durations, so the displayed local hour can change when clocks shift.
 
 The project browser test drives the production Web build against the Python API and PostgreSQL. It uses test doubles for the model and GitHub responses. From the repo root, set `WEAVER_PROJECT_BROWSER_E2E=1` and `WEAVER_TEST_POSTGRES_DSN` to a test database whose user can create and drop schemas. Then run `python -m pytest -q tests/test_project_browser.py`. A failed run saves `web/test-results/project-runtime.zip`.
+
+GitHub CI runs the PostgreSQL integration tests and the project browser test with a disposable PostgreSQL service.

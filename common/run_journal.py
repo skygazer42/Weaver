@@ -1,13 +1,20 @@
 """Persist owner-scoped research runs and their SSE replay events."""
 
+import asyncio
+import os
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
-from psycopg import AsyncConnection
+from psycopg import AsyncConnection, AsyncCursor, OperationalError
+from psycopg.abc import Params
+from psycopg.conninfo import conninfo_to_dict
 from psycopg.rows import DictRow, dict_row
 from psycopg.types.json import Jsonb
+from psycopg_pool import AsyncConnectionPool
 
 _RUN_FIELDS = "owner, run_id, thread_id, payload, status, cancel_requested, event_seq"
 _RUNNABLE = """status IN ('queued', 'running')
@@ -43,23 +50,43 @@ class RunRecord:
 
 
 class RunJournal:
-    """An application-owned PostgreSQL connection with atomic run transitions."""
+    """Persistent run transitions on an application-owned PostgreSQL pool."""
 
     def __init__(self, dsn: str, *, lease_seconds: float = 30) -> None:
         self._dsn = dsn
         self._lease_seconds = lease_seconds
-        self._connection: AsyncConnection[DictRow] | None = None
+        self._pool: AsyncConnectionPool[AsyncConnection[DictRow]] | None = None
 
     async def setup(self) -> None:
-        if self._connection is not None:
+        if self._pool is not None:
             return
-        connection = await AsyncConnection.connect(self._dsn, autocommit=True, row_factory=dict_row)
+        connect_timeout = (
+            conninfo_to_dict(self._dsn).get("connect_timeout")
+            or os.getenv("PGCONNECT_TIMEOUT")
+            or "3"
+        )
+        pool = AsyncConnectionPool(
+            self._dsn,
+            kwargs={
+                "autocommit": True,
+                "connect_timeout": connect_timeout,
+                "prepare_threshold": 0,
+                "row_factory": dict_row,
+            },
+            min_size=1,
+            max_size=4,
+            timeout=5,
+            open=False,
+            check=AsyncConnectionPool.check_connection,
+        )
         try:
-            async with connection.transaction():
+            await pool.open(wait=True)
+            async with pool.connection() as connection, connection.transaction():
                 await connection.execute(
                     "SELECT pg_advisory_xact_lock(hashtext('weaver_run_journal'))"
                 )
-                await connection.execute("""
+                await connection.execute(
+                    """
                     CREATE TABLE IF NOT EXISTS weaver_runs (
                         owner TEXT NOT NULL,
                         run_id TEXT NOT NULL,
@@ -104,58 +131,76 @@ class RunJournal:
                     );
                     CREATE INDEX IF NOT EXISTS weaver_project_schedules_due
                         ON weaver_project_schedules (next_run_at) WHERE enabled;
-                """)
+                    """,
+                    prepare=False,
+                )
         except BaseException:
-            await connection.close()
+            await pool.close()
             raise
-        self._connection = connection
+        self._pool = pool
 
     async def close(self) -> None:
-        connection, self._connection = self._connection, None
-        if connection is not None:
-            await connection.close()
+        pool, self._pool = self._pool, None
+        if pool is not None:
+            await pool.close()
 
     @property
-    def _db(self) -> AsyncConnection[DictRow]:
-        if self._connection is None:
+    def pool(self) -> AsyncConnectionPool[AsyncConnection[DictRow]]:
+        if self._pool is None:
             raise RuntimeError("Run journal is closed")
-        return self._connection
+        return self._pool
+
+    async def is_ready(self) -> bool:
+        try:
+            # Checkout includes a round trip via the pool's connection check.
+            async with asyncio.timeout(2), self.pool.connection():
+                return True
+        except (OperationalError, TimeoutError):
+            return False
+
+    @asynccontextmanager
+    async def _query(
+        self, query: str, params: Params | None = None
+    ) -> AsyncIterator[AsyncCursor[DictRow]]:
+        async with self.pool.connection() as connection, connection.cursor() as cursor:
+            await cursor.execute(query, params)
+            yield cursor
 
     async def submit(
         self, owner: str, run_id: str, thread_id: str, payload: dict[str, Any]
     ) -> RunRecord:
-        cursor = await self._db.execute(
+        async with self._query(
             f"""INSERT INTO weaver_runs (owner, run_id, thread_id, payload)
                 VALUES (%s, %s, %s, %s)
                 ON CONFLICT (owner, run_id) DO UPDATE SET run_id = weaver_runs.run_id
                 RETURNING {_RUN_FIELDS}""",
             (owner, run_id, thread_id, Jsonb(payload)),
-        )
-        row = await cursor.fetchone()
-        assert row is not None
-        return RunRecord(**row)
+        ) as cursor:
+            row = await cursor.fetchone()
+            assert row is not None
+            return RunRecord(**row)
 
     async def get(self, owner: str, run_id: str) -> RunRecord | None:
-        cursor = await self._db.execute(
+        async with self._query(
             f"SELECT {_RUN_FIELDS} FROM weaver_runs WHERE owner = %s AND run_id = %s",
             (owner, run_id),
-        )
-        row = await cursor.fetchone()
-        return RunRecord(**row) if row is not None else None
+        ) as cursor:
+            row = await cursor.fetchone()
+            return RunRecord(**row) if row is not None else None
 
     async def get_by_thread(self, thread_id: str) -> RunRecord | None:
         """Look up a graph thread for backend ownership checks."""
-        cursor = await self._db.execute(
+        async with self._query(
             f"SELECT {_RUN_FIELDS} FROM weaver_runs WHERE thread_id = %s", (thread_id,)
-        )
-        row = await cursor.fetchone()
-        return RunRecord(**row) if row is not None else None
+        ) as cursor:
+            row = await cursor.fetchone()
+            return RunRecord(**row) if row is not None else None
 
     async def conversation_turns(
         self, owner: str, conversation_id: str, *, workspace_id: str | None = None
     ) -> list[tuple[list, str]]:
         """Return the most recent committed turns in transcript order."""
-        cursor = await self._db.execute(
+        async with self._query(
             """SELECT recent.messages, completion.answer
                 FROM (
                     SELECT owner, run_id, created_at, payload->'request'->'messages' AS messages
@@ -174,11 +219,11 @@ class RunJournal:
                 ) completion ON completion.answer IS NOT NULL
                 ORDER BY recent.created_at""",
             (owner, conversation_id, workspace_id),
-        )
-        return [(row["messages"], row["answer"]) for row in await cursor.fetchall()]
+        ) as cursor:
+            return [(row["messages"], row["answer"]) for row in await cursor.fetchall()]
 
     async def project_tasks(self, owner: str, workspace_id: str) -> list[dict]:
-        cursor = await self._db.execute(
+        async with self._query(
             """SELECT r.thread_id, r.status, r.created_at, r.payload->'project_task' AS task,
                        CASE WHEN r.status='failed' THEN e.raw_line END AS error_event
                 FROM weaver_runs r
@@ -188,8 +233,8 @@ class RunJournal:
                 WHERE r.owner=%s AND r.payload->>'workspace_id'=%s AND r.payload ? 'project_task'
                 ORDER BY r.created_at DESC, r.run_id""",
             (owner, workspace_id),
-        )
-        return await cursor.fetchall()
+        ) as cursor:
+            return await cursor.fetchall()
 
     async def project_deliverables(
         self,
@@ -199,7 +244,7 @@ class RunJournal:
         thread_id: str | None = None,
         limit: int | None = None,
     ) -> list[dict]:
-        cursor = await self._db.execute(
+        async with self._query(
             """SELECT substring(e.raw_line from 3)::jsonb->'data' AS artifact
                 FROM weaver_runs r
                 JOIN weaver_run_events e
@@ -209,8 +254,8 @@ class RunJournal:
                     AND substring(e.raw_line from 3)::jsonb->>'type'='artifact'
                 ORDER BY r.created_at DESC, r.run_id LIMIT %s""",
             (owner, workspace_id, thread_id, thread_id, limit),
-        )
-        return [row["artifact"] for row in await cursor.fetchall()]
+        ) as cursor:
+            return [row["artifact"] for row in await cursor.fetchall()]
 
     async def create_project_schedule(
         self,
@@ -221,67 +266,67 @@ class RunJournal:
         repeat_days: int,
         first_run_at: datetime,
     ) -> dict:
-        cursor = await self._db.execute(
+        async with self._query(
             """INSERT INTO weaver_project_schedules (owner, workspace_id, id, task, repeat_days, next_run_at)
                 VALUES (%s, %s, %s, %s, %s, %s)
                 ON CONFLICT (owner, workspace_id, id) DO UPDATE SET id = EXCLUDED.id
                 RETURNING *""",
             (owner, workspace_id, schedule_id, Jsonb(task), repeat_days, first_run_at),
-        )
-        row = await cursor.fetchone()
-        assert row is not None
-        return row
+        ) as cursor:
+            row = await cursor.fetchone()
+            assert row is not None
+            return row
 
     async def project_schedule(
         self, owner: str, workspace_id: str, schedule_id: str
     ) -> dict | None:
-        cursor = await self._db.execute(
+        async with self._query(
             "SELECT * FROM weaver_project_schedules WHERE owner=%s AND workspace_id=%s AND id=%s",
             (owner, workspace_id, schedule_id),
-        )
-        return await cursor.fetchone()
+        ) as cursor:
+            return await cursor.fetchone()
 
     async def project_schedules(self, owner: str, workspace_id: str) -> list[dict]:
-        cursor = await self._db.execute(
+        async with self._query(
             """SELECT * FROM weaver_project_schedules WHERE owner=%s AND workspace_id=%s
                 ORDER BY enabled DESC, next_run_at, id""",
             (owner, workspace_id),
-        )
-        return await cursor.fetchall()
+        ) as cursor:
+            return await cursor.fetchall()
 
     async def set_project_schedule_enabled(
         self, owner: str, workspace_id: str, schedule_id: str, enabled: bool
     ) -> dict | None:
-        cursor = await self._db.execute(
+        async with self._query(
             f"""UPDATE weaver_project_schedules SET enabled=%s,
                     next_run_at=CASE WHEN %s AND NOT enabled AND next_run_at <= statement_timestamp()
                         THEN {_NEXT_PROJECT_RUN} ELSE next_run_at END
                 WHERE owner=%s AND workspace_id=%s AND id=%s RETURNING *""",
             (enabled, enabled, owner, workspace_id, schedule_id),
-        )
-        return await cursor.fetchone()
+        ) as cursor:
+            return await cursor.fetchone()
 
     async def delete_project_schedule(
         self, owner: str, workspace_id: str, schedule_id: str
     ) -> bool:
-        cursor = await self._db.execute(
+        async with self._query(
             "DELETE FROM weaver_project_schedules WHERE owner=%s AND workspace_id=%s AND id=%s",
             (owner, workspace_id, schedule_id),
-        )
-        return cursor.rowcount > 0
+        ) as cursor:
+            return cursor.rowcount > 0
 
     async def due_project_schedules(self) -> list[dict]:
-        cursor = await self._db.execute(
+        async with self._query(
             """SELECT * FROM weaver_project_schedules
                 WHERE enabled AND next_run_at <= statement_timestamp()
                 ORDER BY next_run_at, id LIMIT 10"""
-        )
-        return await cursor.fetchall()
+        ) as cursor:
+            return await cursor.fetchall()
 
     async def enqueue_project_schedule(
         self, schedule: dict, task_id: str, thread_id: str, payload: dict
     ) -> RunRecord | None:
-        cursor = await self._db.execute(
+        async with self._query(
             f"""WITH claimed AS (
                     UPDATE weaver_project_schedules
                     SET next_run_at={_NEXT_PROJECT_RUN}, last_task_id=%(task_id)s
@@ -302,30 +347,30 @@ class RunJournal:
                 "thread_id": thread_id,
                 "payload": Jsonb(payload),
             },
-        )
-        row = await cursor.fetchone()
-        return RunRecord(**row) if row is not None else None
+        ) as cursor:
+            row = await cursor.fetchone()
+            return RunRecord(**row) if row is not None else None
 
     async def runnable(self, limit: int) -> list[RunRecord]:
-        cursor = await self._db.execute(
+        async with self._query(
             f"""SELECT {_RUN_FIELDS} FROM weaver_runs WHERE {_RUNNABLE}
                 ORDER BY created_at, owner, run_id LIMIT %s""",
             (limit,),
-        )
-        return [RunRecord(**row) for row in await cursor.fetchall()]
+        ) as cursor:
+            return [RunRecord(**row) for row in await cursor.fetchall()]
 
     async def claim(self, owner: str, run_id: str) -> str | None:
         attempt = uuid4().hex
-        cursor = await self._db.execute(
+        async with self._query(
             f"""UPDATE weaver_runs SET status = 'running', attempt = %s,
                 lease_until = clock_timestamp() + %s * interval '1 second'
                 WHERE owner = %s AND run_id = %s AND {_RUNNABLE}""",
             (attempt, self._lease_seconds, owner, run_id),
-        )
-        return attempt if cursor.rowcount else None
+        ) as cursor:
+            return attempt if cursor.rowcount else None
 
     async def renew(self, owner: str, run_id: str, attempt: str) -> bool:
-        cursor = await self._db.execute(
+        async with self._query(
             f"""UPDATE weaver_runs
                 SET lease_until = clock_timestamp() + %(lease_seconds)s * interval '1 second'
                 WHERE {_ACTIVE_ATTEMPT}""",
@@ -335,13 +380,13 @@ class RunJournal:
                 "attempt": attempt,
                 "lease_seconds": self._lease_seconds,
             },
-        )
-        return cursor.rowcount > 0
+        ) as cursor:
+            return cursor.rowcount > 0
 
     async def append(
         self, owner: str, run_id: str, attempt: str, raw_legacy_line: str
     ) -> int | None:
-        cursor = await self._db.execute(
+        async with self._query(
             f"""WITH next_event AS (
                     UPDATE weaver_runs SET event_seq = event_seq + 1
                     WHERE {_ACTIVE_ATTEMPT} RETURNING owner, run_id, event_seq
@@ -349,17 +394,17 @@ class RunJournal:
                 INSERT INTO weaver_run_events (owner, run_id, seq, raw_line)
                 SELECT owner, run_id, event_seq, %(line)s FROM next_event RETURNING seq""",
             {"owner": owner, "run_id": run_id, "attempt": attempt, "line": raw_legacy_line},
-        )
-        row = await cursor.fetchone()
-        return row["seq"] if row is not None else None
+        ) as cursor:
+            row = await cursor.fetchone()
+            return row["seq"] if row is not None else None
 
     async def events_after(self, owner: str, run_id: str, after: int) -> list[tuple[int, str]]:
-        cursor = await self._db.execute(
+        async with self._query(
             """SELECT seq, raw_line FROM weaver_run_events
                 WHERE owner = %s AND run_id = %s AND seq > %s ORDER BY seq""",
             (owner, run_id, after),
-        )
-        return [(row["seq"], row["raw_line"]) for row in await cursor.fetchall()]
+        ) as cursor:
+            return [(row["seq"], row["raw_line"]) for row in await cursor.fetchall()]
 
     async def finish(
         self,
@@ -374,7 +419,7 @@ class RunJournal:
         """Transition this attempt and commit its final replay frame together."""
         if status not in _FINISH_STATUSES:
             raise ValueError(f"Invalid finish status: {status}")
-        cursor = await self._db.execute(
+        async with self._query(
             f"""WITH finished AS (
                     UPDATE weaver_runs SET status = %(status)s, attempt = NULL, lease_until = NULL,
                         event_seq = event_seq
@@ -398,8 +443,8 @@ class RunJournal:
                 "line": final_line,
                 "artifact": artifact_line,
             },
-        )
-        return await cursor.fetchone() is not None
+        ) as cursor:
+            return await cursor.fetchone() is not None
 
     async def requeue(
         self,
@@ -409,19 +454,19 @@ class RunJournal:
         payload_update: dict[str, Any] | None = None,
         expected_seq: int | None = None,
     ) -> bool:
-        cursor = await self._db.execute(
+        async with self._query(
             """UPDATE weaver_runs SET status = 'queued', payload = payload || %s
                 WHERE owner = %s AND run_id = %s AND status = 'awaiting_approval'
                     AND NOT cancel_requested AND (%s::bigint IS NULL OR event_seq=%s)""",
             (Jsonb(payload_update or {}), owner, run_id, expected_seq, expected_seq),
-        )
-        return cursor.rowcount > 0
+        ) as cursor:
+            return cursor.rowcount > 0
 
     async def request_cancel(
         self, owner: str, run_id: str, *, final_line: str | None = None
     ) -> bool:
         """Cancel an idle run immediately or record cancellation for its worker."""
-        cursor = await self._db.execute(
+        async with self._query(
             """WITH updated AS (
                     UPDATE weaver_runs SET cancel_requested = TRUE,
                         status = CASE WHEN status = 'running' THEN status ELSE 'cancelled' END,
@@ -437,5 +482,5 @@ class RunJournal:
                 )
                 SELECT 1 FROM updated""",
             {"owner": owner, "run_id": run_id, "line": final_line},
-        )
-        return await cursor.fetchone() is not None
+        ) as cursor:
+            return await cursor.fetchone() is not None
