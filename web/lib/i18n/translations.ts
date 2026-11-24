@@ -87,6 +87,7 @@ export const translations = {
     mcpDisabled: 'MCP is disabled.',
     serversConfiguration: 'Servers Configuration (JSON)',
     serversConfigHint: 'Define servers with transport, command, and args.',
+    mcpConfigInvalid: 'Enter a valid JSON object for MCP servers, for example {}.',
     loadedTools: 'Loaded Tools',
     supportedModels: 'Supported Models',
 
@@ -194,6 +195,7 @@ export const translations = {
     mcpDisabled: 'MCP 已禁用。',
     serversConfiguration: '服务器配置 (JSON)',
     serversConfigHint: '定义服务器的传输方式、命令和参数。',
+    mcpConfigInvalid: '请输入有效的 MCP 服务器 JSON 对象，例如 {}。',
     loadedTools: '已加载工具',
     supportedModels: '支持模型',
 
@@ -301,6 +303,7 @@ export const translations = {
     mcpDisabled: 'MCP は無効です。',
     serversConfiguration: 'サーバー設定 (JSON)',
     serversConfigHint: 'トランスポート、コマンド、引数でサーバーを定義します。',
+    mcpConfigInvalid: 'MCP サーバーの設定には、{} のような有効な JSON オブジェクトを入力してください。',
     loadedTools: '読み込み済みツール',
     supportedModels: 'サポートモデル',
 
@@ -396,6 +399,7 @@ export const translations = {
     mcpDisabled: 'MCP가 비활성화되어 있습니다.',
     serversConfiguration: '서버 설정 (JSON)',
     serversConfigHint: '전송 방식, 명령어, 인자로 서버를 정의합니다.',
+    mcpConfigInvalid: 'MCP 서버 설정에 {}와 같은 유효한 JSON 객체를 입력하세요.',
     loadedTools: '로드된 도구',
     supportedModels: '지원 모델',
 

@@ -94,6 +94,9 @@ class FixtureHandler(BaseHTTPRequestHandler):
             pass
 
     def do_GET(self):
+        if self.path == "/api/mcp/config":
+            self.send_json(self.server.mcp_get_status, self.server.mcp_config)
+            return
         if self.path == ARTIFACT_PATH:
             self.send_response(200)
             self.send_header("Content-Type", "text/plain")
@@ -116,6 +119,16 @@ class FixtureHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         url = urlparse(self.path)
+        if url.path == "/api/mcp/config":
+            self.server.mcp_submissions.append(body)
+            if self.server.mcp_post_status != 200:
+                self.send_json(self.server.mcp_post_status, {"detail": "MCP reload failed"})
+                return
+            self.server.mcp_config = {
+                "enabled": body["enable"], "servers": body["servers"], "loaded_tools": 0
+            }
+            self.send_json(200, self.server.mcp_config)
+            return
         if url.path == "/api/interrupt/resume":
             run = next(
                 (run for run in self.server.runs.values() if run.thread_id == body["thread_id"]),
@@ -274,6 +287,10 @@ class ChatBrowserTests(unittest.TestCase):
         self.fixture.runs = {}
         self.fixture.submissions = deque()
         self.fixture.run_started = Event()
+        self.fixture.mcp_config = {"enabled": False, "servers": None, "loaded_tools": 0}
+        self.fixture.mcp_get_status = 200
+        self.fixture.mcp_post_status = 200
+        self.fixture.mcp_submissions = []
         self.context = self.browser.new_context(viewport={"width": 1440, "height": 900})
         self.addCleanup(self.context.close)
         self.context.route("**/*", self.route_request)
@@ -316,6 +333,99 @@ class ChatBrowserTests(unittest.TestCase):
         agent = self.page.get_by_role("button", name="Agent", exact=True)
         agent.click()
         expect(agent).to_have_attribute("aria-pressed", "true")
+
+    def test_preferences_save_without_reloading_untouched_mcp(self):
+        self.page.set_default_timeout(5_000)
+        responses = (
+            (None, 200),
+            ("", 200),
+            ('{"fixture": {"command": "fixture-mcp"}}', 200),
+            ({}, 200),
+            (None, 503),
+        )
+        for servers, status in responses:
+            with self.subTest(servers=servers, status=status):
+                self.fixture.mcp_config["servers"] = servers
+                self.fixture.mcp_get_status = status
+                self.page.evaluate("localStorage.clear(); localStorage.setItem('weaver-language', 'zh')")
+                self.page.emulate_media(color_scheme="dark" if status == 503 else "light")
+                self.page.reload(wait_until="domcontentloaded")
+                self.page.get_by_role("button", name="Toggle theme").click()
+                self.page.get_by_role("button", name="Settings", exact=True).last.click()
+                dialog = self.page.get_by_role("dialog", name="设置", exact=True)
+                mcp = dialog.get_by_label("服务器配置 (JSON)")
+                if status == 200:
+                    expect(mcp).to_be_enabled()
+                    expected_servers = json.loads(servers or "{}") if isinstance(servers, str) else servers or {}
+                    self.assertEqual(json.loads(mcp.input_value().strip() or "{}"), expected_servers)
+                else:
+                    expect(self.page.get_by_text("Failed to load MCP config", exact=True)).to_be_visible()
+                    expect(mcp).to_be_disabled()
+                dialog.get_by_role("button", name="GPT-4.1", exact=True).click()
+                dialog.get_by_role("button", name="English", exact=True).click()
+                dialog.get_by_role("button", name="OpenAI").click()
+                dialog.locator('input[type="password"]').fill("fixture-key")
+                dialog.get_by_role("button", name="保存", exact=True).click()
+                expect(dialog).to_have_count(0)
+                self.page.reload(wait_until="domcontentloaded")
+                self.page.get_by_role("button", name="Settings", exact=True).last.click()
+                dialog = self.page.get_by_role("dialog", name="Settings", exact=True)
+                expect(dialog.get_by_role("button", name="GPT-4.1", exact=True)).to_have_attribute("aria-pressed", "true")
+                expect(dialog.get_by_role("button", name="English", exact=True)).to_have_attribute("aria-pressed", "true")
+                dialog.get_by_role("button", name="OpenAI").click()
+                expect(dialog.locator('input[type="password"]')).to_have_value("fixture-key")
+                dialog.get_by_role("button", name="Cancel", exact=True).click()
+                self.assertEqual(self.fixture.mcp_submissions, [])
+                self.assertEqual(self.fixture.mcp_config["servers"], servers)
+
+    def test_mcp_validation_retains_drafts_and_only_saves_valid_changes(self):
+        self.fixture.mcp_config["servers"] = {}
+        self.page.get_by_role("button", name="Settings", exact=True).last.click()
+        dialog = self.page.get_by_role("dialog", name="Settings", exact=True)
+        mcp = dialog.get_by_label("Servers Configuration (JSON)")
+        expect(mcp).to_be_enabled()
+        dialog.get_by_role("button", name="GPT-4.1", exact=True).click()
+        for invalid in ("{", "null", "[]", '"text"', "42", "false"):
+            with self.subTest(invalid=invalid):
+                mcp.fill(invalid)
+                dialog.get_by_role("button", name="Save", exact=True).click()
+                expect(mcp).to_have_value(invalid)
+                expect(mcp).to_have_attribute("aria-invalid", "true")
+                expect(mcp).to_be_focused()
+                expect(dialog.get_by_role("alert")).to_be_visible()
+                expect(dialog.get_by_role("button", name="GPT-4.1", exact=True)).to_have_attribute("aria-pressed", "true")
+                self.assertEqual(self.fixture.mcp_submissions, [])
+        dialog.get_by_role("button", name="Cancel", exact=True).click()
+        self.page.get_by_role("button", name="Settings", exact=True).last.click()
+        expect(mcp).to_have_value("{}")
+        expect(dialog.get_by_role("button", name="GPT-4.1", exact=True)).to_have_attribute("aria-pressed", "false")
+
+        draft = '{"fixture": {"command": "fixture-mcp"}}'
+        mcp.fill(draft)
+        dialog.get_by_role("button", name="GPT-4.1", exact=True).click()
+        self.fixture.mcp_post_status = 500
+        dialog.get_by_role("button", name="Save", exact=True).click()
+        expect(self.page.get_by_text("Failed to save MCP config", exact=True)).to_be_visible()
+        expect(mcp).to_have_value(draft)
+        expect(dialog.get_by_role("button", name="Save", exact=True)).to_be_enabled()
+        self.assertNotEqual(self.page.evaluate("localStorage.getItem('weaver-model')"), "gpt-4.1")
+        self.fixture.mcp_post_status = 200
+        dialog.get_by_role("button", name="Save", exact=True).click()
+        expect(dialog).to_have_count(0)
+        payload = {"enable": False, "servers": {"fixture": {"command": "fixture-mcp"}}}
+        self.assertEqual(self.fixture.mcp_submissions, [payload, payload])
+        self.page.get_by_role("button", name="Settings", exact=True).last.click()
+        expect(mcp).to_have_value(json.dumps(payload["servers"], indent=2))
+        mcp.fill("")
+        dialog.get_by_role("button", name="Save", exact=True).click()
+        expect(dialog).to_have_count(0)
+        self.assertEqual(self.fixture.mcp_submissions[-1], {"enable": False, "servers": {}})
+        self.page.get_by_role("button", name="Settings", exact=True).last.click()
+        dialog.get_by_role("switch", name="Enable MCP", exact=True).click()
+        dialog.get_by_role("button", name="Save", exact=True).click()
+        expect(dialog).to_have_count(0)
+        self.assertEqual(self.fixture.mcp_submissions[-1], {"enable": True, "servers": {}})
+        self.assertEqual(len(self.fixture.mcp_submissions), 4)
 
     def test_agent_history_survives_reload_and_reopen(self):
         self.choose_agent()

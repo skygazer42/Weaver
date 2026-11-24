@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -10,24 +10,29 @@ import { toast } from 'sonner'
 import { Plug, RefreshCw, CheckCircle2 } from 'lucide-react'
 import { getApiBaseUrl } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { useI18n } from '@/lib/i18n/i18n-context'
 
 export function McpConfigDialog() {
+  const { t } = useI18n()
   const [open, setOpen] = useState(false)
   const [enabled, setEnabled] = useState(false)
   const [config, setConfig] = useState('{}')
   const [loading, setLoading] = useState(false)
   const [configLoaded, setConfigLoaded] = useState(false)
   const [loadedTools, setLoadedTools] = useState(0)
+  const [configError, setConfigError] = useState(false)
+  const configRef = useRef<HTMLTextAreaElement>(null)
 
   const fetchConfig = async () => {
     try {
       setLoading(true)
       setConfigLoaded(false)
+      setConfigError(false)
       const res = await fetch(`${getApiBaseUrl()}/api/mcp/config`)
       if (!res.ok) throw new Error('Failed to fetch config')
       const data = await res.json()
       setEnabled(data.enabled)
-      setConfig(JSON.stringify(data.servers, null, 2))
+      setConfig(typeof data.servers === 'string' ? data.servers : JSON.stringify(data.servers ?? {}, null, 2))
       setLoadedTools(data.loaded_tools || 0)
       setConfigLoaded(true)
     } catch (e) {
@@ -39,21 +44,20 @@ export function McpConfigDialog() {
   }
 
   const handleSave = async () => {
+    let parsedServers = {}
+    try {
+      parsedServers = JSON.parse(config.trim() || '{}')
+      if (!parsedServers || typeof parsedServers !== 'object' || Array.isArray(parsedServers)) {
+        throw new Error('MCP servers must be an object')
+      }
+    } catch {
+      setConfigError(true)
+      configRef.current?.focus()
+      return
+    }
+
     try {
       setLoading(true)
-      // Validate JSON
-      let parsedServers = {}
-      try {
-        parsedServers = JSON.parse(config.trim() || '{}')
-        if (!parsedServers || typeof parsedServers !== 'object' || Array.isArray(parsedServers)) {
-          throw new Error('MCP servers must be an object')
-        }
-      } catch (e) {
-        toast.error('Invalid JSON configuration')
-        setLoading(false)
-        return
-      }
-
       const res = await fetch(`${getApiBaseUrl()}/api/mcp/config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -118,12 +122,19 @@ export function McpConfigDialog() {
             <Label htmlFor="mcp-config">Servers Configuration (JSON)</Label>
             <Textarea
               id="mcp-config"
+              ref={configRef}
               value={config}
-              onChange={(e) => setConfig(e.target.value)}
+              onChange={(e) => {
+                setConfig(e.target.value)
+                setConfigError(false)
+              }}
               disabled={loading || !configLoaded}
-              className="font-mono text-xs min-h-[200px]"
+              aria-invalid={configError}
+              aria-describedby={configError ? 'mcp-config-error' : undefined}
+              className={cn('font-mono text-xs min-h-[200px]', configError && 'border-destructive')}
               placeholder='{ "server-name": { "command": "...", "args": [...] } }'
             />
+            {configError && <p id="mcp-config-error" role="alert" className="text-xs text-destructive">{t('mcpConfigInvalid')}</p>}
             <p className="text-xs text-muted-foreground">
               Define servers with transport, command, and args.
             </p>

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -122,7 +122,14 @@ function SettingsDialogContent({ onOpenChange, selectedModel, onModelChange }: O
   const [mcpConfig, setMcpConfig] = useState('{}')
   const [mcpLoadedTools, setMcpLoadedTools] = useState(0)
   const [mcpLoading, setMcpLoading] = useState(true)
-  const [mcpLoaded, setMcpLoaded] = useState(false)
+  const [mcpSaving, setMcpSaving] = useState(false)
+  const [initialMcpConfig, setInitialMcpConfig] = useState<{ enabled: boolean; config: string } | null>(null)
+  const [mcpError, setMcpError] = useState(false)
+  const mcpConfigRef = useRef<HTMLTextAreaElement>(null)
+  const mcpLoaded = initialMcpConfig !== null
+  const mcpChanged = initialMcpConfig !== null && (
+    mcpEnabled !== initialMcpConfig.enabled || mcpConfig !== initialMcpConfig.config
+  )
 
   const staticModelProviders = getModelProviders(t)
   const allowlist = publicModels?.options?.length ? new Set(publicModels.options) : null
@@ -161,10 +168,11 @@ function SettingsDialogContent({ onOpenChange, selectedModel, onModelChange }: O
         if (!res.ok) throw new Error('Failed to fetch config')
         const data = await res.json()
         if (controller.signal.aborted) return
+        const config = typeof data.servers === 'string' ? data.servers : JSON.stringify(data.servers ?? {}, null, 2)
         setMcpEnabled(data.enabled)
-        setMcpConfig(JSON.stringify(data.servers, null, 2))
+        setMcpConfig(config)
         setMcpLoadedTools(data.loaded_tools || 0)
-        setMcpLoaded(true)
+        setInitialMcpConfig({ enabled: data.enabled, config })
       } catch (e) {
         if (controller.signal.aborted) return
         console.error(e)
@@ -179,20 +187,20 @@ function SettingsDialogContent({ onOpenChange, selectedModel, onModelChange }: O
 
   // Save MCP config
   const saveMcpConfig = async () => {
+    let parsedServers = {}
     try {
-      setMcpLoading(true)
-      let parsedServers = {}
-      try {
-        parsedServers = JSON.parse(mcpConfig.trim() || '{}')
-        if (!parsedServers || typeof parsedServers !== 'object' || Array.isArray(parsedServers)) {
-          throw new Error('MCP servers must be an object')
-        }
-      } catch (e) {
-        toast.error('Invalid JSON configuration')
-        setMcpLoading(false)
-        return false
+      parsedServers = JSON.parse(mcpConfig.trim() || '{}')
+      if (!parsedServers || typeof parsedServers !== 'object' || Array.isArray(parsedServers)) {
+        throw new Error('MCP servers must be an object')
       }
+    } catch {
+      setMcpError(true)
+      mcpConfigRef.current?.focus()
+      return false
+    }
 
+    try {
+      setMcpSaving(true)
       const res = await fetch(`${getApiBaseUrl()}/api/mcp/config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -213,7 +221,7 @@ function SettingsDialogContent({ onOpenChange, selectedModel, onModelChange }: O
       toast.error('Failed to save MCP config')
       return false
     } finally {
-      setMcpLoading(false)
+      setMcpSaving(false)
     }
   }
 
@@ -225,7 +233,7 @@ function SettingsDialogContent({ onOpenChange, selectedModel, onModelChange }: O
   }
 
   const handleSave = async () => {
-    if (!await saveMcpConfig()) return
+    if (mcpChanged && !await saveMcpConfig()) return
     onModelChange(tempModel)
     setLanguage(tempLanguage)
     setSavedKeys(JSON.stringify(apiKeys))
@@ -377,7 +385,7 @@ function SettingsDialogContent({ onOpenChange, selectedModel, onModelChange }: O
                 id="settings-mcp-enabled"
                 checked={mcpEnabled}
                 onCheckedChange={setMcpEnabled}
-                disabled={mcpLoading || !mcpLoaded}
+                disabled={mcpLoading || mcpSaving || !mcpLoaded}
               />
             </div>
 
@@ -385,19 +393,26 @@ function SettingsDialogContent({ onOpenChange, selectedModel, onModelChange }: O
               <Label htmlFor="settings-mcp-config" className="text-xs font-medium">{t('serversConfiguration')}</Label>
               <Textarea
                 id="settings-mcp-config"
+                ref={mcpConfigRef}
                 value={mcpConfig}
-                onChange={(e) => setMcpConfig(e.target.value)}
-                disabled={mcpLoading || !mcpLoaded}
-                className="font-mono text-xs min-h-[120px]"
+                onChange={(e) => {
+                  setMcpConfig(e.target.value)
+                  setMcpError(false)
+                }}
+                disabled={mcpLoading || mcpSaving || !mcpLoaded}
+                aria-invalid={mcpError}
+                aria-describedby={mcpError ? 'settings-mcp-error' : 'settings-mcp-hint'}
+                className={cn('font-mono text-xs min-h-[120px]', mcpError && 'border-destructive')}
                 placeholder='{ "server-name": { "command": "...", "args": [...] } }'
               />
-              <p className="text-xs text-muted-foreground">
+              {mcpError && <p id="settings-mcp-error" role="alert" className="text-xs text-destructive">{t('mcpConfigInvalid')}</p>}
+              <p id="settings-mcp-hint" className="text-xs text-muted-foreground">
                 {t('serversConfigHint')}
               </p>
             </div>
 
             <div role="status" className="flex items-center gap-2 rounded-md border border-border/60 bg-surface-subtle/60 px-3 py-2 text-xs text-muted-foreground">
-              {mcpLoading ? (
+              {mcpLoading || mcpSaving ? (
                 <RefreshCw className="h-3 w-3 animate-spin" />
               ) : (
                 <CheckCircle2 className={cn('h-3.5 w-3.5', mcpEnabled && 'text-success')} />
@@ -411,7 +426,7 @@ function SettingsDialogContent({ onOpenChange, selectedModel, onModelChange }: O
           <Button variant="outline" onClick={handleCancel}>
             {t('cancel')}
           </Button>
-          <Button onClick={handleSave} disabled={mcpLoading || !mcpLoaded}>
+          <Button onClick={handleSave} disabled={mcpSaving}>
             {t('save')}
           </Button>
         </DialogFooter>
