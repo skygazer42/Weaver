@@ -11,10 +11,11 @@ import { ChatInput } from './ChatInput'
 import { Loader2, ArrowDown, X, Monitor, ShieldAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { Message, RUN_STATUS_LABELS } from '@/types/chat'
+import { ChatRun, Message, RUN_STATUS_LABELS } from '@/types/chat'
 import { STORAGE_KEYS, DEFAULT_MODEL } from '@/lib/constants'
 import { StorageService } from '@/lib/storage-service'
 import { useChatHistory } from '@/hooks/useChatHistory'
+import { useStoredPreference } from '@/hooks/useStoredPreference'
 import { cancelRun, useChatStream } from '@/hooks/useChatStream'
 import { filesToImageAttachments } from '@/lib/file-utils'
 import type { Workspace } from '@/lib/workspace'
@@ -28,7 +29,7 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
   const initialMode = project ? 'agent' : ''
   // UI State
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL)
+  const [selectedModel, setSelectedModel] = useStoredPreference(STORAGE_KEYS.MODEL, DEFAULT_MODEL)
   const [searchMode, setSearchMode] = useState(initialMode)
   const [showScrollButton, setShowScrollButton] = useState(false)
   const [showMobileArtifacts, setShowMobileArtifacts] = useState(false)
@@ -45,21 +46,14 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
   const scrollRef = useRef<HTMLDivElement>(null)
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   const lastAtBottom = useRef<boolean | null>(null)
-  const restoredRun = useRef(false)
+  const [restoredSession, setRestoredSession] = useState<{
+    id: string
+    run: ChatRun
+    messages: Message[]
+    missingHistory: boolean
+  } | false | null>(null)
   const submissionRef = useRef<symbol | null>(null)
 
-  const chatHistory = useChatHistory(workspaceId)
-  const {
-    history, 
-    isHistoryLoading, 
-    saveToHistory, 
-    loadSession, 
-    deleteSession, 
-    clearHistory,
-    togglePin,
-    renameSession
-  } = chatHistory
-  
   const {
     messages,
     setMessages,
@@ -81,40 +75,44 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
     decideInterrupt,
   } = useChatStream({ selectedModel, searchMode, workspaceId })
 
+  const chatHistory = useChatHistory(workspaceId)
+  const {
+    history,
+    isHistoryLoading,
+    saveToHistory,
+    loadSession,
+    deleteSession,
+    clearHistory,
+    togglePin,
+    renameSession
+  } = chatHistory
+
+  if (!isHistoryLoading && restoredSession === null) {
+    const id = StorageService.getRecentRunSession(workspaceId)
+      || history.find((item) => StorageService.getRun(item.id, workspaceId))?.id
+    const run = id ? StorageService.getRun(id, workspaceId) : null
+    const saved = id ? StorageService.getSessionMessages<Message>(id, workspaceId) : []
+    if (id && run && saved.length > 0) {
+      setRestoredSession({ id, run, messages: saved, missingHistory: !history.some((item) => item.id === id) })
+      setMessages(saved)
+      setCurrentSessionId(id)
+      setSearchMode(run.searchMode)
+    } else {
+      setRestoredSession(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!restoredSession) return
+    const { id, run, messages: saved, missingHistory } = restoredSession
+    if (missingHistory) saveToHistory(saved, id, run.searchMode)
+    void resumeRun(id, run, saved)
+  }, [restoredSession, resumeRun, saveToHistory])
+
   const runStatus = messages.at(-1)?.runStatus
   const artifacts = messages.flatMap((message) => message.artifacts ?? [])
   const activeRun = currentSessionId ? StorageService.getRun(currentSessionId, workspaceId) : null
   const approvalPrompts = pendingInterrupt?.prompts ?? (pendingInterrupt ? [pendingInterrupt] : [])
-
-  useEffect(() => {
-    if (isHistoryLoading || restoredRun.current) return
-    restoredRun.current = true
-    const sessionId = StorageService.getRecentRunSession(workspaceId)
-      || history.find((item) => StorageService.getRun(item.id, workspaceId))?.id
-    if (!sessionId) return
-    const run = StorageService.getRun(sessionId, workspaceId)
-    if (!run) return
-    const saved = StorageService.getSessionMessages<Message>(sessionId, workspaceId)
-    if (saved.length === 0) return
-    setMessages(saved)
-    setCurrentSessionId(sessionId)
-    setSearchMode(run.searchMode)
-    if (!history.some((item) => item.id === sessionId)) saveToHistory(saved, sessionId, run.searchMode)
-    void resumeRun(sessionId, run, saved)
-  }, [history, isHistoryLoading, resumeRun, saveToHistory, setMessages, workspaceId])
-
-  // Load Model from LocalStorage
-  useEffect(() => {
-      const savedModel = localStorage.getItem(STORAGE_KEYS.MODEL)
-      if (savedModel) {
-          setSelectedModel(savedModel)
-      }
-  }, [])
-
-  // Save Model to LocalStorage
-  useEffect(() => {
-      localStorage.setItem(STORAGE_KEYS.MODEL, selectedModel)
-  }, [selectedModel])
 
   // Auto-save messages when they update during streaming or after approval
   useEffect(() => {

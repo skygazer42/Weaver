@@ -1,7 +1,8 @@
 'use client'
 
-import React, { createContext, useContext, useState, useEffect } from 'react'
+import React, { createContext, useContext } from 'react'
 import { translations, Language, TranslationKey } from './translations'
+import { useStoredPreference } from '@/hooks/useStoredPreference'
 
 interface I18nContextType {
   language: Language
@@ -12,21 +13,8 @@ interface I18nContextType {
 const I18nContext = createContext<I18nContextType | undefined>(undefined)
 
 export function I18nProvider({ children }: { children: React.ReactNode }) {
-  const [language, setLanguageState] = useState<Language>('en')
-
-  // Load language from localStorage on mount
-  useEffect(() => {
-    const savedLanguage = localStorage.getItem('weaver-language') as Language
-    if (savedLanguage && ['en', 'zh', 'ja', 'ko'].includes(savedLanguage)) {
-      setLanguageState(savedLanguage)
-    }
-  }, [])
-
-  // Save language to localStorage when it changes
-  const setLanguage = (lang: Language) => {
-    setLanguageState(lang)
-    localStorage.setItem('weaver-language', lang)
-  }
+  const [savedLanguage, setLanguage] = useStoredPreference('weaver-language', 'en')
+  const language: Language = ['en', 'zh', 'ja', 'ko'].includes(savedLanguage) ? savedLanguage as Language : 'en'
 
   // Translation function
   const t = (key: TranslationKey): string => {

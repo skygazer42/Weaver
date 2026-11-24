@@ -37,8 +37,8 @@ export function ThinkingProcess({
   completedAt,
 }: ThinkingProcessProps) {
   const detailsId = useId()
-  const [open, setOpen] = useState(false)
-  const [userToggled, setUserToggled] = useState(false)
+  const [openOverride, setOpenOverride] = useState<boolean | null>(null)
+  const open = openOverride ?? isThinking
   const [now, setNow] = useState(() => Date.now())
 
   const hasDetails = tools.length > 0 || events.length > 0
@@ -89,22 +89,16 @@ export function ThinkingProcess({
     return [...thoughts, ...tail].sort((a, b) => a.timestamp - b.timestamp)
   }, [events, tools.length])
 
-  useEffect(() => {
-    if (userToggled) return
-    if (isThinking) setOpen(true)
-    else setOpen(false)
-  }, [isThinking, userToggled])
-
   if (!hasDetails && !isThinking) return null
 
+  const stepLabel = stepCount ? ` · ${stepCount} ${stepCount === 1 ? 'step' : 'steps'}` : ''
   const headerText = isThinking
-    ? `Thinking…${durationLabel ? ` · ${durationLabel}` : ''}${stepCount ? ` · ${stepCount} steps` : ''}`
-    : `Thought${durationLabel ? ` for ${durationLabel}` : ''}${stepCount ? ` · ${stepCount} steps` : ''}`
+    ? `Thinking…${durationLabel ? ` · ${durationLabel}` : ''}${stepLabel}`
+    : `Thought${durationLabel ? ` for ${durationLabel}` : ''}${stepLabel}`
 
   const toggle = () => {
     if (!hasDetails) return
-    setUserToggled(true)
-    setOpen((v) => !v)
+    setOpenOverride(!open)
   }
 
   return (

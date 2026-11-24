@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -14,19 +14,22 @@ import { cn } from '@/lib/utils'
 export function McpConfigDialog() {
   const [open, setOpen] = useState(false)
   const [enabled, setEnabled] = useState(false)
-  const [config, setConfig] = useState('')
+  const [config, setConfig] = useState('{}')
   const [loading, setLoading] = useState(false)
+  const [configLoaded, setConfigLoaded] = useState(false)
   const [loadedTools, setLoadedTools] = useState(0)
 
   const fetchConfig = async () => {
     try {
       setLoading(true)
+      setConfigLoaded(false)
       const res = await fetch(`${getApiBaseUrl()}/api/mcp/config`)
       if (!res.ok) throw new Error('Failed to fetch config')
       const data = await res.json()
       setEnabled(data.enabled)
       setConfig(JSON.stringify(data.servers, null, 2))
       setLoadedTools(data.loaded_tools || 0)
+      setConfigLoaded(true)
     } catch (e) {
       console.error(e)
       toast.error('Failed to load MCP config')
@@ -35,19 +38,16 @@ export function McpConfigDialog() {
     }
   }
 
-  useEffect(() => {
-    if (open) {
-      fetchConfig()
-    }
-  }, [open])
-
   const handleSave = async () => {
     try {
       setLoading(true)
       // Validate JSON
       let parsedServers = {}
       try {
-        parsedServers = JSON.parse(config)
+        parsedServers = JSON.parse(config.trim() || '{}')
+        if (!parsedServers || typeof parsedServers !== 'object' || Array.isArray(parsedServers)) {
+          throw new Error('MCP servers must be an object')
+        }
       } catch (e) {
         toast.error('Invalid JSON configuration')
         setLoading(false)
@@ -78,7 +78,10 @@ export function McpConfigDialog() {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(nextOpen) => {
+      setOpen(nextOpen)
+      if (nextOpen) void fetchConfig()
+    }}>
       <DialogTrigger asChild>
         <Button variant="ghost" size="icon" aria-label="MCP Configuration" title="MCP Configuration">
             <Plug className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
@@ -107,6 +110,7 @@ export function McpConfigDialog() {
               id="mcp-enabled"
               checked={enabled}
               onCheckedChange={setEnabled}
+              disabled={loading || !configLoaded}
             />
           </div>
 
@@ -116,6 +120,7 @@ export function McpConfigDialog() {
               id="mcp-config"
               value={config}
               onChange={(e) => setConfig(e.target.value)}
+              disabled={loading || !configLoaded}
               className="font-mono text-xs min-h-[200px]"
               placeholder='{ "server-name": { "command": "...", "args": [...] } }'
             />
@@ -132,7 +137,7 @@ export function McpConfigDialog() {
 
         <DialogFooter className="shrink-0 border-t border-border/80 bg-surface-subtle/50 px-6 py-3.5">
           <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button onClick={handleSave} disabled={loading}>
+          <Button onClick={handleSave} disabled={loading || !configLoaded}>
             {loading && <RefreshCw className="mr-2 h-4 w-4 animate-spin" />}
             Save & Reload
           </Button>

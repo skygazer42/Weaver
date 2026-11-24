@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useId, useState } from 'react'
 import mermaid from 'mermaid'
 import { Loader2 } from 'lucide-react'
 
@@ -19,7 +19,7 @@ export function MermaidBlock({ code }: MermaidBlockProps) {
   const [svg, setSvg] = useState<string>('')
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const id = useRef(`mermaid-${Math.random().toString(36).substr(2, 9)}`)
+  const id = `mermaid-${useId().replace(/:/g, '')}`
 
   useEffect(() => {
     const renderChart = async () => {
@@ -28,7 +28,7 @@ export function MermaidBlock({ code }: MermaidBlockProps) {
       try {
         // Mermaid needs the element to be in the DOM to render properly sometimes,
         // but render() returns an SVG string.
-        const { svg } = await mermaid.render(id.current, code)
+        const { svg } = await mermaid.render(id, code)
         setSvg(svg)
       } catch (err: any) {
         console.error('Mermaid render error:', err)
@@ -39,7 +39,7 @@ export function MermaidBlock({ code }: MermaidBlockProps) {
     }
 
     renderChart()
-  }, [code])
+  }, [code, id])
 
   if (error) {
     return (

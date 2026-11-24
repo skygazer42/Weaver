@@ -55,7 +55,7 @@ export function Sidebar({
     const sevenDaysAgo = today - 86400000 * 7
 
     unpinnedItems.forEach(item => {
-        const time = item.updatedAt || item.createdAt || Date.now()
+        const time = item.updatedAt || item.createdAt || today
         let key = 'Older'
         if (time >= today) key = 'Today'
         else if (time >= yesterday) key = 'Yesterday'

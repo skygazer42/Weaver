@@ -236,17 +236,17 @@ export function ProjectWorkspace({ initialWorkspace, files, setFiles }: {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <ProjectMetadata initial={initialWorkspace} url={url} />
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
-        <div className="min-w-0 space-y-5">
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
+        <div className="min-w-0 space-y-4">
           <Card>
-            <CardHeader className="mb-4 rounded-t-lg border-b border-border/70 bg-surface-subtle/40 px-5 py-3.5">
+            <CardHeader className="mb-3 rounded-t-lg border-b border-border/70 bg-surface-subtle/40 px-4 py-3">
               <h2 className="text-sm font-semibold tracking-tight">{revision ? 'Revise deliverable' : 'New task'}</h2>
             </CardHeader>
-            <CardContent className="px-5 pb-5">
+            <CardContent className="px-4 pb-4">
               <form onSubmit={runTask}>
-                <fieldset disabled={submitting} className="space-y-4">
+                <fieldset disabled={submitting} className="space-y-3">
                   {revision ? (
                     <div className="flex items-start justify-between gap-2 rounded-md border border-primary/20 bg-primary/5 p-2.5 text-sm">
                       <p className="min-w-0 break-words">{revision.title}</p>

@@ -15,7 +15,6 @@ export function usePublicModels(): PublicModelsState {
 
   useEffect(() => {
     let cancelled = false
-    setIsLoading(true)
     fetchPublicConfig()
       .then((cfg) => {
         if (cancelled) return

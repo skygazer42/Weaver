@@ -282,6 +282,7 @@ class ChatBrowserTests(unittest.TestCase):
         self.addCleanup(self.stop_trace)
         self.page = self.context.new_page()
         self.page.goto(self.origin, wait_until="domcontentloaded")
+        expect(self.page.get_by_text("No recent chats", exact=True)).to_be_visible()
         self.input = self.page.get_by_role("textbox", name="Ask anything...")
         self.status = self.page.get_by_role("status", name="Run status")
 
@@ -312,7 +313,6 @@ class ChatBrowserTests(unittest.TestCase):
         self.input.press("Enter")
 
     def choose_agent(self):
-        expect(self.page.get_by_text("No recent chats", exact=True)).to_be_visible()
         agent = self.page.get_by_role("button", name="Agent", exact=True)
         agent.click()
         expect(agent).to_have_attribute("aria-pressed", "true")

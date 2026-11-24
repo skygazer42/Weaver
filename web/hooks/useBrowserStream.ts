@@ -79,143 +79,141 @@ export function useBrowserStream({
     }
   }, [])
 
-  const connect = useCallback(() => {
-    if (!threadId) return
-
-    // Clean up existing connection
-    if (wsRef.current) {
-      try {
-        closedByClientRef.current.add(wsRef.current)
-        wsRef.current.close(1000, 'Reconnecting')
-      } catch (err) {
-        console.warn('[useBrowserStream] Failed to close existing socket:', err)
-      }
-    }
-
-    const wsUrl = getApiWsBaseUrl() + `/api/browser/${threadId}/stream`
-
-    console.log('[useBrowserStream] Connecting to:', wsUrl)
-
-    const ws = new WebSocket(wsUrl)
-    wsRef.current = ws
-
-    ws.onopen = () => {
-      if (wsRef.current !== ws) return
-      console.log('[useBrowserStream] Connected')
-      setIsConnected(true)
-      setError(null)
-
-      // Auto-start streaming if enabled
-      if (autoStart) {
-        setIsStarting(true)
-        ws.send(JSON.stringify({
-          action: 'start',
-          quality,
-          max_fps: maxFps
-        }))
-      }
-    }
-
-    ws.onmessage = async (event) => {
-      if (wsRef.current !== ws) return
-      try {
-        const raw = await readWsMessage(event.data)
-        if (!raw) return
-        const data = JSON.parse(raw)
-
-        if (data.type === 'frame') {
-          frameCountRef.current++
-          const nextData = typeof data.data === 'string' ? data.data : ''
-          const meta = data.metadata || {}
-          const metaUrl = typeof meta?.url === 'string' ? meta.url : (typeof meta?.page_url === 'string' ? meta.page_url : '')
-          const metaTitle = typeof meta?.title === 'string' ? meta.title : ''
-          const metaSig = `${metaUrl}::${metaTitle}`
-
-          // Avoid forcing React to reconcile massive base64 payloads when the
-          // backend is repeating the exact same frame for FPS smoothing.
-          const isDuplicate = nextData && nextData === lastFrameDataRef.current && metaSig === lastFrameMetaRef.current
-
-          if (!isDuplicate) {
-            uniqueFrameCountRef.current++
-            lastFrameDataRef.current = nextData
-            lastFrameMetaRef.current = metaSig
-            setCurrentFrame({
-              data: nextData,
-              timestamp: data.timestamp,
-              metadata: meta
-            })
-          }
-          setIsStarting(false)
-        } else if (data.type === 'status') {
-          console.log('[useBrowserStream] Status:', data.message)
-          if (data.message === 'Screencast started') {
-            setIsStarting(false)
-            setIsStreaming(true)
-          } else if (data.message === 'Screencast stopped') {
-            setIsStarting(false)
-            setIsStreaming(false)
-          } else if (data.message === 'Screencast already running') {
-            setIsStarting(false)
-            setIsStreaming(true)
-          }
-        } else if (data.type === 'error') {
-          console.error('[useBrowserStream] Error:', data.message)
-          setError(data.message)
-          setIsStarting(false)
-        } else if (data.type === 'ping') {
-          // keepalive - ignore
-        }
-      } catch (err) {
-        console.error('[useBrowserStream] Failed to parse message:', err)
-      }
-    }
-
-    ws.onerror = (event) => {
-      if (wsRef.current !== ws) return
-      console.error('[useBrowserStream] WebSocket error:', event)
-      setError('WebSocket connection error')
-      setIsStarting(false)
-    }
-
-    ws.onclose = (event) => {
-      const wasClientClose = closedByClientRef.current.has(ws)
-      if (wsRef.current !== ws) {
-        if (wasClientClose) closedByClientRef.current.delete(ws)
-        // A stale socket from a previous connect attempt closed; ignore.
-        return
-      }
-      console.log('[useBrowserStream] Disconnected:', event.code, event.reason)
-      setIsConnected(false)
-      setIsStreaming(false)
-      setIsStarting(false)
-      wsRef.current = null
-
-      if (wasClientClose) {
-        closedByClientRef.current.delete(ws)
-        return
-      }
-
-      // Auth failures should not spin in a reconnect loop.
-      if (event.code === 4401 || event.code === 4403) {
-        setError('Live view permission denied (check WEAVER_INTERNAL_API_KEY / auth headers).')
-        return
-      }
-
-      // Attempt to reconnect after 3 seconds (even on normal closes, unless it
-      // was triggered by this component).
-      {
-        reconnectTimeoutRef.current = setTimeout(() => {
-          if (threadId) {
-            console.log('[useBrowserStream] Attempting to reconnect...')
-            connect()
-          }
-        }, 3000)
-      }
-    }
-  }, [threadId, autoStart, quality, maxFps])
-
-  // Connect when threadId changes
   useEffect(() => {
+    const closedByClient = closedByClientRef.current
+    function connect() {
+      if (!threadId) return
+
+      // Clean up existing connection
+      if (wsRef.current) {
+        try {
+          closedByClient.add(wsRef.current)
+          wsRef.current.close(1000, 'Reconnecting')
+        } catch (err) {
+          console.warn('[useBrowserStream] Failed to close existing socket:', err)
+        }
+      }
+
+      const wsUrl = getApiWsBaseUrl() + `/api/browser/${threadId}/stream`
+
+      console.log('[useBrowserStream] Connecting to:', wsUrl)
+
+      const ws = new WebSocket(wsUrl)
+      wsRef.current = ws
+
+      ws.onopen = () => {
+        if (wsRef.current !== ws) return
+        console.log('[useBrowserStream] Connected')
+        setIsConnected(true)
+        setError(null)
+
+        // Auto-start streaming if enabled
+        if (autoStart) {
+          setIsStarting(true)
+          ws.send(JSON.stringify({
+            action: 'start',
+            quality,
+            max_fps: maxFps
+          }))
+        }
+      }
+
+      ws.onmessage = async (event) => {
+        if (wsRef.current !== ws) return
+        try {
+          const raw = await readWsMessage(event.data)
+          if (!raw || wsRef.current !== ws) return
+          const data = JSON.parse(raw)
+
+          if (data.type === 'frame') {
+            frameCountRef.current++
+            const nextData = typeof data.data === 'string' ? data.data : ''
+            const meta = data.metadata || {}
+            const metaUrl = typeof meta?.url === 'string' ? meta.url : (typeof meta?.page_url === 'string' ? meta.page_url : '')
+            const metaTitle = typeof meta?.title === 'string' ? meta.title : ''
+            const metaSig = `${metaUrl}::${metaTitle}`
+
+            // Avoid forcing React to reconcile massive base64 payloads when the
+            // backend is repeating the exact same frame for FPS smoothing.
+            const isDuplicate = nextData && nextData === lastFrameDataRef.current && metaSig === lastFrameMetaRef.current
+
+            if (!isDuplicate) {
+              uniqueFrameCountRef.current++
+              lastFrameDataRef.current = nextData
+              lastFrameMetaRef.current = metaSig
+              setCurrentFrame({
+                data: nextData,
+                timestamp: data.timestamp,
+                metadata: meta
+              })
+            }
+            setIsStarting(false)
+          } else if (data.type === 'status') {
+            console.log('[useBrowserStream] Status:', data.message)
+            if (data.message === 'Screencast started') {
+              setIsStarting(false)
+              setIsStreaming(true)
+            } else if (data.message === 'Screencast stopped') {
+              setIsStarting(false)
+              setIsStreaming(false)
+            } else if (data.message === 'Screencast already running') {
+              setIsStarting(false)
+              setIsStreaming(true)
+            }
+          } else if (data.type === 'error') {
+            setError(data.message)
+            setIsStarting(false)
+          } else if (data.type === 'ping') {
+            // keepalive - ignore
+          }
+        } catch (err) {
+          console.error('[useBrowserStream] Failed to parse message:', err)
+        }
+      }
+
+      ws.onerror = (event) => {
+        if (wsRef.current !== ws) return
+        console.error('[useBrowserStream] WebSocket error:', event)
+        setError('WebSocket connection error')
+        setIsStarting(false)
+      }
+
+      ws.onclose = (event) => {
+        const wasClientClose = closedByClient.has(ws)
+        if (wsRef.current !== ws) {
+          if (wasClientClose) closedByClient.delete(ws)
+          // A stale socket from a previous connect attempt closed; ignore.
+          return
+        }
+        console.log('[useBrowserStream] Disconnected:', event.code, event.reason)
+        setIsConnected(false)
+        setIsStreaming(false)
+        setIsStarting(false)
+        wsRef.current = null
+
+        if (wasClientClose) {
+          closedByClient.delete(ws)
+          return
+        }
+
+        // Auth failures should not spin in a reconnect loop.
+        if (event.code === 4401 || event.code === 4403) {
+          setError('Live view permission denied (check WEAVER_INTERNAL_API_KEY / auth headers).')
+          return
+        }
+
+        // Attempt to reconnect after 3 seconds (even on normal closes, unless it
+        // was triggered by this component).
+        {
+          reconnectTimeoutRef.current = setTimeout(() => {
+            if (threadId) {
+              console.log('[useBrowserStream] Attempting to reconnect...')
+              connect()
+            }
+          }, 3000)
+        }
+      }
+    }
     if (threadId) {
       connect()
     }
@@ -226,7 +224,7 @@ export function useBrowserStream({
       }
       if (wsRef.current) {
         try {
-          closedByClientRef.current.add(wsRef.current)
+          closedByClient.add(wsRef.current)
           wsRef.current.close(1000, 'Component unmounted')
         } catch (err) {
           console.warn('[useBrowserStream] Failed to close socket:', err)
@@ -234,7 +232,7 @@ export function useBrowserStream({
         wsRef.current = null
       }
     }
-  }, [threadId, connect])
+  }, [threadId, autoStart, quality, maxFps, readWsMessage])
 
   const start = useCallback(() => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {

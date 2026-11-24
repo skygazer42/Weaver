@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, memo } from 'react'
+import React, { useRef, useState, memo } from 'react'
 import Image from 'next/image'
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -143,7 +143,7 @@ const MessageItemBase = ({ message, onEdit, workspaceId }: MessageItemProps) => 
   const [editContent, setEditContent] = useState(message.content)
   const [isPlaying, setIsPlaying] = useState(false)
   const [isTTSLoading, setIsTTSLoading] = useState(false)
-  const [audioRef, setAudioRef] = useState<HTMLAudioElement | null>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
 
   const { saveArtifact } = useArtifacts(workspaceId)
 
@@ -171,9 +171,9 @@ const MessageItemBase = ({ message, onEdit, workspaceId }: MessageItemProps) => 
 
   const handleSpeak = async () => {
     // If playing, stop
-    if (isPlaying && audioRef) {
-      audioRef.pause()
-      audioRef.currentTime = 0
+    if (isPlaying && audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
       setIsPlaying(false)
       return
     }
@@ -209,7 +209,7 @@ const MessageItemBase = ({ message, onEdit, workspaceId }: MessageItemProps) => 
       if (result.success && result.audio) {
         // Create audio and play
         const audio = new Audio(`data:audio/mp3;base64,${result.audio}`)
-        setAudioRef(audio)
+        audioRef.current = audio
 
         audio.onended = () => {
           setIsPlaying(false)

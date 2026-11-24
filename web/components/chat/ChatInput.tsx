@@ -24,10 +24,14 @@ interface ChatInputProps {
   setSearchMode: (mode: string) => void
 }
 
-interface AttachmentPreview {
-    file: File
-    previewUrl: string
-    revoke: () => void
+function AttachmentImage({ file }: { file: File }) {
+  const imageRef = useRef<HTMLImageElement>(null)
+  useEffect(() => {
+    const { url, revoke } = createFilePreview(file)
+    if (imageRef.current) imageRef.current.src = url
+    return revoke
+  }, [file])
+  return <img ref={imageRef} alt={file.name} className="h-full w-full object-cover" />
 }
 
 export function ChatInput({
@@ -51,48 +55,6 @@ export function ChatInput({
   const [isMcpOpen, setIsMcpOpen] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [selectedMcp, setSelectedMcp] = useState('filesystem') // Default MCP
-  const [previews, setPreviews] = useState<AttachmentPreview[]>([])
-
-  // Manage Previews
-  useEffect(() => {
-      // Sync previews with attachments
-      // This is a bit tricky if we want to avoid recreating URLs for existing files.
-      // A simple approach: Clear all old previews and create new ones is robust but inefficient.
-      // Better: Create previews only for new files.
-      
-      // Cleanup function for removed files is handled by the revoke() call
-      
-      const newPreviews: AttachmentPreview[] = []
-      
-      attachments.forEach(file => {
-          const existing = previews.find(p => p.file === file)
-          if (existing) {
-              newPreviews.push(existing)
-          } else {
-              const { url, revoke } = createFilePreview(file)
-              newPreviews.push({ file, previewUrl: url, revoke })
-          }
-      })
-
-      // Clean up removed previews
-      previews.forEach(p => {
-          if (!attachments.includes(p.file)) {
-              p.revoke()
-          }
-      })
-
-      setPreviews(newPreviews)
-      
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [attachments])
-
-  // Cleanup on unmount
-  useEffect(() => {
-      return () => {
-          previews.forEach(p => p.revoke())
-      }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -385,25 +347,25 @@ export function ChatInput({
         )}
 
         <input type="file" multiple className="hidden" ref={fileInputRef} onChange={handleFileSelect} />
-        {previews.length > 0 && (
+        {attachments.length > 0 && (
           <div className="flex gap-2 overflow-x-auto px-4 pb-1 pt-3">
-            {previews.map((item, index) => (
+            {attachments.map((file, index) => (
               <div key={index} className="group/attachment relative shrink-0 pr-1 pt-1">
                 <div className="flex max-w-[220px] items-center gap-2 rounded-md border border-border/80 bg-surface-subtle px-2 py-1.5 text-xs font-medium">
-                  {item.file.type.startsWith('image/') ? (
+                  {file.type.startsWith('image/') ? (
                     <div className="h-8 w-8 shrink-0 overflow-hidden rounded bg-card">
-                      <img src={item.previewUrl} alt={item.file.name} className="h-full w-full object-cover" />
+                      <AttachmentImage file={file} />
                     </div>
                   ) : (
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-card text-muted-foreground">
                       <FileIcon className="h-4 w-4" />
                     </div>
                   )}
-                  <span className="truncate pr-2" title={item.file.name}>{item.file.name}</span>
+                  <span className="truncate pr-2" title={file.name}>{file.name}</span>
                 </div>
                 <button
                   type="button"
-                  aria-label={`Remove ${item.file.name}`}
+                  aria-label={`Remove ${file.name}`}
                   onClick={() => removeAttachment(index)}
                   className="absolute right-0 top-0 flex h-5 w-5 items-center justify-center rounded border border-border bg-card text-muted-foreground opacity-100 shadow-xs transition-opacity hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 md:opacity-0 md:group-hover/attachment:opacity-100 md:group-focus-within/attachment:opacity-100"
                 >

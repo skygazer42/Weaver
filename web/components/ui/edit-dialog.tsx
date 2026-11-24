@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useRef } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -29,14 +29,10 @@ export function EditDialog({
   initialValue,
   onSave
 }: EditDialogProps) {
-  const [value, setValue] = useState(initialValue)
-
-  useEffect(() => {
-    if (open) setValue(initialValue)
-  }, [open, initialValue])
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const handleSave = () => {
-    onSave(value)
+    onSave(inputRef.current?.value ?? initialValue)
     onOpenChange(false)
   }
 
@@ -49,9 +45,10 @@ export function EditDialog({
         <div className="space-y-2">
           <Label htmlFor="edit-input">{label}</Label>
           <Input
+            key={`${open}:${initialValue}`}
+            ref={inputRef}
             id="edit-input"
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
+            defaultValue={initialValue}
             onKeyDown={(e) => e.key === 'Enter' && handleSave()}
             autoFocus
           />

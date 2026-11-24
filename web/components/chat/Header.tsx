@@ -102,9 +102,12 @@ export function Header({ project, sidebarOpen, onToggleSidebar, selectedModel, o
           <PopoverTrigger asChild>
             <button
               type="button"
-              className="flex h-8 max-w-[112px] items-center gap-2 rounded-md border border-border bg-card px-2.5 text-xs font-medium shadow-xs transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 sm:max-w-[240px] sm:text-sm"
+              title={currentModelName}
+              className="flex h-8 max-w-[140px] items-center gap-2 rounded-md border border-border bg-card px-2.5 text-xs font-medium shadow-xs transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 sm:max-w-[240px] sm:text-sm"
             >
-              <span className="truncate">{currentModelName}</span>
+              <span className="truncate">
+                {currentModelName.includes('/') ? currentModelName.slice(currentModelName.lastIndexOf('/') + 1) : currentModelName}
+              </span>
               <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform', isModelOpen && 'rotate-180')} />
             </button>
           </PopoverTrigger>
@@ -126,7 +129,7 @@ export function Header({ project, sidebarOpen, onToggleSidebar, selectedModel, o
                       selectedModel === model.id && 'bg-primary/10 font-medium text-primary'
                     )}
                   >
-                    <span className="min-w-0 flex-1 truncate">{model.name}</span>
+                    <span className="min-w-0 flex-1 truncate" title={model.name}>{model.name}</span>
                     {['qwen3-vl-flash', 'glm-4.6v'].includes(model.id) && <Badge variant="subtle">Vision</Badge>}
                     {selectedModel === model.id && <Check aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />}
                   </button>

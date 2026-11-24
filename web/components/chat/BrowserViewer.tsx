@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useRef, useState, useCallback } from 'react'
+import React, { useRef, useState, useCallback } from 'react'
 import {
   Loader2,
   Globe,
@@ -46,6 +46,7 @@ export function BrowserViewer({
   const [isInteracting, setIsInteracting] = useState(false)
   const [urlDraft, setUrlDraft] = useState('')
   const [isEditingUrl, setIsEditingUrl] = useState(false)
+  const [interactionContext, setInteractionContext] = useState({ threadId, viewerMode })
   const isLiveMode = viewerMode === 'stream'
   const liveViewportRef = useRef<HTMLDivElement | null>(null)
   const liveImageRef = useRef<HTMLImageElement | null>(null)
@@ -88,11 +89,11 @@ export function BrowserViewer({
 
   const isActive = isLiveMode ? (isStreaming || isStarting) : isEventsActive
 
-  // Reset interaction state when switching modes/threads.
-  useEffect(() => {
+  if (interactionContext.threadId !== threadId || interactionContext.viewerMode !== viewerMode) {
+    setInteractionContext({ threadId, viewerMode })
     setIsInteracting(false)
     setIsEditingUrl(false)
-  }, [threadId, viewerMode])
+  }
 
   const handleClose = useCallback(() => {
     if (isLiveMode) {
@@ -130,17 +131,7 @@ export function BrowserViewer({
       liveMetaUrl.startsWith('chrome://') ||
       liveMetaUrl.startsWith('edge://'))
 
-  // Keep a draft URL synced with the latest live URL (unless user is editing).
-  useEffect(() => {
-    if (!isLiveMode) return
-    if (isEditingUrl) return
-    if (canOpenAddressUrl) {
-      setUrlDraft(addressUrl)
-    } else {
-      // Avoid locking the input to about:blank; leave it empty so users can paste quickly.
-      setUrlDraft('')
-    }
-  }, [isLiveMode, isEditingUrl, canOpenAddressUrl, addressUrl])
+  const displayedUrl = isEditingUrl ? urlDraft : (canOpenAddressUrl ? addressUrl : '')
 
   const sendNavigate = useCallback(
     (url: string) => {
@@ -264,18 +255,23 @@ export function BrowserViewer({
           {isLiveMode ? (
             <form
               className="flex min-w-0 flex-1 items-center gap-1"
+              onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget)) setIsEditingUrl(false)
+              }}
               onSubmit={(event) => {
                 event.preventDefault()
-                sendNavigate(urlDraft)
+                sendNavigate(displayedUrl)
                 setIsEditingUrl(false)
               }}
             >
               <input
                 aria-label="Browser address"
-                value={urlDraft}
+                value={displayedUrl}
                 onChange={(event) => setUrlDraft(event.target.value)}
-                onFocus={() => setIsEditingUrl(true)}
-                onBlur={() => setIsEditingUrl(false)}
+                onFocus={() => {
+                  setUrlDraft(displayedUrl)
+                  setIsEditingUrl(true)
+                }}
                 placeholder={canOpenAddressUrl ? '' : 'Enter URL'}
                 className={cn('min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground', isEditingUrl ? 'text-foreground' : 'text-muted-foreground')}
               />

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -20,6 +20,7 @@ import { Check, ChevronDown, Plug, RefreshCw, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { getApiBaseUrl } from '@/lib/api'
 import { usePublicModels } from '@/hooks/usePublicModels'
+import { useStoredPreference } from '@/hooks/useStoredPreference'
 
 interface SettingsDialogProps {
   open: boolean
@@ -91,22 +92,44 @@ interface ApiKeys {
 }
 
 export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChange }: SettingsDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {open && <SettingsDialogContent onOpenChange={onOpenChange} selectedModel={selectedModel} onModelChange={onModelChange} />}
+    </Dialog>
+  )
+}
+
+function SettingsDialogContent({ onOpenChange, selectedModel, onModelChange }: Omit<SettingsDialogProps, 'open'>) {
   const { language, setLanguage, t } = useI18n()
   const { models: publicModels } = usePublicModels()
-  const [tempModel, setTempModel] = useState(selectedModel)
-  const [tempLanguage, setTempLanguage] = useState(language)
-  const [apiKeys, setApiKeys] = useState<ApiKeys>({})
+  const [modelDraft, setTempModel] = useState<string | null>(null)
+  const [languageDraft, setTempLanguage] = useState<typeof language | null>(null)
+  const tempLanguage = languageDraft ?? language
+  const [savedKeys, setSavedKeys] = useStoredPreference('weaver-api-keys', '{}')
+  const storedKeys = useMemo<ApiKeys>(() => {
+    try {
+      return JSON.parse(savedKeys)
+    } catch {
+      return {}
+    }
+  }, [savedKeys])
+  const [apiKeyDraft, setApiKeys] = useState<ApiKeys | null>(null)
+  const apiKeys = apiKeyDraft ?? storedKeys
   const [expandedProvider, setExpandedProvider] = useState<string | null>(null)
 
   // MCP state
   const [mcpEnabled, setMcpEnabled] = useState(false)
-  const [mcpConfig, setMcpConfig] = useState('')
+  const [mcpConfig, setMcpConfig] = useState('{}')
   const [mcpLoadedTools, setMcpLoadedTools] = useState(0)
-  const [mcpLoading, setMcpLoading] = useState(false)
+  const [mcpLoading, setMcpLoading] = useState(true)
+  const [mcpLoaded, setMcpLoaded] = useState(false)
 
   const staticModelProviders = getModelProviders(t)
-  const allowlistKey = publicModels?.options?.length ? publicModels.options.join('|') : ''
   const allowlist = publicModels?.options?.length ? new Set(publicModels.options) : null
+  const requestedModel = modelDraft ?? selectedModel
+  const tempModel = allowlist && !allowlist.has(requestedModel)
+    ? (publicModels?.default && allowlist.has(publicModels.default) ? publicModels.default : publicModels!.options[0])
+    : requestedModel
 
   const modelProviders: ModelProvider[] = allowlist
     ? (() => {
@@ -130,22 +153,29 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
       })()
     : staticModelProviders
 
-  // Fetch MCP config
-  const fetchMcpConfig = async () => {
-    try {
-      setMcpLoading(true)
-      const res = await fetch(`${getApiBaseUrl()}/api/mcp/config`)
-      if (!res.ok) throw new Error('Failed to fetch config')
-      const data = await res.json()
-      setMcpEnabled(data.enabled)
-      setMcpConfig(JSON.stringify(data.servers, null, 2))
-      setMcpLoadedTools(data.loaded_tools || 0)
-    } catch (e) {
-      console.error(e)
-    } finally {
-      setMcpLoading(false)
+  useEffect(() => {
+    const controller = new AbortController()
+    const load = async () => {
+      try {
+        const res = await fetch(`${getApiBaseUrl()}/api/mcp/config`, { signal: controller.signal })
+        if (!res.ok) throw new Error('Failed to fetch config')
+        const data = await res.json()
+        if (controller.signal.aborted) return
+        setMcpEnabled(data.enabled)
+        setMcpConfig(JSON.stringify(data.servers, null, 2))
+        setMcpLoadedTools(data.loaded_tools || 0)
+        setMcpLoaded(true)
+      } catch (e) {
+        if (controller.signal.aborted) return
+        console.error(e)
+        toast.error('Failed to load MCP config')
+      } finally {
+        if (!controller.signal.aborted) setMcpLoading(false)
+      }
     }
-  }
+    void load()
+    return () => controller.abort()
+  }, [])
 
   // Save MCP config
   const saveMcpConfig = async () => {
@@ -153,7 +183,10 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
       setMcpLoading(true)
       let parsedServers = {}
       try {
-        parsedServers = JSON.parse(mcpConfig)
+        parsedServers = JSON.parse(mcpConfig.trim() || '{}')
+        if (!parsedServers || typeof parsedServers !== 'object' || Array.isArray(parsedServers)) {
+          throw new Error('MCP servers must be an object')
+        }
       } catch (e) {
         toast.error('Invalid JSON configuration')
         setMcpLoading(false)
@@ -184,77 +217,27 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
     }
   }
 
-  // Load API keys from localStorage
-  useEffect(() => {
-    const savedKeys = localStorage.getItem('weaver-api-keys')
-    if (savedKeys) {
-      try {
-        setApiKeys(JSON.parse(savedKeys))
-      } catch (e) {
-        console.error('Failed to parse API keys', e)
-      }
-    }
-  }, [])
-
-  // Fetch MCP config when dialog opens
-  useEffect(() => {
-    if (open) {
-      fetchMcpConfig()
-    }
-  }, [open])
-
-  useEffect(() => {
-    setTempModel(selectedModel)
-  }, [selectedModel])
-
-  // If backend allowlist arrives and the saved model isn't supported, clamp to backend default.
-  useEffect(() => {
-    if (!allowlist || modelProviders.length === 0) return
-    if (allowlist.has(tempModel)) return
-    const next =
-      (publicModels?.default && allowlist.has(publicModels.default) && publicModels.default) ||
-      modelProviders[0]!.models[0]!.id
-    setTempModel(next)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allowlistKey])
-
-  useEffect(() => {
-    setTempLanguage(language)
-  }, [language])
-
   const handleApiKeyChange = (provider: string, value: string) => {
-    setApiKeys(prev => ({
-      ...prev,
+    setApiKeys({
+      ...apiKeys,
       [provider]: value
-    }))
+    })
   }
 
   const handleSave = async () => {
+    if (!await saveMcpConfig()) return
     onModelChange(tempModel)
-    setLanguage(tempLanguage as any)
-    localStorage.setItem('weaver-api-keys', JSON.stringify(apiKeys))
-    await saveMcpConfig()
+    setLanguage(tempLanguage)
+    setSavedKeys(JSON.stringify(apiKeys))
     onOpenChange(false)
   }
 
   const handleCancel = () => {
-    setTempModel(selectedModel)
-    setTempLanguage(language)
-    // Reload saved API keys
-    const savedKeys = localStorage.getItem('weaver-api-keys')
-    if (savedKeys) {
-      try {
-        setApiKeys(JSON.parse(savedKeys))
-      } catch (e) {
-        console.error('Failed to parse API keys', e)
-      }
-    }
     onOpenChange(false)
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[85dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[600px]">
+      <DialogContent aria-describedby={undefined} className="flex max-h-[85dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[600px]">
         <DialogHeader className="shrink-0 border-b border-border/80 px-6 py-4 pr-12">
           <DialogTitle>{t('settings')}</DialogTitle>
         </DialogHeader>
@@ -279,7 +262,9 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
                 >
                   <div>
                     <div className="font-medium">{lang.nativeName}</div>
-                    <div className="text-xs text-muted-foreground">{lang.name}</div>
+                    {lang.name !== lang.nativeName && (
+                      <div className="text-xs text-muted-foreground">{lang.name}</div>
+                    )}
                   </div>
                   {tempLanguage === lang.id && (
                     <Check className="h-4 w-4 text-primary" />
@@ -294,7 +279,7 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
             <Label className="text-sm font-medium">{t('defaultModel')}</Label>
             <div className="space-y-4">
               {modelProviders.map(provider => (
-                <fieldset key={provider.id} className="space-y-1 rounded-lg border border-border/80 bg-card p-2">
+                <fieldset key={provider.id} className="min-w-0 space-y-1 rounded-lg border border-border/80 bg-card p-2">
                   <legend className="px-1.5 text-xs font-semibold text-muted-foreground">{provider.name}</legend>
                   {provider.models.map(model => (
                     <button
@@ -307,7 +292,7 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
                         tempModel === model.id && 'bg-primary/10 font-medium text-primary'
                       )}
                     >
-                      <span className="min-w-0 flex-1 break-words">{model.name}</span>
+                      <span className="min-w-0 flex-1 truncate" title={model.name}>{model.name}</span>
                       {['qwen3-vl-flash', 'glm-4.6v'].includes(model.id) && <Badge variant="subtle">Vision</Badge>}
                       {tempModel === model.id && <Check className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />}
                     </button>
@@ -392,6 +377,7 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
                 id="settings-mcp-enabled"
                 checked={mcpEnabled}
                 onCheckedChange={setMcpEnabled}
+                disabled={mcpLoading || !mcpLoaded}
               />
             </div>
 
@@ -401,6 +387,7 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
                 id="settings-mcp-config"
                 value={mcpConfig}
                 onChange={(e) => setMcpConfig(e.target.value)}
+                disabled={mcpLoading || !mcpLoaded}
                 className="font-mono text-xs min-h-[120px]"
                 placeholder='{ "server-name": { "command": "...", "args": [...] } }'
               />
@@ -424,11 +411,10 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
           <Button variant="outline" onClick={handleCancel}>
             {t('cancel')}
           </Button>
-          <Button onClick={handleSave} disabled={mcpLoading}>
+          <Button onClick={handleSave} disabled={mcpLoading || !mcpLoaded}>
             {t('save')}
           </Button>
         </DialogFooter>
       </DialogContent>
-    </Dialog>
   )
 }

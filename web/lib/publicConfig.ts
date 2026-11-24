@@ -23,10 +23,16 @@ export async function fetchPublicConfig(): Promise<PublicConfigResponse | null> 
   if (!publicConfigPromise) {
     publicConfigPromise = fetch(`${getApiBaseUrl()}/api/config/public`, { cache: 'no-store' })
       .then(async (res) => {
-        if (!res.ok) return null
+        if (!res.ok) {
+          publicConfigPromise = null
+          return null
+        }
         return (await res.json()) as PublicConfigResponse
       })
-      .catch(() => null)
+      .catch(() => {
+        publicConfigPromise = null
+        return null
+      })
   }
   return publicConfigPromise
 }

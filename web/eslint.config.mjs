@@ -13,15 +13,6 @@ const config = [
       'react/no-unescaped-entities': 'off',
     },
   },
-  {
-    files: ['components/**/*.{ts,tsx}', 'hooks/**/*.ts', 'lib/i18n/**/*.tsx'],
-    // shortcut: keep React Compiler findings visible as warnings until these components and hooks are migrated.
-    rules: {
-      'react-hooks/immutability': 'warn',
-      'react-hooks/purity': 'warn',
-      'react-hooks/set-state-in-effect': 'warn',
-    },
-  },
 ]
 
 export default config

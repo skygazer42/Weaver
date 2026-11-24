@@ -30,11 +30,25 @@ export function useBrowserEvents({
   const [isActive, setIsActive] = useState(false)
   const [currentAction, setCurrentAction] = useState<string | null>(null)
   const [currentProgress, setCurrentProgress] = useState<number | null>(null)
+  const [previousThreadId, setPreviousThreadId] = useState(threadId)
+
+  if (previousThreadId !== threadId) {
+    setPreviousThreadId(threadId)
+    setScreenshots([])
+    setIsActive(false)
+    setCurrentAction(null)
+    setCurrentProgress(null)
+  }
 
   const eventSourceRef = useRef<EventSource | null>(null)
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const lastSeqRef = useRef<number>(0)
   const seenEventIdsRef = useRef<Set<string>>(new Set())
+
+  useEffect(() => {
+    lastSeqRef.current = 0
+    seenEventIdsRef.current.clear()
+  }, [threadId])
 
   const clearScreenshots = useCallback(() => {
     setScreenshots([])
@@ -237,18 +251,6 @@ export function useBrowserEvents({
 
     return cleanup
   }, [threadId, enabled, maxScreenshots])
-
-  // Reset when threadId changes
-  useEffect(() => {
-    if (!threadId) {
-      setScreenshots([])
-      setIsActive(false)
-      setCurrentAction(null)
-      setCurrentProgress(null)
-      lastSeqRef.current = 0
-      seenEventIdsRef.current.clear()
-    }
-  }, [threadId])
 
   const latestScreenshot = screenshots.length > 0 ? screenshots[screenshots.length - 1] : null
 

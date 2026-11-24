@@ -144,8 +144,8 @@ export default function WorkspacePage() {
           <>
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div role="group" aria-label="Workspace view" className="inline-flex flex-wrap gap-1 rounded-lg border border-border/70 bg-surface-subtle p-1">
-                <Button type="button" variant="ghost" size="sm" className={cn('h-8', view === 'project' ? 'bg-card text-foreground shadow-xs hover:bg-card' : 'text-muted-foreground')} aria-pressed={view === 'project'} onClick={() => setView('project')}>Project workflows</Button>
-                <Button type="button" variant="ghost" size="sm" className={cn('h-8', view === 'csv' ? 'bg-card text-foreground shadow-xs hover:bg-card' : 'text-muted-foreground')} aria-pressed={view === 'csv'} onClick={() => setView('csv')}>CSV analysis</Button>
+                <Button type="button" variant="ghost" size="sm" className={cn('h-8 border border-transparent', view === 'project' ? 'border-primary/25 bg-card font-semibold text-primary shadow-xs hover:bg-card hover:text-primary' : 'text-muted-foreground')} aria-pressed={view === 'project'} onClick={() => setView('project')}>Project workflows</Button>
+                <Button type="button" variant="ghost" size="sm" className={cn('h-8 border border-transparent', view === 'csv' ? 'border-primary/25 bg-card font-semibold text-primary shadow-xs hover:bg-card hover:text-primary' : 'text-muted-foreground')} aria-pressed={view === 'csv'} onClick={() => setView('csv')}>CSV analysis</Button>
               </div>
               <p className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 Workspace ID <code className="break-all rounded-md border border-border/70 bg-card px-2 py-1 font-mono tabular-nums text-foreground">{workspace.id}</code>
