@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from pathlib import Path
 from typing import Any, List, Optional
 
@@ -17,6 +18,11 @@ _legacy_fallback_path = _ROOT_DIR / ".memory_store.json"
 def _normalize_user_id(user_id: Optional[str]) -> str:
     user = (user_id or settings.memory_user_id or "default_user").strip()
     return user or "default_user"
+
+
+def _get_fallback_path() -> Path:
+    override = (os.getenv("WEAVER_DATA_DIR") or "").strip()
+    return Path(override) / "memory_store.json" if override else _fallback_path
 
 
 def _ensure_fallback_path():
@@ -81,9 +87,11 @@ def _get_mem_client():
 
 
 def _fallback_load() -> dict:
-    _ensure_fallback_path()
-    # Prefer new location; fall back to legacy root file if migration failed.
-    path = _fallback_path if _fallback_path.exists() else _legacy_fallback_path
+    path = _get_fallback_path()
+    if not (os.getenv("WEAVER_DATA_DIR") or "").strip():
+        _ensure_fallback_path()
+        # Prefer new location; fall back to legacy root file if migration failed.
+        path = path if path.exists() else _legacy_fallback_path
     if not path.exists():
         return {}
     try:
@@ -94,10 +102,11 @@ def _fallback_load() -> dict:
 
 def _fallback_save(data: dict) -> None:
     try:
-        _fallback_path.parent.mkdir(parents=True, exist_ok=True)
-        _fallback_path.write_text(json.dumps(data, ensure_ascii=True, indent=2), encoding="utf-8")
+        path = _get_fallback_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data, ensure_ascii=True, indent=2), encoding="utf-8")
         # Clean up legacy file if it still exists after successful write
-        if _legacy_fallback_path.exists():
+        if not (os.getenv("WEAVER_DATA_DIR") or "").strip() and _legacy_fallback_path.exists():
             try:
                 _legacy_fallback_path.unlink()
             except Exception:
