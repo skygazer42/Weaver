@@ -50,6 +50,7 @@ export function ChatInput({
 }: ChatInputProps) {
   const { t } = useI18n()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const wasLoading = useRef(isLoading)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [showCommandMenu, setShowCommandMenu] = useState(false)
   const [isMcpOpen, setIsMcpOpen] = useState(false)
@@ -99,9 +100,10 @@ export function ChatInput({
   }, [input])
 
   useEffect(() => {
-    if (!isLoading) {
+    if (wasLoading.current && !isLoading) {
       textareaRef.current?.focus()
     }
+    wasLoading.current = isLoading
   }, [isLoading])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -333,12 +335,12 @@ export function ChatInput({
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         className={cn(
-          'relative rounded-xl border border-border bg-card shadow-surface transition-[border-color,box-shadow] focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/15',
+          'relative rounded-2xl border border-border/75 bg-card shadow-surface transition-[border-color,box-shadow] focus-within:border-primary/35 focus-within:ring-2 focus-within:ring-primary/10',
           isDragging && 'border-primary bg-primary/5 ring-2 ring-primary/25'
         )}
       >
         {isDragging && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center rounded-xl bg-card/95 backdrop-blur-[2px]">
+          <div className="absolute inset-0 z-50 flex items-center justify-center rounded-2xl bg-card/95 backdrop-blur-[2px]">
             <div className="flex items-center gap-3 text-sm font-medium text-primary">
               <Paperclip className="h-5 w-5" />
               <span>{t('dropFilesHere')}</span>
@@ -385,10 +387,10 @@ export function ChatInput({
           aria-label={t('askAnything')}
           disabled={isLoading || awaitingApproval}
           rows={1}
-          className="block max-h-[200px] min-h-[72px] w-full resize-none rounded-t-xl bg-transparent px-4 py-4 text-[15px] leading-6 text-foreground placeholder:text-muted-foreground focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+          className="block max-h-[200px] min-h-[72px] w-full resize-none rounded-t-2xl bg-transparent px-4 py-4 text-[15px] leading-6 text-foreground placeholder:text-muted-foreground focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
         />
 
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-b-xl border-t border-border/70 bg-surface-subtle/50 p-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-b-2xl border-t border-border/70 bg-surface-subtle/50 p-2">
           <div className="flex flex-wrap items-center gap-0.5">
             {modes.map(mode => {
               const isActive = searchMode === mode.id

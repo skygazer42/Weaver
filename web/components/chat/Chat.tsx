@@ -8,7 +8,7 @@ import { Sidebar } from './Sidebar'
 import { Header } from './Header'
 import { EmptyState } from './EmptyState'
 import { ChatInput } from './ChatInput'
-import { Loader2, ArrowDown, X, Monitor, ShieldAlert } from 'lucide-react'
+import { Loader2, ArrowDown, X, ShieldAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { ChatRun, Message, RUN_STATUS_LABELS } from '@/types/chat'
@@ -35,7 +35,7 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
   const [showMobileArtifacts, setShowMobileArtifacts] = useState(false)
   const [isArtifactsOpen, setIsArtifactsOpen] = useState(true)
   const [showSettings, setShowSettings] = useState(false)
-  const [showBrowserViewer, setShowBrowserViewer] = useState(true) // Browser viewer visibility
+  const [showBrowserViewer, setShowBrowserViewer] = useState(false) // Browser viewer visibility
 
   const [currentView, setCurrentView] = useState('dashboard') // 'dashboard' | 'discover' | 'library'
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
@@ -295,8 +295,6 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
           {messages.length === 0 ? (
             <div className="h-full w-full p-4 overflow-y-auto">
                <EmptyState
-                  selectedMode={searchMode}
-                  onModeSelect={setSearchMode}
                   onStarterClick={handleStarterClick}
                />
             </div>
@@ -350,10 +348,28 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
           onOpenSettings={() => setShowSettings(true)}
           onToggleArtifacts={() => setShowMobileArtifacts(!showMobileArtifacts)}
           hasArtifacts={artifacts.length > 0}
+          isInitializing={isHistoryLoading}
+          showBrowserToggle={currentView === 'dashboard' && Boolean(threadId)}
+          isBrowserOpen={showBrowserViewer}
+          onToggleBrowser={() => setShowBrowserViewer(!showBrowserViewer)}
         />
 
         {/* Dynamic Content Area */}
-        {renderContent()}
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          {renderContent()}
+          {currentView === 'dashboard' && threadId && showBrowserViewer && (
+            <div className="absolute bottom-3 right-4 z-40 max-h-[calc(100%-1.5rem)] w-[480px] max-w-[calc(100%-2rem)] overflow-y-auto rounded-lg shadow-elevated">
+              <BrowserViewer
+                threadId={threadId}
+                className="w-full max-w-full"
+                defaultExpanded={true}
+                alwaysShow={true}
+                mode="stream"
+                onClose={() => setShowBrowserViewer(false)}
+              />
+            </div>
+          )}
+        </div>
 
         <SettingsDialog 
             open={showSettings} 
@@ -451,37 +467,6 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
               onToggle={() => setIsArtifactsOpen(!isArtifactsOpen)}
           />
         </div>
-      )}
-
-      {/* Browser Viewer - Shows when there's an active thread */}
-      {currentView === 'dashboard' && threadId && (
-        <>
-          {/* Browser Viewer Toggle Button */}
-          <Button
-            variant="outline"
-            size="icon"
-            className="fixed bottom-44 right-5 z-50 rounded-lg border-border bg-card shadow-elevated"
-            onClick={() => setShowBrowserViewer(!showBrowserViewer)}
-            title={showBrowserViewer ? "Hide Browser" : "Show Browser"}
-            aria-label={showBrowserViewer ? "Hide Browser" : "Show Browser"}
-          >
-            <Monitor className={cn("h-4 w-4", showBrowserViewer && "text-primary")} />
-          </Button>
-
-          {/* Browser Viewer Panel */}
-          {showBrowserViewer && (
-            <div className="fixed bottom-56 right-5 z-40">
-              <BrowserViewer
-                threadId={threadId}
-                className="shadow-elevated"
-                defaultExpanded={true}
-                alwaysShow={true}
-                mode="stream"
-                onClose={() => setShowBrowserViewer(false)}
-              />
-            </div>
-          )}
-        </>
       )}
 
       {/* Mobile Artifacts Overlay */}

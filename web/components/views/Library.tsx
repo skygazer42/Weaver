@@ -13,6 +13,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { EditDialog } from '@/components/ui/edit-dialog'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { useI18n } from '@/lib/i18n/i18n-context'
 
 type LibraryTab = 'all' | 'sessions' | 'artifacts' | 'pinned'
 
@@ -25,6 +26,7 @@ interface LibraryProps {
 }
 
 export function Library({ workspaceId, chatHistory, onNewChat, onSelectChat, onDeleteChat }: LibraryProps) {
+  const { t } = useI18n()
   const { history, togglePin, renameSession, isHistoryLoading } = chatHistory
   const { artifacts, deleteArtifact, isLoading: isArtifactsLoading } = useArtifacts(workspaceId)
 
@@ -37,10 +39,10 @@ export function Library({ workspaceId, chatHistory, onNewChat, onSelectChat, onD
   const [editSession, setEditSession] = useState<{id: string, title: string} | null>(null)
 
   const filterOptions = [
-    { label: 'All Items', value: 'all' },
-    { label: 'Chats', value: 'sessions' },
-    { label: 'Files', value: 'artifacts' },
-    { label: 'Pinned', value: 'pinned' },
+    { label: t('allItems'), value: 'all' },
+    { label: t('chats'), value: 'sessions' },
+    { label: t('files'), value: 'artifacts' },
+    { label: t('pinned'), value: 'pinned' },
   ]
 
   const filteredItems = useMemo(() => {
@@ -93,17 +95,17 @@ export function Library({ workspaceId, chatHistory, onNewChat, onSelectChat, onD
         <div className="flex shrink-0 items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2.5">
-              <h1 className="text-xl font-semibold tracking-tight">Library</h1>
-              <Badge variant="subtle" className="tabular-nums" aria-label={`${filteredItems.length} items`}>{filteredItems.length}</Badge>
+              <h1 className="text-xl font-semibold tracking-tight">{t('library')}</h1>
+              <Badge variant="subtle" className="tabular-nums" aria-label={t('itemCount').replace('{count}', String(filteredItems.length))}>{filteredItems.length}</Badge>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              Manage your saved conversations and artifacts.
+              {t('librarySubtitle')}
             </p>
           </div>
           <div className="flex items-center gap-2">
              <Button size="sm" onClick={onNewChat} className="shrink-0 gap-1.5">
                 <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                New Chat
+                {t('newChat')}
              </Button>
           </div>
         </div>
@@ -118,8 +120,8 @@ export function Library({ workspaceId, chatHistory, onNewChat, onSelectChat, onD
             />
             <SearchInput 
               onSearch={setSearchQuery} 
-              placeholder="Search in library..." 
-              aria-label="Search in library"
+              placeholder={t('searchLibrary')}
+              aria-label={t('searchLibraryLabel')}
               containerClassName="w-full xl:w-72"
             />
           </div>
@@ -130,7 +132,7 @@ export function Library({ workspaceId, chatHistory, onNewChat, onSelectChat, onD
           <ScrollArea className="h-full pr-4">
             {isLoading ? (
               <div role="status" className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-                Loading your library...
+                {t('libraryLoading')}
               </div>
             ) : filteredItems.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-10">
@@ -156,9 +158,9 @@ export function Library({ workspaceId, chatHistory, onNewChat, onSelectChat, onD
             ) : (
               <div className="flex min-h-56 flex-col items-center justify-center rounded-lg border border-dashed border-border/80 bg-surface-subtle/60 p-5 text-center">
                 <History className="mb-3 h-5 w-5 text-muted-foreground" aria-hidden="true" />
-                <h3 className="text-sm font-semibold">No items found</h3>
+                <h3 className="text-sm font-semibold">{t('noItemsFound')}</h3>
                 <p className="mt-1 max-w-xs break-words text-center text-sm text-muted-foreground">
-                    {searchQuery ? `We couldn't find anything matching "${searchQuery}"` : "Your library is empty. Start a conversation to see it here."}
+                    {searchQuery ? t('libraryNoMatches').replace('{query}', searchQuery) : t('libraryEmpty')}
                 </p>
               </div>
             )}
@@ -170,8 +172,10 @@ export function Library({ workspaceId, chatHistory, onNewChat, onSelectChat, onD
       <ConfirmDialog 
         open={!!deleteId} 
         onOpenChange={(open) => !open && setDeleteId(null)}
-        title="Delete Item"
-        description="Are you sure you want to delete this? This action cannot be undone."
+        title={t('deleteItem')}
+        description={t('deleteItemDescription')}
+        confirmText={t('confirm')}
+        cancelText={t('cancel')}
         onConfirm={handleDelete}
         variant="destructive"
       />
@@ -180,8 +184,8 @@ export function Library({ workspaceId, chatHistory, onNewChat, onSelectChat, onD
         <EditDialog 
           open={!!editSession}
           onOpenChange={(open) => !open && setEditSession(null)}
-          title="Rename Session"
-          label="Session Title"
+          title={t('renameSession')}
+          label={t('sessionTitle')}
           initialValue={editSession.title}
           onSave={handleRename}
         />

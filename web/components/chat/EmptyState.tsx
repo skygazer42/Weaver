@@ -4,15 +4,12 @@ import React from 'react'
 import Image from 'next/image'
 import { ArrowRight, Sparkles, TrendingUp, Code2, BookOpen } from 'lucide-react'
 import { useI18n } from '@/lib/i18n/i18n-context'
-import { cn } from '@/lib/utils'
 
 interface EmptyStateProps {
-  selectedMode: string
-  onModeSelect: (mode: string) => void
   onStarterClick?: (text: string, mode: string) => void
 }
 
-export function EmptyState({ selectedMode, onStarterClick }: EmptyStateProps) {
+export function EmptyState({ onStarterClick }: EmptyStateProps) {
   const { t } = useI18n()
 
   const starters = [
@@ -47,17 +44,16 @@ export function EmptyState({ selectedMode, onStarterClick }: EmptyStateProps) {
       
       {/* Hero Section */}
       <div className="mb-8 flex flex-col items-center gap-5 text-center sm:mb-10">
-        <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-xl border border-border/80 bg-white shadow-surface">
+        <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-border/50 bg-white shadow-surface">
           <Image src="/logo.png" alt="Weaver" width={52} height={52} priority className="object-contain" />
         </div>
         
-        <div className="space-y-2 max-w-lg">
+        <div className="max-w-2xl space-y-2">
             <h2 className="text-balance text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
                 {t('emptyStateTitle')}
             </h2>
             <p className="text-balance text-sm leading-6 text-muted-foreground sm:text-base">
-                {t('emptyStateSubtitle')} <br className="hidden sm:block"/>
-                {t('emptyStateDescription')}
+                {t('emptyStateSubtitle')}
             </p>
         </div>
       </div>
@@ -73,19 +69,19 @@ export function EmptyState({ selectedMode, onStarterClick }: EmptyStateProps) {
                     onStarterClick(starter.text, starter.mode)
                 }
             }}
-            className="group flex items-start gap-3 rounded-lg border border-border/80 bg-card p-4 text-left shadow-xs transition-[border-color,box-shadow] hover:border-primary/35 hover:shadow-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2"
+            className="group flex h-full flex-col justify-between gap-4 rounded-xl border border-border/60 bg-card/85 p-4 text-left transition-[background-color,border-color,box-shadow] hover:border-border hover:bg-card hover:shadow-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2"
           >
-            <div className="rounded-md border border-border/70 bg-surface-subtle p-2 text-muted-foreground transition-colors group-hover:text-primary">
+            <div className="flex items-start gap-3">
+              <div className="shrink-0 rounded-lg bg-surface-subtle p-2 text-muted-foreground transition-colors group-hover:text-primary">
                 <starter.icon className="h-4 w-4" />
+              </div>
+              <p className="min-w-0 flex-1 text-sm font-medium leading-6 text-foreground">
+                {starter.text}
+              </p>
             </div>
-            <div className="min-w-0 flex-1 space-y-3">
-                <p className="text-sm font-medium leading-snug group-hover:text-primary transition-colors">
-                    {starter.text}
-                </p>
-                <div className="flex items-center justify-between gap-2">
-                    <span className={cn("rounded-md border px-1.5 py-0.5 text-[11px] font-medium", selectedMode === starter.mode ? "border-primary/20 bg-primary/10 text-primary" : "border-border/70 bg-surface-subtle text-muted-foreground")}>{starter.label}</span>
-                    <ArrowRight aria-hidden="true" className="h-3.5 w-3.5 text-muted-foreground" />
-                </div>
+            <div className="flex items-center justify-between gap-2 pl-11">
+              <span className="rounded-full bg-surface-subtle px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">{starter.label}</span>
+              <ArrowRight aria-hidden="true" className="h-3.5 w-3.5 text-muted-foreground/60 transition-transform group-hover:translate-x-0.5 motion-reduce:transform-none" />
             </div>
           </button>
         ))}

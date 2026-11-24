@@ -6,6 +6,7 @@ import { FileText, Code, BarChart, Image as ImageIcon, File, MoreVertical, Trash
 import { formatRelativeTime, formatBytes } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { useI18n } from '@/lib/i18n/i18n-context'
 import {
   Popover,
   PopoverContent,
@@ -19,6 +20,7 @@ interface ArtifactItemProps {
 }
 
 export function ArtifactItem({ artifact, onDelete, onDownload }: ArtifactItemProps) {
+  const { t } = useI18n()
   const Icon = {
     code: Code,
     image: ImageIcon,
@@ -61,16 +63,16 @@ export function ArtifactItem({ artifact, onDelete, onDownload }: ArtifactItemPro
         <div onClick={(e) => e.stopPropagation()}>
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label="Artifact actions" className="h-8 w-8 opacity-70 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+              <Button variant="ghost" size="icon" aria-label={t('artifactActions')} className="h-8 w-8 opacity-70 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-40 p-1" align="end">
               <Button variant="ghost" className="w-full justify-start text-sm h-9" onClick={() => onDownload?.(artifact)}>
-                <Download className="mr-2 h-4 w-4" /> Download
+                <Download className="mr-2 h-4 w-4" /> {t('download')}
               </Button>
               <Button variant="ghost" className="w-full justify-start text-sm h-9 text-destructive hover:text-destructive" onClick={() => onDelete(artifact.id)}>
-                <Trash2 className="mr-2 h-4 w-4" /> Delete
+                <Trash2 className="mr-2 h-4 w-4" /> {t('delete')}
               </Button>
             </PopoverContent>
           </Popover>

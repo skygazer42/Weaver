@@ -21,6 +21,7 @@ import { toast } from 'sonner'
 import { getApiBaseUrl } from '@/lib/api'
 import { usePublicModels } from '@/hooks/usePublicModels'
 import { useStoredPreference } from '@/hooks/useStoredPreference'
+import { getModelProviders } from '@/lib/models'
 
 interface SettingsDialogProps {
   open: boolean
@@ -28,57 +29,6 @@ interface SettingsDialogProps {
   selectedModel: string
   onModelChange: (model: string) => void
 }
-
-interface ModelProvider {
-  id: string
-  name: string
-  models: { id: string; name: string }[]
-}
-
-const getModelProviders = (t: (key: any) => string): ModelProvider[] => [
-  {
-    id: 'openai',
-    name: 'OpenAI',
-    models: [
-      { id: 'gpt-5', name: 'GPT-5' },
-      { id: 'gpt-4.1', name: 'GPT-4.1' },
-      { id: 'gpt-4o', name: 'GPT-4o' },
-    ]
-  },
-  {
-    id: 'anthropic',
-    name: 'Anthropic',
-    models: [
-      { id: 'claude-sonnet-4-5-20250514', name: 'Claude Sonnet 4.5' },
-      { id: 'claude-opus-4-20250514', name: 'Claude Opus 4' },
-      { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4' },
-    ]
-  },
-  {
-    id: 'deepseek',
-    name: t('deepseek'),
-    models: [
-      { id: 'deepseek-chat', name: 'deepseek-chat' },
-      { id: 'deepseek-reasoner', name: 'deepseek-reasoner' },
-    ]
-  },
-  {
-    id: 'qwen',
-    name: t('qwen'),
-    models: [
-      { id: 'qwen-plus', name: 'qwen-plus' },
-      { id: 'qwen3-vl-flash', name: 'qwen3-vl-flash' },
-    ]
-  },
-  {
-    id: 'zhipu',
-    name: t('zhipu'),
-    models: [
-      { id: 'glm-4.6', name: 'GLM-4.6' },
-      { id: 'glm-4.6v', name: 'glm-4.6v' },
-    ]
-  }
-]
 
 const languages = [
   { id: 'en', name: 'English', nativeName: 'English' },
@@ -103,6 +53,7 @@ function SettingsDialogContent({ onOpenChange, selectedModel, onModelChange }: O
   const { language, setLanguage, t } = useI18n()
   const { models: publicModels } = usePublicModels()
   const [modelDraft, setTempModel] = useState<string | null>(null)
+  const [modelQuery, setModelQuery] = useState('')
   const [languageDraft, setTempLanguage] = useState<typeof language | null>(null)
   const tempLanguage = languageDraft ?? language
   const [savedKeys, setSavedKeys] = useStoredPreference('weaver-api-keys', '{}')
@@ -131,34 +82,18 @@ function SettingsDialogContent({ onOpenChange, selectedModel, onModelChange }: O
     mcpEnabled !== initialMcpConfig.enabled || mcpConfig !== initialMcpConfig.config
   )
 
-  const staticModelProviders = getModelProviders(t)
+  const modelProviders = getModelProviders(publicModels?.options)
+  const allModels = modelProviders.flatMap(provider => provider.models)
+  const query = modelQuery.trim().toLowerCase()
+  const filteredProviders = modelProviders.map(provider => ({
+    ...provider,
+    models: provider.models.filter(model => `${provider.name} ${model.name} ${model.id}`.toLowerCase().includes(query)),
+  })).filter(provider => provider.models.length > 0)
   const allowlist = publicModels?.options?.length ? new Set(publicModels.options) : null
   const requestedModel = modelDraft ?? selectedModel
   const tempModel = allowlist && !allowlist.has(requestedModel)
     ? (publicModels?.default && allowlist.has(publicModels.default) ? publicModels.default : publicModels!.options[0])
     : requestedModel
-
-  const modelProviders: ModelProvider[] = allowlist
-    ? (() => {
-        const known = staticModelProviders.flatMap((p) => p.models.map((m) => m.id))
-        const filtered = staticModelProviders
-          .map((provider) => ({
-            ...provider,
-            models: provider.models.filter((m) => allowlist.has(m.id)),
-          }))
-          .filter((provider) => provider.models.length > 0)
-
-        const unknown = publicModels!.options.filter((id) => !known.includes(id))
-        if (unknown.length > 0) {
-          filtered.push({
-            id: 'custom',
-            name: 'Custom',
-            models: unknown.map((id) => ({ id, name: id })),
-          })
-        }
-        return filtered
-      })()
-    : staticModelProviders
 
   useEffect(() => {
     const controller = new AbortController()
@@ -285,8 +220,11 @@ function SettingsDialogContent({ onOpenChange, selectedModel, onModelChange }: O
           {/* Model Selection */}
           <div className="space-y-3">
             <Label className="text-sm font-medium">{t('defaultModel')}</Label>
-            <div className="space-y-4">
-              {modelProviders.map(provider => (
+            {allModels.length > 8 && (
+              <Input value={modelQuery} onChange={event => setModelQuery(event.target.value)} placeholder={t('filterModels')} aria-label="Filter models" className="h-8 text-xs" />
+            )}
+            <div className="max-h-64 space-y-4 overflow-y-auto pr-1">
+              {filteredProviders.map(provider => (
                 <fieldset key={provider.id} className="min-w-0 space-y-1 rounded-lg border border-border/80 bg-card p-2">
                   <legend className="px-1.5 text-xs font-semibold text-muted-foreground">{provider.name}</legend>
                   {provider.models.map(model => (
@@ -300,13 +238,15 @@ function SettingsDialogContent({ onOpenChange, selectedModel, onModelChange }: O
                         tempModel === model.id && 'bg-primary/10 font-medium text-primary'
                       )}
                     >
-                      <span className="min-w-0 flex-1 truncate" title={model.name}>{model.name}</span>
-                      {['qwen3-vl-flash', 'glm-4.6v'].includes(model.id) && <Badge variant="subtle">Vision</Badge>}
+                      <span className="min-w-0 flex-1 truncate" title={model.id}>{model.name}</span>
+                      {model.isPro && <Badge variant="subtle">Pro</Badge>}
+                      {model.isVision && <Badge variant="subtle">Vision</Badge>}
                       {tempModel === model.id && <Check className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />}
                     </button>
                   ))}
                 </fieldset>
               ))}
+              {filteredProviders.length === 0 && <p role="status" className="py-4 text-center text-xs text-muted-foreground">{t('noModelsFound')}</p>}
             </div>
           </div>
 

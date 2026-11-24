@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useI18n } from '@/lib/i18n/i18n-context'
 
 interface EditDialogProps {
   open: boolean
@@ -29,6 +30,7 @@ export function EditDialog({
   initialValue,
   onSave
 }: EditDialogProps) {
+  const { t } = useI18n()
   const inputRef = useRef<HTMLInputElement>(null)
 
   const handleSave = () => {
@@ -55,10 +57,10 @@ export function EditDialog({
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t('cancel')}
           </Button>
           <Button type="button" onClick={handleSave}>
-            Save Changes
+            {t('saveChanges')}
           </Button>
         </DialogFooter>
       </DialogContent>

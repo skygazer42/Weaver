@@ -49,9 +49,8 @@ const preprocessContent = (content: string) => {
 }
 
 // Keep code and table state when surrounding chat controls rerender.
-const MarkdownContent = memo(function MarkdownContent({ content, isUser, workspaceId }: {
+const MarkdownContent = memo(function MarkdownContent({ content, workspaceId }: {
   content: string
-  isUser: boolean
   workspaceId?: string
 }) {
   return (
@@ -120,7 +119,7 @@ const MarkdownContent = memo(function MarkdownContent({ content, isUser, workspa
                 )
             },
             a: ({node, ...props}) => (
-                <a className={cn("font-medium underline underline-offset-4", isUser ? "text-primary-foreground" : "text-primary hover:text-primary/80")} {...props} />
+                <a className="font-medium text-primary underline underline-offset-4 hover:text-primary/80" {...props} />
             )
         }}
     >
@@ -321,7 +320,7 @@ const MessageItemBase = ({ message, onEdit, workspaceId }: MessageItemProps) => 
             <div className={cn(
                 "relative min-w-0",
                 isUser
-                  ? "rounded-xl rounded-tr-sm bg-primary px-4 py-3 text-primary-foreground shadow-surface"
+                  ? "rounded-xl rounded-tr-sm bg-primary px-4 py-3 text-primary-foreground shadow-surface dark:border dark:border-primary/30 dark:bg-primary/20 dark:text-foreground"
                   : "w-full text-foreground"
               )}
             >
@@ -329,7 +328,7 @@ const MessageItemBase = ({ message, onEdit, workspaceId }: MessageItemProps) => 
                   "prose max-w-none break-words text-[15px] leading-7",
                   isUser && "prose-on-primary"
               )}>
-                <MarkdownContent content={displayContent} isUser={isUser} workspaceId={workspaceId} />
+                <MarkdownContent content={displayContent} workspaceId={workspaceId} />
 
                 {sources.length > 0 && (
                   <details open={message.runStatus === 'insufficient_evidence'} className="not-prose mt-5 overflow-hidden rounded-lg border border-border/80 bg-card text-sm text-muted-foreground shadow-xs">

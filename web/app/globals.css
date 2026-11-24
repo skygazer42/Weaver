@@ -35,10 +35,10 @@
     --info-foreground: 0 0% 100%;
     --info-surface: 213 85% 96%;
     --info-border: 213 65% 84%;
-    --border: 214 18% 88%;
+    --border: 214 16% 89.5%;
     --input: 214 18% 83%;
     --ring: 221 72% 46%;
-    --radius: 0.5rem;
+    --radius: 0.625rem;
     --shadow-color: 222 32% 11%;
   }
 
@@ -74,7 +74,7 @@
     --info-foreground: 222 30% 8%;
     --info-surface: 213 42% 16%;
     --info-border: 213 42% 31%;
-    --border: 220 16% 20%;
+    --border: 220 15% 19%;
     --input: 220 16% 24%;
     --ring: 217 85% 62%;
     --shadow-color: 222 32% 2%;
@@ -166,12 +166,12 @@
   .prose :where(img):not(:where(.not-prose, .not-prose *)) { @apply my-4 h-auto max-w-full rounded-lg; }
   .prose :where(input[type="checkbox"]):not(:where(.not-prose, .not-prose *)) { @apply mr-2 accent-primary; }
 
-  .prose-on-primary {
+  :root:not(.dark) .prose-on-primary {
     color: hsl(var(--primary-foreground));
   }
-  .prose-on-primary :where(h1, h2, h3, h4, h5, h6, a, blockquote):not(:where(.not-prose, .not-prose *)) { color: inherit; }
-  .prose-on-primary :where(a):not(:where(.not-prose, .not-prose *)) { text-decoration-color: currentColor; }
-  .prose-on-primary :where(:not(pre) > code):not(:where(.not-prose, .not-prose *)) {
+  :root:not(.dark) .prose-on-primary :where(h1, h2, h3, h4, h5, h6, a, blockquote):not(:where(.not-prose, .not-prose *)) { color: inherit; }
+  :root:not(.dark) .prose-on-primary :where(a):not(:where(.not-prose, .not-prose *)) { text-decoration-color: currentColor; }
+  :root:not(.dark) .prose-on-primary :where(:not(pre) > code):not(:where(.not-prose, .not-prose *)) {
     color: inherit;
     border-color: currentColor;
     background: hsl(var(--primary-foreground) / 0.1);

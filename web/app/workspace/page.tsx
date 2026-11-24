@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { ArrowLeft, FileSpreadsheet, FolderOpen, Plus } from 'lucide-react'
+import { ArrowLeft, FileSpreadsheet, FolderOpen, Plus, Files, Workflow, Sun, Moon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils'
 import { getWorkspaceUrl, workspaceRequest, type Workspace } from '@/lib/workspace'
 import { ProjectWorkspace } from './project-workspace'
 import { WorkspacePanel } from './workspace-panel'
+import { useTheme } from '@/components/theme-provider'
 
 const STORAGE_KEY = 'weaver-workspace-id'
 type WorkspaceView = 'project' | 'csv'
@@ -32,6 +33,7 @@ function WorkspaceContent({ workspace, view }: { workspace: Workspace; view: Wor
 }
 
 export default function WorkspacePage() {
+  const { setTheme } = useTheme()
   const [workspace, setWorkspace] = useState<Workspace | null>(null)
   const [view, setView] = useState<WorkspaceView>('project')
   const [openedCount, setOpenedCount] = useState(0)
@@ -106,9 +108,15 @@ export default function WorkspacePage() {
               <Link href="/" className="gap-1.5"><ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />Back to chat</Link>
             </Button>
           </div>
-          <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void loadWorkspace()} className="gap-2">
-            <Plus className="h-4 w-4" aria-hidden="true" />{request === 'create' ? 'Creating…' : 'New workspace'}
-          </Button>
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+            <Button type="button" variant="ghost" size="icon" onClick={() => setTheme(document.documentElement.classList.contains('dark') ? 'light' : 'dark')} aria-label="Toggle theme" className="text-muted-foreground hover:text-foreground">
+              <Sun className="h-4 w-4 dark:hidden" />
+              <Moon className="hidden h-4 w-4 dark:block" />
+            </Button>
+            <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void loadWorkspace()} className="gap-2">
+              <Plus className="h-4 w-4" aria-hidden="true" />{request === 'create' ? 'Creating…' : 'New workspace'}
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -156,10 +164,18 @@ export default function WorkspacePage() {
         ) : loading ? (
           <p role="status" className="rounded-lg border border-border/80 bg-card p-5 text-sm text-muted-foreground shadow-surface">Loading workspace…</p>
         ) : (
-          <Card className="border-border/80 bg-card shadow-surface">
-            <CardContent className="grid justify-items-start gap-3 p-5 sm:p-6">
-              <h2 className="text-base font-semibold tracking-tight">Start a workspace</h2>
+          <Card className="mx-auto mt-6 max-w-2xl rounded-xl border border-border/70 bg-card shadow-surface">
+            <CardContent className="grid justify-items-start gap-4 p-6 sm:p-8">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-surface-subtle text-muted-foreground">
+                <FolderOpen className="h-5 w-5" aria-hidden="true" />
+              </div>
+              <h2 className="text-lg font-semibold tracking-tight">Start a workspace</h2>
               <p className="text-sm text-muted-foreground">Keep project context, files, and task results together.</p>
+              <div className="my-1 grid w-full gap-4 border-y border-border/60 py-5 text-sm text-muted-foreground sm:grid-cols-3">
+                <div className="flex items-start gap-2"><FolderOpen className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>Project context &amp; decisions</span></div>
+                <div className="flex items-start gap-2"><Files className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>Shared files</span></div>
+                <div className="flex items-start gap-2"><Workflow className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>Durable workflows &amp; CSV analysis</span></div>
+              </div>
               <Button type="button" disabled={busy} onClick={() => void loadWorkspace()}>{request === 'create' ? 'Creating…' : 'Create workspace'}</Button>
             </CardContent>
           </Card>
