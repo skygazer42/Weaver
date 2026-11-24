@@ -1,11 +1,3 @@
-import sys
-from pathlib import Path
-
-# Ensure project root is on sys.path for direct test execution
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
 from langchain.agents.middleware.todo import (
     WRITE_TODOS_SYSTEM_PROMPT,
     WRITE_TODOS_TOOL_DESCRIPTION,
