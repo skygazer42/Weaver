@@ -330,6 +330,84 @@ export function ChatInput({
         </div>
       )}
 
+      <div className="mb-2 flex w-full flex-nowrap items-center gap-0.5 whitespace-nowrap">
+        {modes.map(mode => {
+          const isActive = searchMode === mode.id
+          return (
+            <button
+              key={mode.id}
+              type="button"
+              aria-label={mode.id === 'agent' ? 'Agent' : mode.id === 'ultra' ? 'Deep Research' : undefined}
+              aria-pressed={isActive}
+              onClick={() => {
+                setSearchMode(isActive ? '' : mode.id)
+                setIsMcpOpen(false)
+              }}
+              className={cn(
+                'flex h-8 shrink-0 items-center gap-1.5 rounded-lg border px-2 text-xs font-medium whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+                isActive
+                  ? 'border-primary/25 bg-primary/10 text-primary shadow-xs'
+                  : 'border-transparent text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+              )}
+            >
+              <mode.icon aria-hidden="true" className="h-3.5 w-3.5" />
+              {mode.label}
+            </button>
+          )
+        })}
+        <div className="relative shrink-0">
+          <button
+            type="button"
+            aria-pressed={searchMode === 'mcp'}
+            aria-expanded={isMcpOpen}
+            aria-controls="composer-mcp-options"
+            title={searchMode === 'mcp' ? mcpOptions.find(option => option.id === selectedMcp)?.label : undefined}
+            onClick={() => {
+              if (searchMode === 'mcp') {
+                setSearchMode('')
+                setIsMcpOpen(false)
+              } else {
+                setSearchMode('mcp')
+                setIsMcpOpen(true)
+              }
+            }}
+            className={cn(
+              'flex h-8 items-center gap-1.5 rounded-lg border px-2 text-xs font-medium whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+              searchMode === 'mcp'
+                ? 'border-primary/25 bg-primary/10 text-primary shadow-xs'
+                : 'border-transparent text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+            )}
+          >
+            <Plug aria-hidden="true" className="h-3.5 w-3.5" />
+            MCP
+            <ChevronDown aria-hidden="true" className="h-3 w-3" />
+          </button>
+          {isMcpOpen && (
+            <div id="composer-mcp-options" className="absolute right-0 top-full z-50 mt-2 max-h-[min(18rem,calc(100dvh-8rem))] w-44 overflow-y-auto rounded-lg border border-border/80 bg-popover p-1.5 text-popover-foreground shadow-elevated">
+              {mcpOptions.map(option => (
+                <button
+                  key={option.id}
+                  type="button"
+                  aria-pressed={selectedMcp === option.id && searchMode === 'mcp'}
+                  onClick={() => {
+                    setSelectedMcp(option.id)
+                    setSearchMode('mcp')
+                    setIsMcpOpen(false)
+                  }}
+                  className={cn(
+                    'flex w-full items-center justify-between rounded-md px-2.5 py-2 text-sm transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset',
+                    selectedMcp === option.id && searchMode === 'mcp' && 'bg-primary/10 font-medium text-primary'
+                  )}
+                >
+                  {option.label}
+                  {selectedMcp === option.id && <Check aria-hidden="true" className="h-3.5 w-3.5" />}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
       <div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -387,84 +465,11 @@ export function ChatInput({
           aria-label={t('askAnything')}
           disabled={isLoading || awaitingApproval}
           rows={1}
-          className="block max-h-[200px] min-h-[72px] w-full resize-none rounded-t-2xl bg-transparent px-4 py-4 text-[15px] leading-6 text-foreground placeholder:text-muted-foreground focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+          className="block max-h-[200px] min-h-[72px] w-full resize-none bg-transparent px-4 pb-2 pt-4 text-base leading-6 text-foreground placeholder:text-muted-foreground focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
         />
 
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-b-2xl border-t border-border/70 bg-surface-subtle/50 p-2">
-          <div className="flex flex-wrap items-center gap-0.5">
-            {modes.map(mode => {
-              const isActive = searchMode === mode.id
-              return (
-                <button
-                  key={mode.id}
-                  type="button"
-                  aria-pressed={isActive}
-                  onClick={() => {
-                    setSearchMode(isActive ? '' : mode.id)
-                    setIsMcpOpen(false)
-                  }}
-                  className={cn(
-                    'flex h-8 items-center gap-1.5 rounded-md px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
-                    isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
-                  )}
-                >
-                  <mode.icon aria-hidden="true" className="h-3.5 w-3.5" />
-                  {mode.label}
-                </button>
-              )
-            })}
-            <div className="relative">
-              <button
-                type="button"
-                aria-pressed={searchMode === 'mcp'}
-                aria-expanded={isMcpOpen}
-                aria-controls="composer-mcp-options"
-                title={searchMode === 'mcp' ? mcpOptions.find(option => option.id === selectedMcp)?.label : undefined}
-                onClick={() => {
-                  if (searchMode === 'mcp') {
-                    setSearchMode('')
-                    setIsMcpOpen(false)
-                  } else {
-                    setSearchMode('mcp')
-                    setIsMcpOpen(true)
-                  }
-                }}
-                className={cn(
-                  'flex h-8 items-center gap-1.5 rounded-md px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
-                  searchMode === 'mcp' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
-                )}
-              >
-                <Plug aria-hidden="true" className="h-3.5 w-3.5" />
-                MCP
-                <ChevronDown aria-hidden="true" className="h-3 w-3" />
-              </button>
-              {isMcpOpen && (
-                <div id="composer-mcp-options" className="absolute bottom-full left-0 z-50 mb-2 w-44 rounded-lg border border-border/80 bg-popover p-1.5 text-popover-foreground shadow-elevated">
-                  {mcpOptions.map(option => (
-                    <button
-                      key={option.id}
-                      type="button"
-                      aria-pressed={selectedMcp === option.id && searchMode === 'mcp'}
-                      onClick={() => {
-                        setSelectedMcp(option.id)
-                        setSearchMode('mcp')
-                        setIsMcpOpen(false)
-                      }}
-                      className={cn(
-                        'flex w-full items-center justify-between rounded-md px-2.5 py-2 text-sm transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset',
-                        selectedMcp === option.id && searchMode === 'mcp' && 'bg-primary/10 font-medium text-primary'
-                      )}
-                    >
-                      {option.label}
-                      {selectedMcp === option.id && <Check aria-hidden="true" className="h-3.5 w-3.5" />}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="ml-auto flex shrink-0 items-center gap-1">
+        <div className="flex items-center justify-end px-3 pb-3 pt-1">
+          <div className="flex shrink-0 items-center gap-1">
             <Button type="button" variant="ghost" size="icon" aria-label="Attach files" onClick={() => fileInputRef.current?.click()} className="text-muted-foreground hover:text-foreground">
               <Paperclip className="h-4 w-4" />
             </Button>
