@@ -5,6 +5,7 @@ import { Artifact } from '@/types/chat'
 import { FileText, Code, BarChart, Image as ImageIcon, File, MoreVertical, Trash2, Download, Clock } from 'lucide-react'
 import { formatRelativeTime, formatBytes } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import {
   Popover,
   PopoverContent,
@@ -29,20 +30,20 @@ export function ArtifactItem({ artifact, onDelete, onDownload }: ArtifactItemPro
   }[artifact.type] || File
 
   return (
-    <div className="group relative p-4 rounded-xl border bg-card hover:bg-muted/50 transition-all cursor-pointer">
+    <div className="group relative rounded-lg border border-border/80 bg-card p-4 shadow-surface transition-colors hover:border-primary/40">
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <div className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-surface-subtle">
               <Icon className="h-4 w-4 text-muted-foreground" />
             </div>
-            <h3 className="font-semibold text-sm truncate">
+            <h3 className="truncate text-sm font-semibold" title={artifact.title}>
               {artifact.title}
             </h3>
           </div>
           
-          <div className="mt-4 flex items-center justify-between">
-            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-3 text-xs tabular-nums text-muted-foreground">
               <div className="flex items-center gap-1">
                 <Clock className="h-3 w-3" />
                 {formatRelativeTime(artifact.createdAt)}
@@ -51,16 +52,16 @@ export function ArtifactItem({ artifact, onDelete, onDownload }: ArtifactItemPro
                 <span>{formatBytes(artifact.fileSize)}</span>
               )}
             </div>
-            <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground/50">
+            <Badge variant="subtle">
               {artifact.type}
-            </span>
+            </Badge>
           </div>
         </div>
 
         <div onClick={(e) => e.stopPropagation()}>
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
+              <Button variant="ghost" size="icon" aria-label="Artifact actions" className="h-8 w-8 opacity-70 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </PopoverTrigger>

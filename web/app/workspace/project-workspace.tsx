@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from 'react'
 import { CalendarClock, Download, FileText, Loader2, Play } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
+import { Badge, type BadgeProps } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -34,6 +34,16 @@ const statusLabels: Record<ProjectTask['status'], string> = {
   awaiting_approval: 'Awaiting approval',
 }
 
+const statusVariants: Record<ProjectTask['status'], BadgeProps['variant']> = {
+  queued: 'subtle',
+  running: 'info',
+  completed: 'success',
+  failed: 'destructive',
+  cancelled: 'secondary',
+  insufficient_evidence: 'warning',
+  awaiting_approval: 'warning',
+}
+
 const repeatLabels = { 1: 'Every 24 hours', 7: 'Every 7 days' } as const
 
 type ProjectHistory = { tasks: ProjectTask[]; deliverables: WorkspaceDeliverable[]; schedules: ProjectSchedule[] }
@@ -43,7 +53,7 @@ function isPending(task: ProjectTask) {
 }
 
 function TaskStatus({ status }: { status: ProjectTask['status'] }) {
-  return <Badge variant={status === 'failed' ? 'destructive' : 'secondary'}>{statusLabels[status]}</Badge>
+  return <Badge variant={statusVariants[status]}>{statusLabels[status]}</Badge>
 }
 
 export function ProjectWorkspace({ initialWorkspace, files, setFiles }: {
@@ -231,14 +241,14 @@ export function ProjectWorkspace({ initialWorkspace, files, setFiles }: {
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
         <div className="min-w-0 space-y-5">
           <Card>
-            <CardHeader className="p-5">
-              <h2 className="text-lg font-semibold tracking-tight">{revision ? 'Revise deliverable' : 'New task'}</h2>
+            <CardHeader className="mb-4 rounded-t-lg border-b border-border/70 bg-surface-subtle/40 px-5 py-3.5">
+              <h2 className="text-sm font-semibold tracking-tight">{revision ? 'Revise deliverable' : 'New task'}</h2>
             </CardHeader>
             <CardContent className="px-5 pb-5">
               <form onSubmit={runTask}>
                 <fieldset disabled={submitting} className="space-y-4">
                   {revision ? (
-                    <div className="flex items-start justify-between gap-2 rounded-md bg-muted p-2.5 text-sm">
+                    <div className="flex items-start justify-between gap-2 rounded-md border border-primary/20 bg-primary/5 p-2.5 text-sm">
                       <p className="min-w-0 break-words">{revision.title}</p>
                       <Button type="button" variant="ghost" size="sm" className="-my-1 shrink-0" onClick={() => setRevision(null)}>Cancel revision</Button>
                     </div>
@@ -246,7 +256,7 @@ export function ProjectWorkspace({ initialWorkspace, files, setFiles }: {
                     <div className="space-y-2">
                       <Label htmlFor="project-workflow">Workflow</Label>
                       <select id="project-workflow" value={workflow} onChange={(event) => setWorkflow(event.target.value as ProjectWorkflow)}
-                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:ring-2 focus-visible:ring-ring">
+                        className="h-9 w-full rounded-md border border-input bg-card px-3 text-sm shadow-xs focus-visible:outline-none focus-visible:border-primary/60 focus-visible:ring-2 focus-visible:ring-ring/25">
                         {Object.entries(workflowLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                       </select>
                     </div>
@@ -270,15 +280,15 @@ export function ProjectWorkspace({ initialWorkspace, files, setFiles }: {
                   </div>
                   {files.length > 0 && (
                     <details className="space-y-2 text-sm">
-                      <summary className="w-fit cursor-pointer font-medium">Source files · {fileIds.length || 'Recent documents'}</summary>
+                      <summary className="w-fit cursor-pointer rounded-sm font-medium tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">Source files · {fileIds.length || 'Recent documents'}</summary>
                       <p className="text-xs text-muted-foreground">Choose up to {MAX_SOURCE_FILES} files.</p>
-                      <ul aria-label="Source files" className="max-h-40 space-y-2 overflow-y-auto rounded-md border p-3">
+                      <ul aria-label="Source files" className="max-h-40 space-y-2 overflow-y-auto rounded-md border border-border/70 bg-surface-subtle/40 p-3">
                         {files.map((file) => {
                           const selected = fileIds.includes(file.id)
                           return (
                             <li key={file.id}>
                               <label className="flex items-start gap-2 break-words">
-                                <input className="mt-0.5 shrink-0" type="checkbox" checked={selected} disabled={!selected && fileIds.length >= MAX_SOURCE_FILES} onChange={(event) => {
+                                <input className="mt-0.5 shrink-0 accent-primary" type="checkbox" checked={selected} disabled={!selected && fileIds.length >= MAX_SOURCE_FILES} onChange={(event) => {
                                   const checked = event.target.checked
                                   setFileIds((current) => checked ? [...current, file.id] : current.filter((id) => id !== file.id))
                                 }} />
@@ -294,7 +304,7 @@ export function ProjectWorkspace({ initialWorkspace, files, setFiles }: {
                     <div className="space-y-2">
                       <Label htmlFor="project-repeat">Repeat</Label>
                       <select id="project-repeat" value={repeatDays} onChange={(event) => setRepeatDays(Number(event.target.value))}
-                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:ring-2 focus-visible:ring-ring">
+                        className="h-9 w-full rounded-md border border-input bg-card px-3 text-sm shadow-xs focus-visible:outline-none focus-visible:border-primary/60 focus-visible:ring-2 focus-visible:ring-ring/25">
                         <option value={0}>Run once now</option>
                         <option value={1}>{repeatLabels[1]}</option>
                         <option value={7}>{repeatLabels[7]}</option>
@@ -308,7 +318,7 @@ export function ProjectWorkspace({ initialWorkspace, files, setFiles }: {
                         onChange={(event) => setFirstRun(event.target.value)} required />
                     </div>
                   )}
-                  {submissionError && <p role="alert" className="break-words text-sm text-destructive">{submissionError}</p>}
+                  {submissionError && <p role="alert" className="break-words rounded-lg border border-destructive-border bg-destructive-surface p-3 text-sm text-destructive">{submissionError}</p>}
                   <Button type="submit" className="w-full gap-2" disabled={!prompt.trim() || (scheduling && !firstRun)}>
                     {submitting ? <Loader2 className="h-4 w-4 motion-safe:animate-spin" aria-hidden="true" /> : scheduling ? <CalendarClock className="h-4 w-4" aria-hidden="true" /> : <Play className="h-4 w-4" aria-hidden="true" />}
                     {submitting ? 'Submitting…' : scheduling ? 'Schedule task' : 'Run task'}
@@ -320,20 +330,20 @@ export function ProjectWorkspace({ initialWorkspace, files, setFiles }: {
 
           {history && history.schedules.length > 0 && (
             <Card role="region" aria-labelledby="project-schedules-title" aria-busy={updatingSchedule}>
-              <CardHeader className="p-5">
-                <h2 id="project-schedules-title" className="text-lg font-semibold tracking-tight">Scheduled tasks</h2>
+              <CardHeader className="mb-4 rounded-t-lg border-b border-border/70 bg-surface-subtle/40 px-5 py-3.5">
+                <h2 id="project-schedules-title" className="text-sm font-semibold tracking-tight">Scheduled tasks</h2>
               </CardHeader>
               <CardContent className="space-y-3 px-5 pb-5">
-                {scheduleError && <p role="alert" className="break-words text-sm text-destructive">{scheduleError}</p>}
+                {scheduleError && <p role="alert" className="break-words rounded-lg border border-destructive-border bg-destructive-surface p-3 text-sm text-destructive">{scheduleError}</p>}
                 <ul className="max-h-96 space-y-2 overflow-y-auto">
                   {history.schedules.map((schedule) => (
-                    <li key={schedule.id} className="space-y-2 rounded-md border p-3 text-sm">
+                    <li key={schedule.id} className="space-y-2 rounded-lg border border-border/80 bg-surface-subtle/40 p-3 text-sm">
                       <p className="break-words font-medium">{schedule.prompt}</p>
                       <p className="break-words text-xs text-muted-foreground">
                         {workflowLabels[schedule.workflow]}{schedule.repository && <> · {schedule.repository}{schedule.release_tag && <> · {schedule.release_tag}</>}</>} · {repeatLabels[schedule.repeat_days]}
                       </p>
                       {schedule.enabled ? (
-                        <p className="text-xs">Next run <time dateTime={schedule.next_run_at}>{new Date(schedule.next_run_at).toLocaleString()}</time></p>
+                        <p className="border-t border-border/60 pt-2 text-xs text-muted-foreground">Next run <time className="font-medium tabular-nums text-foreground" dateTime={schedule.next_run_at}>{new Date(schedule.next_run_at).toLocaleString()}</time></p>
                       ) : <Badge variant="secondary">Paused</Badge>}
                       <div className="flex flex-wrap gap-1">
                         {schedule.last_task_id && (
@@ -359,24 +369,24 @@ export function ProjectWorkspace({ initialWorkspace, files, setFiles }: {
           <ProjectFiles files={files} url={url} onUpload={(file) => setFiles((current) => [file, ...current.filter(({ id }) => id !== file.id)])} />
 
           <Card>
-            <CardHeader className="flex-row items-center justify-between gap-2 space-y-0 p-5">
-              <h2 className="text-lg font-semibold tracking-tight">Task history</h2>
+            <CardHeader className="mb-4 flex-row items-center justify-between gap-2 space-y-0 rounded-t-lg border-b border-border/70 bg-surface-subtle/40 px-5 py-3">
+              <h2 className="text-sm font-semibold tracking-tight">Task history</h2>
               <Button type="button" variant="ghost" size="sm" onClick={() => void refresh()}>Refresh tasks</Button>
             </CardHeader>
             <CardContent className="space-y-3 px-5 pb-5">
-              {historyError && <p role="alert" className="break-words text-sm text-destructive">{historyError}</p>}
+              {historyError && <p role="alert" className="break-words rounded-lg border border-destructive-border bg-destructive-surface p-3 text-sm text-destructive">{historyError}</p>}
               {!history && !historyError && <p role="status" className="text-sm text-muted-foreground">Loading tasks…</p>}
-              {history?.tasks.length === 0 && <p className="text-sm text-muted-foreground">No tasks yet.</p>}
+              {history?.tasks.length === 0 && <p className="rounded-lg border border-dashed border-border/80 bg-surface-subtle/60 p-4 text-center text-sm text-muted-foreground">No tasks yet.</p>}
               {history && history.tasks.length > 0 && (
                 <ul className="-mx-1 max-h-96 space-y-2 overflow-y-auto p-1">
                   {history.tasks.map((task) => (
                     <li key={task.id}>
                       <button type="button" aria-pressed={selected?.id === task.id} onClick={() => selectTask(task.id)} className={cn(
-                        'grid w-full gap-1 rounded-md border p-3 text-left text-sm hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                        selected?.id === task.id && 'border-foreground/30 bg-muted',
+                        'grid w-full gap-2 rounded-lg border border-border/80 bg-card p-3 text-left text-sm transition-colors hover:bg-surface-subtle/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2',
+                        selected?.id === task.id && 'border-primary/40 bg-primary/5 ring-1 ring-primary/15 hover:bg-primary/5',
                       )}>
                         <span className="break-words font-medium">{task.prompt}</span>
-                        <span className="text-xs text-muted-foreground">
+                        <span className="text-xs tabular-nums text-muted-foreground">
                           {workflowLabels[task.workflow]}{task.schedule_id && ' · Scheduled'}{task.created_at && <> · <time dateTime={task.created_at}>{new Date(task.created_at).toLocaleString()}</time></>}
                         </span>
                         <span className="w-fit"><TaskStatus status={task.status} /></span>
@@ -390,13 +400,13 @@ export function ProjectWorkspace({ initialWorkspace, files, setFiles }: {
         </div>
 
         <Card className="min-w-0">
-          <CardHeader className="p-5 sm:p-6">
-            <h2 className="text-lg font-semibold tracking-tight">Task results</h2>
+          <CardHeader className="mb-5 rounded-t-lg border-b border-border/70 bg-surface-subtle/40 px-5 py-4 sm:px-6">
+            <h2 className="text-base font-semibold tracking-tight">Task results</h2>
           </CardHeader>
           <CardContent className="space-y-5 px-5 pb-5 sm:px-6 sm:pb-6">
             {selected ? (
               <>
-                <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/60 bg-surface-subtle/60 p-3">
                   <div role="status" className="flex flex-wrap items-center gap-2">
                     {activeTaskId && <Loader2 className="h-4 w-4 motion-safe:animate-spin" aria-hidden="true" />}
                     <TaskStatus status={selected.status} />
@@ -407,9 +417,9 @@ export function ProjectWorkspace({ initialWorkspace, files, setFiles }: {
                   </Button>}
                 </div>
                 <p className="whitespace-pre-wrap break-words text-sm text-muted-foreground">{selected.prompt}</p>
-                {activeTaskId && stops[selected.id]?.error && <p role="alert" className="break-words text-sm text-destructive">{stops[selected.id].error}</p>}
-                {selected.status === 'failed' && <p role="alert" className="break-words text-sm text-destructive">{selected.error || 'Task failed.'}</p>}
-                {selected.status === 'insufficient_evidence' && <p className="text-sm text-muted-foreground">Add more source material and run the task again.</p>}
+                {activeTaskId && stops[selected.id]?.error && <p role="alert" className="break-words rounded-lg border border-destructive-border bg-destructive-surface p-3 text-sm text-destructive">{stops[selected.id].error}</p>}
+                {selected.status === 'failed' && <p role="alert" className="break-words rounded-lg border border-destructive-border bg-destructive-surface p-3 text-sm text-destructive">{selected.error || 'Task failed.'}</p>}
+                {selected.status === 'insufficient_evidence' && <p className="rounded-lg border border-warning-border bg-warning-surface p-3 text-sm text-warning-foreground">Add more source material and run the task again.</p>}
                 {deliverable && (
                   <div className="space-y-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -430,7 +440,7 @@ export function ProjectWorkspace({ initialWorkspace, files, setFiles }: {
                     {deliverable.sources.length > 0 && (
                       <section aria-labelledby="project-sources-heading" className="space-y-3">
                         <h3 id="project-sources-heading" className="font-semibold">Sources</h3>
-                        <ul className="divide-y rounded-md border">
+                        <ul className="divide-y divide-border/60 rounded-lg border border-border/80">
                           {deliverable.sources.map((source) => {
                             const sourceUrl = source.url?.startsWith('https://github.com/')
                               ? source.url
@@ -438,7 +448,7 @@ export function ProjectWorkspace({ initialWorkspace, files, setFiles }: {
                             return (
                               <li key={source.id} className="space-y-1 p-3 text-sm">
                                 <p className="break-words font-medium">
-                                  <code className="mr-2 rounded bg-muted px-1 text-xs font-normal">{source.id}</code>
+                                  <code className="mr-2 rounded border border-border/70 bg-surface-subtle px-1.5 py-0.5 font-mono text-xs font-normal tabular-nums">{source.id}</code>
                                   {sourceUrl ? <a href={sourceUrl} className="underline underline-offset-2">{source.title}</a> : source.title}
                                 </p>
                                 {source.snippet && <p className="whitespace-pre-wrap break-words text-muted-foreground">{source.snippet}</p>}
@@ -452,7 +462,7 @@ export function ProjectWorkspace({ initialWorkspace, files, setFiles }: {
                 )}
               </>
             ) : (
-              <div className="flex min-h-56 flex-col items-center justify-center gap-3 rounded-md border border-dashed bg-muted/30 p-6 text-center">
+              <div className="flex min-h-56 flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border/80 bg-surface-subtle/60 p-6 text-center">
                 <FileText className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
                 <p className="text-sm text-muted-foreground">Run a task to see its deliverable and sources here.</p>
               </div>

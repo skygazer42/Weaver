@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useMemo } from 'react'
-import { FolderOpen, History, FileCode, Star, Trash2 } from 'lucide-react'
+import { History, Plus } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import type { useChatHistory } from '@/hooks/useChatHistory'
 import { useArtifacts } from '@/hooks/useArtifacts'
@@ -12,6 +12,7 @@ import { FilterGroup } from '@/components/ui/filter-group'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { EditDialog } from '@/components/ui/edit-dialog'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 
 type LibraryTab = 'all' | 'sessions' | 'artifacts' | 'pinned'
 
@@ -85,30 +86,31 @@ export function Library({ workspaceId, chatHistory, onNewChat, onSelectChat, onD
   const isLoading = isHistoryLoading || isArtifactsLoading
 
   return (
-    <div className="flex-1 h-full overflow-hidden flex flex-col bg-background">
-      <div className="max-w-6xl mx-auto w-full h-full flex flex-col p-6 md:p-10 gap-8">
+    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
+      <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col gap-5 p-4 sm:p-6 lg:p-8">
         
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold flex items-center gap-3">
-              <FolderOpen className="h-8 w-8 text-primary" />
-              Library
-            </h1>
-            <p className="text-muted-foreground mt-2 text-lg">
+        <div className="flex shrink-0 items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2.5">
+              <h1 className="text-xl font-semibold tracking-tight">Library</h1>
+              <Badge variant="subtle" className="tabular-nums" aria-label={`${filteredItems.length} items`}>{filteredItems.length}</Badge>
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
               Manage your saved conversations and artifacts.
             </p>
           </div>
           <div className="flex items-center gap-2">
-             <Button variant="outline" size="sm" onClick={onNewChat}>
+             <Button size="sm" onClick={onNewChat} className="shrink-0 gap-1.5">
+                <Plus className="h-3.5 w-3.5" aria-hidden="true" />
                 New Chat
              </Button>
           </div>
         </div>
 
         {/* Controls */}
-        <div className="space-y-4">
-          <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+        <div className="shrink-0 border-b border-border/70 pb-4">
+          <div className="flex flex-col items-start justify-between gap-3 xl:flex-row xl:items-center">
             <FilterGroup 
               options={filterOptions} 
               value={activeTab} 
@@ -117,7 +119,8 @@ export function Library({ workspaceId, chatHistory, onNewChat, onSelectChat, onD
             <SearchInput 
               onSearch={setSearchQuery} 
               placeholder="Search in library..." 
-              containerClassName="w-full md:w-80"
+              aria-label="Search in library"
+              containerClassName="w-full xl:w-72"
             />
           </div>
         </div>
@@ -126,7 +129,7 @@ export function Library({ workspaceId, chatHistory, onNewChat, onSelectChat, onD
         <div className="flex-1 min-h-0">
           <ScrollArea className="h-full pr-4">
             {isLoading ? (
-              <div className="flex items-center justify-center h-40 text-muted-foreground">
+              <div role="status" className="flex h-40 items-center justify-center text-sm text-muted-foreground">
                 Loading your library...
               </div>
             ) : filteredItems.length > 0 ? (
@@ -151,12 +154,10 @@ export function Library({ workspaceId, chatHistory, onNewChat, onSelectChat, onD
                 ))}
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center h-80 border-2 border-dashed rounded-3xl bg-muted/30">
-                <div className="h-16 w-16 bg-muted rounded-full flex items-center justify-center mb-4">
-                    <History className="h-8 w-8 text-muted-foreground" />
-                </div>
-                <h3 className="text-xl font-semibold">No items found</h3>
-                <p className="text-muted-foreground mt-1 text-center max-w-xs">
+              <div className="flex min-h-56 flex-col items-center justify-center rounded-lg border border-dashed border-border/80 bg-surface-subtle/60 p-5 text-center">
+                <History className="mb-3 h-5 w-5 text-muted-foreground" aria-hidden="true" />
+                <h3 className="text-sm font-semibold">No items found</h3>
+                <p className="mt-1 max-w-xs break-words text-center text-sm text-muted-foreground">
                     {searchQuery ? `We couldn't find anything matching "${searchQuery}"` : "Your library is empty. Start a conversation to see it here."}
                 </p>
               </div>

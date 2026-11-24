@@ -2,11 +2,13 @@
 
 import { useEffect, useState, type FormEvent } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { ArrowLeft, FileSpreadsheet, FolderOpen, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { cn } from '@/lib/utils'
 import { getWorkspaceUrl, workspaceRequest, type Workspace } from '@/lib/workspace'
 import { ProjectWorkspace } from './project-workspace'
 import { WorkspacePanel } from './workspace-panel'
@@ -90,65 +92,73 @@ export default function WorkspacePage() {
   const busy = loading || request !== null
 
   return (
-    <main className="min-h-screen bg-muted/30">
-      <header className="border-b bg-background">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-8">
-          <Button variant="ghost" size="sm" asChild>
-            <Link href="/" className="gap-2"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Back to chat</Link>
-          </Button>
-          {workspace && (
-            <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void loadWorkspace()} className="gap-2">
-              <Plus className="h-4 w-4" aria-hidden="true" />{request === 'create' ? 'Creating…' : 'New workspace'}
+    <main className="min-h-dvh bg-surface-subtle/50">
+      <header className="sticky top-0 z-30 h-14 border-b border-border/80 bg-background/90 backdrop-blur-md">
+        <div className="mx-auto flex h-full max-w-7xl items-center justify-between gap-2 px-4 sm:px-8">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-4">
+            <div className="flex shrink-0 items-center gap-2">
+              <div className="flex h-7 w-7 items-center justify-center rounded-md border border-border/70 bg-white shadow-xs">
+                <Image src="/logo.png" alt="" width={24} height={24} />
+              </div>
+              <span className="sr-only text-base font-semibold tracking-tight sm:not-sr-only">Weaver</span>
+            </div>
+            <Button variant="ghost" size="sm" asChild>
+              <Link href="/" className="gap-1.5"><ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />Back to chat</Link>
             </Button>
-          )}
+          </div>
+          <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void loadWorkspace()} className="gap-2">
+            <Plus className="h-4 w-4" aria-hidden="true" />{request === 'create' ? 'Creating…' : 'New workspace'}
+          </Button>
         </div>
       </header>
 
-      <div className="mx-auto max-w-7xl px-4 py-7 sm:px-8 sm:py-10">
-        <div className="mb-7 flex flex-col justify-between gap-5 border-b pb-6 lg:flex-row lg:items-end">
+      <div className="mx-auto max-w-7xl px-4 py-5 sm:px-8 sm:py-6">
+        <div className="mb-4 flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
           {view === 'project' ? (
-            <div>
-              <FolderOpen className="mb-3 h-6 w-6" aria-hidden="true" />
-              <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Project workspace</h1>
+            <div className="flex items-center gap-2.5">
+              <FolderOpen className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+              <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Project workspace</h1>
             </div>
           ) : (
             <div>
-              <FileSpreadsheet className="mb-3 h-6 w-6" aria-hidden="true" />
-              <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">CSV Agent Workbench</h1>
-              <p className="mt-2 text-sm text-muted-foreground">Analyze a CSV and download a Markdown report and an SVG chart.</p>
+              <div className="flex items-center gap-2.5">
+                <FileSpreadsheet className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">CSV Agent Workbench</h1>
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground">Analyze a CSV and download a Markdown report and an SVG chart.</p>
             </div>
           )}
-          <div className="w-full min-w-0 max-w-sm">
-            <form onSubmit={openWorkspace} className="space-y-2">
-              <Label htmlFor="workspace-id">Open by workspace ID</Label>
-              <div className="flex gap-2">
-                <Input id="workspace-id" value={openId} onChange={(event) => setOpenId(event.target.value)} disabled={busy} className="min-w-0 font-mono" />
-                <Button type="submit" variant="outline" disabled={busy || !openId.trim()}>{request === 'open' ? 'Opening…' : 'Open'}</Button>
+          <div className="w-full min-w-0 lg:w-auto">
+            <form onSubmit={openWorkspace} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+              <Label htmlFor="workspace-id" className="shrink-0 text-xs text-muted-foreground">Open by workspace ID</Label>
+              <div className="flex min-w-0 gap-2 sm:max-w-sm">
+                <Input id="workspace-id" value={openId} onChange={(event) => setOpenId(event.target.value)} disabled={busy} className="h-9 min-w-0 font-mono tabular-nums sm:w-48" />
+                <Button type="submit" size="sm" variant="outline" className="h-9" disabled={busy || !openId.trim()}>{request === 'open' ? 'Opening…' : 'Open'}</Button>
               </div>
             </form>
           </div>
         </div>
 
-        {error && <p role="alert" className="mb-5 rounded-md border border-destructive/40 bg-background p-3 text-sm text-destructive">{error}</p>}
+        {error && <p role="alert" className="mb-4 break-words rounded-lg border border-destructive-border bg-destructive-surface p-3 text-sm text-destructive">{error}</p>}
         {workspace ? (
           <>
-            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-              <div role="group" aria-label="Workspace view" className="flex items-center gap-2">
-                <Button type="button" variant={view === 'project' ? 'secondary' : 'ghost'} size="sm" aria-pressed={view === 'project'} onClick={() => setView('project')}>Project workflows</Button>
-                <Button type="button" variant={view === 'csv' ? 'secondary' : 'ghost'} size="sm" aria-pressed={view === 'csv'} onClick={() => setView('csv')}>CSV analysis</Button>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div role="group" aria-label="Workspace view" className="inline-flex flex-wrap gap-1 rounded-lg border border-border/70 bg-surface-subtle p-1">
+                <Button type="button" variant="ghost" size="sm" className={cn('h-8', view === 'project' ? 'bg-card text-foreground shadow-xs hover:bg-card' : 'text-muted-foreground')} aria-pressed={view === 'project'} onClick={() => setView('project')}>Project workflows</Button>
+                <Button type="button" variant="ghost" size="sm" className={cn('h-8', view === 'csv' ? 'bg-card text-foreground shadow-xs hover:bg-card' : 'text-muted-foreground')} aria-pressed={view === 'csv'} onClick={() => setView('csv')}>CSV analysis</Button>
               </div>
-              <p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                Workspace ID <code className="break-all rounded bg-muted px-2 py-1 font-mono text-xs text-foreground">{workspace.id}</code>
+              <p className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                Workspace ID <code className="break-all rounded-md border border-border/70 bg-card px-2 py-1 font-mono tabular-nums text-foreground">{workspace.id}</code>
               </p>
             </div>
             <WorkspaceContent key={`${workspace.id}-${openedCount}`} workspace={workspace} view={view} />
           </>
         ) : loading ? (
-          <p role="status" className="text-sm text-muted-foreground">Loading workspace…</p>
+          <p role="status" className="rounded-lg border border-border/80 bg-card p-5 text-sm text-muted-foreground shadow-surface">Loading workspace…</p>
         ) : (
-          <Card>
-            <CardContent className="grid justify-items-start gap-4 p-6 sm:p-8">
-              <h2 className="text-lg font-semibold">Start a workspace</h2>
+          <Card className="border-border/80 bg-card shadow-surface">
+            <CardContent className="grid justify-items-start gap-3 p-5 sm:p-6">
+              <h2 className="text-base font-semibold tracking-tight">Start a workspace</h2>
               <p className="text-sm text-muted-foreground">Keep project context, files, and task results together.</p>
               <Button type="button" disabled={busy} onClick={() => void loadWorkspace()}>{request === 'create' ? 'Creating…' : 'Create workspace'}</Button>
             </CardContent>

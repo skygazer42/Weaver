@@ -9,6 +9,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -65,7 +66,7 @@ const getModelProviders = (t: (key: any) => string): ModelProvider[] => [
     name: t('qwen'),
     models: [
       { id: 'qwen-plus', name: 'qwen-plus' },
-      { id: 'qwen3-vl-flash', name: 'qwen3-vl-flash 🖼️' },
+      { id: 'qwen3-vl-flash', name: 'qwen3-vl-flash' },
     ]
   },
   {
@@ -73,7 +74,7 @@ const getModelProviders = (t: (key: any) => string): ModelProvider[] => [
     name: t('zhipu'),
     models: [
       { id: 'glm-4.6', name: 'GLM-4.6' },
-      { id: 'glm-4.6v', name: 'glm-4.6v 🖼️' },
+      { id: 'glm-4.6v', name: 'glm-4.6v' },
     ]
   }
 ]
@@ -251,18 +252,14 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
     onOpenChange(false)
   }
 
-  const allModels = modelProviders.flatMap(provider =>
-    provider.models.map(model => ({ ...model, provider: provider.id }))
-  )
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[85dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[600px]">
+        <DialogHeader className="shrink-0 border-b border-border/80 px-6 py-4 pr-12">
           <DialogTitle>{t('settings')}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
+        <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-5">
           {/* Language Selection */}
           <div className="space-y-3">
             <Label className="text-sm font-medium">{t('language')}</Label>
@@ -270,12 +267,14 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
               {languages.map((lang) => (
                 <button
                   key={lang.id}
+                  type="button"
+                  aria-pressed={tempLanguage === lang.id}
                   onClick={() => setTempLanguage(lang.id as any)}
                   className={cn(
-                    'flex items-center justify-between rounded-lg border-2 p-3 text-left transition-all hover:bg-muted/50',
+                    'flex items-center justify-between gap-2 rounded-md border p-3 text-left text-sm shadow-xs transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
                     tempLanguage === lang.id
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border'
+                      ? 'border-primary/40 bg-primary/5'
+                      : 'border-border/80 bg-card'
                   )}
                 >
                   <div>
@@ -293,28 +292,27 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
           {/* Model Selection */}
           <div className="space-y-3">
             <Label className="text-sm font-medium">{t('defaultModel')}</Label>
-            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-              {allModels.map((model) => (
-                <button
-                  key={model.id}
-                  onClick={() => setTempModel(model.id)}
-                  className={cn(
-                    'flex w-full items-center justify-between rounded-lg border p-3 text-left transition-all hover:bg-muted/50',
-                    tempModel === model.id
-                      ? 'border-primary bg-primary/5 font-medium'
-                      : 'border-border'
-                  )}
-                >
-                  <div>
-                    <div className="font-medium">{model.name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {modelProviders.find(p => p.id === model.provider)?.name}
-                    </div>
-                  </div>
-                  {tempModel === model.id && (
-                    <Check className="h-4 w-4 text-primary" />
-                  )}
-                </button>
+            <div className="space-y-4">
+              {modelProviders.map(provider => (
+                <fieldset key={provider.id} className="space-y-1 rounded-lg border border-border/80 bg-card p-2">
+                  <legend className="px-1.5 text-xs font-semibold text-muted-foreground">{provider.name}</legend>
+                  {provider.models.map(model => (
+                    <button
+                      key={model.id}
+                      type="button"
+                      aria-pressed={tempModel === model.id}
+                      onClick={() => setTempModel(model.id)}
+                      className={cn(
+                        'flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+                        tempModel === model.id && 'bg-primary/10 font-medium text-primary'
+                      )}
+                    >
+                      <span className="min-w-0 flex-1 break-words">{model.name}</span>
+                      {['qwen3-vl-flash', 'glm-4.6v'].includes(model.id) && <Badge variant="subtle">Vision</Badge>}
+                      {tempModel === model.id && <Check className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />}
+                    </button>
+                  ))}
+                </fieldset>
               ))}
             </div>
           </div>
@@ -326,17 +324,17 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
 
             <div className="space-y-2">
               {modelProviders.map((provider) => (
-                <div key={provider.id} className="border rounded-lg overflow-hidden">
+                <div key={provider.id} className="overflow-hidden rounded-lg border border-border/80 bg-card">
                   <button
+                    type="button"
+                    aria-expanded={expandedProvider === provider.id}
                     onClick={() => setExpandedProvider(expandedProvider === provider.id ? null : provider.id)}
-                    className="flex w-full items-center justify-between p-3 hover:bg-muted/50 transition-colors"
+                    className="flex w-full items-center justify-between gap-2 p-3 text-sm transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
                   >
                     <div className="flex items-center gap-2">
                       <span className="font-medium">{provider.name}</span>
                       {apiKeys[provider.id] && (
-                        <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
-                          {t('apiKey')} ✓
-                        </span>
+                        <Badge variant="success">Configured</Badge>
                       )}
                     </div>
                     <ChevronDown
@@ -348,7 +346,7 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
                   </button>
 
                   {expandedProvider === provider.id && (
-                    <div className="p-3 border-t bg-muted/20 space-y-3">
+                    <div className="space-y-3 border-t border-border/70 bg-surface-subtle/50 p-3">
                       <div>
                         <Label className="text-xs font-medium mb-1.5 block">{t('apiKey')}</Label>
                         <Input
@@ -383,22 +381,24 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
               {t('mcpDescription')}
             </p>
 
-            <div className="flex items-center justify-between space-x-2 border p-3 rounded-lg bg-muted/20">
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border/80 bg-surface-subtle/70 p-3">
               <div className="space-y-0.5">
-                <Label className="text-sm font-medium">{t('enableMcp')}</Label>
+                <Label htmlFor="settings-mcp-enabled" className="text-sm font-medium">{t('enableMcp')}</Label>
                 <div className="text-xs text-muted-foreground">
                   {mcpEnabled ? t('mcpActive') : t('mcpDisabled')}
                 </div>
               </div>
               <Switch
+                id="settings-mcp-enabled"
                 checked={mcpEnabled}
                 onCheckedChange={setMcpEnabled}
               />
             </div>
 
             <div className="space-y-2">
-              <Label className="text-xs font-medium">{t('serversConfiguration')}</Label>
+              <Label htmlFor="settings-mcp-config" className="text-xs font-medium">{t('serversConfiguration')}</Label>
               <Textarea
+                id="settings-mcp-config"
                 value={mcpConfig}
                 onChange={(e) => setMcpConfig(e.target.value)}
                 className="font-mono text-xs min-h-[120px]"
@@ -409,22 +409,22 @@ export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChang
               </p>
             </div>
 
-            <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 p-2 rounded">
+            <div role="status" className="flex items-center gap-2 rounded-md border border-border/60 bg-surface-subtle/60 px-3 py-2 text-xs text-muted-foreground">
               {mcpLoading ? (
                 <RefreshCw className="h-3 w-3 animate-spin" />
               ) : (
-                <CheckCircle2 className="h-3 w-3 text-green-500" />
+                <CheckCircle2 className={cn('h-3.5 w-3.5', mcpEnabled && 'text-success')} />
               )}
-              <span>{t('loadedTools')}: {mcpLoadedTools}</span>
+              <span>{t('loadedTools')}: <span className="font-medium tabular-nums text-foreground">{mcpLoadedTools}</span></span>
             </div>
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="shrink-0 border-t border-border/80 bg-surface-subtle/50 px-6 py-3.5">
           <Button variant="outline" onClick={handleCancel}>
             {t('cancel')}
           </Button>
-          <Button onClick={handleSave}>
+          <Button onClick={handleSave} disabled={mcpLoading}>
             {t('save')}
           </Button>
         </DialogFooter>

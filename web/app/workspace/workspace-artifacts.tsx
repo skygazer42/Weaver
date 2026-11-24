@@ -12,9 +12,10 @@ type ArtifactState = { error: string } | { report: string; reportUrl: string; ch
 
 export function WorkspaceMarkdown({ content }: { content: string }) {
   return (
-    <div className="overflow-x-auto break-words rounded-md border bg-background px-4 py-3 text-sm leading-relaxed [&_a]:underline [&_h1]:my-3 [&_h1]:text-xl [&_h1]:font-semibold [&_h2]:mb-2 [&_h2]:mt-4 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:my-2 [&_h3]:font-semibold [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:my-2 [&_pre]:overflow-x-auto [&_table]:my-3 [&_td]:border [&_td]:p-2 [&_th]:border [&_th]:bg-muted [&_th]:p-2 [&_ul]:ml-5 [&_ul]:list-disc">
+    <div className="prose min-w-0 rounded-lg border border-border/80 bg-card p-5 sm:p-6">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
+        components={{ table: ({ children }) => <table className="whitespace-nowrap">{children}</table> }}
         disallowedElements={['img']}
         urlTransform={(url) => url.startsWith('/api/workspaces/') ? getArtifactDownloadUrl(url) ?? '' : defaultUrlTransform(url)}
       >
@@ -62,8 +63,8 @@ export function WorkspaceArtifacts({ url }: { url: string }) {
   if (!artifacts) return <p role="status" className="text-sm text-muted-foreground">Loading report and chart…</p>
   if ('error' in artifacts) {
     return (
-      <div className="space-y-3">
-        <p role="alert" className="text-sm text-destructive">{artifacts.error}</p>
+      <div className="space-y-3 rounded-lg border border-destructive-border bg-destructive-surface p-4">
+        <p role="alert" className="break-words text-sm text-destructive">{artifacts.error}</p>
         <Button type="button" variant="outline" size="sm" onClick={() => {
           setArtifacts(null)
           setAttempt((current) => current + 1)
@@ -73,21 +74,21 @@ export function WorkspaceArtifacts({ url }: { url: string }) {
   }
 
   return (
-    <div className="space-y-7">
+    <div className="space-y-6">
       <section aria-labelledby="workspace-chart-heading" className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 id="workspace-chart-heading" className="font-semibold">Chart</h3>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/70 pb-3">
+          <h3 id="workspace-chart-heading" className="text-sm font-semibold tracking-tight">Chart</h3>
           <Button variant="outline" size="sm" asChild>
             <a href={artifacts.chartUrl} download="chart.svg" className="gap-2"><Download className="h-4 w-4" aria-hidden="true" />Download chart</a>
           </Button>
         </div>
-        <div className="overflow-hidden rounded-md border bg-white">
+        <div className="rounded-lg border border-border/80 bg-white p-3 shadow-xs">
           <img src={artifacts.chartUrl} alt="Chart generated from the CSV" className="h-auto w-full" />
         </div>
       </section>
       <section aria-labelledby="workspace-report-heading" className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 id="workspace-report-heading" className="font-semibold">Report</h3>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/70 pb-3">
+          <h3 id="workspace-report-heading" className="text-sm font-semibold tracking-tight">Report</h3>
           <Button variant="outline" size="sm" asChild>
             <a href={artifacts.reportUrl} download="report.md" className="gap-2"><Download className="h-4 w-4" aria-hidden="true" />Download Markdown</a>
           </Button>

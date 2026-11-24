@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from 'react'
 import { useChat } from '@ai-sdk/react'
 import { FileSpreadsheet, Loader2, Play } from 'lucide-react'
-import { badgeVariants } from '@/components/ui/badge'
+import { Badge, type BadgeProps } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -26,7 +26,14 @@ const stepLabels: Record<WorkspaceRun['step'], string> = {
   failed: 'Failed',
 }
 
-const selectClass = 'h-10 w-full rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50'
+const selectClass = 'h-9 w-full rounded-md border border-input bg-card px-3 text-sm shadow-xs focus-visible:outline-none focus-visible:border-primary/60 focus-visible:ring-2 focus-visible:ring-ring/25 disabled:opacity-50'
+
+const statusVariants: Record<WorkspaceRun['status'], BadgeProps['variant']> = {
+  queued: 'subtle',
+  running: 'info',
+  completed: 'success',
+  failed: 'destructive',
+}
 
 function isPending(run: WorkspaceRun) {
   return run.status === 'queued' || run.status === 'running'
@@ -34,9 +41,9 @@ function isPending(run: WorkspaceRun) {
 
 function RunStatus({ run }: { run: WorkspaceRun }) {
   return (
-    <span className={badgeVariants({ variant: run.status === 'failed' ? 'destructive' : 'secondary', className: 'w-fit max-w-full' })}>
+    <Badge variant={statusVariants[run.status]} className="w-fit max-w-full">
       {stepLabels[run.step]}
-    </span>
+    </Badge>
   )
 }
 
@@ -168,8 +175,8 @@ export function WorkspacePanel({ initialWorkspace, files, setFiles }: {
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
         <div className="min-w-0 space-y-5">
           <Card>
-            <CardHeader className="p-5">
-              <h2 className="text-lg font-semibold tracking-tight">New analysis</h2>
+            <CardHeader className="mb-4 rounded-t-lg border-b border-border/70 bg-surface-subtle/40 px-5 py-3.5">
+              <h2 className="text-sm font-semibold tracking-tight">New analysis</h2>
             </CardHeader>
             <CardContent className="px-5 pb-5">
               <form onSubmit={runAnalysis} className="space-y-4">
@@ -178,7 +185,8 @@ export function WorkspacePanel({ initialWorkspace, files, setFiles }: {
                     <Label htmlFor="workspace-upload">Upload CSV</Label>
                     {upload && <Button type="button" variant="ghost" size="sm" onClick={clearUpload} disabled={submitting}>Clear file</Button>}
                   </div>
-                  <Input ref={fileInput} id="workspace-upload" type="file" accept=".csv,text/csv" aria-describedby="workspace-upload-limit" disabled={submitting} onChange={(event) => setUpload(event.target.files?.[0] ?? null)} />
+                  <Input ref={fileInput} id="workspace-upload" type="file" accept=".csv,text/csv" aria-describedby="workspace-upload-limit" disabled={submitting} onChange={(event) => setUpload(event.target.files?.[0] ?? null)}
+                    className="h-auto min-h-9 py-1.5 file:mr-3 file:rounded file:border-0 file:bg-surface-subtle file:px-2.5 file:py-1 file:text-xs file:font-medium file:text-foreground" />
                   <p id="workspace-upload-limit" className="text-xs text-muted-foreground">Up to 5 MiB</p>
                 </div>
 
@@ -209,7 +217,7 @@ export function WorkspacePanel({ initialWorkspace, files, setFiles }: {
                   <Textarea id="workspace-prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} disabled={submitting} placeholder="For example, compare revenue by region." />
                 </div>
 
-                {submissionError && <p role="alert" className="break-words text-sm text-destructive">{submissionError}</p>}
+                {submissionError && <p role="alert" className="break-words rounded-lg border border-destructive-border bg-destructive-surface p-3 text-sm text-destructive">{submissionError}</p>}
                 <Button type="submit" disabled={submitting || loadingModels || (!upload && !fileId)} className="w-full gap-2">
                   {submitting ? <Loader2 className="h-4 w-4 motion-safe:animate-spin" aria-hidden="true" /> : <Play className="h-4 w-4" aria-hidden="true" />}
                   {phase === 'uploading' ? 'Uploading CSV…' : phase === 'running' ? 'Running analysis…' : 'Run analysis'}
@@ -219,50 +227,50 @@ export function WorkspacePanel({ initialWorkspace, files, setFiles }: {
           </Card>
 
           <Card>
-            <CardHeader className="flex-row items-center justify-between space-y-0 p-5">
-              <h2 className="text-lg font-semibold tracking-tight">Run history</h2>
+            <CardHeader className="mb-4 flex-row items-center justify-between gap-2 space-y-0 rounded-t-lg border-b border-border/70 bg-surface-subtle/40 px-5 py-3">
+              <h2 className="text-sm font-semibold tracking-tight">Run history</h2>
               <Button type="button" variant="ghost" size="sm" disabled={refreshing} onClick={() => void refreshHistory()}>{refreshing ? 'Refreshing…' : 'Refresh'}</Button>
             </CardHeader>
             <CardContent className="space-y-3 px-5 pb-5">
-              {refreshError && <p role="status" className="break-words text-sm text-destructive">{refreshError}</p>}
+              {refreshError && <p role="status" className="break-words rounded-lg border border-destructive-border bg-destructive-surface p-3 text-sm text-destructive">{refreshError}</p>}
               {runs.length > 0 ? (
                 <ul className="-mx-1 max-h-80 space-y-2 overflow-y-auto p-1">
                   {runs.map((run) => (
                     <li key={run.id}>
                       <button type="button" aria-pressed={selectedRun?.id === run.id} onClick={() => setSelectedRunId(run.id)} className={cn(
-                        'grid w-full gap-1 rounded-md border p-3 text-left text-sm hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                        selectedRun?.id === run.id && 'border-foreground/30 bg-muted',
+                        'grid w-full gap-2 rounded-lg border border-border/80 bg-card p-3 text-left text-sm transition-colors hover:bg-surface-subtle/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2',
+                        selectedRun?.id === run.id && 'border-primary/40 bg-primary/5 ring-1 ring-primary/15 hover:bg-primary/5',
                       )}>
                         <span className="min-w-0 break-words font-medium">{fileName(run.file_id)}</span>
-                        <time dateTime={run.created_at} className="text-xs text-muted-foreground">{dateFormat.format(new Date(run.created_at))}</time>
+                        <time dateTime={run.created_at} className="text-xs tabular-nums text-muted-foreground">{dateFormat.format(new Date(run.created_at))}</time>
                         <RunStatus run={run} />
                       </button>
                     </li>
                   ))}
                 </ul>
-              ) : <p className="text-sm text-muted-foreground">No runs yet.</p>}
+              ) : <p className="rounded-lg border border-dashed border-border/80 bg-surface-subtle/60 p-4 text-center text-sm text-muted-foreground">No runs yet.</p>}
             </CardContent>
           </Card>
         </div>
 
         <Card className="min-w-0">
-          <CardHeader className="p-5 sm:p-6">
-            <h2 className="text-lg font-semibold tracking-tight">Run results</h2>
+          <CardHeader className="mb-5 rounded-t-lg border-b border-border/70 bg-surface-subtle/40 px-5 py-4 sm:px-6">
+            <h2 className="text-base font-semibold tracking-tight">Run results</h2>
             {selectedRun && <CardDescription className="break-words">{fileName(selectedRun.file_id)} · {selectedRun.model}</CardDescription>}
           </CardHeader>
           <CardContent className="px-5 pb-5 sm:px-6 sm:pb-6">
             {selectedRun ? (
               <div className="space-y-5">
-                <div role="status" className="flex flex-wrap items-center gap-2">
+                <div role="status" className="flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-surface-subtle/60 p-3">
                   {isPending(selectedRun) && <Loader2 className="h-4 w-4 motion-safe:animate-spin" aria-hidden="true" />}
                   <RunStatus run={selectedRun} />
                 </div>
                 {selectedRun.prompt && <p className="break-words text-sm text-muted-foreground">{selectedRun.prompt}</p>}
-                {selectedRun.status === 'failed' && <p role="alert" className="break-words rounded-md border border-destructive/40 p-3 text-sm text-destructive">{selectedRun.error || 'Analysis failed.'}</p>}
+                {selectedRun.status === 'failed' && <p role="alert" className="break-words rounded-lg border border-destructive-border bg-destructive-surface p-3 text-sm text-destructive">{selectedRun.error || 'Analysis failed.'}</p>}
                 {selectedRun.status === 'completed' && <WorkspaceArtifacts key={selectedRun.id} url={`${workspaceUrl}/runs/${encodeURIComponent(selectedRun.id)}/artifacts`} />}
               </div>
             ) : (
-              <div className="flex min-h-56 flex-col items-center justify-center gap-3 rounded-md border border-dashed bg-muted/30 p-6 text-center">
+              <div className="flex min-h-56 flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border/80 bg-surface-subtle/60 p-6 text-center">
                 <FileSpreadsheet className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
                 <p role={submitting ? 'status' : undefined} className="text-sm text-muted-foreground">
                   {submitting ? 'Preparing analysis…' : 'Run an analysis to see its report and chart here.'}
