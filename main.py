@@ -115,7 +115,11 @@ from triggers import (
 )
 from workbench.api import router as workspace_router
 from workbench.api import start_workspace_runs, stop_workspace_runs
-from workbench.project_tasks import project_chat_context, project_task_source
+from workbench.project_tasks import (
+    enqueue_due_project_tasks,
+    project_chat_context,
+    project_task_source,
+)
 from workbench.project_tasks import router as project_tasks_router
 
 # Initialize logging
@@ -141,7 +145,7 @@ async def lifespan(app: FastAPI):
             if settings.database_url:
                 journal = RunJournal(settings.database_url)
                 await journal.setup()
-                durable_streams = DurableStreams(journal, _durable_source)
+                durable_streams = DurableStreams(journal, _durable_source, enqueue_due=enqueue_due_project_tasks)
                 app.state.project_streams = durable_streams
             yield
         finally:

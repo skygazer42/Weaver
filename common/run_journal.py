@@ -1,6 +1,7 @@
 """Persist owner-scoped research runs and their SSE replay events."""
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
@@ -13,6 +14,10 @@ _RUNNABLE = """status IN ('queued', 'running')
     AND (status = 'queued' OR lease_until <= clock_timestamp())"""
 _ACTIVE_ATTEMPT = """owner = %(owner)s AND run_id = %(run_id)s AND attempt = %(attempt)s
     AND status = 'running' AND lease_until > clock_timestamp()"""
+# Advance from the original cadence and fold missed occurrences into one run.
+_NEXT_PROJECT_RUN = """next_run_at + repeat_days * interval '24 hours' * (
+    floor(extract(epoch FROM statement_timestamp() - next_run_at) / (repeat_days * 86400)) + 1
+)"""
 _FINISH_STATUSES = {
     "awaiting_approval",
     "completed",
@@ -20,6 +25,10 @@ _FINISH_STATUSES = {
     "cancelled",
     "insufficient_evidence",
 }
+
+
+def project_run_id(workspace_id: str, task_id: str) -> str:
+    return f"workspace:{workspace_id}:{task_id}"
 
 
 @dataclass(frozen=True)
@@ -82,6 +91,19 @@ class RunJournal:
                         FOREIGN KEY (owner, run_id) REFERENCES weaver_runs (owner, run_id)
                             ON DELETE CASCADE
                     );
+                    CREATE TABLE IF NOT EXISTS weaver_project_schedules (
+                        owner TEXT NOT NULL,
+                        workspace_id TEXT NOT NULL,
+                        id TEXT NOT NULL,
+                        task JSONB NOT NULL,
+                        repeat_days SMALLINT NOT NULL CHECK (repeat_days IN (1, 7)),
+                        next_run_at TIMESTAMPTZ NOT NULL,
+                        enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                        last_task_id TEXT,
+                        PRIMARY KEY (owner, workspace_id, id)
+                    );
+                    CREATE INDEX IF NOT EXISTS weaver_project_schedules_due
+                        ON weaver_project_schedules (next_run_at) WHERE enabled;
                 """)
         except BaseException:
             await connection.close()
@@ -189,6 +211,100 @@ class RunJournal:
             (owner, workspace_id, thread_id, thread_id, limit),
         )
         return [row["artifact"] for row in await cursor.fetchall()]
+
+    async def create_project_schedule(
+        self,
+        owner: str,
+        workspace_id: str,
+        schedule_id: str,
+        task: dict,
+        repeat_days: int,
+        first_run_at: datetime,
+    ) -> dict:
+        cursor = await self._db.execute(
+            """INSERT INTO weaver_project_schedules (owner, workspace_id, id, task, repeat_days, next_run_at)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (owner, workspace_id, id) DO UPDATE SET id = EXCLUDED.id
+                RETURNING *""",
+            (owner, workspace_id, schedule_id, Jsonb(task), repeat_days, first_run_at),
+        )
+        row = await cursor.fetchone()
+        assert row is not None
+        return row
+
+    async def project_schedule(
+        self, owner: str, workspace_id: str, schedule_id: str
+    ) -> dict | None:
+        cursor = await self._db.execute(
+            "SELECT * FROM weaver_project_schedules WHERE owner=%s AND workspace_id=%s AND id=%s",
+            (owner, workspace_id, schedule_id),
+        )
+        return await cursor.fetchone()
+
+    async def project_schedules(self, owner: str, workspace_id: str) -> list[dict]:
+        cursor = await self._db.execute(
+            """SELECT * FROM weaver_project_schedules WHERE owner=%s AND workspace_id=%s
+                ORDER BY enabled DESC, next_run_at, id""",
+            (owner, workspace_id),
+        )
+        return await cursor.fetchall()
+
+    async def set_project_schedule_enabled(
+        self, owner: str, workspace_id: str, schedule_id: str, enabled: bool
+    ) -> dict | None:
+        cursor = await self._db.execute(
+            f"""UPDATE weaver_project_schedules SET enabled=%s,
+                    next_run_at=CASE WHEN %s AND NOT enabled AND next_run_at <= statement_timestamp()
+                        THEN {_NEXT_PROJECT_RUN} ELSE next_run_at END
+                WHERE owner=%s AND workspace_id=%s AND id=%s RETURNING *""",
+            (enabled, enabled, owner, workspace_id, schedule_id),
+        )
+        return await cursor.fetchone()
+
+    async def delete_project_schedule(
+        self, owner: str, workspace_id: str, schedule_id: str
+    ) -> bool:
+        cursor = await self._db.execute(
+            "DELETE FROM weaver_project_schedules WHERE owner=%s AND workspace_id=%s AND id=%s",
+            (owner, workspace_id, schedule_id),
+        )
+        return cursor.rowcount > 0
+
+    async def due_project_schedules(self) -> list[dict]:
+        cursor = await self._db.execute(
+            """SELECT * FROM weaver_project_schedules
+                WHERE enabled AND next_run_at <= statement_timestamp()
+                ORDER BY next_run_at, id LIMIT 10"""
+        )
+        return await cursor.fetchall()
+
+    async def enqueue_project_schedule(
+        self, schedule: dict, task_id: str, thread_id: str, payload: dict
+    ) -> RunRecord | None:
+        cursor = await self._db.execute(
+            f"""WITH claimed AS (
+                    UPDATE weaver_project_schedules
+                    SET next_run_at={_NEXT_PROJECT_RUN}, last_task_id=%(task_id)s
+                    WHERE owner=%(owner)s AND workspace_id=%(workspace)s AND id=%(id)s
+                        AND enabled AND next_run_at=%(due_at)s AND next_run_at <= statement_timestamp()
+                    RETURNING owner
+                )
+                INSERT INTO weaver_runs (owner, run_id, thread_id, payload)
+                SELECT owner, %(run_id)s, %(thread_id)s, %(payload)s FROM claimed
+                RETURNING {_RUN_FIELDS}""",
+            {
+                "owner": schedule["owner"],
+                "workspace": schedule["workspace_id"],
+                "id": schedule["id"],
+                "due_at": schedule["next_run_at"],
+                "task_id": task_id,
+                "run_id": project_run_id(schedule["workspace_id"], task_id),
+                "thread_id": thread_id,
+                "payload": Jsonb(payload),
+            },
+        )
+        row = await cursor.fetchone()
+        return RunRecord(**row) if row is not None else None
 
     async def runnable(self, limit: int) -> list[RunRecord]:
         cursor = await self._db.execute(

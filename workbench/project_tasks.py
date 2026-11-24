@@ -8,15 +8,19 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
-from pydantic import UUID4, BaseModel, Field, StringConstraints
+from pydantic import UUID4, AwareDatetime, BaseModel, Field, StringConstraints
 from starlette.concurrency import run_in_threadpool
 
 from common.config import settings
 from common.durable_streams import DurableStreams
 from common.research_streams import run_status_line
-from common.run_journal import RunRecord
+from common.run_journal import RunJournal, RunRecord, project_run_id
 from workbench.api import _request_owner, load_project_context
-from workbench.project_workflows import ProjectWorkflowError, run_project_workflow
+from workbench.project_workflows import (
+    ProjectWorkflowError,
+    github_release_target,
+    run_project_workflow,
+)
 
 router = APIRouter(prefix="/api/workspaces/{workspace_id}", tags=["workspaces"])
 Workflow = Literal["requirements-spec", "release-brief"]
@@ -32,15 +36,40 @@ TaskStatus = Literal[
 ]
 
 
-class ProjectTaskRequest(BaseModel):
+class ProjectTaskInput(BaseModel):
     workflow: Workflow
-    request_id: TaskId
     prompt: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)]
     model: str | None = Field(default=None, max_length=200)
     file_ids: list[UUID4] | None = Field(default=None, max_length=6)
     repository: str | None = Field(default=None, max_length=140)
     release_tag: str | None = Field(default=None, max_length=200)
+
+
+class ProjectTaskRequest(ProjectTaskInput):
+    request_id: TaskId
     artifact_id: UUID4 | None = None
+
+
+class ProjectScheduleRequest(ProjectTaskInput):
+    request_id: TaskId
+    repeat_days: Literal[1, 7]
+    first_run_at: AwareDatetime
+
+
+class ProjectScheduleUpdate(BaseModel):
+    enabled: bool
+
+
+class ProjectSchedule(BaseModel):
+    id: str
+    workflow: Workflow
+    prompt: str
+    repository: str | None
+    release_tag: str | None
+    repeat_days: Literal[1, 7]
+    next_run_at: datetime
+    enabled: bool
+    last_task_id: str | None
 
 
 class ProjectTask(BaseModel):
@@ -54,6 +83,7 @@ class ProjectTask(BaseModel):
     file_ids: list[str]
     created_at: datetime
     error: str | None = None
+    schedule_id: str | None = None
 
 
 class ProjectSource(BaseModel):
@@ -77,10 +107,6 @@ class ProjectDeliverable(BaseModel):
     created_at: datetime
 
 
-def _run_id(workspace_id: str, task_id: str) -> str:
-    return f"workspace:{workspace_id}:{task_id}"
-
-
 def _artifact_id(thread_id: str) -> str:
     return thread_id.removeprefix("thread_")
 
@@ -101,6 +127,22 @@ def _task_view(task: dict, thread_id: str, status: str, *, error: str | None = N
         file_ids=task["file_ids"],
         created_at=task["created_at"],
         error=error,
+        schedule_id=task.get("schedule_id"),
+    )
+
+
+def _schedule_view(row: dict) -> ProjectSchedule:
+    task = row["task"]
+    return ProjectSchedule(
+        id=row["id"],
+        workflow=task["workflow"],
+        prompt=task["prompt"],
+        repository=task["repository"],
+        release_tag=task["release_tag"],
+        repeat_days=row["repeat_days"],
+        next_run_at=row["next_run_at"],
+        enabled=row["enabled"],
+        last_task_id=row["last_task_id"],
     )
 
 
@@ -112,11 +154,18 @@ async def _streams(workspace_id: UUID4, request: Request) -> DurableStreams:
     return streams
 
 
+async def _project_context(
+    workspace_id: str, owner: str, file_ids: list[str] | None = None
+) -> dict:
+    context = await run_in_threadpool(load_project_context, workspace_id, owner, file_ids)
+    for file in context["files"]:
+        file["url"] = f"/api/workspaces/{workspace_id}/files/{file['id']}"
+    return context
+
+
 async def project_chat_context(workspace_id: UUID4, request: Request) -> dict:
     owner = _request_owner(request)
-    context = await run_in_threadpool(load_project_context, workspace_id.hex, owner)
-    for file in context["files"]:
-        file["url"] = f"/api/workspaces/{workspace_id.hex}/files/{file['id']}"
+    context = await _project_context(workspace_id.hex, owner)
     streams = getattr(request.app.state, "project_streams", None)
     deliverables = (
         await streams.journal.project_deliverables(owner, workspace_id.hex, limit=2)
@@ -149,6 +198,8 @@ async def project_task_source(record: RunRecord) -> AsyncIterator[str]:
     saved = record.payload
     task = saved["project_task"]
     try:
+        if saved.get("context_error"):
+            raise ProjectWorkflowError(saved["context_error"])
         async for kind, data in run_project_workflow(
             task["workflow"],
             prompt=task["prompt"],
@@ -175,11 +226,121 @@ async def project_task_source(record: RunRecord) -> AsyncIterator[str]:
         yield _legacy_event("error", {"message": str(error)})
 
 
+async def enqueue_due_project_tasks(journal: RunJournal) -> None:
+    for schedule in await journal.due_project_schedules():
+        workspace_id = schedule["workspace_id"]
+        task_id = uuid4().hex
+        inputs = schedule["task"]
+        context = None
+        context_error = None
+        try:
+            if not settings.openai_api_key.strip():
+                raise HTTPException(
+                    503, "Configure a model provider before running project workflows."
+                )
+            context = await _project_context(workspace_id, schedule["owner"], inputs["file_ids"])
+        except HTTPException as error:
+            context_error = error.detail
+        await journal.enqueue_project_schedule(
+            schedule,
+            task_id,
+            f"thread_{uuid4().hex}",
+            {
+                "workspace_id": workspace_id,
+                "project_task": {
+                    **inputs,
+                    "request_id": task_id,
+                    "schedule_id": schedule["id"],
+                    "file_ids": [file["id"] for file in context["files"]] if context else [],
+                    "artifact_id": None,
+                    "created_at": datetime.now(UTC).isoformat(),
+                },
+                "context": context,
+                "context_error": context_error,
+                "prior": None,
+            },
+        )
+
+
+@router.post("/schedules", response_model=ProjectSchedule, status_code=201)
+async def create_project_schedule(
+    workspace_id: UUID4, payload: ProjectScheduleRequest, request: Request
+):
+    journal = (await _streams(workspace_id, request)).journal
+    owner = _request_owner(request)
+    existing = await journal.project_schedule(owner, workspace_id.hex, payload.request_id)
+    if existing is not None:
+        return _schedule_view(existing)
+    if payload.first_run_at <= datetime.now(UTC):
+        raise HTTPException(422, "Choose a first run time in the future.")
+    if not settings.openai_api_key.strip():
+        raise HTTPException(503, "Configure a model provider before scheduling project workflows.")
+    repository = release_tag = ""
+    if payload.workflow == "release-brief":
+        try:
+            repository, release_tag = github_release_target(payload.repository, payload.release_tag)
+        except ProjectWorkflowError as error:
+            raise HTTPException(422, str(error)) from error
+    file_ids = (
+        [file_id.hex for file_id in payload.file_ids] if payload.file_ids is not None else None
+    )
+    if file_ids:
+        await _project_context(workspace_id.hex, owner, file_ids)
+    row = await journal.create_project_schedule(
+        owner,
+        workspace_id.hex,
+        payload.request_id,
+        {
+            "workflow": payload.workflow,
+            "prompt": payload.prompt,
+            "model": (payload.model or "").strip() or settings.primary_model,
+            "repository": repository or None,
+            "release_tag": release_tag or None,
+            "file_ids": file_ids,
+        },
+        payload.repeat_days,
+        payload.first_run_at,
+    )
+    return _schedule_view(row)
+
+
+@router.get("/schedules", response_model=list[ProjectSchedule])
+async def list_project_schedules(workspace_id: UUID4, request: Request):
+    journal = (await _streams(workspace_id, request)).journal
+    return [
+        _schedule_view(row)
+        for row in await journal.project_schedules(_request_owner(request), workspace_id.hex)
+    ]
+
+
+@router.patch("/schedules/{schedule_id}", response_model=ProjectSchedule)
+async def update_project_schedule(
+    workspace_id: UUID4, schedule_id: TaskId, payload: ProjectScheduleUpdate, request: Request
+):
+    journal = (await _streams(workspace_id, request)).journal
+    row = await journal.set_project_schedule_enabled(
+        _request_owner(request), workspace_id.hex, schedule_id, payload.enabled
+    )
+    if row is None:
+        raise HTTPException(404, "Schedule not found")
+    return _schedule_view(row)
+
+
+@router.delete("/schedules/{schedule_id}", status_code=204, response_class=Response)
+async def delete_project_schedule(workspace_id: UUID4, schedule_id: TaskId, request: Request):
+    journal = (await _streams(workspace_id, request)).journal
+    if not await journal.delete_project_schedule(
+        _request_owner(request), workspace_id.hex, schedule_id
+    ):
+        raise HTTPException(404, "Schedule not found")
+    return Response(status_code=204)
+
+
 @router.post("/tasks", response_model=ProjectTask, status_code=202)
 async def submit_project_task(workspace_id: UUID4, payload: ProjectTaskRequest, request: Request):
     streams = await _streams(workspace_id, request)
     owner = _request_owner(request)
-    run_id = _run_id(workspace_id.hex, payload.request_id)
+    run_id = project_run_id(workspace_id.hex, payload.request_id)
     existing = await streams.journal.get(owner, run_id)
     if existing is not None:
         streams.schedule(existing)
@@ -195,7 +356,9 @@ async def submit_project_task(workspace_id: UUID4, payload: ProjectTaskRequest, 
         prior = await _deliverable(streams, owner, workspace_id.hex, payload.artifact_id.hex)
         if prior["workflow"] != payload.workflow:
             raise HTTPException(422, "A revision must use the original workflow.")
-        original = await streams.journal.get(owner, _run_id(workspace_id.hex, prior["task_id"]))
+        original = await streams.journal.get(
+            owner, project_run_id(workspace_id.hex, prior["task_id"])
+        )
         inherited_ids = original.payload["project_task"]["file_ids"]
         if not repository:
             release = next(
@@ -211,9 +374,7 @@ async def submit_project_task(workspace_id: UUID4, payload: ProjectTaskRequest, 
         if payload.file_ids is not None
         else inherited_ids
     )
-    context = await run_in_threadpool(load_project_context, workspace_id.hex, owner, file_ids)
-    for file in context["files"]:
-        file["url"] = f"/api/workspaces/{workspace_id.hex}/files/{file['id']}"
+    context = await _project_context(workspace_id.hex, owner, file_ids)
     task = {
         "request_id": payload.request_id,
         "workflow": payload.workflow,
@@ -261,7 +422,9 @@ async def stream_project_task(
     last_event_id: Annotated[int, Header(alias="Last-Event-ID", ge=0)] = 0,
 ):
     streams = await _streams(workspace_id, request)
-    run = await streams.journal.get(_request_owner(request), _run_id(workspace_id.hex, task_id))
+    run = await streams.journal.get(
+        _request_owner(request), project_run_id(workspace_id.hex, task_id)
+    )
     if run is None:
         raise HTTPException(404, "Task not found")
     if last_event_id > run.event_seq:
@@ -277,7 +440,7 @@ async def stream_project_task(
 async def stop_project_task(workspace_id: UUID4, task_id: TaskId, request: Request):
     streams = await _streams(workspace_id, request)
     owner = _request_owner(request)
-    run_id = _run_id(workspace_id.hex, task_id)
+    run_id = project_run_id(workspace_id.hex, task_id)
     if await streams.journal.get(owner, run_id) is None:
         raise HTTPException(404, "Task not found")
     await streams.journal.request_cancel(owner, run_id, final_line=run_status_line("cancelled"))

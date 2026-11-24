@@ -4,7 +4,7 @@ import asyncio
 import json
 import logging
 import time
-from collections.abc import AsyncGenerator, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import aclosing
 
 from anyio import CancelScope
@@ -20,10 +20,15 @@ _ACTIVE = {"queued", "running"}
 
 class DurableStreams:
     def __init__(
-        self, journal: RunJournal, source: Callable[[RunRecord], AsyncGenerator[str, None]]
+        self,
+        journal: RunJournal,
+        source: Callable[[RunRecord], AsyncGenerator[str, None]],
+        *,
+        enqueue_due: Callable[[RunJournal], Awaitable[None]] | None = None,
     ) -> None:
         self.journal = journal
         self.source = source
+        self._enqueue_due = enqueue_due
         self._tasks: dict[tuple[str, str], asyncio.Task] = {}
         self._closing = False
         self._poller = asyncio.create_task(self._poll())
@@ -37,6 +42,11 @@ class DurableStreams:
 
     async def _poll(self) -> None:
         while True:
+            if self._enqueue_due is not None:
+                try:
+                    await self._enqueue_due(self.journal)
+                except Exception:
+                    logger.exception("Could not enqueue scheduled project tasks")
             try:
                 for record in await self.journal.runnable(MAX_STREAMS):
                     self.schedule(record)

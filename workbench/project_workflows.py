@@ -97,7 +97,7 @@ async def _github_json(
     return document
 
 
-async def _github_release_sources(repository: str | None, release_tag: str | None) -> list[dict]:
+def github_release_target(repository: str | None, release_tag: str | None) -> tuple[str, str]:
     repository = (repository or "").strip()
     if not _REPOSITORY.fullmatch(repository) or repository.split("/")[1] in {".", ".."}:
         raise ProjectWorkflowError("Enter a public GitHub repository as owner/repo.")
@@ -106,6 +106,11 @@ async def _github_release_sources(repository: str | None, release_tag: str | Non
         raise ProjectWorkflowError(
             "Enter a valid GitHub release tag, or leave it blank for the latest release."
         )
+    return repository, release_tag
+
+
+async def _github_release_sources(repository: str | None, release_tag: str | None) -> list[dict]:
+    repository, release_tag = github_release_target(repository, release_tag)
 
     route = f"tags/{quote(release_tag, safe='')}" if release_tag else "latest"
     repo_path = f"/repos/{repository}"

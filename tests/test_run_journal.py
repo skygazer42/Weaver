@@ -2,6 +2,7 @@ import asyncio
 import os
 import sys
 from contextlib import aclosing
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
@@ -50,7 +51,37 @@ async def journal(journal_dsn):
 
 
 @pytest.mark.asyncio
-async def test_disconnected_subscriber_keeps_shared_postgres_connection_usable(journal, journal_dsn):
+async def test_project_schedule_claim_is_atomic_and_skips_missed_intervals(journal, journal_dsn):
+    first = datetime.now(UTC) - timedelta(days=16)
+    await journal.create_project_schedule(
+        "alice", "workspace", "schedule", {"workflow": "release-brief"}, 7, first
+    )
+    assert await journal.project_schedules("bob", "workspace") == []
+    assert await journal.project_schedules("alice", "another") == []
+    assert await journal.set_project_schedule_enabled("bob", "workspace", "schedule", False) is None
+    [due] = await journal.due_project_schedules()
+    second = RunJournal(journal_dsn)
+    await second.setup()
+    try:
+        results = await asyncio.gather(
+            journal.enqueue_project_schedule(due, "task-a", "thread-a", {"project_task": {}}),
+            second.enqueue_project_schedule(due, "task-b", "thread-b", {"project_task": {}}),
+        )
+        [winner] = [run for run in results if run is not None]
+        [plan] = await second.project_schedules("alice", "workspace")
+        assert plan["last_task_id"] == winner.run_id.rsplit(":", 1)[1]
+        assert plan["next_run_at"] == first + timedelta(days=21)
+        assert await second.due_project_schedules() == []
+        assert await second.delete_project_schedule("alice", "workspace", "schedule")
+        assert await journal.get("alice", winner.run_id) == winner
+    finally:
+        await second.close()
+
+
+@pytest.mark.asyncio
+async def test_disconnected_subscriber_keeps_shared_postgres_connection_usable(
+    journal, journal_dsn
+):
     run = await journal.submit("alice", "request", "thread-a", {})
     attempt = await journal.claim(run.owner, run.run_id)
     assert attempt is not None

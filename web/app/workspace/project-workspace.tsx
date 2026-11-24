@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from 'react'
-import { Download, FileText, Loader2, Play } from 'lucide-react'
+import { CalendarClock, Download, FileText, Loader2, Play } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { getArtifactDownloadUrl } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import {
-  getWorkspaceUrl, workspaceRequest, type ProjectTask, type ProjectWorkflow,
+  getWorkspaceUrl, workspaceRequest, type ProjectSchedule, type ProjectTask, type ProjectWorkflow,
   type Workspace, type WorkspaceDeliverable, type WorkspaceFile,
 } from '@/lib/workspace'
 import { ProjectFiles, ProjectMetadata } from './project-context'
@@ -34,7 +34,9 @@ const statusLabels: Record<ProjectTask['status'], string> = {
   awaiting_approval: 'Awaiting approval',
 }
 
-type ProjectHistory = { tasks: ProjectTask[]; deliverables: WorkspaceDeliverable[] }
+const repeatLabels = { 1: 'Every 24 hours', 7: 'Every 7 days' } as const
+
+type ProjectHistory = { tasks: ProjectTask[]; deliverables: WorkspaceDeliverable[]; schedules: ProjectSchedule[] }
 
 function isPending(task: ProjectTask) {
   return task.status === 'queued' || task.status === 'running'
@@ -60,6 +62,10 @@ export function ProjectWorkspace({ initialWorkspace, files, setFiles }: {
   const [prompt, setPrompt] = useState('')
   const [repository, setRepository] = useState('')
   const [releaseTag, setReleaseTag] = useState('')
+  const [repeatDays, setRepeatDays] = useState(0)
+  const [firstRun, setFirstRun] = useState('')
+  const [updatingSchedule, setUpdatingSchedule] = useState(false)
+  const [scheduleError, setScheduleError] = useState('')
   const [fileIds, setFileIds] = useState<string[]>([])
   const [revision, setRevision] = useState<WorkspaceDeliverable | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -70,6 +76,8 @@ export function ProjectWorkspace({ initialWorkspace, files, setFiles }: {
   const selected = history?.tasks.find((task) => task.id === taskId) ?? history?.tasks[0]
   const activeTaskId = selected && isPending(selected) ? selected.id : null
   const pending = history?.tasks.some(isPending) ?? false
+  const scheduled = history?.schedules.some((schedule) => schedule.enabled) ?? false
+  const scheduling = !revision && repeatDays !== 0
   const deliverable = history?.deliverables.find((artifact) => artifact.task_id === selected?.id)
   const original = history?.deliverables.find((artifact) => artifact.id === deliverable?.based_on)
 
@@ -81,8 +89,9 @@ export function ProjectWorkspace({ initialWorkspace, files, setFiles }: {
     return workspaceRequest(`${url}/tasks`, options).then(async (response) => {
       const tasks: ProjectTask[] = await response.json()
       const deliverables: WorkspaceDeliverable[] = await workspaceRequest(`${url}/deliverables`, options).then((res) => res.json())
+      const schedules: ProjectSchedule[] = await workspaceRequest(`${url}/schedules`, options).then((res) => res.json())
       if (controller.signal.aborted) return
-      setHistory({ tasks, deliverables })
+      setHistory({ tasks, deliverables, schedules })
       setHistoryError('')
     }).catch((cause: unknown) => {
       if (!controller.signal.aborted) setHistoryError(cause instanceof Error ? cause.message : 'Could not load task history.')
@@ -97,12 +106,12 @@ export function ProjectWorkspace({ initialWorkspace, files, setFiles }: {
   }, [refresh])
 
   useEffect(() => {
-    if (!pending) return
+    if (!pending && !scheduled) return
     const timer = window.setInterval(() => {
       if (!historyRequest.current) void refresh()
-    }, 2000)
+    }, pending ? 2000 : 10000)
     return () => window.clearInterval(timer)
-  }, [pending, refresh])
+  }, [pending, refresh, scheduled])
 
   useEffect(() => {
     if (!activeTaskId) return
@@ -123,6 +132,11 @@ export function ProjectWorkspace({ initialWorkspace, files, setFiles }: {
   async function runTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (submitting || !prompt.trim()) return
+    const startsAt = scheduling ? new Date(firstRun) : null
+    if (startsAt && !Number.isFinite(startsAt.getTime())) {
+      setSubmissionError('Choose when the first task should run.')
+      return
+    }
     const payload = {
       workflow,
       prompt: prompt.trim(),
@@ -130,6 +144,7 @@ export function ProjectWorkspace({ initialWorkspace, files, setFiles }: {
       repository: workflow === 'release-brief' ? repository.trim() || undefined : undefined,
       release_tag: workflow === 'release-brief' ? releaseTag.trim() || undefined : undefined,
       artifact_id: revision?.id,
+      ...(startsAt && { repeat_days: repeatDays, first_run_at: startsAt.toISOString() }),
     }
     const body = JSON.stringify(payload)
     if (requestId.current?.body !== body) {
@@ -140,25 +155,50 @@ export function ProjectWorkspace({ initialWorkspace, files, setFiles }: {
     setSubmitting(true)
     setSubmissionError('')
     try {
-      const response = await workspaceRequest(`${url}/tasks`, {
+      const response = await workspaceRequest(`${url}/${scheduling ? 'schedules' : 'tasks'}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...payload, request_id: requestId.current.id }),
       })
-      const task: ProjectTask = await response.json()
+      if (scheduling) {
+        setRepeatDays(0)
+        setFirstRun('')
+      } else {
+        const task: ProjectTask = await response.json()
+        setHistory((current) => ({
+          tasks: [task, ...(current?.tasks.filter(({ id }) => id !== task.id) ?? [])],
+          deliverables: current?.deliverables ?? [],
+          schedules: current?.schedules ?? [],
+        }))
+        selectTask(task.id)
+      }
       requestId.current = null
-      setHistory((current) => ({
-        tasks: [task, ...(current?.tasks.filter(({ id }) => id !== task.id) ?? [])],
-        deliverables: current?.deliverables ?? [],
-      }))
-      selectTask(task.id)
       setPrompt('')
       setRevision(null)
       void refresh()
     } catch (cause) {
-      setSubmissionError(cause instanceof Error ? cause.message : 'Could not start the task.')
+      setSubmissionError(cause instanceof Error ? cause.message : 'Could not submit the task.')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  async function changeSchedule(schedule: ProjectSchedule, action: 'toggle' | 'delete') {
+    setUpdatingSchedule(true)
+    setScheduleError('')
+    try {
+      await workspaceRequest(`${url}/schedules/${encodeURIComponent(schedule.id)}`, action === 'delete'
+        ? { method: 'DELETE' }
+        : {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: !schedule.enabled }),
+        })
+      await refresh()
+    } catch (cause) {
+      setScheduleError(cause instanceof Error ? cause.message : 'Could not update the schedule.')
+    } finally {
+      setUpdatingSchedule(false)
     }
   }
 
@@ -250,15 +290,71 @@ export function ProjectWorkspace({ initialWorkspace, files, setFiles }: {
                       </ul>
                     </details>
                   )}
+                  {!revision && (
+                    <div className="space-y-2">
+                      <Label htmlFor="project-repeat">Repeat</Label>
+                      <select id="project-repeat" value={repeatDays} onChange={(event) => setRepeatDays(Number(event.target.value))}
+                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:ring-2 focus-visible:ring-ring">
+                        <option value={0}>Run once now</option>
+                        <option value={1}>{repeatLabels[1]}</option>
+                        <option value={7}>{repeatLabels[7]}</option>
+                      </select>
+                    </div>
+                  )}
+                  {scheduling && (
+                    <div className="space-y-2">
+                      <Label htmlFor="project-first-run">First run (local time)</Label>
+                      <Input id="project-first-run" type="datetime-local" value={firstRun}
+                        onChange={(event) => setFirstRun(event.target.value)} required />
+                    </div>
+                  )}
                   {submissionError && <p role="alert" className="break-words text-sm text-destructive">{submissionError}</p>}
-                  <Button type="submit" className="w-full gap-2" disabled={!prompt.trim()}>
-                    {submitting ? <Loader2 className="h-4 w-4 motion-safe:animate-spin" aria-hidden="true" /> : <Play className="h-4 w-4" aria-hidden="true" />}
-                    {submitting ? 'Starting…' : 'Run task'}
+                  <Button type="submit" className="w-full gap-2" disabled={!prompt.trim() || (scheduling && !firstRun)}>
+                    {submitting ? <Loader2 className="h-4 w-4 motion-safe:animate-spin" aria-hidden="true" /> : scheduling ? <CalendarClock className="h-4 w-4" aria-hidden="true" /> : <Play className="h-4 w-4" aria-hidden="true" />}
+                    {submitting ? 'Submitting…' : scheduling ? 'Schedule task' : 'Run task'}
                   </Button>
                 </fieldset>
               </form>
             </CardContent>
           </Card>
+
+          {history && history.schedules.length > 0 && (
+            <Card role="region" aria-labelledby="project-schedules-title" aria-busy={updatingSchedule}>
+              <CardHeader className="p-5">
+                <h2 id="project-schedules-title" className="text-lg font-semibold tracking-tight">Scheduled tasks</h2>
+              </CardHeader>
+              <CardContent className="space-y-3 px-5 pb-5">
+                {scheduleError && <p role="alert" className="break-words text-sm text-destructive">{scheduleError}</p>}
+                <ul className="max-h-96 space-y-2 overflow-y-auto">
+                  {history.schedules.map((schedule) => (
+                    <li key={schedule.id} className="space-y-2 rounded-md border p-3 text-sm">
+                      <p className="break-words font-medium">{schedule.prompt}</p>
+                      <p className="break-words text-xs text-muted-foreground">
+                        {workflowLabels[schedule.workflow]}{schedule.repository && <> · {schedule.repository}{schedule.release_tag && <> · {schedule.release_tag}</>}</>} · {repeatLabels[schedule.repeat_days]}
+                      </p>
+                      {schedule.enabled ? (
+                        <p className="text-xs">Next run <time dateTime={schedule.next_run_at}>{new Date(schedule.next_run_at).toLocaleString()}</time></p>
+                      ) : <Badge variant="secondary">Paused</Badge>}
+                      <div className="flex flex-wrap gap-1">
+                        {schedule.last_task_id && (
+                          <Button type="button" variant="outline" size="sm" onClick={() => {
+                            selectTask(schedule.last_task_id)
+                            void refresh()
+                          }}>View latest run</Button>
+                        )}
+                        <Button type="button" variant="ghost" size="sm" disabled={updatingSchedule} onClick={() => void changeSchedule(schedule, 'toggle')}>
+                          {schedule.enabled ? 'Pause' : 'Resume'}
+                        </Button>
+                        <Button type="button" variant="ghost" size="sm" disabled={updatingSchedule} onClick={() => void changeSchedule(schedule, 'delete')}>
+                          Delete schedule
+                        </Button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
 
           <ProjectFiles files={files} url={url} onUpload={(file) => setFiles((current) => [file, ...current.filter(({ id }) => id !== file.id)])} />
 
@@ -281,7 +377,7 @@ export function ProjectWorkspace({ initialWorkspace, files, setFiles }: {
                       )}>
                         <span className="break-words font-medium">{task.prompt}</span>
                         <span className="text-xs text-muted-foreground">
-                          {workflowLabels[task.workflow]}{task.created_at && <> · <time dateTime={task.created_at}>{new Date(task.created_at).toLocaleString()}</time></>}
+                          {workflowLabels[task.workflow]}{task.schedule_id && ' · Scheduled'}{task.created_at && <> · <time dateTime={task.created_at}>{new Date(task.created_at).toLocaleString()}</time></>}
                         </span>
                         <span className="w-fit"><TaskStatus status={task.status} /></span>
                       </button>

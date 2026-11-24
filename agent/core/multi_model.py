@@ -15,18 +15,10 @@ import json
 import logging
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from langchain_core.language_models import BaseChatModel
 from langchain_openai import AzureChatOpenAI, ChatOpenAI
-
-# Optional import for Anthropic
-try:
-    from langchain_anthropic import ChatAnthropic
-    ANTHROPIC_AVAILABLE = True
-except ImportError:
-    ChatAnthropic = None  # type: ignore
-    ANTHROPIC_AVAILABLE = False
 
 from common.config import settings
 
@@ -311,7 +303,9 @@ class ModelRouter:
         common_params.update(extra_params)
 
         if provider == ModelProvider.ANTHROPIC:
-            if not ANTHROPIC_AVAILABLE or ChatAnthropic is None:
+            try:
+                from langchain_anthropic import ChatAnthropic
+            except ImportError:
                 logger.warning(
                     f"[ModelRouter] Anthropic not available, falling back to OpenAI for {model_name}"
                 )

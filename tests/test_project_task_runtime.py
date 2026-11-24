@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import httpx
@@ -142,6 +143,30 @@ def test_project_task_replay_revision_and_ownership(monkeypatch, tmp_path):
             assert "Project specification" in calls[-1]
             revised, original = (await client.get(path + "/deliverables")).json()
             assert revised["based_on"] == original["id"] == artifact["id"]
+
+            schedule_id = uuid4().hex
+            schedule_data = {
+                **payload,
+                "request_id": schedule_id,
+                "repeat_days": 7,
+                "first_run_at": (datetime.now(UTC) + timedelta(days=1)).isoformat(),
+            }
+            schedule_url = f"{path}/schedules/{schedule_id}"
+            assert (
+                await client.post(path + "/schedules", json={**schedule_data, "repeat_days": 2})
+            ).status_code == 422
+            assert (
+                await client.post(other_path + "/schedules", json=schedule_data)
+            ).status_code == 404
+            plan = await client.post(path + "/schedules", json=schedule_data)
+            assert plan.status_code == 201, plan.text
+            assert (
+                await client.post(path + "/schedules", json=schedule_data)
+            ).json() == plan.json()
+            assert (
+                await client.patch(schedule_url, json={"enabled": False}, headers=outsider)
+            ).status_code == 404
+            assert not (await client.patch(schedule_url, json={"enabled": False})).json()["enabled"]
         async with (
             main.lifespan(main.app),
             httpx.AsyncClient(
@@ -150,6 +175,10 @@ def test_project_task_replay_revision_and_ownership(monkeypatch, tmp_path):
         ):
             assert (await client.get(download)).status_code == 200
             assert len((await client.get(path + "/tasks")).json()) == 2
+            [plan] = (await client.get(path + "/schedules")).json()
+            assert (
+                plan["id"] == schedule_id and not plan["enabled"] and plan["last_task_id"] is None
+            )
             assert len(calls) == 2
 
     with psycopg.connect(dsn, autocommit=True) as connection:

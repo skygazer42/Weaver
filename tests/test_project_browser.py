@@ -27,6 +27,8 @@ AUTH = {"Authorization": "Bearer project-browser-fixture", "X-Weaver-User": "ali
 INTERVIEW = "Monthly exports must include totals."
 DOC = "The report header must show the reporting period."
 DECISION = "The operations team publishes monthly."
+UPDATED_DECISION = "The operations team publishes after the security review."
+SCHEDULE_PROMPT = "Summarize the latest release every week."
 RELEASE = "Account export is available."
 README = "Run planner migrate before upgrading."
 
@@ -83,8 +85,13 @@ def test_project_workflows_and_chat_across_browser_sessions(monkeypatch, tmp_pat
                     while not release_draft.is_set():
                         await asyncio.sleep(0.05)
             if request["sources"][0]["kind"] == "github_release":
+                scheduled = request["prompt"] == SCHEDULE_PROMPT
+                if scheduled:
+                    assert any(source["text"] == UPDATED_DECISION for source in request["sources"])
                 output = {
-                    "title": "Planner v2.1 release brief",
+                    "title": "Weekly Planner release brief"
+                    if scheduled
+                    else "Planner v2.1 release brief",
                     "language": "en",
                     "summary": statement(RELEASE, "S1", RELEASE),
                     "highlights": [],
@@ -191,14 +198,30 @@ def test_project_workflows_and_chat_across_browser_sessions(monkeypatch, tmp_pat
                 ready.wait(0.1)
             assert server.started
             backend_url = f"http://127.0.0.1:{server.servers[0].sockets[0].getsockname()[1]}"
-            verify_in_browser(backend_url, tmp_path, draft_started, release_draft)
-            assert len(workflow_requests) == 3
-            assert workflow_requests[-1]["prior"]["title"] == "Monthly export specification"
+
+            def make_schedule_due(workspace_id):
+                result = db.execute(
+                    sql.SQL(
+                        "UPDATE {}.weaver_project_schedules SET next_run_at=statement_timestamp() WHERE workspace_id=%s"
+                    ).format(sql.Identifier(schema)),
+                    (workspace_id,),
+                )
+                assert result.rowcount == 1
+
+            verify_in_browser(
+                backend_url, tmp_path, draft_started, release_draft, make_schedule_due
+            )
+            assert len(workflow_requests) == 4
+            assert workflow_requests[2]["prior"]["title"] == "Monthly export specification"
             assert len(chat_contexts) == 2
-            assert github_calls == [
-                ("GET", "/repos/acme/planner/releases/latest", None),
-                ("GET", "/repos/acme/planner/readme", "refs/tags/v2.1"),
-            ]
+            assert (
+                github_calls
+                == [
+                    ("GET", "/repos/acme/planner/releases/latest", None),
+                    ("GET", "/repos/acme/planner/readme", "refs/tags/v2.1"),
+                ]
+                * 2
+            )
         finally:
             release_draft.set()
             server.should_exit = True
@@ -207,7 +230,7 @@ def test_project_workflows_and_chat_across_browser_sessions(monkeypatch, tmp_pat
             db.execute(sql.SQL("DROP SCHEMA {} CASCADE").format(sql.Identifier(schema)))
 
 
-def verify_in_browser(backend_url, tmp_path, draft_started, release_draft):
+def verify_in_browser(backend_url, tmp_path, draft_started, release_draft, make_schedule_due):
     port = free_port()
     origin = f"http://127.0.0.1:{port}"
     log_path = tmp_path / "next.log"
@@ -252,12 +275,14 @@ def verify_in_browser(backend_url, tmp_path, draft_started, release_draft):
                     drive_workflows(page, draft_started, release_draft)
                     workspace_id = page.evaluate("localStorage.getItem('weaver-workspace-id')")
                     drive_project_chat(page)
+                    page.goto(origin + "/workspace")
+                    drive_schedule(page, lambda: make_schedule_due(workspace_id))
                     with httpx.Client(
                         base_url=backend_url, headers=AUTH, trust_env=False
                     ) as client:
                         prefix = f"/api/workspaces/{workspace_id}"
                         artifacts = client.get(prefix + "/deliverables").json()
-                        assert len(artifacts) == 3
+                        assert len(artifacts) == 4
                         outside = client.get(
                             prefix + "/deliverables", headers={**AUTH, "X-Weaver-User": "bob"}
                         )
@@ -355,3 +380,43 @@ def drive_project_chat(page):
         ).to_be_visible()
         if prompt.startswith("Summarize"):
             page.get_by_role("button", name="New Investigation", exact=True).click()
+
+
+def drive_schedule(page, make_due):
+    page.get_by_label("Workflow", exact=True).select_option("release-brief")
+    page.get_by_label("GitHub repository", exact=True).fill("acme/planner")
+    page.get_by_label("Task prompt", exact=True).fill(SCHEDULE_PROMPT)
+    page.get_by_label("Repeat", exact=True).select_option(label="Every 7 days")
+    first_run = page.evaluate("""() => {
+        const future = new Date(Date.now() + 60 * 60 * 1000);
+        return new Date(future.getTime() - future.getTimezoneOffset() * 60000)
+          .toISOString().slice(0, 16);
+    }""")
+    page.get_by_label("First run (local time)", exact=True).fill(first_run)
+    page.get_by_role("button", name="Schedule task", exact=True).click()
+    schedule = page.get_by_role("region", name="Scheduled tasks")
+    expect(schedule.get_by_text(SCHEDULE_PROMPT, exact=True)).to_be_visible()
+    schedule.get_by_role("button", name="Pause", exact=True).click()
+    expect(schedule.get_by_text("Paused", exact=True)).to_be_visible()
+
+    page.reload(wait_until="domcontentloaded")
+    expect(schedule.get_by_text("Paused", exact=True)).to_be_visible()
+    page.get_by_role("button", name="Edit project", exact=True).click()
+    page.get_by_label("Project decisions", exact=True).fill(UPDATED_DECISION)
+    page.get_by_role("button", name="Save project", exact=True).click()
+    expect(page.get_by_role("definition").filter(has_text=UPDATED_DECISION)).to_be_visible()
+    schedule.get_by_role("button", name="Resume", exact=True).click()
+    expect(schedule.get_by_text("Next run", exact=False)).to_be_visible()
+
+    make_due()
+    latest = schedule.get_by_role("button", name="View latest run", exact=True)
+    expect(latest).to_be_visible(timeout=20_000)
+    latest.click()
+    result = page.get_by_role("heading", name="Weekly Planner release brief", exact=True)
+    expect(result).to_be_visible(timeout=15_000)
+    with page.expect_download() as download:
+        page.get_by_role("link", name="Download Markdown", exact=True).click()
+    assert RELEASE in download.value.path().read_text(encoding="utf-8")
+    schedule.get_by_role("button", name="Delete schedule", exact=True).click()
+    expect(schedule).to_have_count(0)
+    expect(result).to_be_visible()

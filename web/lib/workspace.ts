@@ -45,6 +45,19 @@ export interface ProjectTask {
   artifact_id?: string | null
   error?: string | null
   created_at?: string
+  schedule_id?: string | null
+}
+
+export interface ProjectSchedule {
+  id: string
+  workflow: ProjectWorkflow
+  prompt: string
+  repository: string | null
+  release_tag: string | null
+  repeat_days: 1 | 7
+  next_run_at: string
+  enabled: boolean
+  last_task_id: string | null
 }
 
 export interface WorkspaceDeliverable {

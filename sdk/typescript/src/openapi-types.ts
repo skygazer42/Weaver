@@ -1617,6 +1617,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspaces/{workspace_id}/schedules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Project Schedules */
+        get: operations["list_project_schedules_api_workspaces__workspace_id__schedules_get"];
+        put?: never;
+        /** Create Project Schedule */
+        post: operations["create_project_schedule_api_workspaces__workspace_id__schedules_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/schedules/{schedule_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Project Schedule */
+        delete: operations["delete_project_schedule_api_workspaces__workspace_id__schedules__schedule_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Project Schedule */
+        patch: operations["update_project_schedule_api_workspaces__workspace_id__schedules__schedule_id__patch"];
+        trace?: never;
+    };
     "/api/workspaces/{workspace_id}/tasks": {
         parameters: {
             query?: never;
@@ -2271,6 +2307,71 @@ export interface components {
              */
             workflow: "requirements-spec" | "release-brief";
         };
+        /** ProjectSchedule */
+        ProjectSchedule: {
+            /** Enabled */
+            enabled: boolean;
+            /** Id */
+            id: string;
+            /** Last Task Id */
+            last_task_id: string | null;
+            /**
+             * Next Run At
+             * Format: date-time
+             */
+            next_run_at: string;
+            /** Prompt */
+            prompt: string;
+            /** Release Tag */
+            release_tag: string | null;
+            /**
+             * Repeat Days
+             * @enum {integer}
+             */
+            repeat_days: 1 | 7;
+            /** Repository */
+            repository: string | null;
+            /**
+             * Workflow
+             * @enum {string}
+             */
+            workflow: "requirements-spec" | "release-brief";
+        };
+        /** ProjectScheduleRequest */
+        ProjectScheduleRequest: {
+            /** File Ids */
+            file_ids?: string[] | null;
+            /**
+             * First Run At
+             * Format: date-time
+             */
+            first_run_at: string;
+            /** Model */
+            model?: string | null;
+            /** Prompt */
+            prompt: string;
+            /** Release Tag */
+            release_tag?: string | null;
+            /**
+             * Repeat Days
+             * @enum {integer}
+             */
+            repeat_days: 1 | 7;
+            /** Repository */
+            repository?: string | null;
+            /** Request Id */
+            request_id: string;
+            /**
+             * Workflow
+             * @enum {string}
+             */
+            workflow: "requirements-spec" | "release-brief";
+        };
+        /** ProjectScheduleUpdate */
+        ProjectScheduleUpdate: {
+            /** Enabled */
+            enabled: boolean;
+        };
         /** ProjectSource */
         ProjectSource: {
             /** Id */
@@ -2309,6 +2410,8 @@ export interface components {
             release_tag: string | null;
             /** Repository */
             repository: string | null;
+            /** Schedule Id */
+            schedule_id?: string | null;
             /**
              * Status
              * @enum {string}
@@ -5534,6 +5637,138 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_project_schedules_api_workspaces__workspace_id__schedules_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectSchedule"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_project_schedule_api_workspaces__workspace_id__schedules_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectScheduleRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectSchedule"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_project_schedule_api_workspaces__workspace_id__schedules__schedule_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                schedule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_project_schedule_api_workspaces__workspace_id__schedules__schedule_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                schedule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectScheduleUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectSchedule"];
+                };
             };
             /** @description Validation Error */
             422: {
