@@ -1856,6 +1856,11 @@ def run_deepsearch_tree(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[s
             max_depth=max_depth,
             max_branches=max_branches,
             queries_per_branch=queries_per_branch,
+            on_tree_update=lambda snapshot: _emit_event(
+                emitter,
+                "research_tree_update",
+                {"tree": snapshot},
+            ),
         )
 
         # Run tree exploration (use async if parallel_branches > 0)

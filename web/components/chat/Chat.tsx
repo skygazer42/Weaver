@@ -1,15 +1,16 @@
 'use client'
 
-import React, { useRef, useEffect, useState } from 'react'
+import React, { useRef, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso'
 import { MessageItem } from './MessageItem'
-import { ArtifactsPanel } from './ArtifactsPanel'
+import { ResearchStudioPanel, ResearchStudioRail } from './ResearchStudioPanel'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
 import { EmptyState } from './EmptyState'
 import { ChatInput } from './ChatInput'
-import { Loader2, ArrowDown, X, ShieldAlert } from 'lucide-react'
+import { Loader2, ArrowDown, GitFork, PanelRightClose, PanelRightOpen, ShieldAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import { ChatRun, Message, type RunStatus } from '@/types/chat'
 import { useI18n } from '@/lib/i18n/i18n-context'
@@ -20,11 +21,21 @@ import { useStoredPreference } from '@/hooks/useStoredPreference'
 import { usePublicModels } from '@/hooks/usePublicModels'
 import { cancelRun, useChatStream } from '@/hooks/useChatStream'
 import { filesToImageAttachments } from '@/lib/file-utils'
+import { extractResearchStudio, resolveStudioTab, type StudioTab } from '@/lib/researchStudio'
 import type { Workspace } from '@/lib/workspace'
 import { Discover } from '@/components/views/Discover'
 import { Library } from '@/components/views/Library'
 import { SettingsDialog } from '@/components/settings/SettingsDialog'
 import { FloatingBrowserViewer } from './BrowserViewer'
+
+const studioDesktopQuery = '(min-width: 1280px)'
+function subscribeToStudioViewport(notify: () => void) {
+  const media = window.matchMedia(studioDesktopQuery)
+  media.addEventListener('change', notify)
+  return () => media.removeEventListener('change', notify)
+}
+const isDesktopStudioViewport = () => window.matchMedia(studioDesktopQuery).matches
+const isServerStudioViewport = () => false
 
 export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) {
   const { t } = useI18n()
@@ -38,8 +49,11 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
   const { models: publicModels } = usePublicModels()
   const [searchMode, setSearchMode] = useState(initialMode)
   const [showScrollButton, setShowScrollButton] = useState(false)
-  const [showMobileArtifacts, setShowMobileArtifacts] = useState(false)
-  const [isArtifactsOpen, setIsArtifactsOpen] = useState(true)
+  const [showMobileStudio, setShowMobileStudio] = useState(false)
+  const [isStudioOpen, setIsStudioOpen] = useState(true)
+  const [studioTabs, setStudioTabs] = useState<Record<string, StudioTab>>({})
+  const isDesktop = useSyncExternalStore(subscribeToStudioViewport, isDesktopStudioViewport, isServerStudioViewport)
+  if (isDesktop && showMobileStudio) setShowMobileStudio(false)
   const [showSettings, setShowSettings] = useState(false)
   const [settingsSection, setSettingsSection] = useState<'general' | 'mcp'>('general')
   const [showBrowserViewer, setShowBrowserViewer] = useState(false) // Browser viewer visibility
@@ -51,6 +65,7 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
   const [attachments, setAttachments] = useState<File[]>([])
   
   const scrollRef = useRef<HTMLDivElement>(null)
+  const studioToggle = useRef<HTMLButtonElement>(null)
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   const lastAtBottom = useRef<boolean | null>(null)
   const [restoredSession, setRestoredSession] = useState<{
@@ -126,8 +141,15 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
   }, [restoredSession, resumeRun, saveToHistory])
 
   const runStatus = messages.at(-1)?.runStatus
-  const artifacts = messages.flatMap((message) => message.artifacts ?? [])
-  const isWideLayout = !sidebarOpen && !(artifacts.length > 0 && isArtifactsOpen)
+  const studio = useMemo(() => extractResearchStudio(messages), [messages])
+  const hasTree = Boolean(studio.tree)
+  const hasArtifacts = studio.artifacts.length > 0
+  const hasSources = studio.sources.length > 0
+  const hasStudioContent = currentView === 'dashboard' && (hasTree || hasArtifacts || hasSources)
+  const studioSession = currentSessionId ?? ''
+  const activeTab = resolveStudioTab({ hasTree, hasArtifacts, hasSources, isResearchActive: studio.isResearchActive }, studioTabs[studioSession])
+  const onStudioTabChange = (tab: StudioTab) => setStudioTabs(previous => ({ ...previous, [studioSession]: tab }))
+  const isWideLayout = !sidebarOpen && !(hasStudioContent && (isDesktop ? isStudioOpen : showMobileStudio))
   const columnWidthClass = cn(
     'mx-auto w-full transition-[max-width] duration-200 ease-out motion-reduce:transition-none',
     isWideLayout ? 'max-w-4xl' : 'max-w-3xl'
@@ -361,6 +383,7 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
   }
 
   return (
+    <Dialog open={!isDesktop && hasStudioContent && showMobileStudio} onOpenChange={setShowMobileStudio}>
     <div className="flex h-dvh w-full overflow-hidden bg-background font-sans text-foreground selection:bg-primary/20">
       {/* Sidebar */}
       <Sidebar 
@@ -393,8 +416,7 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
           reasoningModel={reasoningModel}
           onReasoningModelChange={setReasoningModel}
           onOpenSettings={() => { setSettingsSection('general'); setShowSettings(true) }}
-          onToggleArtifacts={() => setShowMobileArtifacts(!showMobileArtifacts)}
-          hasArtifacts={artifacts.length > 0}
+          hasStudioContent={hasStudioContent}
           isInitializing={isHistoryLoading}
           showBrowserToggle={currentView === 'dashboard' && Boolean(threadId)}
           isBrowserOpen={showBrowserViewer}
@@ -508,34 +530,42 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
         )}
       </div>
 
-      {/* Desktop Artifacts Panel */}
-      {artifacts.length > 0 && (
-        <div className={cn(
-            "z-20 hidden shrink-0 flex-col bg-surface-subtle transition-[width] duration-200 xl:flex",
-            isArtifactsOpen ? "w-[400px]" : "w-[50px]"
+      {hasStudioContent && isDesktop && (
+        <aside aria-label={t('studioTitle')} className={cn(
+            'relative z-20 hidden shrink-0 flex-col overflow-hidden border-l border-border bg-surface-subtle transition-[width] duration-200 motion-reduce:transition-none xl:flex',
+            isStudioOpen ? 'w-[440px] 2xl:w-[480px]' : 'w-[50px]'
         )}>
-          <ArtifactsPanel
-              artifacts={artifacts}
-              isOpen={isArtifactsOpen}
-              onToggle={() => setIsArtifactsOpen(!isArtifactsOpen)}
-          />
-        </div>
+          <Button ref={studioToggle} type="button" variant="ghost" size="icon" onClick={() => setIsStudioOpen(open => !open)}
+            aria-expanded={isStudioOpen} aria-label={t(isStudioOpen ? 'studioCollapse' : 'studioOpen')}
+            title={t(isStudioOpen ? 'studioCollapse' : 'studioOpen')} className="absolute right-[7px] top-2.5 z-10 text-muted-foreground">
+            {isStudioOpen ? <PanelRightClose aria-hidden="true" className="size-4" /> : <PanelRightOpen aria-hidden="true" className="size-4" />}
+          </Button>
+          {isStudioOpen ? (
+            <ResearchStudioPanel key={studioSession} studio={studio} activeTab={activeTab} onTabChange={onStudioTabChange} />
+          ) : (
+            <div className="pt-14">
+              <ResearchStudioRail studio={studio} activeTab={activeTab} onTabChange={tab => {
+                onStudioTabChange(tab)
+                setIsStudioOpen(true)
+                studioToggle.current?.focus()
+              }} />
+            </div>
+          )}
+        </aside>
       )}
-
-      {/* Mobile Artifacts Overlay */}
-      {showMobileArtifacts && (
-         <div className="fixed inset-0 z-50 flex flex-col bg-surface-subtle xl:hidden">
-             <div className="flex h-14 shrink-0 items-center justify-between border-b border-border/80 px-4">
-                 <h2 className="font-semibold">{t('artifactsTitle')}</h2>
-                 <Button type="button" variant="ghost" size="icon" aria-label="Close artifacts" onClick={() => setShowMobileArtifacts(false)}>
-                     <X className="h-5 w-5" />
-                 </Button>
-             </div>
-             <div className="flex-1 overflow-hidden">
-                 <ArtifactsPanel artifacts={artifacts} />
-             </div>
-         </div>
+      {hasStudioContent && !isDesktop && (
+        <DialogContent aria-describedby={undefined} closeLabel={t('studioClose')}
+          className="inset-0 flex h-dvh max-h-none w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-0 bg-surface-subtle p-0">
+          <div className="flex h-14 shrink-0 items-center gap-2 border-b border-border bg-card pl-4 pr-12">
+            <GitFork aria-hidden="true" className="size-4 text-primary" />
+            <DialogTitle className="text-sm">{t('studioTitle')}</DialogTitle>
+          </div>
+          <div className="min-h-0 flex-1">
+            <ResearchStudioPanel key={studioSession} studio={studio} activeTab={activeTab} onTabChange={onStudioTabChange} showHeader={false} />
+          </div>
+        </DialogContent>
       )}
     </div>
+    </Dialog>
   )
 }

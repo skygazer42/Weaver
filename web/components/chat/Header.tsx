@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { PanelLeft, Sun, Moon, ChevronDown, Check, FileSpreadsheet, LayoutPanelLeft, Settings, Monitor, SquarePen } from 'lucide-react'
+import { DialogTrigger } from '@/components/ui/dialog'
+import { PanelLeft, Sun, Moon, ChevronDown, Check, FileSpreadsheet, PanelRightOpen, Settings, Monitor, SquarePen } from 'lucide-react'
 import { useTheme } from '@/components/theme-provider'
 import { useI18n } from '@/lib/i18n/i18n-context'
 import { cn } from '@/lib/utils'
@@ -24,15 +25,14 @@ interface HeaderProps {
   reasoningModel: string
   onReasoningModelChange: (model: string) => void
   onOpenSettings: () => void
-  onToggleArtifacts?: () => void
-  hasArtifacts?: boolean
+  hasStudioContent?: boolean
   isInitializing?: boolean
   showBrowserToggle?: boolean
   isBrowserOpen?: boolean
   onToggleBrowser?: () => void
 }
 
-export function Header({ project, sidebarOpen, onToggleSidebar, onNewChat, selectedModel, onModelChange, reasoningModel, onReasoningModelChange, onOpenSettings, onToggleArtifacts, hasArtifacts, isInitializing, showBrowserToggle, isBrowserOpen, onToggleBrowser }: HeaderProps) {
+export function Header({ project, sidebarOpen, onToggleSidebar, onNewChat, selectedModel, onModelChange, reasoningModel, onReasoningModelChange, onOpenSettings, hasStudioContent, isInitializing, showBrowserToggle, isBrowserOpen, onToggleBrowser }: HeaderProps) {
   const { setTheme } = useTheme()
   const { t } = useI18n()
   const { models: publicModels } = usePublicModels()
@@ -99,10 +99,12 @@ export function Header({ project, sidebarOpen, onToggleSidebar, onNewChat, selec
       </div>
 
       <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-        {hasArtifacts && (
-          <Button type="button" variant="ghost" size="icon" onClick={onToggleArtifacts} aria-label="Open artifacts" className="text-muted-foreground xl:hidden">
-            <LayoutPanelLeft className="h-4 w-4" />
-          </Button>
+        {hasStudioContent && (
+          <DialogTrigger asChild>
+            <Button type="button" variant="ghost" size="icon" aria-label={t('studioOpen')} title={t('studioOpen')} className="text-muted-foreground xl:hidden">
+              <PanelRightOpen aria-hidden="true" className="h-4 w-4" />
+            </Button>
+          </DialogTrigger>
         )}
         <Popover open={isModelOpen} onOpenChange={handleModelOpenChange}>
           <PopoverTrigger asChild>

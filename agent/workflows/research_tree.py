@@ -21,7 +21,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
@@ -95,7 +95,9 @@ class ResearchTreeNode:
             "status": self.status.value,
             "findings_count": len(self.findings),
             "sources_count": len(self.sources),
+            "sources": list(self.sources[:8]),
             "summary_length": len(self.summary),
+            "summary_preview": (self.summary or "").strip()[:360],
             "queries": self.queries,
             "relevance_score": self.relevance_score,
             "created_at": self.created_at,
@@ -333,6 +335,7 @@ class TreeExplorer:
         max_depth: int = 2,
         max_branches: int = 4,
         queries_per_branch: int = 3,
+        on_tree_update: Optional[Callable[[Dict[str, Any]], None]] = None,
     ):
         """
         Initialize the TreeExplorer.
@@ -346,6 +349,7 @@ class TreeExplorer:
             max_depth: Maximum tree depth (0 = root only)
             max_branches: Maximum children per node
             queries_per_branch: Number of queries per branch
+            on_tree_update: Optional callback invoked with `tree.to_dict()` on progress
         """
         self.planner_llm = planner_llm
         self.researcher_llm = researcher_llm
@@ -355,10 +359,19 @@ class TreeExplorer:
         self.max_depth = max_depth
         self.max_branches = max_branches
         self.queries_per_branch = queries_per_branch
+        self.on_tree_update = on_tree_update
 
         self.tree: Optional[ResearchTree] = None
         self.all_searched_urls: List[str] = []
         self.start_time: float = 0
+
+    def _notify_tree_update(self) -> None:
+        if not self.on_tree_update or self.tree is None:
+            return
+        try:
+            self.on_tree_update(self.tree.to_dict())
+        except Exception as e:
+            logger.debug(f"[TreeExplorer] on_tree_update callback ignored error: {e}")
 
     def _check_cancel(self, state: Dict[str, Any]) -> None:
         """Check for cancellation."""
@@ -429,6 +442,7 @@ class TreeExplorer:
         self._check_cancel(state)
 
         node.status = NodeStatus.IN_PROGRESS
+        self._notify_tree_update()
         logger.info(f"[TreeExplorer] Exploring branch: {node.id} - '{node.topic}'")
 
         try:
@@ -540,6 +554,7 @@ class TreeExplorer:
                 node.summary = self._summarize_branch(node)
 
             node.mark_complete()
+            self._notify_tree_update()
             logger.info(f"[TreeExplorer] Completed branch {node.id}: {len(node.findings)} findings, {len(node.sources)} sources")
 
         except asyncio.CancelledError:
@@ -549,6 +564,7 @@ class TreeExplorer:
         except Exception as e:
             logger.error(f"[TreeExplorer] Failed to explore branch {node.id}: {e}")
             node.mark_failed(str(e))
+            self._notify_tree_update()
 
     def _summarize_branch(self, node: ResearchTreeNode) -> str:
         """Summarize the findings of a branch."""
@@ -661,6 +677,7 @@ class TreeExplorer:
 
         # Create root
         root = self.tree.create_root(topic)
+        self._notify_tree_update()
 
         # Explore root first
         logger.info(f"[TreeExplorer] Starting tree exploration for: {topic}")
@@ -678,15 +695,20 @@ class TreeExplorer:
             )
 
             # Create child nodes
+            children = []
             for subtopic, relevance in subtopics:
                 child = self.tree.add_child(root.id, subtopic, relevance)
                 if child:
-                    self._check_cancel(state)
-                    self.explore_branch(child, state)
+                    children.append(child)
+            if children:
+                self._notify_tree_update()
+            for child in children:
+                self._check_cancel(state)
+                self.explore_branch(child, state)
 
-                    # Recursively explore if depth allows
-                    if child.depth < self.max_depth:
-                        self._explore_children(child, state)
+                # Recursively explore if depth allows
+                if child.depth < self.max_depth:
+                    self._explore_children(child, state)
 
         elapsed = time.time() - self.start_time
         logger.info(
@@ -710,11 +732,16 @@ class TreeExplorer:
             num_subtopics=min(2, self.max_branches),  # Fewer children at deeper levels
         )
 
+        children = []
         for subtopic, relevance in subtopics:
             child = self.tree.add_child(parent.id, subtopic, relevance)
             if child:
-                self._check_cancel(state)
-                self.explore_branch(child, state)
+                children.append(child)
+        if children:
+            self._notify_tree_update()
+        for child in children:
+            self._check_cancel(state)
+            self.explore_branch(child, state)
 
     # ==================== Async Parallel Exploration ====================
 
@@ -735,6 +762,7 @@ class TreeExplorer:
         self._check_cancel(state)
 
         node.status = NodeStatus.IN_PROGRESS
+        self._notify_tree_update()
         logger.info(f"[TreeExplorer] Async exploring branch: {node.id} - '{node.topic}'")
 
         try:
@@ -857,6 +885,7 @@ class TreeExplorer:
                 )
 
             node.mark_complete()
+            self._notify_tree_update()
             logger.info(f"[TreeExplorer] Async completed branch {node.id}: {len(node.findings)} findings")
 
         except asyncio.CancelledError:
@@ -866,6 +895,7 @@ class TreeExplorer:
         except Exception as e:
             logger.error(f"[TreeExplorer] Failed to explore branch {node.id}: {e}")
             node.mark_failed(str(e))
+            self._notify_tree_update()
 
     async def _explore_children_async(
         self,
@@ -910,6 +940,7 @@ class TreeExplorer:
 
         if not children:
             return
+        self._notify_tree_update()
 
         # Store child results for merging
         child_results = []
@@ -970,6 +1001,7 @@ class TreeExplorer:
 
         # Create root
         root = self.tree.create_root(topic)
+        self._notify_tree_update()
 
         # Explore root first (sync is fine for single node)
         logger.info(f"[TreeExplorer] Starting async tree exploration for: {topic}")
@@ -994,6 +1026,7 @@ class TreeExplorer:
                     children.append(child)
 
             if children:
+                self._notify_tree_update()
                 # Get parallel limit from settings
                 max_parallel = int(getattr(settings, "tree_parallel_branches", 3))
                 semaphore = asyncio.Semaphore(max_parallel)

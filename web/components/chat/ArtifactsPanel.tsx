@@ -20,9 +20,10 @@ interface ArtifactsPanelProps {
   artifacts: Artifact[]
   isOpen?: boolean
   onToggle?: () => void
+  embedded?: boolean
 }
 
-export function ArtifactsPanel({ artifacts, isOpen = true, onToggle }: ArtifactsPanelProps) {
+export function ArtifactsPanel({ artifacts, isOpen = true, onToggle, embedded = false }: ArtifactsPanelProps) {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const { t } = useI18n()
 
@@ -43,9 +44,9 @@ export function ArtifactsPanel({ artifacts, isOpen = true, onToggle }: Artifacts
 
   return (
     <>
-      <section aria-label={t('artifactsTitle')} className="flex h-full w-full flex-col border-l border-border/80 bg-surface-subtle">
-        <div className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border/80 px-4">
-          <div className="flex min-w-0 items-center gap-2">
+      <section aria-label={t('artifactsTitle')} className={cn('flex h-full w-full flex-col bg-surface-subtle', !embedded && 'border-l border-border/80')}>
+        <div className={cn('flex shrink-0 items-center gap-3', embedded ? 'justify-end px-4 pt-2' : 'h-14 justify-between border-b border-border/80 px-4')}>
+          {!embedded && <div className="flex min-w-0 items-center gap-2">
             {onToggle && (
               <Button type="button" variant="ghost" size="icon" className="-ml-2 text-muted-foreground" onClick={onToggle} aria-label={t('collapseArtifacts')}>
                 <PanelRightClose className="h-4 w-4" />
@@ -53,13 +54,14 @@ export function ArtifactsPanel({ artifacts, isOpen = true, onToggle }: Artifacts
             )}
             <h2 className="text-sm font-semibold tracking-tight">{t('artifactsTitle')}</h2>
             <span className="rounded border border-border/80 bg-card px-1.5 py-0.5 text-[11px] tabular-nums text-muted-foreground">{artifacts.length}</span>
-          </div>
-          <Button type="button" variant="ghost" size="icon" onClick={() => setIsFullscreen(true)} aria-label={t('artifactsFullscreen')} title={t('artifactsFullscreen')} className="text-muted-foreground">
+          </div>}
+          <Button type="button" variant="ghost" size={embedded ? 'sm' : 'icon'} onClick={() => setIsFullscreen(true)} aria-label={t('artifactsFullscreen')} title={t('artifactsFullscreen')} className="gap-1.5 text-muted-foreground">
             <Maximize2 className="h-4 w-4" />
+            {embedded && t('artifactsFullscreen')}
           </Button>
         </div>
 
-        <ScrollArea className="min-h-0 flex-1 p-4">
+        <ScrollArea className={cn('min-h-0 flex-1 p-4', embedded && 'pt-1')}>
           <div className="space-y-4 pb-4">
             {artifacts.map(artifact => <ArtifactCard key={artifact.id} artifact={artifact} />)}
           </div>
