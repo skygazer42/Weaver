@@ -1,6 +1,6 @@
 {
   "name": "manus-frontend",
-  "version": "0.1.0",
+  "version": "0.7.0",
   "private": true,
   "scripts": {
     "dev": "next dev -H localhost -p 3100",
