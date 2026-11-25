@@ -1895,6 +1895,8 @@ async def stream_agent_events(
     """
     event_count = 0
     completed_report = ""
+    pending_final_report = ""
+    emitted_sources_sig = ""
     has_sources = False
     researched = False
     agent_failed = False
@@ -2254,33 +2256,42 @@ async def stream_agent_events(
                         except Exception:
                             pass
 
+                    # Extract sources as soon as any research node emits them (even before is_complete=True)
+                    try:
+                        candidates: List[Dict[str, Any]] = []
+                        scraped_content = output.get("scraped_content")
+                        if isinstance(scraped_content, list):
+                            candidates.extend(scraped_content)
+                        raw_sources = output.get("sources")
+                        if isinstance(raw_sources, list):
+                            candidates.extend(raw_sources)
+                        artifact_data = output.get("deepsearch_artifacts")
+                        if isinstance(artifact_data, dict) and isinstance(artifact_data.get("sources"), list):
+                            candidates.extend(artifact_data["sources"])
+
+                        if candidates:
+                            sources = extract_message_sources(candidates)
+                            if sources:
+                                has_sources = True
+                                sig = f"{len(sources)}:{sources[0].get('url', '')}:{sources[-1].get('url', '')}"
+                                if sig != emitted_sources_sig:
+                                    emitted_sources_sig = sig
+                                    yield await format_stream_event(
+                                        "sources", {"items": sources}
+                                    )
+                    except Exception:
+                        pass
+
                     # Check for completion and final report artifact
                     if output.get("is_complete") and not agent_failed:
                         final_report = output.get("final_report", "")
                         if final_report:
-                            try:
-                                candidates: List[Dict[str, Any]] = []
-                                scraped_content = output.get("scraped_content")
-                                if isinstance(scraped_content, list):
-                                    candidates.extend(scraped_content)
-                                raw_sources = output.get("sources")
-                                if isinstance(raw_sources, list):
-                                    candidates.extend(raw_sources)
-
-                                sources = extract_message_sources(candidates)
-                                if sources:
-                                    has_sources = True
-                                    yield await format_stream_event(
-                                        "sources", {"items": sources}
-                                    )
-                            except Exception:
-                                pass
-
+                            pending_final_report = final_report
                             if completed_report == final_report:
                                 continue
-                            completed_report = final_report
                             if researched and mode_info.get("mode") == "deep" and not has_sources:
                                 continue
+                            completed_report = final_report
                             yield await format_stream_event("completion", {"content": final_report})
 
                             # Also emit as artifact
@@ -2428,9 +2439,22 @@ async def stream_agent_events(
         # Send final completion
         if researched and mode_info.get("mode") == "deep" and not has_sources:
             yield await format_stream_event("insufficient_evidence", {"message": "No supporting sources were found."})
-        elif completed_report and not resume_checkpoint and project_context is None:
-            store_interaction(input_text, completed_report, user_id=user_id)
-            _store_add(input_text, completed_report, user_id=user_id)
+        else:
+            if not completed_report and pending_final_report and not agent_failed:
+                completed_report = pending_final_report
+                yield await format_stream_event("completion", {"content": completed_report})
+                yield await format_stream_event(
+                    "artifact",
+                    {
+                        "id": f"report_{thread_id}",
+                        "type": "report",
+                        "title": "Research Report",
+                        "content": completed_report,
+                    },
+                )
+            if completed_report and not resume_checkpoint and project_context is None:
+                store_interaction(input_text, completed_report, user_id=user_id)
+                _store_add(input_text, completed_report, user_id=user_id)
         duration = time.time() - start_time
         cancel_token.mark_completed()
         metrics_registry.finish(thread_id, cancelled=False)
