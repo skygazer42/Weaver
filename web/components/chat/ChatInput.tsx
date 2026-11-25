@@ -2,7 +2,7 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
-import { Send, Globe, Bot, Paperclip, X, Mic, MicOff, ChevronDown, Check, Trash2, File as FileIcon, Bug, BookOpen, PenTool, TestTube, Plug, Rocket } from 'lucide-react'
+import { ArrowUp, Globe, Bot, Paperclip, X, Mic, MicOff, ChevronDown, Check, Trash2, File as FileIcon, Bug, BookOpen, PenTool, TestTube, Plug, Rocket } from 'lucide-react'
 import { useI18n } from '@/lib/i18n/i18n-context'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -468,11 +468,20 @@ export function ChatInput({
           className="block max-h-[200px] min-h-[72px] w-full resize-none bg-transparent px-4 pb-2 pt-4 text-base leading-6 text-foreground placeholder:text-muted-foreground focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
         />
 
-        <div className="flex items-center justify-end px-3 pb-3 pt-1">
-          <div className="flex shrink-0 items-center gap-1">
-            <Button type="button" variant="ghost" size="icon" aria-label="Attach files" onClick={() => fileInputRef.current?.click()} className="text-muted-foreground hover:text-foreground">
+        <div className="flex items-center justify-between px-3 pb-3 pt-1">
+          <div className="flex shrink-0 items-center">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="Attach files"
+              onClick={() => fileInputRef.current?.click()}
+              className="rounded-full text-muted-foreground hover:text-foreground"
+            >
               <Paperclip className="h-4 w-4" />
             </Button>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
             {!isLoading && (
               <Button
                 type="button"
@@ -483,7 +492,7 @@ export function ChatInput({
                 onClick={isListening ? stopListening : startListening}
                 disabled={isProcessingAudio}
                 className={cn(
-                  'text-muted-foreground hover:text-foreground',
+                  'rounded-full text-muted-foreground hover:text-foreground',
                   isListening && 'bg-destructive-surface text-destructive hover:bg-destructive/15',
                   isProcessingAudio && 'text-info'
                 )}
@@ -494,12 +503,27 @@ export function ChatInput({
               </Button>
             )}
             {canStop ? (
-              <Button type="button" size="icon" variant="outline" aria-label={t('stopGenerating')} disabled={isStopping} onClick={onStop} className="border-destructive-border text-destructive hover:bg-destructive-surface hover:text-destructive">
+              <Button
+                type="button"
+                size="icon"
+                variant="outline"
+                aria-label={t('stopGenerating')}
+                disabled={isStopping}
+                onClick={onStop}
+                className="h-9 w-9 rounded-full border-destructive-border text-destructive hover:bg-destructive-surface hover:text-destructive"
+              >
                 <div className="h-2.5 w-2.5 rounded-sm bg-current" />
               </Button>
             ) : (
-              <Button type="button" size="icon" aria-label={t('sendMessage')} onClick={onSubmit} disabled={isLoading || awaitingApproval || (!input.trim() && attachments.length === 0)}>
-                <Send className="h-4 w-4" />
+              <Button
+                type="button"
+                size="icon"
+                aria-label={t('sendMessage')}
+                onClick={onSubmit}
+                disabled={isLoading || awaitingApproval || (!input.trim() && attachments.length === 0)}
+                className="h-9 w-9 rounded-full disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100 disabled:shadow-none"
+              >
+                <ArrowUp className="h-4 w-4 stroke-[2.25]" />
               </Button>
             )}
           </div>
