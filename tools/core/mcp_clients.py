@@ -1,7 +1,8 @@
 """
-Evented MCP multi-server client (SSE + stdio).
+Evented MCP multi-server client (Streamable HTTP + stdio + SSE).
 
 - Connect/disconnect multiple MCP servers
+- Support modern Streamable HTTP, stdio (with env/cwd), and legacy SSE (with headers)
 - List and register remote tools with server-prefixed names
 - Emit start/result/error events for front-end visibility
 """
@@ -10,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from typing import Any
@@ -27,12 +29,14 @@ try:  # Optional dependency
     from mcp import ClientSession, StdioServerParameters  # type: ignore
     from mcp.client.sse import sse_client  # type: ignore
     from mcp.client.stdio import stdio_client  # type: ignore
+    from mcp.client.streamable_http import streamablehttp_client  # type: ignore
     from mcp.types import ListToolsResult  # type: ignore
 except ImportError:  # pragma: no cover
     ClientSession = None  # type: ignore
     StdioServerParameters = None  # type: ignore
     sse_client = None  # type: ignore
     stdio_client = None  # type: ignore
+    streamablehttp_client = None  # type: ignore
     ListToolsResult = None  # type: ignore
 
 
@@ -133,18 +137,69 @@ class MCPClients:
         self.tools: list[MCPClientTool] = []
         self.thread_id = thread_id
 
-    async def connect_sse(self, server_url: str, server_id: str = "") -> None:
+    async def connect_streamable_http(
+        self,
+        server_url: str,
+        server_id: str = "",
+        headers: dict[str, str] | None = None,
+        timeout: float | None = None,
+    ) -> list[MCPClientTool]:
+        if streamablehttp_client is None or ClientSession is None:
+            raise RuntimeError("Missing dependency: mcp. Install with `pip install mcp`.")
+        kwargs: dict[str, Any] = {"url": server_url}
+        if headers:
+            kwargs["headers"] = headers
+        return await self._connect(
+            server_id or server_url,
+            streamablehttp_client(**kwargs),
+            timeout=timeout,
+        )
+
+    async def connect_sse(
+        self,
+        server_url: str,
+        server_id: str = "",
+        headers: dict[str, str] | None = None,
+        timeout: float | None = None,
+    ) -> list[MCPClientTool]:
         if sse_client is None or ClientSession is None:
             raise RuntimeError("Missing dependency: mcp. Install with `pip install mcp`.")
-        await self._connect(server_id or server_url, sse_client(url=server_url))
+        kwargs: dict[str, Any] = {"url": server_url}
+        if headers:
+            kwargs["headers"] = headers
+        return await self._connect(server_id or server_url, sse_client(**kwargs), timeout=timeout)
 
-    async def connect_stdio(self, command: str, args: list[str], server_id: str = "") -> None:
+    async def connect_stdio(
+        self,
+        command: str,
+        args: list[str],
+        server_id: str = "",
+        env: dict[str, str] | None = None,
+        cwd: str | None = None,
+        timeout: float | None = None,
+    ) -> list[MCPClientTool]:
         if stdio_client is None or ClientSession is None or StdioServerParameters is None:
             raise RuntimeError("Missing dependency: mcp. Install with `pip install mcp`.")
-        server_params = StdioServerParameters(command=command, args=args)
-        await self._connect(server_id or command, stdio_client(server_params))
+        params_kwargs: dict[str, Any] = {"command": command, "args": args}
+        if env:
+            merged_env = dict(os.environ)
+            merged_env.update({str(k): str(v) for k, v in env.items()})
+            params_kwargs["env"] = merged_env
+        if cwd:
+            params_kwargs["cwd"] = cwd
+        server_params = StdioServerParameters(**params_kwargs)
+        return await self._connect(
+            server_id or command,
+            stdio_client(server_params),
+            timeout=timeout,
+        )
 
-    async def _connect(self, server_id: str, transport: AbstractAsyncContextManager[Any]) -> None:
+    async def _connect(
+        self,
+        server_id: str,
+        transport: AbstractAsyncContextManager[Any],
+        timeout: float | None = None,
+    ) -> list[MCPClientTool]:
         if server_id in self._connections:
             await self.disconnect(server_id)
 
@@ -153,14 +208,18 @@ class MCPClients:
         stop = asyncio.Event()
         task = asyncio.create_task(self._run_connection(server_id, transport, ready, stop))
         try:
-            session, tools = await ready
-        except asyncio.CancelledError:
+            if timeout is not None and timeout > 0:
+                session, tools = await asyncio.wait_for(ready, timeout=timeout)
+            else:
+                session, tools = await ready
+        except (asyncio.CancelledError, TimeoutError):
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
             raise
         self._connections[server_id] = _MCPConnection(session, task, stop)
         self.tools.extend(tools)
         logger.info("[mcp] registered %d tools from %s", len(tools), server_id)
+        return tools
 
     async def _run_connection(
         self,
@@ -171,27 +230,30 @@ class MCPClients:
     ) -> None:
         try:
             # MCP's AnyIO cancel scopes must close in the same task that entered them.
-            async with transport as streams, ClientSession(*streams) as session:
-                await session.initialize()
-                response = await session.list_tools()
-                loop = asyncio.get_running_loop()
-                tools = [
-                    MCPClientTool(
-                        name=f"mcp_{server_id}_{tool.name}".replace(" ", "_"),
-                        description=tool.description or tool.name,
-                        args_schema=tool.inputSchema,
-                        connection_loop=loop,
-                        session=session,
-                        server_id=server_id,
-                        original_name=tool.name,
-                        thread_id=self.thread_id,
-                    )
-                    for tool in response.tools
-                ]
-                ready.set_result((session, tools))
-                await stop.wait()
+            async with transport as streams:
+                session_args = tuple(streams[:2]) if isinstance(streams, tuple) else (streams,)
+                async with ClientSession(*session_args) as session:
+                    await session.initialize()
+                    response = await session.list_tools()
+                    loop = asyncio.get_running_loop()
+                    tools = [
+                        MCPClientTool(
+                            name=f"mcp_{server_id}_{tool.name}".replace(" ", "_"),
+                            description=tool.description or tool.name,
+                            args_schema=tool.inputSchema,
+                            connection_loop=loop,
+                            session=session,
+                            server_id=server_id,
+                            original_name=tool.name,
+                            thread_id=self.thread_id,
+                        )
+                        for tool in response.tools
+                    ]
+                    ready.set_result((session, tools))
+                    await stop.wait()
         except asyncio.CancelledError:
-            ready.cancel()
+            if not ready.done():
+                ready.cancel()
             raise
         except Exception as e:
             if ready.done():

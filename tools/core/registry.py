@@ -744,12 +744,16 @@ def set_registered_tools(tools: List) -> None:
         try:
             if BaseTool and isinstance(tool, BaseTool):
                 registry.register(
-                    name=tool.name, tool=tool._run, description=tool.description, tags=["langchain"]
+                    name=tool.name,
+                    tool=tool._run,
+                    description=tool.description,
+                    tags=["langchain"],
+                    override=True,
                 )
             else:
                 # Assume callable
                 name = getattr(tool, "name", tool.__name__)
-                registry.register(name=name, tool=tool)
+                registry.register(name=name, tool=tool, override=True)
         except Exception as e:
             logger.warning(f"Failed to register tool in new registry: {e}")
 

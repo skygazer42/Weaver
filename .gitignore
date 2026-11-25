@@ -32,6 +32,7 @@ pip-delete-this-directory.txt
 .env.production
 .env.development
 web/.env.local
+config/mcp.json
 
 # Next.js
 .next/

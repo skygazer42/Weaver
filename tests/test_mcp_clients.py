@@ -168,5 +168,122 @@ async def test_failed_sse_initialization_closes_contexts_before_returning(sse_li
         tools = await mcp.init_mcp_tools({"fixture": {"type": "sse", "url": url}}, enabled=True)
         assert tools == []
         assert sse_lifecycle == [(url, "session"), (url, "transport")]
+        statuses = mcp.get_mcp_server_statuses()
+        assert len(statuses) == 1
+        assert statuses[0]["id"] == "fixture"
+        assert statuses[0]["status"] == "error"
+        assert "fixture initialization failed" in (statuses[0]["error"] or "")
+    finally:
+        await mcp.close_mcp_tools()
+
+
+def test_normalize_mcp_servers_supports_standard_mcpservers_and_auto_inference():
+    raw = {
+        "mcpServers": {
+            "context7": {
+                "url": "https://mcp.context7.com/mcp",
+                "headers": {"Authorization": "Bearer demo-token"},
+            },
+            "legacy_sse": {
+                "url": "http://127.0.0.1:3333/sse",
+            },
+            "github": {
+                "transport": "http",
+                "url": "https://api.githubcopilot.com/mcp/",
+                "enabled": False,
+            },
+            "fs": {
+                "command": "npx",
+                "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+                "env": {"DEBUG": "1"},
+            },
+            "__thread_id__": "ignored",
+        }
+    }
+    normalized = mcp.normalize_mcp_servers(raw)
+    assert "__thread_id__" not in normalized
+    assert normalized["context7"]["type"] == "streamable_http"
+    assert normalized["context7"]["headers"] == {"Authorization": "Bearer demo-token"}
+    assert normalized["context7"]["enabled"] is True
+    assert normalized["legacy_sse"]["type"] == "sse"
+    assert normalized["github"]["type"] == "streamable_http"
+    assert normalized["github"]["enabled"] is False
+    assert normalized["fs"]["type"] == "stdio"
+    assert normalized["fs"]["env"] == {"DEBUG": "1"}
+
+
+def test_persisted_mcp_config_roundtrip(tmp_path, monkeypatch):
+    cfg_path = tmp_path / "config" / "mcp.json"
+    monkeypatch.setattr(mcp.settings, "mcp_config_path", str(cfg_path))
+    saved = mcp.save_persisted_mcp_config(
+        True,
+        {
+            "mcpServers": {
+                "context7": {"url": "https://mcp.context7.com/mcp"},
+            }
+        },
+    )
+    assert cfg_path.is_file()
+    assert saved["context7"]["type"] == "streamable_http"
+    enabled, loaded = mcp.load_persisted_mcp_config()
+    assert enabled is True
+    assert loaded == saved
+
+
+@pytest.mark.asyncio
+async def test_streamable_http_headers_and_per_server_status(monkeypatch):
+    captured_calls = []
+
+    @asynccontextmanager
+    async def fake_streamable_http(*, url, headers=None):
+        captured_calls.append((url, headers))
+        yield (url, "write-stream", lambda: "session-1")
+
+    @asynccontextmanager
+    async def fake_session(read_stream, write_stream):
+        assert write_stream == "write-stream"
+
+        async def initialize():
+            return None
+
+        async def list_tools():
+            return SimpleNamespace(
+                tools=[
+                    SimpleNamespace(
+                        name="resolve_docs",
+                        description="Resolve library documentation",
+                        inputSchema={"type": "object", "properties": {}},
+                    )
+                ]
+            )
+
+        yield SimpleNamespace(initialize=initialize, list_tools=list_tools)
+
+    monkeypatch.setattr(mcp_clients, "streamablehttp_client", fake_streamable_http)
+    monkeypatch.setattr(mcp_clients, "ClientSession", fake_session)
+
+    config = {
+        "mcpServers": {
+            "docs": {
+                "url": "https://mcp.example.com/mcp",
+                "headers": {"Authorization": "Bearer secret"},
+            },
+            "paused": {
+                "url": "https://paused.example.com/mcp",
+                "enabled": False,
+            },
+        }
+    }
+    try:
+        tools = await mcp.init_mcp_tools(config, enabled=True)
+        assert len(tools) == 1
+        assert tools[0].name == "mcp_docs_resolve_docs"
+        assert captured_calls == [("https://mcp.example.com/mcp", {"Authorization": "Bearer secret"})]
+        statuses = {item["id"]: item for item in mcp.get_mcp_server_statuses()}
+        assert statuses["docs"]["status"] == "connected"
+        assert statuses["docs"]["tool_count"] == 1
+        assert statuses["docs"]["tools"][0]["original_name"] == "resolve_docs"
+        assert statuses["paused"]["status"] == "disabled"
+        assert statuses["paused"]["tool_count"] == 0
     finally:
         await mcp.close_mcp_tools()

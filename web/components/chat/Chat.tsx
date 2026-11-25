@@ -38,6 +38,7 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
   const [showMobileArtifacts, setShowMobileArtifacts] = useState(false)
   const [isArtifactsOpen, setIsArtifactsOpen] = useState(true)
   const [showSettings, setShowSettings] = useState(false)
+  const [settingsSection, setSettingsSection] = useState<'general' | 'mcp'>('general')
   const [showBrowserViewer, setShowBrowserViewer] = useState(false) // Browser viewer visibility
 
   const [currentView, setCurrentView] = useState('dashboard') // 'dashboard' | 'discover' | 'library'
@@ -359,7 +360,7 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
         onTogglePin={togglePin}
         onRenameChat={renameSession}
         onClearHistory={handleClearHistory}
-        onOpenSettings={() => setShowSettings(true)}
+        onOpenSettings={() => { setSettingsSection('general'); setShowSettings(true) }}
         activeView={currentView}
         activeSessionId={currentSessionId}
         onViewChange={setCurrentView}
@@ -377,7 +378,7 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
           onNewChat={handleNewChat}
           selectedModel={selectedModel}
           onModelChange={setSelectedModel}
-          onOpenSettings={() => setShowSettings(true)}
+          onOpenSettings={() => { setSettingsSection('general'); setShowSettings(true) }}
           onToggleArtifacts={() => setShowMobileArtifacts(!showMobileArtifacts)}
           hasArtifacts={artifacts.length > 0}
           isInitializing={isHistoryLoading}
@@ -405,6 +406,7 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
 
         <SettingsDialog 
             open={showSettings} 
+            initialSection={settingsSection}
             onOpenChange={setShowSettings} 
             selectedModel={selectedModel}
             onModelChange={setSelectedModel}
@@ -487,6 +489,7 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
             setSearchMode={setSearchMode}
             wide={isWideLayout}
             focusSignal={composerFocusSignal}
+            onOpenSettings={() => { setSettingsSection('mcp'); setShowSettings(true) }}
             />
         )}
       </div>

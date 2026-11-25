@@ -100,7 +100,16 @@ from tools.core.registry import set_registered_tools
 from tools.io.asr import get_asr_service, init_asr_service
 from tools.io.screenshot_service import get_screenshot_service
 from tools.io.tts import AVAILABLE_VOICES, get_tts_service, init_tts_service
-from tools.mcp import close_mcp_tools, init_mcp_tools, reload_mcp_tools
+from tools.mcp import (
+    close_mcp_tools,
+    get_mcp_config_path,
+    get_mcp_server_statuses,
+    init_mcp_tools,
+    load_persisted_mcp_config,
+    normalize_mcp_servers,
+    reload_mcp_tools,
+    save_persisted_mcp_config,
+)
 from tools.sandbox import sandbox_browser_sessions
 from tools.search.multi_search import get_search_orchestrator
 from triggers import (
@@ -520,9 +529,23 @@ def _configure_graphs(saver):
 _configure_graphs(MemorySaver())
 durable_streams: DurableStreams | None = None
 mcp_thread_id = "default"  # thread id for MCP event emission; per-request tools will override
-mcp_enabled = settings.enable_mcp
-mcp_servers_config = settings.mcp_servers
+mcp_enabled, mcp_servers_config = load_persisted_mcp_config()
 mcp_loaded_tools = 0
+
+
+def _mcp_config_response(message: str | None = None) -> dict[str, Any]:
+    clean_servers = normalize_mcp_servers(mcp_servers_config)
+    payload: dict[str, Any] = {
+        "enabled": bool(mcp_enabled),
+        "servers": clean_servers,
+        "mcpServers": clean_servers,
+        "loaded_tools": mcp_loaded_tools,
+        "server_statuses": get_mcp_server_statuses(),
+        "config_path": str(get_mcp_config_path()),
+    }
+    if message:
+        payload["message"] = message
+    return payload
 
 
 def _apply_mcp_thread_id(config: Any, thread_id: str) -> Any:
@@ -582,15 +605,18 @@ async def startup_event():
     logger.info(f"Checkpointer: {'Enabled' if checkpointer else 'Disabled'}")
 
     # Initialize MCP tools
-    global mcp_loaded_tools, mcp_servers_config
+    global mcp_enabled, mcp_loaded_tools, mcp_servers_config
     try:
         logger.info("Initializing MCP tools...")
-        servers_cfg = _apply_mcp_thread_id(mcp_servers_config, mcp_thread_id)
-        mcp_servers_config = servers_cfg
-        mcp_tools = await init_mcp_tools(servers_override=servers_cfg, enabled=mcp_enabled)
+        mcp_enabled, mcp_servers_config = load_persisted_mcp_config()
+        mcp_tools = await init_mcp_tools(
+            servers_override=mcp_servers_config,
+            enabled=mcp_enabled,
+            thread_id=mcp_thread_id,
+        )
+        set_registered_tools(mcp_tools)
+        mcp_loaded_tools = len(mcp_tools)
         if mcp_tools:
-            set_registered_tools(mcp_tools)
-            mcp_loaded_tools = len(mcp_tools)
             logger.info(f"Successfully registered {mcp_loaded_tools} MCP tools")
         else:
             logger.info("No MCP tools to register")
@@ -1043,6 +1069,8 @@ class GraphInterruptResumeRequest(BaseModel):
 class MCPConfigPayload(BaseModel):
     enable: Optional[bool] = None
     servers: Optional[Dict[str, Any]] = None
+    mcpServers: Optional[Dict[str, Any]] = None
+    persist: bool = True
 
 
 class AgentUpsertPayload(BaseModel):
@@ -2941,12 +2969,8 @@ async def resume_interrupt(request: Request, payload: GraphInterruptResumeReques
 
 @app.get("/api/mcp/config")
 async def get_mcp_config():
-    """Return current MCP enable flag, servers config, and loaded tool count."""
-    return {
-        "enabled": mcp_enabled,
-        "servers": mcp_servers_config,
-        "loaded_tools": mcp_loaded_tools,
-    }
+    """Return current MCP enable flag, normalized servers config, statuses, and loaded tool count."""
+    return _mcp_config_response()
 
 
 @app.get("/api/tools/registry", response_model=ToolRegistryResponse)
@@ -3151,34 +3175,41 @@ async def remove_agent(agent_id: str):
 
 @app.post("/api/mcp/config")
 async def update_mcp_config(payload: MCPConfigPayload):
-    """Update MCP enable flag and servers config at runtime."""
+    """Update MCP enable flag and servers config at runtime, persisting to config/mcp.json."""
     global mcp_enabled, mcp_servers_config, mcp_loaded_tools
 
     if payload.enable is not None:
         mcp_enabled = bool(payload.enable)
-    if payload.servers is not None:
-        mcp_servers_config = payload.servers
+    incoming_servers = payload.mcpServers if payload.mcpServers is not None else payload.servers
+    if incoming_servers is not None:
+        mcp_servers_config = normalize_mcp_servers(incoming_servers)
+    else:
+        mcp_servers_config = normalize_mcp_servers(mcp_servers_config)
+
+    if payload.persist:
+        try:
+            save_persisted_mcp_config(mcp_enabled, mcp_servers_config)
+        except Exception as e:
+            logger.warning("Failed to persist MCP config to disk: %s", e)
 
     if mcp_enabled and mcp_servers_config:
         try:
-            cfg = _apply_mcp_thread_id(mcp_servers_config, mcp_thread_id)
-            mcp_servers_config = cfg
-            tools = await reload_mcp_tools(cfg, enabled=True)
+            tools = await reload_mcp_tools(
+                mcp_servers_config,
+                enabled=True,
+                thread_id=mcp_thread_id,
+            )
             set_registered_tools(tools)
             mcp_loaded_tools = len(tools)
         except Exception as e:
             logger.error(f"Failed to reload MCP tools: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail="Failed to reload MCP tools")
     else:
-        await close_mcp_tools()
+        await init_mcp_tools(servers_override=mcp_servers_config, enabled=False)
         set_registered_tools([])
         mcp_loaded_tools = 0
 
-    return {
-        "enabled": mcp_enabled,
-        "servers": mcp_servers_config,
-        "loaded_tools": mcp_loaded_tools,
-    }
+    return _mcp_config_response(message=f"MCP configuration saved ({mcp_loaded_tools} tools loaded)")
 
 
 @app.get("/api/runs")

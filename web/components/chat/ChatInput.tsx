@@ -2,12 +2,13 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
-import { ArrowUp, Globe, Bot, Paperclip, X, Mic, MicOff, ChevronDown, Check, Trash2, File as FileIcon, Bug, BookOpen, PenTool, TestTube, Plug, Rocket } from 'lucide-react'
+import { ArrowUp, Globe, Bot, Paperclip, X, Mic, MicOff, ChevronDown, Settings2, Trash2, File as FileIcon, Bug, BookOpen, PenTool, TestTube, Plug, Rocket } from 'lucide-react'
 import { useI18n } from '@/lib/i18n/i18n-context'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { createFilePreview } from '@/lib/file-utils'
 import { getApiBaseUrl } from '@/lib/api'
+import { useMcpConfig } from '@/hooks/useMcpConfig'
 
 interface ChatInputProps {
   input: string
@@ -24,6 +25,7 @@ interface ChatInputProps {
   setSearchMode: (mode: string) => void
   wide?: boolean
   focusSignal?: number
+  onOpenSettings?: () => void
 }
 
 function AttachmentImage({ file }: { file: File }) {
@@ -50,9 +52,11 @@ export function ChatInput({
   searchMode,
   setSearchMode,
   wide = false,
-  focusSignal = 0
+  focusSignal = 0,
+  onOpenSettings,
 }: ChatInputProps) {
   const { t } = useI18n()
+  const { config: mcpConfig, isLoading: mcpLoading, error: mcpError, refresh: refreshMcp } = useMcpConfig()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const wasLoading = useRef(isLoading)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -61,7 +65,6 @@ export function ChatInput({
   const [showCommandMenu, setShowCommandMenu] = useState(false)
   const [isMcpOpen, setIsMcpOpen] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
-  const [selectedMcp, setSelectedMcp] = useState('filesystem') // Default MCP
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -302,13 +305,6 @@ export function ChatInput({
     }
   }
 
-  const mcpOptions = [
-      { id: 'filesystem', label: t('filesystem') },
-      { id: 'github', label: t('github') },
-      { id: 'brave', label: t('braveSearch') },
-      { id: 'memory', label: t('memory') }
-  ]
-
   const modes = [
     { id: 'web', label: t('web'), icon: Globe },
     { id: 'agent', label: t('agent'), icon: Bot },
@@ -389,53 +385,35 @@ export function ChatInput({
           )
         })}
         <div ref={mcpContainerRef} className="relative shrink-0">
-          <button
-            type="button"
-            aria-pressed={searchMode === 'mcp'}
-            aria-expanded={isMcpOpen}
-            aria-controls="composer-mcp-options"
-            title={searchMode === 'mcp' ? mcpOptions.find(option => option.id === selectedMcp)?.label : undefined}
-            onClick={() => {
-              if (searchMode === 'mcp') {
-                setSearchMode('')
-                setIsMcpOpen(false)
-              } else {
-                setSearchMode('mcp')
-                setIsMcpOpen(true)
-              }
-            }}
+          <div
             className={cn(
-              'flex h-8 items-center gap-1.5 rounded-lg border px-2 text-xs font-medium whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+              'flex h-8 items-center rounded-lg border text-xs font-medium whitespace-nowrap transition-colors',
               searchMode === 'mcp'
                 ? 'border-primary/25 bg-primary/10 text-primary shadow-xs'
                 : 'border-transparent text-muted-foreground hover:bg-accent/60 hover:text-foreground'
             )}
           >
-            <Plug aria-hidden="true" className="h-3.5 w-3.5" />
-            MCP
-            <ChevronDown aria-hidden="true" className={cn('h-3 w-3 transition-transform', isMcpOpen && 'rotate-180')} />
-          </button>
+            <button type="button" aria-pressed={searchMode === 'mcp'} onClick={() => { setSearchMode(searchMode === 'mcp' ? '' : 'mcp'); setIsMcpOpen(searchMode !== 'mcp') }} className="flex h-full items-center gap-1.5 rounded-l-lg pl-2 pr-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"><Plug aria-hidden="true" className="h-3.5 w-3.5" />{t('mcp')}</button>
+            <button type="button" aria-label={t('mcpShowServers')} aria-expanded={isMcpOpen} aria-controls="composer-mcp-options" onClick={() => setIsMcpOpen(!isMcpOpen)} className="flex h-full items-center rounded-r-lg pl-1 pr-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"><ChevronDown aria-hidden="true" className={cn('h-3 w-3 transition-transform', isMcpOpen && 'rotate-180')} /></button>
+          </div>
           {isMcpOpen && (
-            <div id="composer-mcp-options" className="absolute bottom-full left-0 z-50 mb-2 max-h-[min(18rem,calc(100dvh-8rem))] w-44 overflow-y-auto rounded-lg border border-border/80 bg-popover p-1.5 text-popover-foreground shadow-elevated">
-              {mcpOptions.map(option => (
-                <button
-                  key={option.id}
-                  type="button"
-                  aria-pressed={selectedMcp === option.id && searchMode === 'mcp'}
-                  onClick={() => {
-                    setSelectedMcp(option.id)
-                    setSearchMode('mcp')
-                    setIsMcpOpen(false)
-                  }}
-                  className={cn(
-                    'flex w-full items-center justify-between rounded-md px-2.5 py-2 text-sm transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset',
-                    selectedMcp === option.id && searchMode === 'mcp' && 'bg-primary/10 font-medium text-primary'
-                  )}
-                >
-                  {option.label}
-                  {selectedMcp === option.id && <Check aria-hidden="true" className="h-3.5 w-3.5" />}
-                </button>
-              ))}
+            <div id="composer-mcp-options" aria-label={t('mcpConfiguration')} className="absolute bottom-full left-0 z-50 mb-2 flex max-h-[min(22rem,calc(100dvh-8rem))] w-72 max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-lg border border-border/80 bg-popover text-popover-foreground shadow-elevated max-sm:left-auto max-sm:right-0">
+              <div className="shrink-0 border-b border-border/70 bg-surface-subtle px-3 py-2 text-xs font-semibold">{t('mcpConfiguration')}</div>
+              <div className="min-h-0 overflow-y-auto p-2">
+                {mcpLoading && <p role="status" className="px-2 py-3 text-xs text-muted-foreground">{t('loading')}</p>}
+                {mcpError && <div role="alert" className="space-y-2 px-2 py-3 text-xs text-destructive"><p className="whitespace-normal leading-5">{t('mcpLoadFailed')}</p><Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => void refreshMcp()}>{t('mcpRetry')}</Button></div>}
+                {!mcpLoading && mcpConfig?.enabled && Object.entries(mcpConfig.servers).map(([serverId, server]) => {
+                  const status = mcpConfig.server_statuses.find(item => item.id === serverId)
+                  const state = !server.enabled ? 'disabled' : status?.status ?? 'disabled'
+                  return <div key={serverId} className="flex items-start gap-2 rounded-md px-2 py-2.5">
+                    <span aria-hidden="true" className={cn('mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full', state === 'connected' ? 'bg-success' : state === 'error' ? 'bg-destructive' : 'bg-muted-foreground')} />
+                    <div className="min-w-0 flex-1"><p className="truncate font-mono text-xs font-medium" title={serverId}>{serverId}</p><p className={cn('mt-1 text-xs', state === 'error' ? 'text-destructive' : 'text-muted-foreground')}>{state === 'connected' ? t('mcpConnected') : state === 'error' ? t('error') : t('mcpServerDisabled')}</p></div>
+                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{t('mcpToolCount').replace('{count}', String(status?.tool_count ?? 0))}</span>
+                  </div>
+                })}
+                {!mcpLoading && mcpConfig && (!mcpConfig.enabled || Object.keys(mcpConfig.servers).length === 0) && <div className="space-y-1 px-2 py-3 text-xs leading-5 whitespace-normal"><p className="font-medium">{mcpConfig.enabled ? t('mcpNoServers') : t('mcpServerDisabled')}</p><p className="text-muted-foreground">{mcpConfig.enabled ? t('mcpNoServersHint') : t('mcpDisabledHint')}</p></div>}
+              </div>
+              {onOpenSettings && <div className="shrink-0 border-t border-border/70 p-1.5"><Button type="button" variant="ghost" className="h-9 w-full justify-start gap-2 px-2 text-xs" onClick={() => { setIsMcpOpen(false); onOpenSettings() }}><Settings2 className="h-3.5 w-3.5" aria-hidden="true" />{t('mcpManage')}</Button></div>}
             </div>
           )}
         </div>
@@ -494,7 +472,7 @@ export function ChatInput({
           value={input}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
-          placeholder={searchMode === 'mcp' ? `${mcpOptions.find(option => option.id === selectedMcp)?.label || 'MCP'}...` : t('askAnything')}
+          placeholder={searchMode === 'mcp' ? t('mcpAskPlaceholder') : t('askAnything')}
           aria-label={t('askAnything')}
           disabled={isLoading || awaitingApproval}
           rows={1}

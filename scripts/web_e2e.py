@@ -22,6 +22,22 @@ ARTIFACT_PATH = "/api/tool-artifacts/fixture-output"
 ARTIFACT_CONTENT = "x" * 80_000 + "-tail-marker"
 
 
+def mcp_response(enabled=False, servers=None):
+    servers = servers or {}
+    return {
+        "enabled": enabled, "servers": servers, "mcpServers": servers,
+        "loaded_tools": 0, "config_path": "config/mcp.json",
+        "server_statuses": [
+            {
+                "id": name, "type": server["type"], "enabled": server["enabled"],
+                "status": "connected" if enabled and server["enabled"] else "disabled",
+                "error": None, "tool_count": 0, "tools": [],
+            }
+            for name, server in servers.items()
+        ],
+    }
+
+
 class Run:
     def __init__(self, run_id, request):
         self.id = run_id
@@ -124,9 +140,7 @@ class FixtureHandler(BaseHTTPRequestHandler):
             if self.server.mcp_post_status != 200:
                 self.send_json(self.server.mcp_post_status, {"detail": "MCP reload failed"})
                 return
-            self.server.mcp_config = {
-                "enabled": body["enable"], "servers": body["servers"], "loaded_tools": 0
-            }
+            self.server.mcp_config = mcp_response(body["enable"], body["mcpServers"])
             self.send_json(200, self.server.mcp_config)
             return
         if url.path == "/api/interrupt/resume":
@@ -287,7 +301,7 @@ class ChatBrowserTests(unittest.TestCase):
         self.fixture.runs = {}
         self.fixture.submissions = deque()
         self.fixture.run_started = Event()
-        self.fixture.mcp_config = {"enabled": False, "servers": None, "loaded_tools": 0}
+        self.fixture.mcp_config = mcp_response()
         self.fixture.mcp_get_status = 200
         self.fixture.mcp_post_status = 200
         self.fixture.mcp_submissions = []
@@ -337,30 +351,28 @@ class ChatBrowserTests(unittest.TestCase):
     def test_preferences_save_without_reloading_untouched_mcp(self):
         self.page.set_default_timeout(5_000)
         responses = (
-            (None, 200),
-            ("", 200),
-            ('{"fixture": {"command": "fixture-mcp"}}', 200),
             ({}, 200),
-            (None, 503),
+            ({"fixture": {"type": "stdio", "enabled": True, "command": "fixture-mcp", "args": []}}, 200),
+            ({}, 503),
         )
         for servers, status in responses:
             with self.subTest(servers=servers, status=status):
-                self.fixture.mcp_config["servers"] = servers
+                self.fixture.mcp_config = mcp_response(servers=servers)
                 self.fixture.mcp_get_status = status
                 self.page.evaluate("localStorage.clear(); localStorage.setItem('weaver-language', 'zh')")
                 self.page.emulate_media(color_scheme="dark" if status == 503 else "light")
                 self.page.reload(wait_until="domcontentloaded")
                 self.page.get_by_role("button", name="Toggle theme").click()
-                self.page.get_by_role("button", name="Settings", exact=True).last.click()
+                self.page.get_by_role("button", name="设置", exact=True).last.click()
                 dialog = self.page.get_by_role("dialog", name="设置", exact=True)
-                mcp = dialog.get_by_label("服务器配置 (JSON)")
                 if status == 200:
+                    dialog.get_by_role("button", name="导入 / JSON", exact=True).click()
+                    mcp = dialog.get_by_label("服务器配置 (JSON)")
                     expect(mcp).to_be_enabled()
-                    expected_servers = json.loads(servers or "{}") if isinstance(servers, str) else servers or {}
-                    self.assertEqual(json.loads(mcp.input_value().strip() or "{}"), expected_servers)
+                    self.assertEqual(json.loads(mcp.input_value())["mcpServers"], servers)
                 else:
-                    expect(self.page.get_by_text("Failed to load MCP config", exact=True)).to_be_visible()
-                    expect(mcp).to_be_disabled()
+                    expect(self.page.get_by_text("无法加载 MCP 配置，请检查后端连接后重试。", exact=True)).to_be_visible()  # noqa: RUF001
+                    expect(dialog.get_by_role("switch", name="启用 MCP", exact=True)).to_be_disabled()
                 dialog.get_by_role("button", name="GPT-4.1", exact=True).click()
                 dialog.get_by_role("button", name="English", exact=True).click()
                 dialog.get_by_role("button", name="OpenAI").click()
@@ -382,6 +394,7 @@ class ChatBrowserTests(unittest.TestCase):
         self.fixture.mcp_config["servers"] = {}
         self.page.get_by_role("button", name="Settings", exact=True).last.click()
         dialog = self.page.get_by_role("dialog", name="Settings", exact=True)
+        dialog.get_by_role("button", name="Import / JSON", exact=True).click()
         mcp = dialog.get_by_label("Servers Configuration (JSON)")
         expect(mcp).to_be_enabled()
         dialog.get_by_role("button", name="GPT-4.1", exact=True).click()
@@ -397,7 +410,8 @@ class ChatBrowserTests(unittest.TestCase):
                 self.assertEqual(self.fixture.mcp_submissions, [])
         dialog.get_by_role("button", name="Cancel", exact=True).click()
         self.page.get_by_role("button", name="Settings", exact=True).last.click()
-        expect(mcp).to_have_value("{}")
+        dialog.get_by_role("button", name="Import / JSON", exact=True).click()
+        self.assertEqual(json.loads(mcp.input_value()), {"mcpServers": {}})
         expect(dialog.get_by_role("button", name="GPT-4.1", exact=True)).to_have_attribute("aria-pressed", "false")
 
         draft = '{"fixture": {"command": "fixture-mcp"}}'
@@ -405,27 +419,101 @@ class ChatBrowserTests(unittest.TestCase):
         dialog.get_by_role("button", name="GPT-4.1", exact=True).click()
         self.fixture.mcp_post_status = 500
         dialog.get_by_role("button", name="Save", exact=True).click()
-        expect(self.page.get_by_text("Failed to save MCP config", exact=True)).to_be_visible()
+        expect(self.page.get_by_text("Could not save MCP configuration. Your changes are still here.", exact=True)).to_be_visible()
         expect(mcp).to_have_value(draft)
         expect(dialog.get_by_role("button", name="Save", exact=True)).to_be_enabled()
         self.assertNotEqual(self.page.evaluate("localStorage.getItem('weaver-model')"), "gpt-4.1")
         self.fixture.mcp_post_status = 200
         dialog.get_by_role("button", name="Save", exact=True).click()
         expect(dialog).to_have_count(0)
-        payload = {"enable": False, "servers": {"fixture": {"command": "fixture-mcp"}}}
+        payload = {"enable": False, "mcpServers": {"fixture": {"type": "stdio", "enabled": True, "command": "fixture-mcp", "args": []}}}
         self.assertEqual(self.fixture.mcp_submissions, [payload, payload])
         self.page.get_by_role("button", name="Settings", exact=True).last.click()
-        expect(mcp).to_have_value(json.dumps(payload["servers"], indent=2))
-        mcp.fill("")
+        dialog.get_by_role("button", name="Import / JSON", exact=True).click()
+        self.assertEqual(json.loads(mcp.input_value()), {"mcpServers": payload["mcpServers"]})
+        mcp.fill('{"mcpServers": {}}')
         dialog.get_by_role("button", name="Save", exact=True).click()
         expect(dialog).to_have_count(0)
-        self.assertEqual(self.fixture.mcp_submissions[-1], {"enable": False, "servers": {}})
+        self.assertEqual(self.fixture.mcp_submissions[-1], {"enable": False, "mcpServers": {}})
         self.page.get_by_role("button", name="Settings", exact=True).last.click()
         dialog.get_by_role("switch", name="Enable MCP", exact=True).click()
         dialog.get_by_role("button", name="Save", exact=True).click()
         expect(dialog).to_have_count(0)
-        self.assertEqual(self.fixture.mcp_submissions[-1], {"enable": True, "servers": {}})
+        self.assertEqual(self.fixture.mcp_submissions[-1], {"enable": True, "mcpServers": {}})
         self.assertEqual(len(self.fixture.mcp_submissions), 4)
+
+    def test_mcp_server_form_updates_the_live_composer_without_reload(self):
+        expect(self.page.get_by_role("button", name="Settings", exact=True).last).to_be_enabled()
+        self.page.get_by_role("button", name="MCP", exact=True).click()
+        popover = self.page.locator("#composer-mcp-options")
+        expect(popover.get_by_text("Disabled", exact=True)).to_be_visible()
+        popover.get_by_role("button", name="Manage MCP servers…", exact=True).click()
+        dialog = self.page.get_by_role("dialog", name="Settings", exact=True)
+        dialog.get_by_role("switch", name="Enable MCP", exact=True).click()
+        dialog.get_by_role("button", name="Add server", exact=True).click()
+        dialog.get_by_label("Server ID", exact=True).fill("context7")
+        dialog.get_by_label("Server URL", exact=True).fill("https://example.com/mcp")
+        dialog.get_by_role("button", name="Add row", exact=True).click()
+        dialog.get_by_label("Headers: Key 1", exact=True).fill("Authorization")
+        dialog.get_by_label("Headers: Value 1", exact=True).fill("Bearer fixture")
+        dialog.get_by_role("button", name="Save", exact=True).click()
+        expect(dialog).to_have_count(0)
+        self.assertEqual(self.fixture.mcp_submissions, [{
+            "enable": True,
+            "mcpServers": {"context7": {
+                "type": "streamable_http", "enabled": True,
+                "url": "https://example.com/mcp", "headers": {"Authorization": "Bearer fixture"},
+            }},
+        }])
+        self.page.get_by_role("button", name="Show MCP servers", exact=True).click()
+        expect(popover.get_by_text("context7", exact=True)).to_be_visible()
+        expect(popover.get_by_text("Connected", exact=True)).to_be_visible()
+        expect(self.page.get_by_role("button", name="MCP", exact=True)).to_have_attribute("aria-pressed", "true")
+        self.page.get_by_role("textbox", name="Ask anything...").click()
+        expect(popover).to_have_count(0)
+        self.page.reload(wait_until="domcontentloaded")
+        expect(self.page.get_by_role("button", name="Settings", exact=True).last).to_be_enabled()
+        self.page.get_by_role("button", name="Show MCP servers", exact=True).click()
+        expect(popover.get_by_text("context7", exact=True)).to_be_visible()
+
+    def test_mcp_stdio_editor_preserves_arguments_env_and_working_directory(self):
+        self.page.get_by_role("button", name="Settings", exact=True).last.click()
+        dialog = self.page.get_by_role("dialog", name="Settings", exact=True)
+        dialog.get_by_role("switch", name="Enable MCP", exact=True).click()
+        dialog.get_by_role("button", name="Add server", exact=True).click()
+        dialog.get_by_label("Server ID", exact=True).fill("local-tools")
+        dialog.get_by_role("combobox", name="Transport", exact=True).click()
+        self.page.get_by_role("option", name="Stdio", exact=True).click()
+        dialog.get_by_label("Command", exact=True).fill("npx")
+        args = ["-y", "mcp-server", "C:/Program Files/work"]
+        dialog.get_by_label("Arguments", exact=True).fill(json.dumps(args))
+        dialog.get_by_role("button", name="Add row", exact=True).click()
+        dialog.get_by_label("Environment variables: Key 1", exact=True).fill("TOKEN")
+        dialog.get_by_label("Environment variables: Value 1", exact=True).fill(" secret ")
+        dialog.get_by_label("Working directory (optional)", exact=True).fill("C:/work path")
+        dialog.get_by_role("button", name="Apply server", exact=True).click()
+        expect(dialog.get_by_text("Not saved", exact=True)).to_be_visible()
+        dialog.get_by_role("button", name="Save", exact=True).click()
+        expect(dialog).to_have_count(0)
+        expected = {
+            "type": "stdio", "enabled": True, "command": "npx", "args": args,
+            "env": {"TOKEN": " secret "}, "cwd": "C:/work path",
+        }
+        self.assertEqual(self.fixture.mcp_config["servers"]["local-tools"], expected)
+        self.page.get_by_role("button", name="Settings", exact=True).last.click()
+        dialog.get_by_role("button", name="Edit server: local-tools", exact=True).click()
+        self.assertEqual(json.loads(dialog.get_by_label("Arguments", exact=True).input_value()), args)
+        expect(dialog.get_by_label("Environment variables: Value 1", exact=True)).to_have_value(" secret ")
+        expect(dialog.get_by_label("Working directory (optional)", exact=True)).to_have_value("C:/work path")
+        dialog.get_by_label("Command", exact=True).fill("node")
+        dialog.get_by_role("button", name="Save", exact=True).click()
+        expect(dialog).to_have_count(0)
+        self.assertEqual(self.fixture.mcp_config["servers"]["local-tools"], {**expected, "command": "node"})
+        self.page.get_by_role("button", name="Settings", exact=True).last.click()
+        dialog.get_by_role("button", name="Delete: local-tools", exact=True).click()
+        dialog.get_by_role("button", name="Save", exact=True).click()
+        expect(dialog).to_have_count(0)
+        self.assertEqual(self.fixture.mcp_config["servers"], {})
 
     def test_agent_history_survives_reload_and_reopen(self):
         self.choose_agent()
