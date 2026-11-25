@@ -428,7 +428,7 @@ class Settings(BaseSettings):
 
     # Sandbox mode: local (E2B), docker (opt-in local Docker), daytona (remote), none (disabled)
     sandbox_mode: str = "local"
-    sandbox_template_browser: str = ""  # e2b sandbox browser template ID (e.g., chrome-stable)
+    sandbox_template_browser: str = "browser"  # e2b sandbox browser template ID (default: browser)
     sandbox_allow_internet: bool = True  # allow internet access inside sandbox
 
     # Opt-in local Docker sandbox (disabled by default)

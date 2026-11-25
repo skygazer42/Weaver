@@ -82,10 +82,14 @@ TAVILY_API_KEY=tvly-...
 
 ### 代码执行沙盒（二选一，均可选）
 
-方式 A：E2B 云端沙盒：
+方式 A：E2B 云端沙盒（同时支持代码执行与 Deep Search 实时浏览器预览）：
 
 ```bash
 E2B_API_KEY=e2b_...
+# E2B 浏览器沙箱模板 ID（默认 browser，若有自定义模板可覆盖）
+SANDBOX_TEMPLATE_BROWSER=browser
+SANDBOX_ALLOW_INTERNET=true
+DEEPSEARCH_VISUALIZE_BROWSER=true
 ```
 
 方式 B：本地免费 Docker 沙盒（**默认关闭**，开启后无需 E2B 即可复用 `execute_python_code`、`sandbox_files`、`sandbox_shell`）：
