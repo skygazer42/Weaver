@@ -29,6 +29,8 @@
     "katex": "^0.16.27",
     "lucide-react": "^0.577.0",
     "mermaid": "^11.12.2",
+    "micromark": "4.0.2",
+    "micromark-extension-gfm": "3.0.0",
     "next": "16.4.6",
     "next-themes": "^0.4.6",
     "papaparse": "^5.5.3",

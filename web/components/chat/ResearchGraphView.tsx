@@ -4,8 +4,10 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { BookOpen, Check, Circle, CircleAlert, CircleMinus, ExternalLink, FileText, LoaderCircle, Minus, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useI18n } from '@/lib/i18n/i18n-context'
-import { layoutResearchTree, parseStudioSourceUrl, type ResearchNode, type ResearchTree, type StudioTelemetry } from '@/lib/researchStudio'
+import { buildStandaloneGraphSvg, layoutResearchTree, parseStudioSourceUrl, type ResearchNode, type ResearchTree, type StudioTelemetry } from '@/lib/researchStudio'
+import { downloadBlob, downloadName } from '@/lib/download'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
 const statusStyles = {
   pending: { icon: Circle, label: 'studioPending', color: 'bg-muted text-muted-foreground' },
@@ -100,13 +102,38 @@ function NodeInspector({ node }: { node: ResearchNode }) {
   )
 }
 
-export function ResearchGraphView({ tree, telemetry }: { tree: ResearchTree; telemetry: StudioTelemetry }) {
+export function ResearchGraphView({ tree, mindMap, telemetry }: {
+  tree?: ResearchTree | null
+  mindMap?: ResearchTree | null
+  telemetry: StudioTelemetry
+}) {
+  const [mode, setMode] = useState<'tree' | 'mindMap'>('tree')
+  const isMindMap = Boolean(mindMap && (!tree || mode === 'mindMap'))
+  const active = isMindMap ? mindMap : tree
+  if (!active) return null
+
+  return <GraphDiagram tree={active} telemetry={telemetry}
+    isMindMap={isMindMap} onModeChange={tree && mindMap ? setMode : undefined} />
+}
+
+function GraphDiagram({ tree, telemetry, isMindMap, onModeChange }: {
+  tree: ResearchTree
+  telemetry: StudioTelemetry
+  isMindMap: boolean
+  onModeChange?: (mode: 'tree' | 'mindMap') => void
+}) {
   const { t } = useI18n()
+  const [viewMode, setViewMode] = useState(isMindMap)
   const [selectedId, setSelectedId] = useState<string>()
   const [zoom, setZoom] = useState<number>()
   const [viewportWidth, setViewportWidth] = useState(0)
   const viewport = useRef<HTMLDivElement>(null)
-  const layout = useMemo(() => layoutResearchTree(tree), [tree])
+  const layout = useMemo(() => layoutResearchTree(tree, isMindMap), [isMindMap, tree])
+  if (viewMode !== isMindMap) {
+    setViewMode(isMindMap)
+    setSelectedId(undefined)
+    setZoom(undefined)
+  }
   const selected = layout.nodes.find(({ node }) => node.id === selectedId)?.node
     ?? layout.nodes.find(({ node }) => node.id === tree.root_id)?.node
     ?? layout.nodes[0]?.node
@@ -118,22 +145,77 @@ export function ResearchGraphView({ tree, telemetry }: { tree: ResearchTree; tel
     observer.observe(element)
     return () => observer.disconnect()
   }, [])
+  useEffect(() => {
+    viewport.current?.scrollTo(0, 0)
+  }, [isMindMap])
 
   if (!selected) return null
 
   const activePath = new Set<string>([selected.id])
   const parents = new Map(layout.edges.map(edge => [edge.to, edge.from]))
   for (let parent = parents.get(selected.id); parent; parent = parents.get(parent)) activePath.add(parent)
-  const fit = viewportWidth ? Math.max(0.75, Math.min(1, (viewportWidth - 2) / layout.width)) : 1
+  const fit = viewportWidth ? Math.max(isMindMap ? 0.5 : 0.75, Math.min(1, (viewportWidth - 2) / layout.width)) : 1
   const scale = zoom ?? fit
   const changeZoom = (step: number) => setZoom(Math.min(1.75, Math.max(0.5, Math.round((scale + step) * 100) / 100)))
+  const title = t(isMindMap ? 'studioMindMap' : 'studioTree')
+
+  async function exportGraph(format: 'svg' | 'png') {
+    const svg = buildStandaloneGraphSvg(layout, { title, dark: document.documentElement.classList.contains('dark') })
+    const file = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' })
+    const filename = downloadName(tree.nodes[tree.root_id ?? '']?.topic || title, title) + '.' + format
+    if (format === 'svg') {
+      downloadBlob(file, filename)
+      return
+    }
+    const url = URL.createObjectURL(file)
+    try {
+      const image = new Image()
+      image.src = url
+      await image.decode()
+      const canvas = document.createElement('canvas')
+      const ratio = Math.min(2, 8192 / Math.max(layout.width, layout.height))
+      canvas.width = Math.ceil(layout.width * ratio)
+      canvas.height = Math.ceil(layout.height * ratio)
+      const context = canvas.getContext('2d')
+      if (!context) throw new Error('Canvas unavailable')
+      context.drawImage(image, 0, 0, canvas.width, canvas.height)
+      const png = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'))
+      if (!png) throw new Error('PNG unavailable')
+      downloadBlob(png, filename)
+    } catch {
+      toast.error(t('studioGraphExportFailed'))
+    } finally {
+      URL.revokeObjectURL(url)
+    }
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 p-3.5">
-      <Telemetry telemetry={telemetry} />
-      <section aria-label={t('studioGraph')} className="flex min-h-36 max-h-[55dvh] flex-col overflow-hidden rounded-lg border border-border bg-surface-subtle">
-        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border bg-card py-1 pl-3 pr-1.5">
-          <h3 className="text-xs font-medium text-foreground">{t('studioTree')}</h3>
+      {!isMindMap && <Telemetry telemetry={telemetry} />}
+      <section aria-label={title} className="flex min-h-36 max-h-[65dvh] flex-col overflow-hidden rounded-lg border border-border bg-surface-subtle">
+        <div className="flex shrink-0 items-center justify-between gap-1 border-b border-border bg-card p-2">
+          {onModeChange ? (
+            <div role="group" aria-label={t('studioGraphMode')} className="flex min-w-0 gap-0.5 rounded-md bg-surface-subtle p-0.5">
+              {(['tree', 'mindMap'] as const).map(mode => {
+                const active = (mode === 'mindMap') === isMindMap
+                return <Button key={mode} type="button" variant="ghost" size="sm" aria-pressed={active} onClick={() => onModeChange(mode)}
+                  className={cn('h-7 px-2 text-xs text-muted-foreground', active && 'bg-card text-primary shadow-xs hover:bg-card')}>
+                  {t(mode === 'tree' ? 'studioTree' : 'studioMindMap')}
+                </Button>
+              })}
+            </div>
+          ) : <h3 className="px-1 text-xs font-semibold text-foreground">{title}</h3>}
+          <div role="group" aria-label={t('studioDiagramExport')} className="flex shrink-0 gap-0.5">
+            {(['svg', 'png'] as const).map(format => {
+              const label = t(format === 'svg' ? 'studioExportSvg' : 'studioExportPng')
+              return <Button key={format} type="button" variant="ghost" size="sm" aria-label={label} title={label}
+                className="h-7 px-2 font-mono text-[11px] text-muted-foreground" onClick={() => void exportGraph(format)}>
+                {format.toUpperCase()}
+              </Button>
+            })}
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center justify-end gap-2 border-b border-border bg-card pr-1.5">
           <div role="group" aria-label={t('studioZoom')} className="flex items-center gap-0.5">
             <Button type="button" variant="ghost" size="icon" className="size-8" aria-label={t('studioZoomOut')} title={t('studioZoomOut')} onClick={() => changeZoom(-0.15)} disabled={scale <= 0.5}>
               <Minus aria-hidden="true" className="size-3.5" />
@@ -174,30 +256,34 @@ export function ResearchGraphView({ tree, telemetry }: { tree: ResearchTree; tel
                   title={node.topic}
                   style={{ left: x, top: y, width, height }}
                   className={cn(
-                    'absolute flex flex-col items-start justify-between rounded-md border bg-card px-2 py-1.5 text-left shadow-xs transition-colors hover:border-primary/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                    'absolute flex flex-col rounded-md border bg-card px-2 py-1.5 shadow-xs transition-colors hover:border-primary/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                    isMindMap ? 'items-center justify-center text-center' : 'items-start justify-between text-left',
+                    isMindMap && node.parent_id === null && 'bg-primary/10',
                     node.id === selected.id ? 'border-primary ring-1 ring-primary/25' : activePath.has(node.id) ? 'border-primary/50' : 'border-border'
                   )}
                 >
-                  <div className="flex w-full items-center gap-1">
+                  {!isMindMap && <div className="flex w-full items-center gap-1">
                     <NodeStatus status={node.status} />
                     {node.epoch !== undefined && <span aria-label={t('studioEpoch').replace('{count}', String(node.epoch))} className="ml-auto shrink-0 text-[10px] leading-3 tabular-nums text-muted-foreground">{node.epoch}</span>}
-                  </div>
-                  <span className="line-clamp-2 max-w-full break-words text-xs font-semibold leading-[15px] text-foreground">{node.topic}</span>
-                  <span className="flex gap-1 text-[10px] font-medium leading-3 tabular-nums text-muted-foreground">
+                  </div>}
+                  <span className={cn('max-w-full break-words text-xs font-semibold leading-[15px] text-foreground', isMindMap ? 'line-clamp-3' : 'line-clamp-2')}>{node.topic}</span>
+                  {!isMindMap && <span className="flex gap-1 text-[10px] font-medium leading-3 tabular-nums text-muted-foreground">
                     <span className="inline-flex items-center gap-0.5 rounded-sm bg-surface-subtle px-1 py-px" aria-label={t('studioFindingCount').replace('{count}', String(node.findings_count))} title={t('studioFindingCount').replace('{count}', String(node.findings_count))}>
                       <FileText aria-hidden="true" className="size-2.5" />{node.findings_count}
                     </span>
                     <span className="inline-flex items-center gap-0.5 rounded-sm bg-surface-subtle px-1 py-px" aria-label={t('studioSourceCount').replace('{count}', String(node.sources_count))} title={t('studioSourceCount').replace('{count}', String(node.sources_count))}>
                       <BookOpen aria-hidden="true" className="size-2.5" />{node.sources_count}
                     </span>
-                  </span>
+                  </span>}
                 </button>
               ))}
             </div>
           </div>
         </div>
       </section>
-      <NodeInspector key={selected.id} node={selected} />
+      {isMindMap ? selected.parent_id !== null && (
+        <p role="status" className="rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground">{selected.topic}</p>
+      ) : <NodeInspector key={selected.id} node={selected} />}
     </div>
   )
 }

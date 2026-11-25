@@ -6,7 +6,8 @@ import { ResearchStudioPanel } from '../components/chat/ResearchStudioPanel'
 import { I18nProvider } from '../lib/i18n/i18n-context'
 import { translations } from '../lib/i18n/translations'
 import {
-  extractResearchStudio, filterStudioSources, layoutResearchTree, resolveStudioTab,
+  buildStandaloneGraphSvg, composePromptWithResearchPlan, extractReportMindMap,
+  extractResearchStudio, filterStudioSources, layoutResearchTree, resolveStudioCitation, resolveStudioTab,
   type ResearchNode, type ResearchTree, type StudioTab,
 } from '../lib/researchStudio'
 import type { Message } from '../types/chat'
@@ -116,6 +117,62 @@ test('translates every Research Studio key in all four locales', () => {
   }
 })
 
+test('maps headings and key bullets into a bounded report outline', () => {
+  const map = extractReportMindMap('# Assessment\n\n## Findings\n- Lower cost\n### Materials\n- Improved yield\n\n```\n## Ignore this\n```\n## Outlook')
+  assert.ok(map?.root_id)
+  const root = map.nodes[map.root_id]
+  assert.equal(root.topic, 'Assessment')
+  assert.deepEqual(root.children_ids.map(id => map.nodes[id].topic), ['Findings', 'Outlook'])
+  const findings = map.nodes[root.children_ids[0]]
+  assert.deepEqual(findings.children_ids.map(id => map.nodes[id].topic), ['Lower cost', 'Materials'])
+  assert.equal(extractReportMindMap('', 'Fallback'), null)
+  assert.equal(extractReportMindMap('Short answer.'), null)
+  assert.equal(extractReportMindMap('## Findings\n- Short', 'Fallback')?.nodes['report-root'].topic, 'Fallback')
+  assert.ok(extractReportMindMap(Array.from({ length: 30 }, (_, i) => '## Section ' + i).join('\n'))!.total_nodes <= 18)
+})
+
+test('exports graph nodes and curves as standalone escaped SVG', () => {
+  const map = extractReportMindMap('# R&D <Grid>\n\n## Technology')!
+  const layout = layoutResearchTree(map)
+  const svg = buildStandaloneGraphSvg(layout, { dark: true, title: 'R&D "Grid"' })
+  assert.match(svg, /^<svg xmlns="http:\/\/www.w3.org\/2000\/svg"/)
+  assert.match(svg, /<title>R&amp;D &quot;Grid&quot;<\/title>/)
+  assert.match(svg, /R&amp;D &lt;Grid&gt;/)
+  assert.match(svg, /<path[^>]+d="M [^"]+ C /)
+  assert.match(svg, /<rect[^>]+rx=/)
+  assert.match(svg, /<\/svg>$/)
+  assert.notEqual(svg, buildStandaloneGraphSvg(layout, { title: 'R&D "Grid"' }))
+})
+
+test('appends only nonempty research directions in the chosen locale', () => {
+  assert.equal(composePromptWithResearchPlan('  Compare storage ', [], 'en'), '  Compare storage ')
+  assert.equal(composePromptWithResearchPlan('Compare storage', ['  Prices ', '', 'Grid access'], 'en'),
+    'Compare storage\n\n## Research plan\n1. Prices\n2. Grid access')
+  assert.match(composePromptWithResearchPlan('比較する', ['価格'], 'ja'), /## 調査計画\n1\. 価格/)
+})
+
+test('matches turn-local citations to Studio indices and collects safe unique visuals', () => {
+  const local = [{ title: 'Turn two title', url: 'https://www.example.org/new/#detail' }]
+  const studio = extractResearchStudio([
+    assistant({ sources: [{ title: 'First turn', url: 'https://example.org/old' }] }),
+    assistant({
+      sources: local,
+      processEvents: [event('screenshot', { image: 'aGVsbG8=', mime_type: 'image/jpeg', url: 'https://example.org/page' }),
+        event('screenshot', { url: '/api/screenshots/view.png' }), event('screenshot', { url: 'javascript:alert(1)' })],
+      artifacts: [
+        { id: 'chart', type: 'chart', title: 'Costs', content: '', image: 'https://example.org/costs.png', createdAt: 1, updatedAt: 1 },
+        { id: 'same', type: 'image', title: 'Duplicate', content: '', image: 'https://example.org/costs.png', createdAt: 1, updatedAt: 1 },
+      ],
+    }),
+  ])
+  assert.equal(resolveStudioCitation(1, local, studio.sources)?.index, 2)
+  assert.equal(resolveStudioCitation(2, local, studio.sources), undefined)
+  assert.equal(resolveStudioCitation(1, undefined, studio.sources)?.title, 'First turn')
+  assert.deepEqual(studio.media.map(item => item.src.replace(/^https?:\/\/[^/]+(?=\/api)/, '')), [
+    'data:image/jpeg;base64,aGVsbG8=', '/api/screenshots/view.png', 'https://example.org/costs.png',
+  ])
+})
+
 test('server-renders the graph, sources, and sandboxed artifacts in their respective tabs', () => {
   const studio = extractResearchStudio([assistant({
     processEvents: [treeEvent],
@@ -137,4 +194,33 @@ test('server-renders the graph, sources, and sandboxed artifacts in their respec
   const artifacts = render('artifacts')
   assert.match(artifacts, /Cost report\.html/)
   assert.match(artifacts, /sandbox="allow-scripts"/)
+})
+
+test('renders Live, mind-map controls, highlighted source media, and report export entry points', () => {
+  const studio = extractResearchStudio([prompt, assistant({
+    content: '# Storage costs\n\n## Findings\n- Costs declined',
+    processEvents: [event('screenshot', { url: 'https://example.org/view.png', action: 'Cost chart' })],
+    sources: [{ title: 'Cost dataset', url: 'https://example.org/costs' }],
+    artifacts: [
+      { id: 'report_thread', type: 'report', title: 'Cost report', content: '# Storage costs\n\n## Findings\n- Costs declined', createdAt: 1, updatedAt: 1 },
+      { id: 'logs', type: 'tool_output', title: 'Terminal', content: 'Query completed', createdAt: 1, updatedAt: 1 },
+    ],
+  })])
+  const render = (activeTab: StudioTab, threadId?: string) => renderToStaticMarkup(createElement(I18nProvider, null, createElement(ResearchStudioPanel, {
+    studio, activeTab, threadId, citation: { index: 1 }, onTabChange: () => {}, onUndock: () => {},
+  })))
+
+  assert.match(render('graph'), /aria-label="Mind map"/)
+  assert.match(render('graph'), /aria-label="Download SVG"/)
+  assert.match(render('graph'), /aria-label="Download PNG"/)
+  assert.doesNotMatch(render('graph'), /data-studio-tab="live"/)
+  assert.match(render('sources'), /Visual gallery/)
+  assert.match(render('sources'), /src="https:\/\/example.org\/view.png"/)
+  assert.match(render('sources'), /data-source-index="1"><a[^>]+data-highlighted="true"/)
+  assert.match(render('artifacts', 'thread'), />Export</)
+  const live = render('live', 'thread')
+  assert.match(live, /data-studio-tab="live"[^>]+aria-selected="true"/)
+  assert.match(live, /aria-label="Pop out browser"/)
+  assert.match(live, /Execution console/)
+  assert.match(live, /Query completed/)
 })

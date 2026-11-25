@@ -196,3 +196,8 @@
     scroll-behavior: auto !important;
   }
 }
+@keyframes studio-citation {
+  0%, 40% { box-shadow: 0 0 0 2px hsl(var(--primary) / 0.65); }
+  20%, 60% { box-shadow: 0 0 0 4px hsl(var(--primary) / 0.26); }
+  100% { box-shadow: 0 0 0 2px hsl(var(--primary) / 0.18); }
+}

@@ -14,7 +14,8 @@ import { Button } from '@/components/ui/button'
 import { DataTableView } from './DataTableView'
 import { ErrorBoundary } from 'react-error-boundary'
 import { toast } from 'sonner'
-import { Message } from '@/types/chat'
+import type { Message, MessageSource } from '@/types/chat'
+import type { StudioSource } from '@/lib/researchStudio'
 import { ThinkingProcess } from './message/ThinkingProcess'
 import { CodeBlock } from './message/CodeBlock'
 import { CitationBadge } from './message/CitationBadge'
@@ -50,10 +51,17 @@ const preprocessContent = (content: string) => {
 }
 
 // Keep code and table state when surrounding chat controls rerender.
-const MarkdownContent = memo(function MarkdownContent({ content, workspaceId }: {
+const MarkdownContent = memo(function MarkdownContent({ content, workspaceId, sources, onCitationClick }: {
   content: string
   workspaceId?: string
+  sources?: readonly (StudioSource | MessageSource)[]
+  onCitationClick?: (sourceIndex: number) => void
 }) {
+  const withCitations = (children: React.ReactNode) => React.Children.map(children, child =>
+    typeof child === 'string' ? child.split(/(\[\d+\])/g).map((part, i) => {
+      const match = /^\[(\d+)\]$/.exec(part)
+      return match ? <CitationBadge key={i} num={match[1]} sources={sources} onCitationClick={onCitationClick} /> : part
+    }) : child)
   return (
     <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
@@ -66,21 +74,13 @@ const MarkdownContent = memo(function MarkdownContent({ content, workspaceId }: 
             pre: ({children}) => <>{children}</>,
             p: ({node, children, ...props}) => (
                  <p className="mb-2 last:mb-0 leading-7" {...props}>
-                    {React.Children.map(children, child => {
-                        if (typeof child === 'string') {
-                            const parts = child.split(/(\[\d+\])/g)
-                            return parts.map((part, i) => {
-                                const match = part.match(/^\[(\d+)\]$/)
-                                if (match) {
-                                    return <CitationBadge key={i} num={match[1]} />
-                                }
-                                return part
-                            })
-                        }
-                        return child
-                    })}
+                    {withCitations(children)}
                  </p>
             ),
+            li: ({ node, children, ...props }) => <li {...props}>{withCitations(children)}</li>,
+            td: ({ node, children, ...props }) => <td {...props}>{withCitations(children)}</td>,
+            strong: ({ node, children, ...props }) => <strong {...props}>{withCitations(children)}</strong>,
+            em: ({ node, children, ...props }) => <em {...props}>{withCitations(children)}</em>,
             code: ({node, className, children, ...props}: any) => {
                 const match = /language-(\w+)/.exec(className || '')
                 const isInline = !match && !String(children).includes('\n')
@@ -133,9 +133,11 @@ interface MessageItemProps {
     message: Message
     onEdit?: (id: string, newContent: string) => void
     workspaceId?: string
+    sources?: readonly StudioSource[]
+    onCitationClick?: (sourceIndex: number) => void
 }
 
-const MessageItemBase = ({ message, onEdit, workspaceId }: MessageItemProps) => {
+const MessageItemBase = ({ message, onEdit, workspaceId, sources: studioSources, onCitationClick }: MessageItemProps) => {
   const isUser = (message.role || '').toLowerCase() === 'user'
   const [copied, setCopied] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -327,7 +329,7 @@ const MessageItemBase = ({ message, onEdit, workspaceId }: MessageItemProps) => 
                   "prose max-w-none break-words text-[15px] leading-7",
                   isUser && "prose-on-primary"
               )}>
-                <MarkdownContent content={displayContent} workspaceId={workspaceId} />
+                <MarkdownContent content={displayContent} workspaceId={workspaceId} sources={message.sources?.length ? message.sources : studioSources} onCitationClick={onCitationClick} />
 
                 {sources.length > 0 && (
                   <details open={message.runStatus === 'insufficient_evidence'} className="not-prose mt-5 overflow-hidden rounded-lg border border-border/80 bg-card text-sm text-muted-foreground shadow-xs">

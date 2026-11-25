@@ -4,6 +4,7 @@ import React, { useEffect, useId, useRef, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { FileText, Code, BarChart, Download, Maximize2, PanelRightClose, PanelRightOpen, Check, Copy, RotateCw, ShieldCheck, Terminal, ChevronDown, ChevronUp } from 'lucide-react'
@@ -11,8 +12,10 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { Artifact } from '@/types/chat'
 import { CodeBlock } from './message/CodeBlock'
-import { getArtifactDownloadUrl } from '@/lib/api'
+import { getApiBaseUrl, getArtifactDownloadUrl } from '@/lib/api'
 import { buildArtifactSrcDoc, detectArtifactLanguage, getArtifactPreviewKind } from '@/lib/artifactPreview'
+import { downloadBlob, downloadName } from '@/lib/download'
+import { buildInteractiveSlidesHtml, buildStandaloneHtmlReport } from '@/lib/reportExport'
 import { useI18n } from '@/lib/i18n/i18n-context'
 import { toast } from 'sonner'
 
@@ -21,11 +24,13 @@ interface ArtifactsPanelProps {
   isOpen?: boolean
   onToggle?: () => void
   embedded?: boolean
+  threadId?: string | null
 }
 
-export function ArtifactsPanel({ artifacts, isOpen = true, onToggle, embedded = false }: ArtifactsPanelProps) {
+export function ArtifactsPanel({ artifacts, isOpen = true, onToggle, embedded = false, threadId }: ArtifactsPanelProps) {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const { t } = useI18n()
+  const latestReport = artifacts.findLast(artifact => artifact.type === 'report')
 
   if (artifacts.length === 0) return null
 
@@ -63,7 +68,7 @@ export function ArtifactsPanel({ artifacts, isOpen = true, onToggle, embedded = 
 
         <ScrollArea className={cn('min-h-0 flex-1 p-4', embedded && 'pt-1')}>
           <div className="space-y-4 pb-4">
-            {artifacts.map(artifact => <ArtifactCard key={artifact.id} artifact={artifact} />)}
+            {artifacts.map(artifact => <ArtifactCard key={artifact.id} artifact={artifact} threadId={artifact === latestReport ? threadId : undefined} />)}
           </div>
         </ScrollArea>
       </section>
@@ -77,7 +82,7 @@ export function ArtifactsPanel({ artifacts, isOpen = true, onToggle, embedded = 
           <section aria-label={t('artifactsTitle')} className="min-h-0 flex-1 overflow-hidden">
             <ScrollArea className="h-full p-4 sm:p-8">
               <div className="mx-auto max-w-5xl space-y-6">
-                {artifacts.map(artifact => <ArtifactCard key={artifact.id} artifact={artifact} isFullscreen />)}
+                {artifacts.map(artifact => <ArtifactCard key={artifact.id} artifact={artifact} threadId={artifact === latestReport ? threadId : undefined} isFullscreen />)}
               </div>
             </ScrollArea>
           </section>
@@ -87,7 +92,7 @@ export function ArtifactsPanel({ artifacts, isOpen = true, onToggle, embedded = 
   )
 }
 
-function ArtifactCard({ artifact, isFullscreen }: { artifact: Artifact, isFullscreen?: boolean }) {
+function ArtifactCard({ artifact, isFullscreen, threadId }: { artifact: Artifact; isFullscreen?: boolean; threadId?: string | null }) {
   const { t } = useI18n()
   const [view, setView] = useState<'preview' | 'code'>('preview')
   const [reloadCount, setReloadCount] = useState(0)
@@ -127,6 +132,7 @@ function ArtifactCard({ artifact, isFullscreen }: { artifact: Artifact, isFullsc
             </CardTitle>
           </div>
           <div className="flex shrink-0 items-center gap-1">
+            {artifact.type === 'report' && <ReportExportMenu artifact={artifact} threadId={threadId} />}
             <Button type="button" variant="ghost" size="icon" onClick={handleCopy} aria-label={t(copied ? 'artifactCopied' : 'artifactCopy')} title={t(copied ? 'artifactCopied' : 'artifactCopy')} className="text-muted-foreground">
               {copied ? <Check aria-hidden="true" className="h-4 w-4 text-success" /> : <Copy aria-hidden="true" className="h-4 w-4" />}
             </Button>
@@ -215,5 +221,106 @@ function ArtifactCard({ artifact, isFullscreen }: { artifact: Artifact, isFullsc
         )}
       </CardContent>
     </Card>
+  )
+}
+
+function ReportExportMenu({ artifact, threadId }: { artifact: Artifact; threadId?: string | null }) {
+  const { t, language } = useI18n()
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [slidesPreview, setSlidesPreview] = useState<string>()
+  const frame = useRef<HTMLIFrameElement>(null)
+  const trigger = useRef<HTMLButtonElement>(null)
+  const filename = downloadName(artifact.title, 'report')
+  // The backend tags streamed reports with their original thread ID.
+  const reportThreadId = /^report_(.+)$/.exec(artifact.id)?.[1] ?? threadId
+
+  useEffect(() => {
+    if (!slidesPreview) return
+    const closeFromFrame = (event: MessageEvent) => {
+      if (event.source === frame.current?.contentWindow && event.data === 'weaver:close-slides') setSlidesPreview(undefined)
+    }
+    window.addEventListener('message', closeFromFrame)
+    return () => window.removeEventListener('message', closeFromFrame)
+  }, [slidesPreview])
+
+  const makeSlides = () => buildInteractiveSlidesHtml(artifact.title, artifact.content, language)
+  const downloadHtml = (content: string, name: string) =>
+    downloadBlob(new Blob([content], { type: 'text/html;charset=utf-8' }), name + '.html')
+
+  async function downloadReport(format: 'html' | 'pdf' | 'docx') {
+    const name = format === 'docx' ? 'Word' : format.toUpperCase()
+    try {
+      if (reportThreadId) {
+        const response = await fetch(getApiBaseUrl() + '/api/export/' + encodeURIComponent(reportThreadId) + '?format=' + format)
+        if (response.ok) {
+          downloadBlob(await response.blob(), filename + '.' + format)
+          return
+        }
+        if (format !== 'html' && response.status !== 404 && response.status !== 501) {
+          toast.error(t('studioExportFailed'))
+          return
+        }
+      }
+      if (format !== 'html') {
+        toast.error(t('studioExportUnavailable').replace('{format}', name))
+        return
+      }
+    } catch {
+      if (format !== 'html') {
+        toast.error(t('studioExportFailed'))
+        return
+      }
+    }
+    downloadHtml(buildStandaloneHtmlReport(artifact.title, artifact.content, language), filename)
+  }
+
+  const actions = [
+    { label: 'studioExportMarkdown', run: () => downloadBlob(new Blob([artifact.content], { type: 'text/markdown;charset=utf-8' }), filename + '.md') },
+    { label: 'studioExportHtml', run: () => void downloadReport('html') },
+    { label: 'studioPreviewSlides', run: () => setSlidesPreview(buildArtifactSrcDoc({ ...artifact, content: makeSlides() }, 'html')) },
+    { label: 'studioDownloadSlides', run: () => downloadHtml(makeSlides(), filename + '-slides') },
+    { label: 'studioExportPdf', run: () => void downloadReport('pdf') },
+    { label: 'studioExportWord', run: () => void downloadReport('docx') },
+  ] as const
+
+  return (
+    <>
+      <Popover open={menuOpen} onOpenChange={setMenuOpen}>
+        <PopoverTrigger asChild>
+          <Button ref={trigger} type="button" variant="ghost" size="sm" className="h-8 gap-1.5 px-2 text-xs text-muted-foreground">
+            <Download aria-hidden="true" className="size-3.5" />
+            {t('studioReportExport')}
+            <ChevronDown aria-hidden="true" className="size-3" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="end" aria-label={t('studioReportExport')} className="w-max min-w-44 max-w-[calc(100vw-2rem)] p-1.5">
+          {actions.map(({ label, run }) => (
+            <Button key={label} type="button" variant="ghost" size="sm" className={cn('h-auto min-h-8 w-full justify-start whitespace-normal px-2.5 py-1.5 text-left text-xs',
+              label === 'studioPreviewSlides' && 'mt-0.5 border-t border-border text-primary',
+              label === 'studioExportPdf' && 'mt-0.5 border-t border-border')} onClick={() => {
+              setMenuOpen(false)
+              run()
+            }}>{t(label)}</Button>
+          ))}
+        </PopoverContent>
+      </Popover>
+      <Dialog open={Boolean(slidesPreview)} onOpenChange={open => { if (!open) setSlidesPreview(undefined) }}>
+        {slidesPreview && <DialogContent closeLabel={t('studioClosePreview')} onCloseAutoFocus={event => {
+          event.preventDefault()
+          trigger.current?.focus()
+        }} className="flex h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-none flex-col gap-0 overflow-hidden bg-card p-0 data-[state=open]:zoom-in-100 data-[state=closed]:zoom-out-100">
+          <DialogHeader className="flex h-14 shrink-0 justify-center space-y-0 border-b border-border px-5 pr-14">
+            <DialogTitle className="flex min-w-0 items-center gap-2 text-sm">
+              <span className="shrink-0">{t('studioSlidesTitle')}</span>
+              <span aria-hidden="true" className="text-muted-foreground">·</span>
+              <span className="truncate font-normal text-muted-foreground">{artifact.title}</span>
+            </DialogTitle>
+            <DialogDescription className="sr-only">{t('sandboxedArtifactPreview')}</DialogDescription>
+          </DialogHeader>
+          <iframe ref={frame} title={t('studioSlidesTitle')} srcDoc={slidesPreview} sandbox="allow-scripts" referrerPolicy="no-referrer"
+            onLoad={() => frame.current?.contentWindow?.focus()} className="block min-h-0 w-full flex-1 border-0 [color-scheme:light] dark:[color-scheme:dark]" />
+        </DialogContent>}
+      </Dialog>
+    </>
   )
 }

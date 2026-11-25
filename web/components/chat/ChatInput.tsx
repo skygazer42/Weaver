@@ -1,8 +1,9 @@
 'use client'
 
-import React, { useRef, useEffect, useState, useCallback } from 'react'
+import React, { useRef, useEffect, useState, useCallback, useId } from 'react'
 import { Button } from '@/components/ui/button'
-import { ArrowUp, Globe, Bot, Paperclip, X, Mic, MicOff, ChevronDown, Settings2, Trash2, File as FileIcon, Bug, BookOpen, PenTool, TestTube, Plug, Rocket } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { ArrowUp, Globe, Bot, Paperclip, X, Mic, MicOff, ChevronDown, Settings2, Trash2, File as FileIcon, Bug, BookOpen, PenTool, TestTube, Plug, Rocket, ListChecks, Plus } from 'lucide-react'
 import { useI18n } from '@/lib/i18n/i18n-context'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -16,6 +17,9 @@ interface ChatInputProps {
   attachments: File[]
   setAttachments: (files: File[]) => void
   onSubmit: (e: React.FormEvent) => void
+  researchPlan: string[]
+  setResearchPlan: (topics: string[]) => void
+  planReset: number
   isLoading: boolean
   canStop: boolean
   isStopping: boolean
@@ -44,6 +48,9 @@ export function ChatInput({
   attachments,
   setAttachments,
   onSubmit,
+  researchPlan,
+  setResearchPlan,
+  planReset,
   isLoading,
   canStop,
   isStopping,
@@ -65,6 +72,10 @@ export function ChatInput({
   const [showCommandMenu, setShowCommandMenu] = useState(false)
   const [isMcpOpen, setIsMcpOpen] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
+  const [planState, setPlanState] = useState({ reset: planReset, open: false })
+  const planId = useId()
+  const showPlan = searchMode === 'deep' || searchMode === 'ultra'
+  const planOpen = showPlan && planState.reset === planReset && planState.open
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -308,7 +319,7 @@ export function ChatInput({
   const modes = [
     { id: 'web', label: t('web'), icon: Globe },
     { id: 'agent', label: t('agent'), icon: Bot },
-    { id: 'ultra', label: t('ultra'), icon: Rocket },
+    { id: searchMode === 'deep' ? 'deep' : 'ultra', label: t('ultra'), icon: Rocket },
   ]
 
   const commands = [
@@ -359,14 +370,16 @@ export function ChatInput({
         </div>
       )}
 
-      <div className="mb-2 flex w-full flex-nowrap items-center gap-0.5 whitespace-nowrap">
+      {planOpen && <ResearchPlanEditor id={planId} topics={researchPlan} onChange={setResearchPlan} />}
+
+      <div className={cn('mb-2 flex w-full items-center gap-0.5 whitespace-nowrap', showPlan ? 'flex-wrap' : 'flex-nowrap')}>
         {modes.map(mode => {
           const isActive = searchMode === mode.id
           return (
             <button
               key={mode.id}
               type="button"
-              aria-label={mode.id === 'agent' ? 'Agent' : mode.id === 'ultra' ? 'Deep Research' : undefined}
+              aria-label={mode.id === 'agent' ? 'Agent' : mode.id === 'ultra' || mode.id === 'deep' ? t('ultra') : undefined}
               aria-pressed={isActive}
               onClick={() => {
                 setSearchMode(isActive ? '' : mode.id)
@@ -417,6 +430,14 @@ export function ChatInput({
             </div>
           )}
         </div>
+        {showPlan && (
+          <Button type="button" variant="ghost" size="sm" aria-expanded={planOpen} aria-controls={planOpen ? planId : undefined}
+            onClick={() => setPlanState({ reset: planReset, open: !planOpen })}
+            className={cn('ml-1 h-8 gap-1.5 rounded-lg border px-2 text-xs text-muted-foreground', planOpen ? 'border-primary/25 bg-primary/10 text-primary hover:text-primary' : 'border-border')}>
+            <ListChecks aria-hidden="true" className="size-3.5" />{t('studioPlan')}
+            {researchPlan.length > 0 && <span className="font-mono text-[11px] tabular-nums">{researchPlan.length}</span>}
+          </Button>
+        )}
       </div>
 
       <div
@@ -546,5 +567,54 @@ export function ChatInput({
         {t('aiCanMakeMistakes')}
       </p>
     </div>
+  )
+}
+
+const planPresets = ['studioPlanEvidence', 'studioPlanAlternatives', 'studioPlanRisks', 'studioPlanTrends'] as const
+
+function ResearchPlanEditor({ id, topics, onChange }: { id: string; topics: string[]; onChange: (topics: string[]) => void }) {
+  const { t } = useI18n()
+  const [draft, setDraft] = useState('')
+  const topic = draft.trim()
+  const canAdd = topic.length > 0 && !topics.includes(topic)
+
+  return (
+    <section id={id} aria-label={t('studioPlanTitle')} className="mb-2 space-y-2 rounded-lg border border-border bg-card p-3">
+      <h3 className="text-xs font-semibold text-foreground">{t('studioPlanTitle')}</h3>
+      {topics.length > 0 && (
+        <ul className="flex max-h-24 flex-wrap gap-1.5 overflow-y-auto">
+          {topics.map(item => (
+            <li key={item} className="flex max-w-full items-center gap-1 rounded-md bg-primary/10 pl-2 pr-0.5 text-xs text-primary">
+              <span className="min-w-0 break-words py-1">{item}</span>
+              <Button type="button" variant="ghost" size="icon" className="size-7 shrink-0 hover:text-primary"
+                aria-label={t('studioPlanRemove').replace('{topic}', item)} onClick={() => onChange(topics.filter(existing => existing !== item))}>
+                <X aria-hidden="true" className="size-3.5" />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form className="flex items-center gap-2" onSubmit={event => {
+        event.preventDefault()
+        if (!canAdd) return
+        onChange([...topics, topic])
+        setDraft('')
+      }}>
+        <Input aria-label={t('studioPlanDirection')} placeholder={t('studioPlanPlaceholder')} value={draft} maxLength={180}
+          onChange={event => setDraft(event.target.value)} className="h-9 min-w-0 text-base sm:text-sm" />
+        <Button type="submit" variant="outline" size="sm" disabled={!canAdd} className="h-9 shrink-0 gap-1.5 px-2.5 text-xs">
+          <Plus aria-hidden="true" className="size-3.5" />{t('studioPlanAdd')}
+        </Button>
+      </form>
+      <div role="group" aria-label={t('studioPlanPresets')} className="flex flex-wrap gap-1">
+        {planPresets.map(key => {
+          const preset = t(key)
+          return <Button key={key} type="button" variant="ghost" size="sm" disabled={topics.includes(preset)}
+            onClick={() => onChange([...topics, preset])} className="h-7 gap-1 bg-surface-subtle px-2 text-xs text-muted-foreground">
+            <Plus aria-hidden="true" className="size-3" />{preset}
+          </Button>
+        })}
+      </div>
+    </section>
   )
 }

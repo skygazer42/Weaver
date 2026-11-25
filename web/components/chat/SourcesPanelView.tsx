@@ -1,18 +1,48 @@
 'use client'
 
-import React, { useMemo, useRef, useState } from 'react'
-import { ArrowUpRight, BookOpen, Search } from 'lucide-react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowUpRight, BookOpen, Images, Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { useI18n } from '@/lib/i18n/i18n-context'
-import { filterStudioSources, type StudioDomain, type StudioSource } from '@/lib/researchStudio'
+import { filterStudioSources, type StudioDomain, type StudioMediaItem, type StudioSource } from '@/lib/researchStudio'
 import { cn } from '@/lib/utils'
 
-export function SourcesPanelView({ sources, domains }: { sources: StudioSource[]; domains: StudioDomain[] }) {
+export function SourcesPanelView({ sources, domains, media = [], citation }: {
+  sources: StudioSource[]
+  domains: StudioDomain[]
+  media?: StudioMediaItem[]
+  citation?: { index: number }
+}) {
   const { t } = useI18n()
   const [query, setQuery] = useState('')
   const [domain, setDomain] = useState('')
+  const [lightbox, setLightbox] = useState<StudioMediaItem | null>(null)
+  const [lastCitation, setLastCitation] = useState(citation)
+  const [highlight, setHighlight] = useState(citation?.index)
   const results = useRef<HTMLOListElement>(null)
   const filtered = useMemo(() => filterStudioSources(sources, query, domain), [sources, query, domain])
+  if (citation !== lastCitation) {
+    setLastCitation(citation)
+    setHighlight(citation?.index)
+    if (citation && sources.some(source => source.index === citation.index) &&
+      !filtered.some(source => source.index === citation.index)) {
+      setQuery('')
+      setDomain('')
+    }
+  }
+  useEffect(() => {
+    if (!citation) return
+    const target = results.current?.querySelector(`[data-source-index="${citation.index}"]`)
+    target?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'nearest' })
+    const timer = window.setTimeout(() => setHighlight(undefined), 2500)
+    return () => window.clearTimeout(timer)
+  }, [citation])
+
+  function mediaTitle(item: StudioMediaItem, index: number) {
+    return item.title || t('studioVisualItem').replace('{count}', String(index + 1))
+  }
+
   const options = [{ domain: '', count: sources.length }, ...domains.slice(0, 3)]
   if (domain && !options.some(option => option.domain === domain)) {
     options.push(domains.find(option => option.domain === domain) ?? { domain, count: 0 })
@@ -50,12 +80,30 @@ export function SourcesPanelView({ sources, domains }: { sources: StudioSource[]
           ))}
         </div>
       </div>
+      {media.length > 0 && (
+        <section aria-label={t('studioVisualGallery')} className="shrink-0 space-y-2 border-b border-border bg-card px-3.5 py-3">
+          <h3 className="flex items-center gap-2 text-xs font-semibold text-foreground">
+            <Images aria-hidden="true" className="size-3.5 text-muted-foreground" />
+            {t('studioVisualGallery')}
+          </h3>
+          <div className="flex gap-2 overflow-x-auto p-0.5">
+            {media.map((item, index) => (
+              <button key={index} type="button" aria-label={mediaTitle(item, index)} title={mediaTitle(item, index)} onClick={() => setLightbox(item)}
+                className="h-16 w-24 shrink-0 overflow-hidden rounded-md border border-border bg-surface-subtle transition-colors hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <img src={item.src} alt="" loading="lazy" referrerPolicy="no-referrer" className="h-full w-full object-cover" />
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
       <p role="status" className="sr-only">{t('studioSourceCount').replace('{count}', String(filtered.length))}</p>
       {filtered.length > 0 ? (
         <ol ref={results} className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain p-3.5">
           {filtered.map(source => (
-            <li key={source.index}>
-              <a href={source.url} target="_blank" rel="noopener noreferrer" className="group flex min-w-0 items-start gap-2.5 rounded-lg border border-border bg-card p-3 transition-colors hover:border-primary/50 hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
+            <li key={source.index} data-source-index={source.index}>
+              <a href={source.url} target="_blank" rel="noopener noreferrer" data-highlighted={highlight === source.index || undefined}
+                className={cn('group flex min-w-0 items-start gap-2.5 rounded-lg border border-border bg-card p-3 transition-colors hover:border-primary/50 hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+                  highlight === source.index && 'border-primary bg-primary/[0.04] ring-2 ring-primary/45 motion-safe:animate-[studio-citation_2.5s_ease-out]')}>
                 <span className="min-w-8 shrink-0 rounded-sm bg-primary/10 px-1 py-0.5 text-center font-mono text-[11px] font-medium leading-4 tabular-nums text-primary">[{source.index}]</span>
                 <span className="min-w-0 flex-1 space-y-1">
                   <span className="block truncate text-[11px] font-medium leading-4 text-muted-foreground">{source.domain}</span>
@@ -73,6 +121,16 @@ export function SourcesPanelView({ sources, domains }: { sources: StudioSource[]
           <p>{t(sources.length ? 'studioNoMatchingSources' : 'studioNoSources')}</p>
         </div>
       )}
+      <Dialog open={Boolean(lightbox)} onOpenChange={open => { if (!open) setLightbox(null) }}>
+        {lightbox && <DialogContent aria-describedby={undefined} closeLabel={t('studioClosePreview')}
+          className="flex w-[calc(100%-2rem)] max-w-5xl flex-col gap-0 overflow-hidden bg-card p-0">
+          <DialogTitle className="truncate border-b border-border px-4 py-4 pr-12 text-sm">
+            {mediaTitle(lightbox, media.indexOf(lightbox))}
+          </DialogTitle>
+          <img src={lightbox.src} alt={mediaTitle(lightbox, media.indexOf(lightbox))} referrerPolicy="no-referrer"
+            className="max-h-[78dvh] w-full bg-surface-subtle object-contain" />
+        </DialogContent>}
+      </Dialog>
     </div>
   )
 }

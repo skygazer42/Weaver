@@ -13,6 +13,8 @@ import {
   Camera,
   Images,
   GripVertical,
+  PanelRight,
+  PictureInPicture2,
   CornerDownLeft
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -20,11 +22,15 @@ import { Button } from '@/components/ui/button'
 import { BrowserScreenshot } from '@/types/browser'
 import { useBrowserEvents } from '@/hooks/useBrowserEvents'
 import { useBrowserStream } from '@/hooks/useBrowserStream'
+import { useI18n } from '@/lib/i18n/i18n-context'
 
 interface BrowserViewerProps {
   threadId: string | null
   className?: string
   onClose?: () => void
+  embedded?: boolean
+  onUndock?: () => void
+  onDock?: () => void
   defaultExpanded?: boolean
   mode?: 'events' | 'stream'  // 'events' = SSE screenshots, 'stream' = WebSocket live
   alwaysShow?: boolean  // Always show the viewer, even without screenshots
@@ -42,6 +48,9 @@ export function BrowserViewer({
   threadId,
   className,
   onClose,
+  embedded = false,
+  onUndock,
+  onDock,
   defaultExpanded = true,
   mode = 'events',
   alwaysShow = false,
@@ -50,6 +59,7 @@ export function BrowserViewer({
   onDragHandleDoubleClick,
   isDragging = false
 }: BrowserViewerProps) {
+  const { t } = useI18n()
   const [isExpanded, setIsExpanded] = useState(defaultExpanded)
   const [selectedScreenshot, setSelectedScreenshot] = useState<BrowserScreenshot | null>(null)
   const [viewerMode, setViewerMode] = useState<'events' | 'stream'>(mode)
@@ -271,8 +281,9 @@ export function BrowserViewer({
   return (
     <div
       className={cn(
-        'overflow-hidden rounded-lg border border-border/80 bg-card shadow-elevated transition-[width] duration-200',
-        isExpanded ? 'w-[480px] max-w-[calc(100vw-2rem)]' : 'w-80 max-w-[calc(100vw-2rem)]',
+        'overflow-hidden rounded-lg border border-border/80 bg-card',
+        embedded ? 'w-full' : cn('shadow-elevated transition-[width] duration-200',
+          isExpanded ? 'w-[480px] max-w-[calc(100vw-2rem)]' : 'w-80 max-w-[calc(100vw-2rem)]'),
         className
       )}
     >
@@ -290,9 +301,9 @@ export function BrowserViewer({
             <GripVertical className="h-3.5 w-3.5" />
           </span>
         )}
-        <Button type="button" variant="ghost" size="icon" onClick={handleClose} aria-label="Close browser viewer" className="h-7 w-7 shrink-0 text-muted-foreground">
+        {onClose && <Button type="button" variant="ghost" size="icon" onClick={handleClose} aria-label="Close browser viewer" className="h-7 w-7 shrink-0 text-muted-foreground">
           <X className="h-3.5 w-3.5" />
-        </Button>
+        </Button>}
 
         <div className="flex h-7 min-w-0 flex-1 items-center gap-2 rounded-md border border-border/80 bg-card px-2 text-xs focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-ring/25">
           <Globe aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -347,6 +358,13 @@ export function BrowserViewer({
         <Button type="button" variant="ghost" size="icon" onClick={toggleExpand} aria-label={isExpanded ? 'Collapse browser viewer' : 'Expand browser viewer'} className="h-7 w-7 shrink-0 text-muted-foreground">
           {isExpanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
         </Button>
+        {(onUndock || onDock) && (
+          <Button type="button" variant="ghost" size="icon" onClick={embedded ? onUndock : onDock}
+            aria-label={t(embedded ? 'studioPopOut' : 'studioDockBrowser')} title={t(embedded ? 'studioPopOut' : 'studioDockBrowser')}
+            className="h-7 w-7 shrink-0 text-muted-foreground hover:text-primary">
+            {embedded ? <PictureInPicture2 aria-hidden="true" className="size-4" /> : <PanelRight aria-hidden="true" className="size-4" />}
+          </Button>
+        )}
       </div>
 
       {(isActive || (isLiveMode && isStreaming)) && (
@@ -593,6 +611,7 @@ export function BrowserViewer({
 export function FloatingBrowserViewer({
   threadId,
   onClose,
+  onDock,
   mode = 'stream',
   defaultExpanded = true,
   alwaysShow = true,
@@ -600,6 +619,7 @@ export function FloatingBrowserViewer({
 }: {
   threadId: string | null
   onClose?: () => void
+  onDock?: () => void
   mode?: 'events' | 'stream'
   defaultExpanded?: boolean
   alwaysShow?: boolean
@@ -690,6 +710,7 @@ export function FloatingBrowserViewer({
         alwaysShow={alwaysShow}
         mode={mode}
         onClose={onClose}
+        onDock={onDock}
         draggable={true}
         isDragging={isDragging}
         onDragHandlePointerDown={handleDragPointerDown}

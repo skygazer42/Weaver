@@ -21,7 +21,7 @@ import { useStoredPreference } from '@/hooks/useStoredPreference'
 import { usePublicModels } from '@/hooks/usePublicModels'
 import { cancelRun, useChatStream } from '@/hooks/useChatStream'
 import { filesToImageAttachments } from '@/lib/file-utils'
-import { extractResearchStudio, resolveStudioTab, type StudioTab } from '@/lib/researchStudio'
+import { composePromptWithResearchPlan, extractResearchStudio, resolveStudioCitation, resolveStudioTab, type BrowserDockMode, type StudioTab } from '@/lib/researchStudio'
 import type { Workspace } from '@/lib/workspace'
 import { Discover } from '@/components/views/Discover'
 import { Library } from '@/components/views/Library'
@@ -38,7 +38,7 @@ const isDesktopStudioViewport = () => window.matchMedia(studioDesktopQuery).matc
 const isServerStudioViewport = () => false
 
 export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) {
-  const { t } = useI18n()
+  const { t, language } = useI18n()
   const workspaceId = project?.id
   const initialMode = project ? 'agent' : ''
   // UI State
@@ -56,13 +56,17 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
   if (isDesktop && showMobileStudio) setShowMobileStudio(false)
   const [showSettings, setShowSettings] = useState(false)
   const [settingsSection, setSettingsSection] = useState<'general' | 'mcp'>('general')
-  const [showBrowserViewer, setShowBrowserViewer] = useState(false) // Browser viewer visibility
+  const [showBrowserViewer, setShowBrowserViewer] = useState(false)
+  const [browserDockMode, setBrowserDockMode] = useState<BrowserDockMode>('docked')
+  const [citation, setCitation] = useState<{ session: string; index: number }>()
 
   const [currentView, setCurrentView] = useState('dashboard') // 'dashboard' | 'discover' | 'library'
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
 
   const [input, setInput] = useState('')
   const [attachments, setAttachments] = useState<File[]>([])
+  const [researchPlan, setResearchPlan] = useState<string[]>([])
+  const [planReset, setPlanReset] = useState(0)
   
   const scrollRef = useRef<HTMLDivElement>(null)
   const studioToggle = useRef<HTMLButtonElement>(null)
@@ -141,14 +145,52 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
   }, [restoredSession, resumeRun, saveToHistory])
 
   const runStatus = messages.at(-1)?.runStatus
-  const studio = useMemo(() => extractResearchStudio(messages), [messages])
-  const hasTree = Boolean(studio.tree)
+  const studio = useMemo(() => extractResearchStudio(messages, language), [messages, language])
+  const hasTree = Boolean(studio.tree || studio.mindMap)
   const hasArtifacts = studio.artifacts.length > 0
-  const hasSources = studio.sources.length > 0
-  const hasStudioContent = currentView === 'dashboard' && (hasTree || hasArtifacts || hasSources)
+  const hasSources = studio.sources.length > 0 || studio.media.length > 0
+  const hasStudioContent = currentView === 'dashboard' && (hasTree || hasArtifacts || hasSources || Boolean(threadId))
   const studioSession = currentSessionId ?? ''
-  const activeTab = resolveStudioTab({ hasTree, hasArtifacts, hasSources, isResearchActive: studio.isResearchActive }, studioTabs[studioSession])
+  const savedTab = studioTabs[studioSession]
+  const activeTab = resolveStudioTab({ hasTree, hasArtifacts, hasSources, isResearchActive: studio.isResearchActive },
+    savedTab === 'live' && !threadId ? undefined : savedTab)
   const onStudioTabChange = (tab: StudioTab) => setStudioTabs(previous => ({ ...previous, [studioSession]: tab }))
+  const openStudioTab = (tab: StudioTab) => {
+    onStudioTabChange(tab)
+    if (isDesktop) setIsStudioOpen(true)
+    else setShowMobileStudio(true)
+  }
+  const dockBrowser = () => {
+    setBrowserDockMode('docked')
+    setShowBrowserViewer(false)
+    openStudioTab('live')
+  }
+  const undockBrowser = () => {
+    setBrowserDockMode('floating')
+    setShowBrowserViewer(true)
+    setShowMobileStudio(false)
+  }
+  const isDockedLiveOpen = activeTab === 'live' && (isDesktop ? isStudioOpen : showMobileStudio)
+  const toggleBrowser = () => {
+    if (browserDockMode === 'floating') setShowBrowserViewer(open => !open)
+    else if (isDockedLiveOpen) document.querySelector<HTMLButtonElement>('[data-studio-tab="live"]')?.focus()
+    else openStudioTab('live')
+  }
+  const studioProps = {
+    studio, activeTab, onTabChange: onStudioTabChange, threadId, browserDockMode,
+    onDock: dockBrowser, onUndock: undockBrowser,
+    citation: activeTab === 'sources' && citation?.session === studioSession ? citation : undefined,
+  }
+  function openCitation(message: Message, index: number) {
+    const source = resolveStudioCitation(index, message.sources, studio.sources)
+    if (!source) return
+    setCitation({ session: studioSession, index: source.index })
+    openStudioTab('sources')
+  }
+  function resetResearchPlan() {
+    setResearchPlan([])
+    setPlanReset(value => value + 1)
+  }
   const isWideLayout = !sidebarOpen && !(hasStudioContent && (isDesktop ? isStudioOpen : showMobileStudio))
   const columnWidthClass = cn(
     'mx-auto w-full transition-[max-width] duration-200 ease-out motion-reduce:transition-none',
@@ -179,6 +221,10 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
       setCurrentStatus('')
       setInput('')
       setAttachments([])
+      resetResearchPlan()
+      setShowBrowserViewer(false)
+      setShowMobileStudio(false)
+      setCitation(undefined)
       setThreadId(null)
       setPendingInterrupt(null)
       setSearchMode(initialMode)
@@ -227,6 +273,10 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
       setCurrentStatus('')
       setInput('')
       setAttachments([])
+      resetResearchPlan()
+      setShowBrowserViewer(false)
+      setShowMobileStudio(false)
+      setCitation(undefined)
       setThreadId(null)
       setPendingInterrupt(null)
       const run = StorageService.getRun(id, workspaceId)
@@ -252,7 +302,7 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
       const userMessage: Message = {
         id: `user-${Date.now()}`,
         role: 'user',
-        content: input.trim(),
+        content: composePromptWithResearchPlan(input.trim(), searchMode === 'deep' || searchMode === 'ultra' ? researchPlan : [], language),
         attachments: imagePayloads
       }
 
@@ -260,6 +310,7 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
       setMessages(newHistory)
       setInput('')
       setAttachments([])
+      resetResearchPlan()
     
       const id = saveToHistory(newHistory, currentSessionId || undefined, searchMode)
       if (id) setCurrentSessionId(id)
@@ -373,7 +424,8 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
                 className="scrollbar-thin scrollbar-thumb-muted/20"
                 itemContent={(index, message) => (
                     <div className={cn(columnWidthClass, 'px-4 sm:px-6')}>
-                        <MessageItem key={message.id} message={message} onEdit={handleEditMessage} workspaceId={workspaceId} />
+                        <MessageItem key={message.id} message={message} onEdit={handleEditMessage} workspaceId={workspaceId}
+                          sources={studio.sources} onCitationClick={message.role === 'assistant' ? index => openCitation(message, index) : undefined} />
                     </div>
                 )}
             />
@@ -419,14 +471,14 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
           hasStudioContent={hasStudioContent}
           isInitializing={isHistoryLoading}
           showBrowserToggle={currentView === 'dashboard' && Boolean(threadId)}
-          isBrowserOpen={showBrowserViewer}
-          onToggleBrowser={() => setShowBrowserViewer(!showBrowserViewer)}
+          isBrowserOpen={browserDockMode === 'docked' ? isDockedLiveOpen : showBrowserViewer}
+          onToggleBrowser={toggleBrowser}
         />
 
         {/* Dynamic Content Area */}
         <div className="relative flex min-h-0 flex-1 flex-col">
           {renderContent()}
-          {currentView === 'dashboard' && threadId && showBrowserViewer && (
+          {currentView === 'dashboard' && threadId && browserDockMode === 'floating' && showBrowserViewer && (
             <FloatingBrowserViewer
               threadId={threadId}
               defaultExpanded={true}
@@ -434,6 +486,7 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
               mode="stream"
               defaultPosition="bottom-left"
               onClose={() => setShowBrowserViewer(false)}
+              onDock={dockBrowser}
             />
           )}
         </div>
@@ -516,6 +569,9 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
             attachments={attachments}
             setAttachments={setAttachments}
             onSubmit={handleSubmit}
+            researchPlan={researchPlan}
+            setResearchPlan={setResearchPlan}
+            planReset={planReset}
             isLoading={isLoading}
             awaitingApproval={Boolean(pendingInterrupt)}
             canStop={!isDeciding && (isLoading || (!!activeRun && (!!pendingInterrupt || connectionLost)))}
@@ -541,10 +597,10 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
             {isStudioOpen ? <PanelRightClose aria-hidden="true" className="size-4" /> : <PanelRightOpen aria-hidden="true" className="size-4" />}
           </Button>
           {isStudioOpen ? (
-            <ResearchStudioPanel key={studioSession} studio={studio} activeTab={activeTab} onTabChange={onStudioTabChange} />
+            <ResearchStudioPanel key={studioSession} {...studioProps} />
           ) : (
             <div className="pt-14">
-              <ResearchStudioRail studio={studio} activeTab={activeTab} onTabChange={tab => {
+              <ResearchStudioRail studio={studio} activeTab={activeTab} threadId={threadId} onTabChange={tab => {
                 onStudioTabChange(tab)
                 setIsStudioOpen(true)
                 studioToggle.current?.focus()
@@ -561,7 +617,7 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
             <DialogTitle className="text-sm">{t('studioTitle')}</DialogTitle>
           </div>
           <div className="min-h-0 flex-1">
-            <ResearchStudioPanel key={studioSession} studio={studio} activeTab={activeTab} onTabChange={onStudioTabChange} showHeader={false} />
+            <ResearchStudioPanel key={studioSession} {...studioProps} showHeader={false} />
           </div>
         </DialogContent>
       )}
