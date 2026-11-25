@@ -1,5 +1,3 @@
-# Weaver - AI Agent Platform
-
 <div align="right">
   <strong>Language / 语言:</strong>
   <strong>English</strong> |
@@ -10,14 +8,17 @@
 
 <img src="../web/public/logo.png" alt="Weaver" width="64" height="64" />
 
-**Open-source AI Agent & Deep Research workbench with multi-tool orchestration, sandboxed code execution, project workspaces, and MCP support.**
+# Weaver
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../LICENSE)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Next.js 16.4+](https://img.shields.io/badge/Next.js-16.4+-000000.svg)](https://nextjs.org/)
-[![LangGraph](https://img.shields.io/badge/LangGraph-1.0+-purple.svg)](https://github.com/langchain-ai/langgraph)
+**Open-source AI Agent Workbench — Deep Research · Visual MCP Ecosystem · Free Local Docker Sandbox · Interactive Artifact Preview**
 
-[Documentation](./README.md) · [Configuration](./configuration.md) · [Report Bug](https://github.com/skygazer42/Weaver/issues) · [Request Feature](https://github.com/skygazer42/Weaver/issues)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB.svg?style=flat&logo=python&logoColor=white)](https://www.python.org/downloads/)
+[![Next.js 16.4+](https://img.shields.io/badge/Next.js-16.4+-000000.svg?style=flat&logo=next.js&logoColor=white)](https://nextjs.org/)
+[![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP%20%7C%20stdio-10B981.svg?style=flat)](./mcp.md)
+[![Docker Sandbox](https://img.shields.io/badge/Sandbox-Local%20Docker%20%7C%20E2B-2496ED.svg?style=flat&logo=docker&logoColor=white)](./configuration.md)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat)](../LICENSE)
+
+[Quick Start](#quick-start) · [Local Docker Sandbox](#5-optional-enable-local-free-docker-sandbox-off-by-default) · [MCP Guide](./mcp.md) · [Configuration](./configuration.md) · [Docs](./README.md)
 
 <img src="images/dashboard.png" alt="Weaver Workbench" width="100%" style="border-radius: 10px; margin-top: 16px;" />
 
@@ -25,18 +26,14 @@
 
 ---
 
-## ✨ Highlights
+## Why Weaver
 
--  **Smart Routing**- LLM-based intelligent query routing (Direct/Web/Agent/Deep Search)
--  **Deep Research**- Multi-epoch iterative research with parallel search and content analysis
--  **Code Execution**- Sandboxed Python interpreter with visualization support (E2B or opt-in local Docker sandbox)
--  **Browser Automation**- Full Chromium control with screenshots (Playwright + E2B)
--  **Desktop Automation**- Mouse, keyboard, and screen control (PyAutoGUI)
--  **Document Generation**- Excel spreadsheets and PowerPoint presentations
--  **Trigger System**- Scheduled, Webhook, and Event-based automation
--  **Voice I/O**- Speech recognition (ASR) and text-to-speech (TTS)
--  **Cancellable Tasks**- Real-time task cancellation with token-based tracking
--  **Generative UI**- Real-time event streaming with artifacts
+- **Visual MCP Tool Ecosystem**: Native `Streamable HTTP` (custom headers) and `stdio` (env vars & cwd) support persisted in `config/mcp.json`. Manage servers visually in Settings, import Claude Desktop / Cursor `mcpServers` JSON in one click, and toggle active tools directly from the chat composer.
+- **Dual Sandbox Code Execution (Free Local Docker + E2B)**: Run Python, shell commands, and CSV analysis without an E2B key via the opt-in **Local Docker Sandbox** (OFF by default), sharing the exact same `execute_python_code`, `sandbox_files`, and `sandbox_shell` interfaces with hardened isolation (`--network none`, `--cap-drop ALL`, CPU/memory/PID limits, per-thread `/workspace`).
+- **Interactive Artifact Preview & Execution Console**: Render model-generated interactive HTML reports, charts, and SVGs safely inside a CSP-isolated sandboxed `<iframe>` with Preview/Code toggle, reload, fullscreen viewer, and collapsible monospace execution logs.
+- **Universal Multi-Model Discovery & Dual-Role Routing**: Auto-discovers `/v1/models` from SiliconFlow and any OpenAI-compatible gateway (DeepSeek, OpenRouter, OneAPI, Ollama, vLLM) plus Anthropic, with separate **Primary** and **Reasoning** model selectors in the UI.
+- **Deep Research & Persistent Project Workspaces (`/workspace`)**: Direct, Web, Agent, and iterative Deep Research modes with evidence verification, plus resumable project workspaces and an integrated CSV analysis workbench.
+- **Modern Workbench UI**: Next.js 16 + React 19 with light/dark themes, 4 locales (`en`, `zh`, `ja`, `ko`), focus sidebar collapse (`Ctrl/Cmd + B`), and live SSE streaming.
 
 ## Table of Contents
 
