@@ -112,8 +112,72 @@ def _chrome_port() -> int:
         return 9222
 
 
-def _chrome_start_cmd(port: int) -> str:
-    # Port must match the one we later expose via sandbox.get_host(port).
+_CDP_HOST_PROXY_SCRIPT = """import asyncio
+import sys
+
+EXT_PORT = int(sys.argv[1])
+INT_PORT = int(sys.argv[2])
+
+
+async def pipe(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+    try:
+        while True:
+            data = await reader.read(65536)
+            if not data:
+                break
+            writer.write(data)
+            await writer.drain()
+    except Exception:
+        pass
+    finally:
+        try:
+            writer.close()
+        except Exception:
+            pass
+
+
+async def handle(client_reader: asyncio.StreamReader, client_writer: asyncio.StreamWriter) -> None:
+    try:
+        raw = await asyncio.wait_for(client_reader.readuntil(b"\\r\\n\\r\\n"), timeout=15)
+    except Exception:
+        client_writer.close()
+        return
+
+    lines = raw.split(b"\\r\\n")
+    rewritten = [lines[0]]
+    for line in lines[1:]:
+        if line.lower().startswith(b"host:"):
+            rewritten.append(f"Host: 127.0.0.1:{INT_PORT}".encode("ascii"))
+        else:
+            rewritten.append(line)
+
+    try:
+        server_reader, server_writer = await asyncio.open_connection("127.0.0.1", INT_PORT)
+    except Exception:
+        client_writer.close()
+        return
+
+    server_writer.write(b"\\r\\n".join(rewritten))
+    await server_writer.drain()
+    await asyncio.gather(pipe(client_reader, server_writer), pipe(server_reader, client_writer))
+
+
+async def main() -> None:
+    server = await asyncio.start_server(handle, "0.0.0.0", EXT_PORT)
+    async with server:
+        await server.serve_forever()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+"""
+
+
+def _chrome_start_cmd(port: int, internal_port: Optional[int] = None) -> str:
+    # Chrome binds on internal_port (localhost) while a lightweight Host-rewriting
+    # proxy listens on 0.0.0.0:port (exposed by sandbox.get_host(port)).
+    # This satisfies modern Chrome's DNS-rebinding Host header check on E2B hosts.
+    cdp_port = internal_port or (port + 1)
     return f"""
 set -e
 CHROME_BIN="${{SANDBOX_CHROME_BIN:-}}"
@@ -144,9 +208,9 @@ fi
 nohup "$CHROME_BIN" \\
   --no-sandbox \\
   --disable-dev-shm-usage \\
-  --remote-debugging-port={port} \\
-  --remote-debugging-address=0.0.0.0 \\
-  --headless \\
+  --remote-debugging-port={cdp_port} \\
+  --remote-allow-origins=* \\
+  --headless=new \\
   --disable-gpu \\
   --no-first-run \\
   --no-default-browser-check \\
@@ -157,10 +221,10 @@ nohup "$CHROME_BIN" \\
   --disable-translate \\
   --metrics-recording-only \\
   --mute-audio \\
-  --no-zygote \\
   --user-data-dir=/tmp/weaver-chrome-{port} \\
   --window-size=1920,1080 \\
   > /tmp/chrome.log 2>&1 &
+nohup python3 /tmp/weaver_cdp_proxy.py {port} {cdp_port} > /tmp/cdp_proxy.log 2>&1 &
 """
 
 
@@ -318,9 +382,9 @@ class SandboxBrowserSession:
                 # Some older/third-party templates are not compatible with E2B "secured access".
                 # In that case we retry with `secure=False` and remember the outcome to avoid
                 # repeated 400s during browser streaming.
-                def _create(*, secure: Optional[bool] = None):
+                def _create(*, secure: Optional[bool] = None, template_override: Optional[str] = None):
                     kwargs: Dict[str, Any] = {
-                        "template": template,
+                        "template": template_override or template,
                         "timeout": timeout,
                         "api_key": settings.e2b_api_key,
                         "domain": domain,
@@ -333,7 +397,7 @@ class SandboxBrowserSession:
 
                 compat = _E2B_SECURE_ACCESS_COMPAT.get(template)
                 if compat is False:
-                    sandbox = _create(secure=False)
+                    sandbox = _create(template_override="desktop") if template != "desktop" else _create(secure=False)
                 else:
                     try:
                         sandbox = _create()
@@ -342,7 +406,15 @@ class SandboxBrowserSession:
                         msg = str(e).lower()
                         if "secured access" in msg and "not compatible" in msg:
                             _E2B_SECURE_ACCESS_COMPAT[template] = False
-                            sandbox = _create(secure=False)
+                            if template != "desktop":
+                                logger.warning(
+                                    "[sandbox_browser] template %r is incompatible with E2B secured access; "
+                                    "falling back to 'desktop'",
+                                    template,
+                                )
+                                sandbox = _create(template_override="desktop")
+                            else:
+                                sandbox = _create(secure=False)
                         else:
                             raise
             except Exception as e:
@@ -357,17 +429,19 @@ class SandboxBrowserSession:
                     raise RuntimeError(_E2B_DISABLED_REASON) from e
                 raise
 
-            # Ensure Chrome/Chromium is running with the remote debugging port.
+            # Ensure Chrome/Chromium + Host-rewriting CDP proxy are running.
             # NOTE: pgrep can match itself when the pattern appears in argv, so we
             # filter by browser name after.
+            internal_port = port + 1
             check = sandbox.commands.run(
-                "pgrep -af 'remote-debugging-port={port}' | "
+                "pgrep -af 'remote-debugging-port=({port}|{internal_port})' | "
                 "grep -E '(chrome|chromium)' | "
-                "grep -v pgrep || echo not_running".format(port=port)
+                "grep -v pgrep || echo not_running".format(port=port, internal_port=internal_port)
             )
             if "not_running" in (getattr(check, "stdout", "") or ""):
-                sandbox.commands.run(_chrome_start_cmd(port), timeout=600)
-                time.sleep(5)
+                sandbox.files.write("/tmp/weaver_cdp_proxy.py", _CDP_HOST_PROXY_SCRIPT)
+                sandbox.commands.run(_chrome_start_cmd(port, internal_port), timeout=600)
+                time.sleep(2)
 
             debug = bool(getattr(getattr(sandbox, "connection_config", None), "debug", False))
             http_scheme = "http" if debug else "https"
@@ -380,8 +454,10 @@ class SandboxBrowserSession:
             # being reachable via the external host mapping.
             cdp_endpoint = cdp_http_endpoint
             ws_debugger_url = None
-            for _ in range(60):
-                ws_debugger_url = _read_cdp_ws_url_from_sandbox(sandbox, port)
+            for _ in range(30):
+                ws_debugger_url = _read_cdp_ws_url_from_sandbox(sandbox, internal_port) or _read_cdp_ws_url_from_sandbox(
+                    sandbox, port
+                )
                 if ws_debugger_url:
                     break
                 time.sleep(1)

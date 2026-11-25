@@ -86,8 +86,8 @@ TAVILY_API_KEY=tvly-...
 
 ```bash
 E2B_API_KEY=e2b_...
-# E2B 浏览器沙箱模板 ID（默认 browser，若有自定义模板可覆盖）
-SANDBOX_TEMPLATE_BROWSER=browser
+# E2B 浏览器沙箱模板 ID（默认 desktop，内置 Chrome 且兼容 E2B 新安全访问；若有自定义模板可覆盖）
+SANDBOX_TEMPLATE_BROWSER=desktop
 SANDBOX_ALLOW_INTERNET=true
 DEEPSEARCH_VISUALIZE_BROWSER=true
 ```
