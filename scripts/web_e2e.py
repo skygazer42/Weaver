@@ -620,7 +620,8 @@ class ChatBrowserTests(unittest.TestCase):
         self.page.get_by_role("button", name="Deep Research", exact=True).last.click()
         self.submit("Research the missing evidence")
         expect(self.status).to_have_text("Insufficient evidence")
-        expect(self.page.get_by_role("link", name="Search log")).to_be_visible()
+        transcript = self.page.get_by_test_id("virtuoso-item-list")
+        expect(transcript.get_by_role("link", name="Search log", exact=True)).to_be_visible()
         with self.page.expect_response(
             lambda response: response.request.method == "POST" and "/api/chat/sse?" in response.url
         ):
