@@ -10,14 +10,14 @@
 
 # Weaver
 
-**Open-source AI Agent Workbench — Deep Research · Visual MCP · Multi-Model Routing · Interactive Artifacts**
+**Open-source AI Agent Workbench — Deep Research · Research Studio · Visual MCP · Multi-Model Routing · Sandbox Execution**
 
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB.svg?style=flat&logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![Next.js 16.4+](https://img.shields.io/badge/Next.js-16.4+-000000.svg?style=flat&logo=next.js&logoColor=white)](https://nextjs.org/)
 [![MCP](https://img.shields.io/badge/MCP-Supported-10B981.svg?style=flat)](./mcp.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat)](../LICENSE)
 
-[Quick Start](#quick-start) · [MCP Guide](./mcp.md) · [Configuration](./configuration.md) · [Docs](./README.md)
+[Key Features](#key-features) · [Screenshots](#screenshots) · [Quick Start](#quick-start) · [MCP Guide](./mcp.md) · [Configuration](./configuration.md) · [Docs](./README.md)
 
 <img src="images/dashboard.png" alt="Weaver Workbench" width="100%" style="border-radius: 10px; margin-top: 16px;" />
 
@@ -27,12 +27,41 @@
 
 ## Key Features
 
-- **Deep Research & Agent Modes**: Direct, Web, Agent, and iterative Deep Research modes with clean progress summaries and verifiable citations.
+- **Multi-Mode Deep Research & Research Plans**: Direct, Web, Agent, and iterative Deep Research modes with an optional **Plan** editor beside the composer, clean progress summaries, and verifiable citations.
+- **Research Studio Split Workbench**:
+  - **Live Research Graph & Report Mind Map (`Graph`)**: Interactive research tree that grows live during exploration with node inspection and quality telemetry, one-click toggle to a Markdown conclusion mind map, and **SVG / PNG** export.
+  - **Interactive Artifacts & Multi-Format Export (`Artifacts`)**: Sandboxed preview for HTML reports, SVG charts, and code; export reports as **Markdown, HTML, Interactive Slides (with fullscreen preview), PDF, or Word (`.docx`)**.
+  - **Linked Citations & Visual Gallery (`Sources`)**: Inline `[1]` citation hover cards and click-to-highlight source navigation, domain/keyword filters, and a lightbox gallery for captured screenshots and charts.
+  - **Docked Live Agent Computer (`Live`)**: Embedded live browser stream and collapsible execution console with one-click **Dock ↔ Float** switching.
+- **Dual-Engine Sandbox (`E2B` / Local Docker)**: Run Python code, browser automation, and desktop actions in E2B cloud sandboxes or opt in to a free, isolated local Docker sandbox.
 - **Visual MCP Ecosystem**: Manage `Streamable HTTP` and `stdio` servers in Settings, import Claude Desktop / Cursor configs in one click, and toggle tools directly in the chat composer.
-- **Interactive Artifact Preview**: Render model-generated HTML reports, SVG charts, and code directly in the side panel with Preview/Code switching and fullscreen view.
-- **Multi-Model Discovery & Dual-Role Routing**: Works with SiliconFlow, DeepSeek, OpenRouter, Ollama, vLLM, and Anthropic, with independent Primary and Reasoning model selection.
-- **Persistent Workspaces (`/workspace`)**: Organize project context and files, plus a built-in CSV analysis workbench with background execution and exportable reports.
-- **Modern Workbench UI**: Light/dark themes, 4 locales (`en`, `zh`, `ja`, `ko`), and collapsible focus layout.
+- **Multi-Model Discovery & Dual-Role Routing**: Works with SiliconFlow, DeepSeek, OpenRouter, Ollama, vLLM, Anthropic, and any OpenAI-compatible gateway, with independent Primary and Reasoning model selection.
+- **Persistent Workspaces (`/workspace`)**: Organize project context, shared files, and scheduled tasks, plus a built-in CSV analysis workbench with background execution and exportable reports.
+
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%">
+      <img src="images/research-studio-graph.png" alt="Interactive Research Graph" />
+      <p align="center"><sub><b>Research Graph</b>: Live research tree, quality telemetry &amp; node inspector</sub></p>
+    </td>
+    <td width="50%">
+      <img src="images/research-studio-live.png" alt="Docked Live Computer & Research Plan" />
+      <p align="center"><sub><b>Docked Live Computer &amp; Research Plan</b>: Embedded live browser &amp; execution console</sub></p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="images/research-studio-sources.png" alt="Linked Citations & Visual Gallery" />
+      <p align="center"><sub><b>Sources &amp; Visual Gallery</b>: Inline <code>[1]</code> linkage, domain filters &amp; chart lightbox</sub></p>
+    </td>
+    <td width="50%">
+      <img src="images/workspace-project.png" alt="Persistent Project & CSV Workspace" />
+      <p align="center"><sub><b>Persistent Workspace (/workspace)</b>: Project context, files, workflows &amp; CSV workbench</sub></p>
+    </td>
+  </tr>
+</table>
 
 ## Table of Contents
 
@@ -893,13 +922,14 @@ uvicorn main:app --host 0.0.0.0 --port $PORT
 
 | Document | Description |
 |----------|-------------|
-| [MANUS_AGENT_EXTRACTION_PROGRESS.md](MANUS_AGENT_EXTRACTION_PROGRESS.md) | Feature extraction from Manus (92% complete) |
-| [AGENT_VISUAL_IMPLEMENTATION_PLAN.md](AGENT_VISUAL_IMPLEMENTATION_PLAN.md) | Visual agent implementation plan |
-| [MANUS_FEATURE_ANALYSIS.md](MANUS_FEATURE_ANALYSIS.md) | Manus feature comparison and analysis |
+| [Getting Started](./getting-started.md) | Complete local installation, CSV workbench, and troubleshooting |
+| [Configuration](./configuration.md) | Model gateways, E2B / local Docker sandbox, and advanced settings |
+| [MCP Guide](./mcp.md) | MCP server integration examples and security recommendations |
+| [Architecture](./architecture.md) | Core modules and LangGraph workflow overview |
+| [Deployment](./deployment.md) | Docker Compose, reverse-proxy auth, and rate limiting |
+| [All Docs](./README.md) | API reference, streaming protocol, developer guide, and roadmap |
 | [FRONTEND_INTEGRATION.md](FRONTEND_INTEGRATION.md) | Frontend SSE integration guide |
-| [DEEP_SEARCH_ROUTING_ANALYSIS.md](DEEP_SEARCH_ROUTING_ANALYSIS.md) | Deep search routing flow analysis |
 | [DEEP_SEARCH_TROUBLESHOOTING.md](DEEP_SEARCH_TROUBLESHOOTING.md) | Deep search diagnostic guide |
-| [DEBUG_ALIGNMENT_ISSUE.md](DEBUG_ALIGNMENT_ISSUE.md) | Message alignment debugging guide |
 | [TOOL_REFERENCE.md](TOOL_REFERENCE.md) | Complete tool documentation |
 
 ## Roadmap
