@@ -18,7 +18,7 @@
 
 [Key Features](#key-features) · [Screenshots](#screenshots) · [Quick Start](#quick-start) · [MCP Guide](./mcp.md) · [Configuration](./configuration.md) · [Docs](./README.md)
 
-<img src="images/dashboard.png" alt="Weaver Workbench" width="100%" style="border-radius: 10px; margin-top: 16px;" />
+<img src="images/dashboard-en.png" alt="Weaver Workbench" width="100%" style="border-radius: 10px; margin-top: 16px;" />
 
 </div>
 
