@@ -29,7 +29,7 @@
 
 -  **Smart Routing**- LLM-based intelligent query routing (Direct/Web/Agent/Deep Search)
 -  **Deep Research**- Multi-epoch iterative research with parallel search and content analysis
--  **Code Execution**- Sandboxed Python interpreter with visualization support (E2B)
+-  **Code Execution**- Sandboxed Python interpreter with visualization support (E2B or opt-in local Docker sandbox)
 -  **Browser Automation**- Full Chromium control with screenshots (Playwright + E2B)
 -  **Desktop Automation**- Mouse, keyboard, and screen control (PyAutoGUI)
 -  **Document Generation**- Excel spreadsheets and PowerPoint presentations
@@ -179,6 +179,31 @@ pnpm -C web dev
 -  **Web UI**: http://localhost:3100
 -  **Backend API**: http://localhost:8001
 -  **API Docs**: http://localhost:8001/docs
+
+### 5⃣ (Optional) Enable Local Free Docker Sandbox (OFF by default)
+
+If you do not have an `E2B_API_KEY`, you can opt in to Weaver's local Docker sandbox backend to run `execute_python_code`, `sandbox_files`, and `sandbox_shell` locally:
+
+1. Start **Docker Desktop** (macOS / Windows) or **Docker Engine** (Linux), verify the daemon is running, and pull the default image:
+
+```bash
+docker info
+docker pull python:3.12-slim
+```
+
+> Tip: For pandas/matplotlib workloads inside an offline container, set `DOCKER_SANDBOX_IMAGE` to a custom image with those packages preinstalled.
+
+2. Enable the sandbox in root `.env`:
+
+```env
+ENABLE_DOCKER_SANDBOX=true
+DOCKER_SANDBOX_IMAGE=python:3.12-slim
+DOCKER_SANDBOX_CPUS=1.0
+DOCKER_SANDBOX_MEMORY=512m
+DOCKER_SANDBOX_NETWORK_ENABLED=false
+```
+
+3. Restart the backend (`.venv/bin/python main.py`). Containers run with `--network none`, `--cap-drop ALL`, `--security-opt no-new-privileges`, a per-thread isolated `/workspace` mount, and are cleaned up automatically on server shutdown.
 
 ### Common Dev Commands
 

@@ -80,11 +80,38 @@ ANTHROPIC_API_KEY=sk-ant-...
 TAVILY_API_KEY=tvly-...
 ```
 
-### 代码执行（推荐）
+### 代码执行沙盒（二选一，均可选）
+
+方式 A：E2B 云端沙盒：
 
 ```bash
 E2B_API_KEY=e2b_...
 ```
+
+方式 B：本地免费 Docker 沙盒（**默认关闭**，开启后无需 E2B 即可复用 `execute_python_code`、`sandbox_files`、`sandbox_shell`）：
+
+1. 启动本机 Docker Desktop / Docker Engine，并拉取默认镜像：
+
+```bash
+docker info
+docker pull python:3.12-slim
+```
+
+2. 在根目录 `.env` 中开启（也可通过 `SANDBOX_MODE=docker` 开启）：
+
+```bash
+ENABLE_DOCKER_SANDBOX=true
+DOCKER_SANDBOX_IMAGE=python:3.12-slim
+DOCKER_SANDBOX_CPUS=1.0
+DOCKER_SANDBOX_MEMORY=512m
+DOCKER_SANDBOX_PIDS_LIMIT=128
+DOCKER_SANDBOX_NETWORK_ENABLED=false
+DOCKER_SANDBOX_TIMEOUT_SECONDS=60
+# 可选：自定义宿主机工作区根目录（留空则使用系统临时目录）
+# DOCKER_SANDBOX_WORK_ROOT=
+```
+
+> 安全默认：本地 Docker 沙盒默认关闭网络（`--network none`）、移除所有 Linux Capabilities（`--cap-drop ALL`）、禁止提权（`--security-opt no-new-privileges`），按线程挂载独立 `/workspace` 目录并在后端退出时自动清理容器。如需容器内预装 `pandas`/`matplotlib` 进行离线数据分析与出图，将 `DOCKER_SANDBOX_IMAGE` 替换为自定义镜像即可。
 
 ### MCP（可选）
 

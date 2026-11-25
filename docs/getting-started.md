@@ -52,8 +52,15 @@ TAVILY_API_KEY=tvly-...
 **可选但推荐**：
 
 ```bash
-# 代码执行（推荐）
+# 代码执行（二选一）：方式 A 使用 E2B 云端沙盒
 E2B_API_KEY=e2b_...
+
+# 方式 B：本地免费 Docker 沙盒（默认关闭，需先启动 Docker 并 `docker pull python:3.12-slim`）
+# ENABLE_DOCKER_SANDBOX=true
+# DOCKER_SANDBOX_IMAGE=python:3.12-slim
+# DOCKER_SANDBOX_CPUS=1.0
+# DOCKER_SANDBOX_MEMORY=512m
+# DOCKER_SANDBOX_NETWORK_ENABLED=false
 
 # MCP 工具桥（更多示例见 docs/mcp.md）
 ENABLE_MCP=true

@@ -32,8 +32,8 @@
 - **Deep Research 深度研究**：并行检索 + 多轮迭代 + 证据校验与引用溯源，思考与检索过程以清晰的用户视角步骤折叠展示。
 - **项目工作区（`/workspace`）**：集中管理项目上下文、共享文件与持久化工作流，内置 **CSV 智能分析台**（沙箱分析并导出 Markdown 报告与 SVG 图表）。
 - **多模型与网关适配**：开箱支持 **SiliconFlow（硅基流动）**、DeepSeek、OpenAI 兼容网关及 Anthropic，前端自动拉取后端允许列表并按厂商分组搜索。
-- **沙箱、浏览器与 MCP 生态**：集成 E2B 代码沙箱、Playwright 浏览器自动化、可选语音识别/合成，并支持通过 **MCP（Model Context Protocol）** 扩展外部工具。
-- **企业级研究工作台 UI**：Next.js 16 + React 19 + Tailwind CSS，支持浅色/深色主题、中/英/日/韩四语言、宽屏专注模式（`Ctrl/Cmd + B`）与流式 SSE 产物侧栏。
+- **沙箱、浏览器与 MCP 生态**：支持 E2B 云端沙盒与**本地免费 Docker 沙盒（默认关闭，按需开启）**、Playwright 浏览器自动化、可选语音识别/合成，并支持通过 **MCP（Model Context Protocol）** 扩展外部工具。
+- **企业级研究工作台 UI**：Next.js 16 + React 19 + Tailwind CSS，支持浅色/深色主题、中/英/日/韩四语言、宽屏专注模式（`Ctrl/Cmd + B`）、流式 SSE 产物侧栏与**交互式 HTML/SVG 沙盒预览**。
 
 ---
 
@@ -52,7 +52,7 @@ graph TB
   Router --> Deep[Deep Research]
   Agent --> Tools[Tool Registry]
   Deep --> Tools
-  Tools --> E2B[E2B Sandbox]
+  Tools --> Sandbox[E2B / Local Docker Sandbox]
   Tools --> Browser[Browser Automation]
   Tools --> MCP[MCP Bridge]
 ```
@@ -116,6 +116,31 @@ pnpm -C web dev
 - **Web 工作台**：`http://localhost:3100`
 - **项目工作区**：`http://localhost:3100/workspace`
 - **后端 API**：`http://localhost:8001`（OpenAPI 文档：`http://localhost:8001/docs`）
+
+### 4. （可选）开启本地免费 Docker 沙盒（默认关闭）
+
+如果没有 `E2B_API_KEY`，可以在本机启用免费的 Docker 代码沙盒，复用 `execute_python_code`、`sandbox_files` 和 `sandbox_shell` 工具：
+
+1. 启动本机 **Docker Desktop**（macOS / Windows）或 **Docker Engine**（Linux），确认 Docker 可用并预先拉取镜像：
+
+```bash
+docker info
+docker pull python:3.12-slim
+```
+
+> 如需在容器内直接做 CSV 分析与画图，可将 `DOCKER_SANDBOX_IMAGE` 替换为预装 `pandas`、`numpy`、`matplotlib` 的自定义镜像。
+
+2. 在根目录 `.env` 中取消注释以下配置并保存：
+
+```env
+ENABLE_DOCKER_SANDBOX=true
+DOCKER_SANDBOX_IMAGE=python:3.12-slim
+DOCKER_SANDBOX_CPUS=1.0
+DOCKER_SANDBOX_MEMORY=512m
+DOCKER_SANDBOX_NETWORK_ENABLED=false
+```
+
+3. 重启后端服务（`.venv/bin/python main.py` 或 `.\.venv\Scripts\python.exe main.py`）。每个会话会自动挂载独立隔离的 `/workspace` 目录，默认断网（`--network none`）、降权运行（`--cap-drop ALL`、`--security-opt no-new-privileges`），服务退出时自动回收容器。更多参数见 [`docs/configuration.md`](docs/configuration.md)。
 
 ---
 
