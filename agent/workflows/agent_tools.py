@@ -109,6 +109,7 @@ def build_agent_tools(config: RunnableConfig) -> List[BaseTool]:
 
     tools: List[BaseTool] = []
     e2b_ready = _e2b_api_key_configured()
+    docker_ready = settings.docker_sandbox_enabled
 
     web_search_enabled = _enabled(profile, "web_search", default=True)
     sandbox_web_search_enabled = _enabled(profile, "sandbox_web_search", default=False)
@@ -158,14 +159,14 @@ def build_agent_tools(config: RunnableConfig) -> List[BaseTool]:
         if settings.sandbox_mode == "local" and e2b_ready:
             tools.extend(build_sandbox_web_search_tools(thread_id))
 
-    # Sandbox files: file operations in E2B sandbox
-    if _enabled(profile, "sandbox_files", default=False):
-        if settings.sandbox_mode == "local" and e2b_ready:
+    # Sandbox files: file operations in E2B or opt-in local Docker sandbox
+    if _enabled(profile, "sandbox_files", default=docker_ready):
+        if docker_ready or (settings.sandbox_mode == "local" and e2b_ready):
             tools.extend(build_sandbox_files_tools(thread_id))
 
-    # Sandbox shell: command execution in E2B sandbox
-    if _enabled(profile, "sandbox_shell", default=False):
-        if settings.sandbox_mode == "local" and e2b_ready:
+    # Sandbox shell: command execution in E2B or opt-in local Docker sandbox
+    if _enabled(profile, "sandbox_shell", default=docker_ready):
+        if docker_ready or (settings.sandbox_mode == "local" and e2b_ready):
             tools.extend(build_sandbox_shell_tools(thread_id))
 
     # Sandbox sheets: Excel/spreadsheet generation in E2B sandbox
@@ -203,7 +204,7 @@ def build_agent_tools(config: RunnableConfig) -> List[BaseTool]:
         if settings.sandbox_mode == "local" and e2b_ready:
             tools.extend(build_presentation_v2_tools(thread_id))
 
-    if _enabled(profile, "python", default=False):
+    if _enabled(profile, "python", default=docker_ready):
         tools.append(execute_python_code)
         tools.append(chart_visualize)
 

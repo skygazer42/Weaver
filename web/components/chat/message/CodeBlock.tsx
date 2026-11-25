@@ -11,9 +11,10 @@ interface CodeBlockProps {
   language: string
   value: string
   defaultCollapsed?: boolean
+  showHeader?: boolean
 }
 
-export function CodeBlock({ language, value, defaultCollapsed = false }: CodeBlockProps) {
+export function CodeBlock({ language, value, defaultCollapsed = false, showHeader = true }: CodeBlockProps) {
   const [copied, setCopied] = useState(false)
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed)
 
@@ -26,7 +27,7 @@ export function CodeBlock({ language, value, defaultCollapsed = false }: CodeBlo
 
   return (
     <div className="not-prose relative my-4 w-full overflow-hidden rounded-lg border border-[#30363d] bg-[#0d1117] text-[#e6edf3] shadow-surface">
-      <div className="flex items-center justify-between gap-3 border-b border-[#30363d] bg-[#161b22] px-3 py-1.5">
+      {showHeader && <div className="flex items-center justify-between gap-3 border-b border-[#30363d] bg-[#161b22] px-3 py-1.5">
         <button
           type="button"
           onClick={() => setIsCollapsed(!isCollapsed)}
@@ -49,7 +50,7 @@ export function CodeBlock({ language, value, defaultCollapsed = false }: CodeBlo
           {copied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
           {copied ? 'Copied' : 'Copy'}
         </Button>
-      </div>
+      </div>}
 
       {!isCollapsed && (
         <div className="overflow-x-auto">

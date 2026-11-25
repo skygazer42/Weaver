@@ -111,7 +111,7 @@ from tools.mcp import (
     reload_mcp_tools,
     save_persisted_mcp_config,
 )
-from tools.sandbox import sandbox_browser_sessions
+from tools.sandbox import docker_sandbox_sessions, sandbox_browser_sessions
 from tools.search.multi_search import get_search_orchestrator
 from triggers import (
     EventTrigger,
@@ -756,6 +756,12 @@ async def shutdown_event():
     except Exception as e:
         logger.error(f"Error closing MCP tools: {e}", exc_info=True)
 
+    # Best-effort stop all local Docker sandboxes
+    try:
+        docker_sandbox_sessions.stop_all()
+    except Exception as e:
+        logger.warning(f"Error stopping local Docker sandboxes: {e}")
+
     # Best-effort stop all Daytona sandboxes
     try:
         from tools.sandbox.daytona_client import daytona_stop_all
@@ -941,6 +947,7 @@ class PublicConfigDefaults(BaseModel):
 class PublicConfigFeatures(BaseModel):
     mcp_enabled: bool
     sandbox_mode: str
+    docker_sandbox_enabled: bool = False
     prometheus_enabled: bool
     tracing_enabled: bool
 
@@ -3571,7 +3578,8 @@ async def public_config():
         },
         "features": {
             "mcp_enabled": bool(mcp_enabled),
-            "sandbox_mode": settings.sandbox_mode,
+            "sandbox_mode": "docker" if settings.docker_sandbox_enabled else settings.sandbox_mode,
+            "docker_sandbox_enabled": bool(settings.docker_sandbox_enabled),
             "prometheus_enabled": bool(settings.enable_prometheus),
             "tracing_enabled": bool(settings.enable_tracing),
         },

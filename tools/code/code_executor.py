@@ -19,7 +19,7 @@ _E2B_PLACEHOLDER_KEYS = {
 @tool
 def execute_python_code(code: str) -> Dict[str, Any]:
     """
-    Execute Python code in a sandboxed E2B environment.
+    Execute Python code in a sandboxed environment (opt-in local Docker or E2B).
 
     Args:
         code: Python code to execute
@@ -27,6 +27,11 @@ def execute_python_code(code: str) -> Dict[str, Any]:
     Returns:
         Execution results including stdout, stderr, and any generated images
     """
+    if settings.docker_sandbox_enabled:
+        from tools.sandbox.docker_sandbox import docker_sandbox_sessions
+
+        return docker_sandbox_sessions.run_python(code)
+
     e2b_key = (settings.e2b_api_key or "").strip()
     if not e2b_key or e2b_key in _E2B_PLACEHOLDER_KEYS:
         return {

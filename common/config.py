@@ -426,10 +426,20 @@ class Settings(BaseSettings):
     daytona_entrypoint: str = "/usr/bin/supervisord -n -c /etc/supervisor/conf.d/supervisord.conf"
     daytona_vnc_password: str = ""  # Must be set via environment variable
 
-    # Sandbox mode: local (E2B), daytona (remote), none (disabled)
+    # Sandbox mode: local (E2B), docker (opt-in local Docker), daytona (remote), none (disabled)
     sandbox_mode: str = "local"
     sandbox_template_browser: str = ""  # e2b sandbox browser template ID (e.g., chrome-stable)
     sandbox_allow_internet: bool = True  # allow internet access inside sandbox
+
+    # Opt-in local Docker sandbox (disabled by default)
+    enable_docker_sandbox: bool = False
+    docker_sandbox_image: str = "python:3.12-slim"
+    docker_sandbox_cpus: float = 1.0
+    docker_sandbox_memory: str = "512m"
+    docker_sandbox_pids_limit: int = 128
+    docker_sandbox_network_enabled: bool = False
+    docker_sandbox_timeout_seconds: int = 60
+    docker_sandbox_work_root: str = ""
 
     # Tool / middleware controls
     tool_retry: bool = True
@@ -491,6 +501,12 @@ class Settings(BaseSettings):
         if self.reasoning_model in legacy_models:
             self.reasoning_model = self.primary_model
         return self
+
+    @property
+    def docker_sandbox_enabled(self) -> bool:
+        """Whether the opt-in local Docker sandbox backend is active (OFF by default)."""
+        mode = (self.sandbox_mode or "").strip().lower()
+        return bool(self.enable_docker_sandbox) or mode == "docker"
 
     @property
     def cors_origins_list(self) -> List[str]:

@@ -54,7 +54,13 @@ class _SandboxShellBaseTool(BaseTool):
     _processes: Dict[str, Dict[str, Any]] = {}
 
     def _get_sandbox(self):
-        """Get the E2B sandbox instance."""
+        """Get the active sandbox instance (opt-in local Docker or E2B)."""
+        from common.config import settings
+
+        if settings.docker_sandbox_enabled:
+            from tools.sandbox.docker_sandbox import docker_sandbox_sessions
+
+            return docker_sandbox_sessions.get_or_create(self.thread_id)
         session = _get_sandbox_session(self.thread_id)
         if session and hasattr(session, "_handles") and session._handles:
             return session._handles.sandbox

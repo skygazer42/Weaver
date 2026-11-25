@@ -12,6 +12,12 @@ Sandbox Tools Package - E2B 沙盒工具集合
 """
 
 from tools.sandbox.daytona_client import daytona_create, daytona_stop, daytona_stop_all
+from tools.sandbox.docker_sandbox import (
+    DockerSandbox,
+    DockerSandboxConfig,
+    docker_sandbox_sessions,
+    is_docker_available,
+)
 from tools.sandbox.sandbox_browser_session import (
     SandboxBrowserSession,
     sandbox_browser_sessions,
@@ -32,6 +38,10 @@ __all__ = [
     # Session management
     "sandbox_browser_sessions",
     "SandboxBrowserSession",
+    "DockerSandbox",
+    "DockerSandboxConfig",
+    "docker_sandbox_sessions",
+    "is_docker_available",
     # Tool builders
     "build_sandbox_browser_tools",
     "build_sandbox_files_tools",
