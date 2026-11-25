@@ -362,7 +362,7 @@ class ChatBrowserTests(unittest.TestCase):
                 self.page.evaluate("localStorage.clear(); localStorage.setItem('weaver-language', 'zh')")
                 self.page.emulate_media(color_scheme="dark" if status == 503 else "light")
                 self.page.reload(wait_until="domcontentloaded")
-                self.page.get_by_role("button", name="Toggle theme").click()
+                self.page.get_by_role("button", name="切换主题", exact=True).click()
                 self.page.get_by_role("button", name="设置", exact=True).last.click()
                 dialog = self.page.get_by_role("dialog", name="设置", exact=True)
                 if status == 200:

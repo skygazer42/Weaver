@@ -83,6 +83,7 @@ from common.research_streams import (
     start_research_stream,
     stop_research_streams,
 )
+from common.model_catalog import discover_gateway_models
 from common.run_journal import RunJournal, RunRecord
 from common.siliconflow import list_siliconflow_chat_models
 from common.sse import (
@@ -958,7 +959,9 @@ class PublicConfigStreaming(BaseModel):
 
 class PublicConfigModels(BaseModel):
     default: str
+    reasoning_default: str = ""
     options: List[str]
+    source: str = "static"
 
 
 class PublicConfigResponse(BaseModel):
@@ -1021,6 +1024,7 @@ class ChatRequest(BaseModel):
     workspace_id: UUID4 | None = None
     stream: bool = True
     model: Optional[str] = None
+    reasoning_model: Optional[str] = None
     search_mode: Optional[SearchMode] = None
     agent_id: Optional[str] = None  # optional GPTs-like agent profile id (data/agents.json)
     user_id: Optional[str] = None
@@ -1057,6 +1061,7 @@ class GraphInterruptResumeRequest(BaseModel):
     thread_id: str
     payload: Any
     model: Optional[str] = None
+    reasoning_model: Optional[str] = None
     search_mode: Optional[SearchMode] = None
     agent_id: Optional[str] = None
 
@@ -1863,6 +1868,7 @@ async def stream_agent_events(
     input_text: str,
     thread_id: str = "default",
     model: str | None = None,
+    reasoning_model: str | None = None,
     search_mode: Dict[str, Any] | None = None,
     agent_id: str | None = None,
     images: Optional[List[Dict[str, Any]]] = None,
@@ -1893,6 +1899,7 @@ async def stream_agent_events(
     images = images or []
     user_id = user_id or settings.memory_user_id
     model = (model or settings.primary_model).strip()
+    effective_reasoning_model = (reasoning_model or "").strip() or None
     agent_id = (agent_id or "default").strip() or "default"
     agent_profile = get_agent_profile(agent_id) or get_agent_profile("default")
 
@@ -1985,6 +1992,11 @@ async def stream_agent_events(
             "configurable": {
                 "thread_id": thread_id,
                 "model": model,
+                **(
+                    {"reasoning_model": effective_reasoning_model}
+                    if effective_reasoning_model
+                    else {}
+                ),
                 "search_mode": mode_info,
                 "agent_profile": agent_profile.model_dump(mode="json") if agent_profile else None,
                 "user_id": user_id,
@@ -2520,6 +2532,7 @@ async def _saved_run_source(thread_id: str, saved: dict, *, durable: bool):
         last_message,
         thread_id=thread_id,
         model=request.model,
+        reasoning_model=request.reasoning_model,
         search_mode=_normalize_search_mode(request.search_mode),
         agent_id=request.agent_id,
         images=_normalize_images_payload(request.images),
@@ -2763,6 +2776,7 @@ async def chat(request: Request, payload: ChatRequest):
         user_id = principal_id if internal_key and principal_id else (payload.user_id or settings.memory_user_id)
         mode_info = _normalize_search_mode(payload.search_mode)
         model = (payload.model or settings.primary_model).strip()
+        reasoning_model = (payload.reasoning_model or "").strip() or None
         agent_id = (payload.agent_id or "default").strip() or "default"
         agent_profile = get_agent_profile(agent_id) or get_agent_profile("default")
 
@@ -2785,6 +2799,7 @@ async def chat(request: Request, payload: ChatRequest):
                     last_message,
                     thread_id=thread_id,
                     model=model,
+                    reasoning_model=reasoning_model,
                     search_mode=mode_info,
                     agent_id=payload.agent_id,
                     images=_normalize_images_payload(payload.images),
@@ -2835,6 +2850,7 @@ async def chat(request: Request, payload: ChatRequest):
                 "configurable": {
                     "thread_id": thread_id,
                     "model": model,
+                    **({"reasoning_model": reasoning_model} if reasoning_model else {}),
                     "search_mode": mode_info,
                     "agent_profile": agent_profile.model_dump(mode="json")
                     if agent_profile
@@ -2884,6 +2900,7 @@ async def resume_interrupt(request: Request, payload: GraphInterruptResumeReques
 
     mode_info = _normalize_search_mode(payload.search_mode)
     model = (payload.model or settings.primary_model).strip()
+    reasoning_model = (payload.reasoning_model or "").strip() or None
     agent_id = (payload.agent_id or "default").strip() or "default"
     agent_profile = get_agent_profile(agent_id) or get_agent_profile("default")
     # Fast path: avoid invoking the graph when no checkpoint exists for this thread.
@@ -2897,6 +2914,7 @@ async def resume_interrupt(request: Request, payload: GraphInterruptResumeReques
         "configurable": {
             "thread_id": payload.thread_id,
             "model": model,
+            **({"reasoning_model": reasoning_model} if reasoning_model else {}),
             "search_mode": mode_info,
             "agent_profile": agent_profile.model_dump(mode="json") if agent_profile else None,
             "allow_interrupts": True,
@@ -3423,18 +3441,36 @@ async def public_config():
     tokens, raw MCP server configs, or any user data.
     """
 
-    async def _public_model_options() -> List[str]:
+    async def _public_model_options() -> tuple[List[str], str]:
         """
-        A conservative allowlist for the frontend model dropdown.
+        Discover available models from the active gateway, with a safe provider-aware fallback.
 
-        Goal: avoid offering models that are unlikely to work with the configured
-        provider/gateway (e.g. selecting GPT-4o when OPENAI_BASE_URL points to DeepSeek).
+        Goal: list real models from SiliconFlow or any OpenAI-compatible gateway (OpenRouter,
+        OneAPI, DeepSeek, Ollama, vLLM, OpenAI), and fall back conservatively when unavailable.
         """
 
         if settings.siliconflow_api_key:
             models = await list_siliconflow_chat_models(settings.siliconflow_api_key)
             options = models or [settings.reasoning_model]
-            return list(dict.fromkeys([settings.primary_model, *options]))
+            return (
+                list(dict.fromkeys([settings.primary_model, *options])),
+                "siliconflow" if models else "static",
+            )
+
+        discovered, source = await discover_gateway_models(settings)
+        if discovered:
+            merged: list[str] = []
+            seen_ids: set[str] = set()
+            for candidate in [settings.primary_model, settings.reasoning_model, *discovered]:
+                clean = candidate.strip() if isinstance(candidate, str) else ""
+                if not clean:
+                    continue
+                key = clean.lower()
+                if key in seen_ids:
+                    continue
+                seen_ids.add(key)
+                merged.append(clean)
+            return merged, source
 
         def _norm(value: Any) -> str:
             if not isinstance(value, str):
@@ -3513,7 +3549,12 @@ async def public_config():
         for attr in ("planner_model", "researcher_model", "writer_model", "evaluator_model", "critic_model"):
             _add(_norm(getattr(settings, attr, "")))
 
-        return opts
+        return opts, "static"
+
+    model_options, model_source = await _public_model_options()
+    reasoning_default = (settings.reasoning_model or settings.primary_model or "").strip()
+    if reasoning_default and reasoning_default not in model_options:
+        reasoning_default = settings.primary_model
 
     return {
         "version": app.version,
@@ -3524,7 +3565,9 @@ async def public_config():
         },
         "models": {
             "default": settings.primary_model,
-            "options": await _public_model_options(),
+            "reasoning_default": reasoning_default,
+            "options": model_options,
+            "source": model_source,
         },
         "features": {
             "mcp_enabled": bool(mcp_enabled),

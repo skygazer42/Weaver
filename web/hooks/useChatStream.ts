@@ -6,6 +6,7 @@ import { StorageService } from '@/lib/storage-service'
 
 interface UseChatStreamProps {
   selectedModel: string
+  reasoningModel?: string
   searchMode: string
   workspaceId?: string
 }
@@ -26,7 +27,7 @@ export function cancelRun(runId: string) {
 const isTerminalStatus = (status: RunStatus | undefined) =>
   status === 'completed' || status === 'failed' || status === 'cancelled' || status === 'insufficient_evidence'
 
-export function useChatStream({ selectedModel, searchMode, workspaceId }: UseChatStreamProps) {
+export function useChatStream({ selectedModel, reasoningModel, searchMode, workspaceId }: UseChatStreamProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [currentStatus, setCurrentStatus] = useState<string>('')
@@ -497,6 +498,7 @@ export function useChatStream({ selectedModel, searchMode, workspaceId }: UseCha
           workspace_id: workspaceId,
           stream: true,
           model: selectedModel,
+          ...(reasoningModel && { reasoning_model: reasoningModel }),
           search_mode: mode,
           images: (images || []).map(({ name, mime, data }) => ({ name, mime, data })),
         }),
@@ -504,7 +506,7 @@ export function useChatStream({ selectedModel, searchMode, workspaceId }: UseCha
       messageHistory,
       connection,
     )
-  }, [readChat, selectedModel, searchMode, workspaceId])
+  }, [readChat, selectedModel, reasoningModel, searchMode, workspaceId])
 
   const reconnect = useCallback((connection: RunConnection, messageHistory: Message[]) => {
     const { run } = connection
@@ -571,6 +573,7 @@ export function useChatStream({ selectedModel, searchMode, workspaceId }: UseCha
               interrupt_ids: pendingInterrupt.interrupt_ids,
             },
             model: selectedModel,
+            ...(reasoningModel && { reasoning_model: reasoningModel }),
             search_mode: connection?.run.searchMode ?? searchMode
           })
         }
@@ -611,7 +614,7 @@ export function useChatStream({ selectedModel, searchMode, workspaceId }: UseCha
         setIsLoading(false)
       }
     }
-  }, [pendingInterrupt, threadId, selectedModel, searchMode, messages, reconnect, workspaceId])
+  }, [pendingInterrupt, threadId, selectedModel, reasoningModel, searchMode, messages, reconnect, workspaceId])
 
   return {
     messages,

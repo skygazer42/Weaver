@@ -2,6 +2,7 @@ export const STORAGE_KEYS = {
   HISTORY: 'weaver-history',
   ARTIFACTS: 'weaver-artifacts',
   MODEL: 'weaver-model',
+  REASONING_MODEL: 'weaver-reasoning-model',
 }
 
 export const SEARCH_MODES = {

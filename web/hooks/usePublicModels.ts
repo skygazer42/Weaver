@@ -1,8 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { DEFAULT_MODEL } from '@/lib/constants'
-import { fetchPublicConfig, type PublicConfigModels } from '@/lib/publicConfig'
+import { fetchPublicConfig, getPublicModels, type PublicConfigModels } from '@/lib/publicConfig'
 
 export interface PublicModelsState {
   isLoading: boolean
@@ -18,17 +17,7 @@ export function usePublicModels(): PublicModelsState {
     fetchPublicConfig()
       .then((cfg) => {
         if (cancelled) return
-        const m = cfg?.models
-        if (m && Array.isArray(m.options) && typeof m.default === 'string') {
-          setModels({
-            default: m.default || cfg?.defaults?.primary_model || DEFAULT_MODEL,
-            options: m.options || [],
-          })
-        } else if (cfg?.defaults?.primary_model) {
-          setModels({ default: cfg.defaults.primary_model, options: [cfg.defaults.primary_model] })
-        } else {
-          setModels(null)
-        }
+        setModels(getPublicModels(cfg))
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false)

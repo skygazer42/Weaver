@@ -3,6 +3,7 @@ export interface ModelOption {
   name: string
   isVision: boolean
   isPro: boolean
+  isReasoning: boolean
 }
 
 export interface ModelProvider {
@@ -12,16 +13,48 @@ export interface ModelProvider {
 }
 
 const vendors: Record<string, { id: string; name: string }> = {
+  openai: { id: 'openai', name: 'OpenAI' },
+  anthropic: { id: 'anthropic', name: 'Anthropic' },
+  google: { id: 'google', name: 'Google' },
+  'meta-llama': { id: 'meta', name: 'Meta' },
+  meta: { id: 'meta', name: 'Meta' },
+  mistralai: { id: 'mistral', name: 'Mistral' },
+  mistral: { id: 'mistral', name: 'Mistral' },
+  'x-ai': { id: 'xai', name: 'xAI' },
+  xai: { id: 'xai', name: 'xAI' },
+  deepseek: { id: 'deepseek', name: 'DeepSeek' },
   'deepseek-ai': { id: 'deepseek', name: 'DeepSeek' },
-  Qwen: { id: 'qwen', name: 'Qwen' },
+  qwen: { id: 'qwen', name: 'Qwen' },
   'zai-org': { id: 'zhipu', name: 'Zhipu GLM' },
-  THUDM: { id: 'zhipu', name: 'Zhipu GLM' },
+  thudm: { id: 'zhipu', name: 'Zhipu GLM' },
   moonshotai: { id: 'moonshot', name: 'Moonshot' },
   tencent: { id: 'tencent', name: 'Tencent' },
   'meituan-longcat': { id: 'meituan', name: 'Meituan' },
-  PaddlePaddle: { id: 'paddlepaddle', name: 'PaddlePaddle' },
-  MiniMaxAI: { id: 'minimax', name: 'MiniMax' },
-  'ByteDance-Seed': { id: 'bytedance', name: 'ByteDance' },
+  paddlepaddle: { id: 'paddlepaddle', name: 'PaddlePaddle' },
+  minimaxai: { id: 'minimax', name: 'MiniMax' },
+  minimax: { id: 'minimax', name: 'MiniMax' },
+  'bytedance-seed': { id: 'bytedance', name: 'ByteDance' },
+  cohere: { id: 'cohere', name: 'Cohere' },
+  microsoft: { id: 'microsoft', name: 'Microsoft' },
+  nvidia: { id: 'nvidia', name: 'NVIDIA' },
+  perplexity: { id: 'perplexity', name: 'Perplexity' },
+}
+
+function inferVendor(name: string) {
+  if (/^(?:gpt-|chatgpt-|o[134](?:[.-]|$))/i.test(name)) return vendors.openai
+  if (/^claude-/i.test(name)) return vendors.anthropic
+  if (/^gemini-/i.test(name)) return vendors.google
+  if (/^deepseek/i.test(name)) return vendors.deepseek
+  if (/^(?:qwen|qwq)/i.test(name)) return vendors.qwen
+  if (/^glm/i.test(name)) return vendors['zai-org']
+  if (/^llama/i.test(name)) return vendors.meta
+  if (/^(?:mistral|mixtral)/i.test(name)) return vendors.mistral
+  if (/^grok/i.test(name)) return vendors.xai
+  if (/^kimi/i.test(name)) return vendors.moonshotai
+  if (/^minimax/i.test(name)) return vendors.minimax
+  if (/^hunyuan/i.test(name)) return vendors.tencent
+  if (/^seed-/i.test(name)) return vendors['bytedance-seed']
+  return null
 }
 
 const staticModels = [
@@ -46,17 +79,19 @@ export function getModelProviders(options?: readonly string[]): ModelProvider[] 
 
   for (const id of ids) {
     const model = known.get(id)
-    const normalized = id.replace(/^Pro\//, '')
+    const normalized = id.replace(/^Pro\//i, '')
+    const name = normalized.slice(normalized.lastIndexOf('/') + 1)
     const org = normalized.includes('/') ? normalized.split('/')[0] : null
     const provider = model
       ? { id: model.providerId, name: model.provider }
-      : org ? vendors[org] ?? { id: org.toLowerCase(), name: org } : { id: 'other', name: 'Other' }
+      : (org && vendors[org.toLowerCase()]) || inferVendor(name) || (org ? { id: org.toLowerCase(), name: org } : { id: 'other', name: 'Other' })
     if (!providers.has(provider.id)) providers.set(provider.id, { ...provider, models: [] })
     providers.get(provider.id)!.models.push({
       id,
-      name: model?.name ?? normalized.slice(normalized.lastIndexOf('/') + 1),
+      name: model?.name ?? name,
       isVision: /vl|4\.6v|ocr/i.test(id),
-      isPro: id.startsWith('Pro/'),
+      isPro: /^Pro\//i.test(id),
+      isReasoning: /(?:^|[-_.:])(?:r1|reasoner|reasoning|thinking|qwq\d*|o[134])(?:[-_.:]|$)/i.test(name),
     })
   }
 

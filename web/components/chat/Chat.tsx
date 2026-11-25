@@ -17,6 +17,7 @@ import { STORAGE_KEYS, DEFAULT_MODEL } from '@/lib/constants'
 import { StorageService } from '@/lib/storage-service'
 import { useChatHistory } from '@/hooks/useChatHistory'
 import { useStoredPreference } from '@/hooks/useStoredPreference'
+import { usePublicModels } from '@/hooks/usePublicModels'
 import { cancelRun, useChatStream } from '@/hooks/useChatStream'
 import { filesToImageAttachments } from '@/lib/file-utils'
 import type { Workspace } from '@/lib/workspace'
@@ -33,6 +34,8 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [composerFocusSignal, setComposerFocusSignal] = useState(0)
   const [selectedModel, setSelectedModel] = useStoredPreference(STORAGE_KEYS.MODEL, DEFAULT_MODEL)
+  const [reasoningModel, setReasoningModel] = useStoredPreference(STORAGE_KEYS.REASONING_MODEL, '')
+  const { models: publicModels } = usePublicModels()
   const [searchMode, setSearchMode] = useState(initialMode)
   const [showScrollButton, setShowScrollButton] = useState(false)
   const [showMobileArtifacts, setShowMobileArtifacts] = useState(false)
@@ -77,7 +80,16 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
     detachChat,
     handleStop,
     decideInterrupt,
-  } = useChatStream({ selectedModel, searchMode, workspaceId })
+  } = useChatStream({ selectedModel, reasoningModel, searchMode, workspaceId })
+
+  useEffect(() => {
+    if (!publicModels?.options.length) return
+    const allowlist = new Set(publicModels.options)
+    if (!allowlist.has(selectedModel)) {
+      setSelectedModel(allowlist.has(publicModels.default) ? publicModels.default : publicModels.options[0])
+    }
+    if (reasoningModel && !allowlist.has(reasoningModel)) setReasoningModel('')
+  }, [publicModels, selectedModel, setSelectedModel, reasoningModel, setReasoningModel])
 
   const chatHistory = useChatHistory(workspaceId)
   const {
@@ -378,6 +390,8 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
           onNewChat={handleNewChat}
           selectedModel={selectedModel}
           onModelChange={setSelectedModel}
+          reasoningModel={reasoningModel}
+          onReasoningModelChange={setReasoningModel}
           onOpenSettings={() => { setSettingsSection('general'); setShowSettings(true) }}
           onToggleArtifacts={() => setShowMobileArtifacts(!showMobileArtifacts)}
           hasArtifacts={artifacts.length > 0}
@@ -410,6 +424,8 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
             onOpenChange={setShowSettings} 
             selectedModel={selectedModel}
             onModelChange={setSelectedModel}
+            reasoningModel={reasoningModel}
+            onReasoningModelChange={setReasoningModel}
         />
 
         {/* Chat-specific overlays (Scroll button, Interrupts) - only show in dashboard view */}

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -21,6 +21,8 @@ interface HeaderProps {
   onNewChat?: () => void
   selectedModel: string
   onModelChange: (model: string) => void
+  reasoningModel: string
+  onReasoningModelChange: (model: string) => void
   onOpenSettings: () => void
   onToggleArtifacts?: () => void
   hasArtifacts?: boolean
@@ -30,18 +32,19 @@ interface HeaderProps {
   onToggleBrowser?: () => void
 }
 
-export function Header({ project, sidebarOpen, onToggleSidebar, onNewChat, selectedModel, onModelChange, onOpenSettings, onToggleArtifacts, hasArtifacts, isInitializing, showBrowserToggle, isBrowserOpen, onToggleBrowser }: HeaderProps) {
+export function Header({ project, sidebarOpen, onToggleSidebar, onNewChat, selectedModel, onModelChange, reasoningModel, onReasoningModelChange, onOpenSettings, onToggleArtifacts, hasArtifacts, isInitializing, showBrowserToggle, isBrowserOpen, onToggleBrowser }: HeaderProps) {
   const { setTheme } = useTheme()
   const { t } = useI18n()
   const { models: publicModels } = usePublicModels()
   const [isModelOpen, setIsModelOpen] = useState(false)
   const [modelQuery, setModelQuery] = useState('')
+  const [modelRole, setModelRole] = useState<'primary' | 'reasoning'>('primary')
 
-  const allowlistKey = publicModels?.options?.length ? publicModels.options.join('|') : ''
-  const allowlist = publicModels?.options?.length ? new Set(publicModels.options) : null
   const modelProviders = getModelProviders(publicModels?.options)
   const models = modelProviders.flatMap(provider => provider.models)
   const currentModelName = models.find(model => model.id === selectedModel)?.name || selectedModel
+  const activeModel = modelRole === 'primary' ? selectedModel : reasoningModel
+  const changeModel = modelRole === 'primary' ? onModelChange : onReasoningModelChange
   const query = modelQuery.trim().toLowerCase()
   const filteredProviders = modelProviders.map(provider => ({
     ...provider,
@@ -50,18 +53,11 @@ export function Header({ project, sidebarOpen, onToggleSidebar, onNewChat, selec
 
   const handleModelOpenChange = (open: boolean) => {
     setIsModelOpen(open)
-    if (!open) setModelQuery('')
+    if (!open) {
+      setModelQuery('')
+      setModelRole('primary')
+    }
   }
-
-  // Keep saved choices within the backend's supported model list.
-  useEffect(() => {
-    if (!allowlist || models.length === 0 || allowlist.has(selectedModel)) return
-    const next =
-      (publicModels?.default && allowlist.has(publicModels.default) && publicModels.default) ||
-      models[0]!.id
-    onModelChange(next)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allowlistKey])
 
   return (
     <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border/80 bg-background/90 px-3 backdrop-blur-md sm:px-5">
@@ -114,7 +110,7 @@ export function Header({ project, sidebarOpen, onToggleSidebar, onNewChat, selec
               type="button"
               disabled={isInitializing}
               title={selectedModel}
-              className="flex h-8 max-w-[140px] items-center gap-2 rounded-md border border-border bg-card px-2.5 text-xs font-medium shadow-xs transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 sm:max-w-[240px] sm:text-sm"
+              className="flex h-8 min-w-0 max-w-[140px] items-center gap-2 rounded-md border border-border bg-card px-2.5 text-xs font-medium shadow-xs transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 sm:max-w-[240px] sm:text-sm"
             >
               <span className="truncate">
                 {currentModelName.includes('/') ? currentModelName.slice(currentModelName.lastIndexOf('/') + 1) : currentModelName}
@@ -122,13 +118,41 @@ export function Header({ project, sidebarOpen, onToggleSidebar, onNewChat, selec
               <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform', isModelOpen && 'rotate-180')} />
             </button>
           </PopoverTrigger>
-          <PopoverContent align="end" className="flex max-h-[var(--radix-popover-content-available-height)] w-72 max-w-[calc(100vw-2rem)] flex-col overflow-hidden p-1.5" aria-label="Select model">
+          <PopoverContent align="end" className="flex max-h-[var(--radix-popover-content-available-height)] w-80 max-w-[calc(100vw-2rem)] flex-col overflow-hidden p-1.5" aria-label="Select model">
+            <div className="shrink-0 space-y-2 pb-2">
+              <div role="group" aria-label={t('modelRouting')} className="grid grid-cols-2 gap-1 rounded-md bg-surface-subtle p-1">
+                {(['primary', 'reasoning'] as const).map(role => (
+                  <button
+                    key={role}
+                    type="button"
+                    aria-label={t(role === 'primary' ? 'primaryModel' : 'reasoningModel')}
+                    aria-pressed={modelRole === role}
+                    onClick={() => setModelRole(role)}
+                    className={cn('min-w-0 rounded px-2 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50', modelRole === role ? 'bg-popover text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground')}
+                  >
+                    {t(role === 'primary' ? 'primaryRole' : 'reasoningRole')}
+                  </button>
+                ))}
+              </div>
+              <p className="px-1 text-[11px] leading-4 text-muted-foreground">{t(modelRole === 'primary' ? 'primaryModelDescription' : 'reasoningModelDescription')}</p>
+            </div>
             {models.length > 8 && (
               <div className="sticky top-0 z-10 shrink-0 bg-popover pb-1.5">
                 <Input value={modelQuery} onChange={event => setModelQuery(event.target.value)} placeholder={t('filterModels')} aria-label="Filter models" className="h-8 text-xs" />
               </div>
             )}
             <div className="min-h-0 max-h-80 overflow-y-auto">
+              {modelRole === 'reasoning' && (
+                <button
+                  type="button"
+                  aria-pressed={!reasoningModel}
+                  onClick={() => { onReasoningModelChange(''); handleModelOpenChange(false) }}
+                  className={cn('mb-1 flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50', !reasoningModel && 'bg-primary/10 font-medium text-primary')}
+                >
+                  <span className="min-w-0 flex-1">{t('followPrimaryModel')}</span>
+                  {!reasoningModel && <Check aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />}
+                </button>
+              )}
               {filteredProviders.map(provider => (
                 <div key={provider.id} className="pb-1 last:pb-0">
                   <div className="px-2.5 pb-1 pt-2 text-[11px] font-semibold tracking-wide text-muted-foreground">{provider.name}</div>
@@ -136,20 +160,21 @@ export function Header({ project, sidebarOpen, onToggleSidebar, onNewChat, selec
                     <button
                       key={model.id}
                       type="button"
-                      aria-pressed={selectedModel === model.id}
+                      aria-pressed={activeModel === model.id}
                       onClick={() => {
-                        onModelChange(model.id)
+                        changeModel(model.id)
                         handleModelOpenChange(false)
                       }}
                       className={cn(
                         'flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset',
-                        selectedModel === model.id && 'bg-primary/10 font-medium text-primary'
+                        activeModel === model.id && 'bg-primary/10 font-medium text-primary'
                       )}
                     >
                       <span className="min-w-0 flex-1 truncate" title={model.id}>{model.name}</span>
-                      {model.isPro && <Badge variant="subtle">Pro</Badge>}
-                      {model.isVision && <Badge variant="subtle">Vision</Badge>}
-                      {selectedModel === model.id && <Check aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />}
+                      {model.isReasoning && <Badge variant="subtle" className="shrink-0 px-1.5 py-0">{t('reasoningBadge')}</Badge>}
+                      {model.isVision && <Badge variant="subtle" className="shrink-0 px-1.5 py-0">{t('visionBadge')}</Badge>}
+                      {model.isPro && <Badge variant="subtle" className="shrink-0 px-1.5 py-0">{t('proBadge')}</Badge>}
+                      {activeModel === model.id && <Check aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />}
                     </button>
                   ))}
                 </div>

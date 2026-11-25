@@ -26,6 +26,8 @@ interface SettingsDialogProps {
   onOpenChange: (open: boolean) => void
   selectedModel: string
   onModelChange: (model: string) => void
+  reasoningModel: string
+  onReasoningModelChange: (model: string) => void
   initialSection?: 'general' | 'mcp'
 }
 
@@ -40,18 +42,20 @@ interface ApiKeys {
   [key: string]: string
 }
 
-export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChange, initialSection = 'general' }: SettingsDialogProps) {
+export function SettingsDialog({ open, onOpenChange, selectedModel, onModelChange, reasoningModel, onReasoningModelChange, initialSection = 'general' }: SettingsDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {open && <SettingsDialogContent onOpenChange={onOpenChange} selectedModel={selectedModel} onModelChange={onModelChange} initialSection={initialSection} />}
+      {open && <SettingsDialogContent onOpenChange={onOpenChange} selectedModel={selectedModel} onModelChange={onModelChange} reasoningModel={reasoningModel} onReasoningModelChange={onReasoningModelChange} initialSection={initialSection} />}
     </Dialog>
   )
 }
 
-function SettingsDialogContent({ onOpenChange, selectedModel, onModelChange, initialSection }: Omit<SettingsDialogProps, 'open'>) {
+function SettingsDialogContent({ onOpenChange, selectedModel, onModelChange, reasoningModel, onReasoningModelChange, initialSection }: Omit<SettingsDialogProps, 'open'>) {
   const { language, setLanguage, t } = useI18n()
   const { models: publicModels } = usePublicModels()
   const [modelDraft, setTempModel] = useState<string | null>(null)
+  const [reasoningModelDraft, setReasoningModelDraft] = useState<string | null>(null)
+  const [modelRole, setModelRole] = useState<'primary' | 'reasoning'>('primary')
   const [modelQuery, setModelQuery] = useState('')
   const [languageDraft, setTempLanguage] = useState<typeof language | null>(null)
   const tempLanguage = languageDraft ?? language
@@ -93,6 +97,14 @@ function SettingsDialogContent({ onOpenChange, selectedModel, onModelChange, ini
   const tempModel = allowlist && !allowlist.has(requestedModel)
     ? (publicModels?.default && allowlist.has(publicModels.default) ? publicModels.default : publicModels!.options[0])
     : requestedModel
+  const requestedReasoningModel = reasoningModelDraft ?? reasoningModel
+  const tempReasoningModel = allowlist && requestedReasoningModel && !allowlist.has(requestedReasoningModel)
+    ? '' : requestedReasoningModel
+  const activeModel = modelRole === 'primary' ? tempModel : tempReasoningModel
+  const primaryName = allModels.find(model => model.id === tempModel)?.name || tempModel
+  const reasoningName = tempReasoningModel
+    ? allModels.find(model => model.id === tempReasoningModel)?.name || tempReasoningModel
+    : t('followPrimaryModel')
 
   const handleApiKeyChange = (provider: string, value: string) => {
     setApiKeys({
@@ -104,6 +116,7 @@ function SettingsDialogContent({ onOpenChange, selectedModel, onModelChange, ini
   const handleSave = async () => {
     if (!await mcpPanelRef.current?.save()) return
     onModelChange(tempModel)
+    onReasoningModelChange(tempReasoningModel)
     setLanguage(tempLanguage)
     setSavedKeys(JSON.stringify(apiKeys))
     onOpenChange(false)
@@ -156,13 +169,49 @@ function SettingsDialogContent({ onOpenChange, selectedModel, onModelChange, ini
             </div>
           </div>
 
-          {/* Model Selection */}
-          <div className="space-y-3">
-            <Label className="text-sm font-medium">{t('defaultModel')}</Label>
+          {/* Model Routing */}
+          <section aria-label={t('modelRouting')} className="min-w-0 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold">{t('modelRouting')}</h2>
+              <Badge variant="subtle" className="font-normal">
+                {t(publicModels?.source === 'gateway' ? 'catalogSourceGateway' : publicModels?.source === 'siliconflow' ? 'catalogSourceSiliconFlow' : 'catalogSourceStatic')}
+                <span aria-hidden="true">·</span>
+                {t('modelCatalogCount').replace('{count}', String(allModels.length))}
+              </Badge>
+            </div>
+            <div role="group" aria-label={t('modelRouting')} className="grid min-w-0 grid-cols-2 gap-1 rounded-lg border border-border/80 bg-surface-subtle/50 p-1">
+              {(['primary', 'reasoning'] as const).map(role => (
+                <button
+                  key={role}
+                  type="button"
+                  aria-pressed={modelRole === role}
+                  onClick={() => setModelRole(role)}
+                  className={cn('min-w-0 space-y-1 rounded-md border border-transparent px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50', modelRole === role ? 'border-border/80 bg-card shadow-xs' : 'hover:bg-accent/60')}
+                >
+                  <span className={cn('block text-xs font-medium', modelRole === role ? 'text-primary' : 'text-muted-foreground')}>{t(role === 'primary' ? 'primaryModel' : 'reasoningModel')}</span>
+                  <span className="block truncate text-sm font-medium" title={role === 'primary' ? tempModel : tempReasoningModel || t('followPrimaryDescription')}>{role === 'primary' ? primaryName : reasoningName}</span>
+                </button>
+              ))}
+            </div>
+            <p className="text-xs leading-5 text-muted-foreground">{t(modelRole === 'primary' ? 'primaryModelDescription' : 'reasoningModelDescription')}</p>
             {allModels.length > 8 && (
               <Input value={modelQuery} onChange={event => setModelQuery(event.target.value)} placeholder={t('filterModels')} aria-label="Filter models" className="h-8 text-xs" />
             )}
-            <div className="max-h-64 space-y-4 overflow-y-auto pr-1">
+            <div className="max-h-56 space-y-3 overflow-y-auto pr-1">
+              {modelRole === 'reasoning' && (
+                <button
+                  type="button"
+                  aria-pressed={!tempReasoningModel}
+                  onClick={() => setReasoningModelDraft('')}
+                  className={cn('flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50', !tempReasoningModel && 'bg-primary/10 text-primary')}
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-medium">{t('followPrimaryModel')}</span>
+                    <span className="block text-xs leading-5 text-muted-foreground">{t('followPrimaryDescription')}</span>
+                  </span>
+                  {!tempReasoningModel && <Check aria-hidden="true" className="h-4 w-4 shrink-0" />}
+                </button>
+              )}
               {filteredProviders.map(provider => (
                 <fieldset key={provider.id} className="min-w-0 space-y-1 rounded-lg border border-border/80 bg-card p-2">
                   <legend className="px-1.5 text-xs font-semibold text-muted-foreground">{provider.name}</legend>
@@ -170,24 +219,25 @@ function SettingsDialogContent({ onOpenChange, selectedModel, onModelChange, ini
                     <button
                       key={model.id}
                       type="button"
-                      aria-pressed={tempModel === model.id}
-                      onClick={() => setTempModel(model.id)}
+                      aria-pressed={activeModel === model.id}
+                      onClick={() => modelRole === 'primary' ? setTempModel(model.id) : setReasoningModelDraft(model.id)}
                       className={cn(
                         'flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
-                        tempModel === model.id && 'bg-primary/10 font-medium text-primary'
+                        activeModel === model.id && 'bg-primary/10 font-medium text-primary'
                       )}
                     >
                       <span className="min-w-0 flex-1 truncate" title={model.id}>{model.name}</span>
-                      {model.isPro && <Badge variant="subtle">Pro</Badge>}
-                      {model.isVision && <Badge variant="subtle">Vision</Badge>}
-                      {tempModel === model.id && <Check className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />}
+                      {model.isReasoning && <Badge variant="subtle" className="shrink-0">{t('reasoningBadge')}</Badge>}
+                      {model.isVision && <Badge variant="subtle" className="shrink-0">{t('visionBadge')}</Badge>}
+                      {model.isPro && <Badge variant="subtle" className="shrink-0">{t('proBadge')}</Badge>}
+                      {activeModel === model.id && <Check className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />}
                     </button>
                   ))}
                 </fieldset>
               ))}
               {filteredProviders.length === 0 && <p role="status" className="py-4 text-center text-xs text-muted-foreground">{t('noModelsFound')}</p>}
             </div>
-          </div>
+          </section>
 
           {/* API Key Configuration */}
           <div className="space-y-3 border-t pt-4">
