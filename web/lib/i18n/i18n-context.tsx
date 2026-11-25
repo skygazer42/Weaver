@@ -1,8 +1,15 @@
 'use client'
 
-import React, { createContext, useContext } from 'react'
+import React, { createContext, useContext, useEffect } from 'react'
 import { translations, Language, TranslationKey } from './translations'
 import { useStoredPreference } from '@/hooks/useStoredPreference'
+
+const HTML_LANG: Record<Language, string> = {
+  en: 'en',
+  zh: 'zh-CN',
+  ja: 'ja',
+  ko: 'ko',
+}
 
 interface I18nContextType {
   language: Language
@@ -15,6 +22,10 @@ const I18nContext = createContext<I18nContextType | undefined>(undefined)
 export function I18nProvider({ children }: { children: React.ReactNode }) {
   const [savedLanguage, setLanguage] = useStoredPreference('weaver-language', 'en')
   const language: Language = ['en', 'zh', 'ja', 'ko'].includes(savedLanguage) ? savedLanguage as Language : 'en'
+
+  useEffect(() => {
+    document.documentElement.lang = HTML_LANG[language]
+  }, [language])
 
   // Translation function
   const t = (key: TranslationKey): string => {
