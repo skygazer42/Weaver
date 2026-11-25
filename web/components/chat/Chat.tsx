@@ -111,6 +111,11 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
 
   const runStatus = messages.at(-1)?.runStatus
   const artifacts = messages.flatMap((message) => message.artifacts ?? [])
+  const isWideLayout = !sidebarOpen && !(artifacts.length > 0 && isArtifactsOpen)
+  const columnWidthClass = cn(
+    'mx-auto w-full transition-[max-width] duration-200 ease-out motion-reduce:transition-none',
+    isWideLayout ? 'max-w-4xl' : 'max-w-3xl'
+  )
   const activeRun = currentSessionId ? StorageService.getRun(currentSessionId, workspaceId) : null
   const approvalPrompts = pendingInterrupt?.prompts ?? (pendingInterrupt ? [pendingInterrupt] : [])
 
@@ -296,6 +301,7 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
             <div className="h-full w-full overflow-y-auto">
                <EmptyState
                   onStarterClick={handleStarterClick}
+                  wide={isWideLayout}
                />
             </div>
           ) : (
@@ -306,7 +312,7 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
                 atBottomStateChange={handleAtBottomChange}
                 className="scrollbar-thin scrollbar-thumb-muted/20"
                 itemContent={(index, message) => (
-                    <div className="mx-auto w-full max-w-3xl px-4 sm:px-6">
+                    <div className={cn(columnWidthClass, 'px-4 sm:px-6')}>
                         <MessageItem key={message.id} message={message} onEdit={handleEditMessage} workspaceId={workspaceId} />
                     </div>
                 )}
@@ -389,7 +395,7 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
                 </div>
 
                 {(runStatus || currentStatus || isStopping) && (
-                  <div className="mx-auto flex w-full max-w-3xl flex-wrap items-center gap-2 border-t border-border/70 px-4 py-2.5 text-xs text-muted-foreground sm:px-6">
+                  <div className={cn(columnWidthClass, 'flex flex-wrap items-center gap-2 border-t border-border/70 px-4 py-2.5 text-xs text-muted-foreground sm:px-6')}>
                     {isLoading ? <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin text-primary" /> : (
                       <span aria-hidden="true" className={cn('h-1.5 w-1.5 rounded-full', runStatus === 'completed' ? 'bg-success' : runStatus === 'failed' ? 'bg-destructive' : runStatus === 'awaiting_approval' || runStatus === 'insufficient_evidence' ? 'bg-warning' : 'bg-muted-foreground')} />
                     )}
@@ -405,7 +411,7 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
                 )}
 
                 {pendingInterrupt && (
-                <div className="mx-auto w-full max-w-3xl px-4 sm:px-6">
+                <div className={cn(columnWidthClass, 'px-4 sm:px-6')}>
                 <section aria-labelledby="tool-approval-title" className="mb-2 flex max-h-[40vh] flex-col gap-3 overflow-auto rounded-lg border border-warning/40 bg-warning-surface p-4 text-foreground shadow-surface">
                     <h2 id="tool-approval-title" className="flex items-center gap-2 text-sm font-semibold"><ShieldAlert aria-hidden="true" className="h-4 w-4 text-warning" />Tool approval required</h2>
                     {approvalPrompts.map((prompt, index) => (
@@ -453,6 +459,7 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
             onStop={handleStop}
             searchMode={searchMode}
             setSearchMode={setSearchMode}
+            wide={isWideLayout}
             />
         )}
       </div>

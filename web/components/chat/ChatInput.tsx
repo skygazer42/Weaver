@@ -22,6 +22,7 @@ interface ChatInputProps {
   onStop: () => void
   searchMode: string
   setSearchMode: (mode: string) => void
+  wide?: boolean
 }
 
 function AttachmentImage({ file }: { file: File }) {
@@ -46,7 +47,8 @@ export function ChatInput({
   awaitingApproval,
   onStop,
   searchMode,
-  setSearchMode
+  setSearchMode,
+  wide = false
 }: ChatInputProps) {
   const { t } = useI18n()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -298,7 +300,10 @@ export function ChatInput({
   
   return (
     <div
-      className="relative z-20 mx-auto w-full max-w-3xl shrink-0 px-4 pb-4 pt-1 sm:px-6"
+      className={cn(
+        'relative z-20 mx-auto w-full shrink-0 px-4 pb-4 pt-1 transition-[max-width] duration-200 ease-out motion-reduce:transition-none sm:px-6',
+        wide ? 'max-w-4xl' : 'max-w-3xl'
+      )}
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
           setShowCommandMenu(false)

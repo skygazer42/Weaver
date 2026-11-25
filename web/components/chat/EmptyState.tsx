@@ -5,12 +5,14 @@ import Image from 'next/image'
 import logo from '@/public/logo.png'
 import { ArrowRight, Sparkles, TrendingUp, Code2, BookOpen } from 'lucide-react'
 import { useI18n } from '@/lib/i18n/i18n-context'
+import { cn } from '@/lib/utils'
 
 interface EmptyStateProps {
   onStarterClick?: (text: string, mode: string) => void
+  wide?: boolean
 }
 
-export function EmptyState({ onStarterClick }: EmptyStateProps) {
+export function EmptyState({ onStarterClick, wide = false }: EmptyStateProps) {
   const { t } = useI18n()
 
   const starters = [
@@ -41,7 +43,10 @@ export function EmptyState({ onStarterClick }: EmptyStateProps) {
   ]
 
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col items-center justify-center px-4 py-6 sm:px-6 sm:py-8">
+    <div className={cn(
+      'mx-auto flex min-h-full w-full flex-col items-center justify-center px-4 py-6 transition-[max-width] duration-200 ease-out motion-reduce:transition-none sm:px-6 sm:py-8',
+      wide ? 'max-w-4xl' : 'max-w-3xl'
+    )}>
       
       {/* Hero Section */}
       <div className="mb-5 flex flex-col items-center gap-2 text-center sm:mb-8">
