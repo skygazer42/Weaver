@@ -47,6 +47,12 @@ DEBUG=true WEAVER_RELOAD=1 python main.py
 
 ### LLM Provider（择一）
 
+硅基流动 SiliconFlow（开箱即用，默认 `deepseek-ai/DeepSeek-V4.1-Flash` 并自动暴露模型目录）：
+
+```bash
+SILICONFLOW_API_KEY=sk-...
+```
+
 OpenAI：
 
 ```bash
@@ -58,6 +64,8 @@ DeepSeek（OpenAI 兼容）：
 ```bash
 OPENAI_API_KEY=sk-...
 OPENAI_BASE_URL=https://api.deepseek.com/v1
+PRIMARY_MODEL=deepseek-chat
+REASONING_MODEL=deepseek-chat
 ```
 
 Anthropic（Claude）：
@@ -182,3 +190,19 @@ Deep Research 的细节与“上线/回滚”建议见：
 
 - `docs/deep-research-rollout.md`
 - `docs/benchmarks/README.md`
+
+---
+
+## 高阶环境变量速查（均有内置默认值）
+
+根目录 `.env.example` 只保留高频起步项；如需深度调优，可按需在 `.env` 中覆盖以下参数（完整字段与类型定义见 `common/config.py`）：
+
+| 分组 | 常用环境变量 | 说明 |
+|------|--------------|------|
+| 模型与工具策略 | `OPENAI_TIMEOUT`、`OPENAI_EXTRA_BODY`、`PROMPT_STYLE`、`AGENT_NATIVE_TOOL_CALLING`、`AGENT_XML_TOOL_CALLING`、`AGENT_TOOL_EXECUTION_STRATEGY` | 超时、提示词风格与工具调用策略 |
+| 多引擎聚合搜索 | `SEARCH_ENGINES`、`SEARCH_STRATEGY`、`SERPER_API_KEY`、`BRAVE_API_KEY`、`EXA_API_KEY`、`FIRECRAWL_API_KEY`、`SEARCH_CACHE_TTL_SECONDS` | 搜索降级/并发策略、多引擎密钥与缓存 |
+| 深度研究与门禁 | `DEEPSEARCH_MAX_EPOCHS`、`DEEPSEARCH_QUERY_NUM`、`DEEPSEARCH_RESULTS_PER_QUERY`、`DEEPSEARCH_REPORT_SOURCES_LIMIT`、`CITATION_GATE_MIN_COVERAGE`、`MAX_REVISIONS` | 深搜迭代轮次、引用覆盖率门禁与修订次数 |
+| 网页正文抓取 | `READER_FALLBACK_MODE`、`READER_PUBLIC_BASE`、`RESEARCH_FETCH_TIMEOUT_S`、`RESEARCH_FETCH_CONCURRENCY`、`RESEARCH_FETCH_RENDER_MODE` | 证据抓取超时、并发与 Reader 兜底 |
+| 上下文与记忆 | `TRIM_MESSAGES`、`SUMMARY_MESSAGES`、`MEMORY_STORE_BACKEND`、`MEMORY_STORE_URL`、`MEMORY_TOP_K` | 长对话截断摘要与长期记忆存储 |
+| 日志与可观测性 | `LOG_LEVEL`、`LOG_FILE`、`ENABLE_FILE_LOGGING`、`ENABLE_JSON_LOGGING`、`ENABLE_PROMETHEUS` | 日志轮转、JSON 日志与 Prometheus `/metrics` |
+| 安全与限流 | `APP_ENV`、`WEAVER_INTERNAL_API_KEY`、`WEAVER_AUTH_USER_HEADER`、`RATE_LIMIT_ENABLED`、`RATE_LIMIT_CHAT_PER_MINUTE` | 内网鉴权头、用户隔离与限流策略 |

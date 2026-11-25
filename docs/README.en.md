@@ -8,16 +8,18 @@
 
 <div align="center">
 
-**Open-source AI Agent platform with Deep Research, Code Execution, Browser Automation, and Generative UI capabilities.**
+<img src="../web/public/logo.png" alt="Weaver" width="64" height="64" />
+
+**Open-source AI Agent & Deep Research workbench with multi-tool orchestration, sandboxed code execution, project workspaces, and MCP support.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Node.js 24 LTS](https://img.shields.io/badge/node-24%20LTS-green.svg)](https://nodejs.org/)
-[![LangGraph](https://img.shields.io/badge/LangGraph-0.2+-purple.svg)](https://github.com/langchain-ai/langgraph)
+[![Next.js 16.4+](https://img.shields.io/badge/Next.js-16.4+-000000.svg)](https://nextjs.org/)
+[![LangGraph](https://img.shields.io/badge/LangGraph-1.0+-purple.svg)](https://github.com/langchain-ai/langgraph)
 
-[Demo](https://weaver-demo.vercel.app) · [Documentation](./) · [Report Bug](https://github.com/skygazer42/weaver/issues) · [Request Feature](https://github.com/skygazer42/weaver/issues)
+[Documentation](./README.md) · [Configuration](./configuration.md) · [Report Bug](https://github.com/skygazer42/Weaver/issues) · [Request Feature](https://github.com/skygazer42/Weaver/issues)
 
-<img src="images/dashboard.png" alt="Weaver Dashboard" width="100%" style="border-radius: 8px; margin-top: 20px;" />
+<img src="images/dashboard.png" alt="Weaver Workbench" width="100%" style="border-radius: 10px; margin-top: 16px;" />
 
 </div>
 
@@ -126,23 +128,25 @@ cp .env.example .env
 
 ### 2⃣ Configure API Keys
 
-Edit `.env` with your API keys:
+Edit `.env` with your API keys (`.env.example` only lists common starter keys; all advanced tuning parameters have built-in defaults in `common/config.py`):
 
 ```bash
-# Required
-OPENAI_API_KEY=sk-...                    # https://platform.openai.com/api-keys
+# Option A: SiliconFlow (out-of-the-box catalog, default deepseek-ai/DeepSeek-V4.1-Flash)
+SILICONFLOW_API_KEY=sk-...
+
+# Option B: OpenAI / DeepSeek / OpenAI-compatible gateway
+# OPENAI_API_KEY=sk-...
+# OPENAI_BASE_URL=https://api.deepseek.com/v1
+
+# Recommended for Web / Deep Research & sandbox execution
 TAVILY_API_KEY=tvly-...                   # https://tavily.com
 E2B_API_KEY=e2b_...                       # https://e2b.dev
 
-# Optional (choose one or more)
-ANTHROPIC_API_KEY=sk-ant-...              # Claude models
-GOOGLE_API_KEY=...                        # Gemini models
-DASHSCOPE_API_KEY=sk-...                  # Qwen models + TTS/ASR
-
-# Optional Features
-ENABLE_MEMORY=false                       # Long-term memory
-MEM0_API_KEY=...                          # Mem0 memory service
-ENABLE_MCP=false                          # MCP tool servers
+# Optional features
+# ANTHROPIC_API_KEY=sk-ant-...            # Claude models
+# DASHSCOPE_API_KEY=sk-...                # Voice ASR/TTS
+# ENABLE_MCP=false                        # MCP tool servers
+# ENABLE_MEMORY=false                     # Long-term memory
 ```
 
 ### 3⃣ Install Dependencies
@@ -263,14 +267,15 @@ weaver/
 
 | Layer | Technology | Version |
 |-------|------------|---------|
-| **Frontend**| Next.js | 14.2+ |
+| **Frontend**| Next.js | 16.4+ |
+| | React | 19+ |
 | | Tailwind CSS | 3.4+ |
-| | Shadcn UI | Latest |
-| | Vercel AI SDK | 3.x |
+| | Radix UI / shadcn | Latest |
+| | Vercel AI SDK | 7.x (`@ai-sdk/react` 4.x) |
 | **Backend**| Python | 3.11+ |
 | | FastAPI | 0.110+ |
-| | LangGraph | 0.2+ |
-| | LangChain | 0.2+ |
+| | LangGraph | 1.0+ |
+| | LangChain | 1.0+ |
 | **Database**| PostgreSQL | 15+ |
 | | pgvector | 0.5+ |
 | **Sandbox**| E2B | Latest |
