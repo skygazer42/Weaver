@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { PanelLeft, Sun, Moon, ChevronDown, Check, FileSpreadsheet, LayoutPanelLeft, Settings, Monitor } from 'lucide-react'
+import { PanelLeft, Sun, Moon, ChevronDown, Check, FileSpreadsheet, LayoutPanelLeft, Settings, Monitor, SquarePen } from 'lucide-react'
 import { useTheme } from '@/components/theme-provider'
 import { useI18n } from '@/lib/i18n/i18n-context'
 import { cn } from '@/lib/utils'
@@ -18,6 +18,7 @@ interface HeaderProps {
   project?: Pick<Workspace, 'id' | 'name'>
   sidebarOpen: boolean
   onToggleSidebar: () => void
+  onNewChat?: () => void
   selectedModel: string
   onModelChange: (model: string) => void
   onOpenSettings: () => void
@@ -29,7 +30,7 @@ interface HeaderProps {
   onToggleBrowser?: () => void
 }
 
-export function Header({ project, sidebarOpen, onToggleSidebar, selectedModel, onModelChange, onOpenSettings, onToggleArtifacts, hasArtifacts, isInitializing, showBrowserToggle, isBrowserOpen, onToggleBrowser }: HeaderProps) {
+export function Header({ project, sidebarOpen, onToggleSidebar, onNewChat, selectedModel, onModelChange, onOpenSettings, onToggleArtifacts, hasArtifacts, isInitializing, showBrowserToggle, isBrowserOpen, onToggleBrowser }: HeaderProps) {
   const { setTheme } = useTheme()
   const { t } = useI18n()
   const { models: publicModels } = usePublicModels()
@@ -70,11 +71,25 @@ export function Header({ project, sidebarOpen, onToggleSidebar, selectedModel, o
           variant="ghost"
           size="icon"
           onClick={onToggleSidebar}
-          aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-          className={cn('shrink-0 text-muted-foreground', sidebarOpen && 'md:hidden')}
+          aria-label={sidebarOpen ? t('collapseSidebar') : t('expandSidebar')}
+          title={sidebarOpen ? t('collapseSidebar') : t('expandSidebar')}
+          className={cn('shrink-0 text-muted-foreground hover:text-foreground', sidebarOpen && 'md:hidden')}
         >
           <PanelLeft className="h-4 w-4" />
         </Button>
+        {!sidebarOpen && onNewChat && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onNewChat}
+            aria-label={t('newChat')}
+            title={t('newChat')}
+            className="shrink-0 text-muted-foreground hover:text-foreground"
+          >
+            <SquarePen className="h-4 w-4" />
+          </Button>
+        )}
         <Button variant="ghost" size="sm" className="min-w-0 text-sm" asChild>
           <Link
             href={project ? `/workspace?workspace_id=${encodeURIComponent(project.id)}` : '/workspace'}
@@ -154,13 +169,14 @@ export function Header({ project, sidebarOpen, onToggleSidebar, selectedModel, o
           size="icon"
           disabled={isInitializing}
           onClick={() => setTheme(document.documentElement.classList.contains('dark') ? 'light' : 'dark')}
-          aria-label="Toggle theme"
+          aria-label={t('toggleTheme')}
+          title={t('toggleTheme')}
           className="relative shrink-0 text-muted-foreground hover:text-foreground"
         >
           <Sun className="h-4 w-4 dark:hidden" />
           <Moon className="hidden h-4 w-4 dark:block" />
         </Button>
-        <Button type="button" variant="ghost" size="icon" disabled={isInitializing} onClick={onOpenSettings} aria-label="Settings" className="shrink-0 text-muted-foreground hover:text-foreground">
+        <Button type="button" variant="ghost" size="icon" disabled={isInitializing} onClick={onOpenSettings} aria-label={t('settings')} title={t('settings')} className="shrink-0 text-muted-foreground hover:text-foreground">
           <Settings className="h-4 w-4" />
         </Button>
       </div>

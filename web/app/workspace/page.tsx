@@ -14,6 +14,7 @@ import { getWorkspaceUrl, workspaceRequest, type Workspace } from '@/lib/workspa
 import { ProjectWorkspace } from './project-workspace'
 import { WorkspacePanel } from './workspace-panel'
 import { useTheme } from '@/components/theme-provider'
+import { useI18n } from '@/lib/i18n/i18n-context'
 
 const STORAGE_KEY = 'weaver-workspace-id'
 type WorkspaceView = 'project' | 'csv'
@@ -35,6 +36,7 @@ function WorkspaceContent({ workspace, view }: { workspace: Workspace; view: Wor
 
 export default function WorkspacePage() {
   const { setTheme } = useTheme()
+  const { t } = useI18n()
   const [workspace, setWorkspace] = useState<Workspace | null>(null)
   const [view, setView] = useState<WorkspaceView>('project')
   const [openedCount, setOpenedCount] = useState(0)
@@ -80,7 +82,7 @@ export default function WorkspacePage() {
       setOpenedCount((count) => count + 1)
       setOpenId('')
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not open the workspace.')
+      setError(cause instanceof Error ? cause.message : t('couldNotOpenWorkspace'))
     } finally {
       setRequest(null)
     }
@@ -104,16 +106,16 @@ export default function WorkspacePage() {
               <span className="sr-only text-base font-semibold tracking-tight sm:not-sr-only">Weaver</span>
             </div>
             <Button variant="ghost" size="sm" asChild>
-              <Link href="/" className="gap-1.5"><ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />Back to chat</Link>
+              <Link href="/" className="gap-1.5"><ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />{t('backToChat')}</Link>
             </Button>
           </div>
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-            <Button type="button" variant="ghost" size="icon" onClick={() => setTheme(document.documentElement.classList.contains('dark') ? 'light' : 'dark')} aria-label="Toggle theme" className="text-muted-foreground hover:text-foreground">
+            <Button type="button" variant="ghost" size="icon" onClick={() => setTheme(document.documentElement.classList.contains('dark') ? 'light' : 'dark')} aria-label={t('toggleTheme')} title={t('toggleTheme')} className="text-muted-foreground hover:text-foreground">
               <Sun className="h-4 w-4 dark:hidden" />
               <Moon className="hidden h-4 w-4 dark:block" />
             </Button>
             <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void loadWorkspace()} className="gap-2">
-              <Plus className="h-4 w-4" aria-hidden="true" />{request === 'create' ? 'Creating…' : 'New workspace'}
+              <Plus className="h-4 w-4" aria-hidden="true" />{request === 'create' ? t('creating') : t('newWorkspace')}
             </Button>
           </div>
         </div>
@@ -124,23 +126,23 @@ export default function WorkspacePage() {
           {view === 'project' ? (
             <div className="flex items-center gap-2.5">
               <FolderOpen className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
-              <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Project workspace</h1>
+              <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{t('projectWorkspace')}</h1>
             </div>
           ) : (
             <div>
               <div className="flex items-center gap-2.5">
                 <FileSpreadsheet className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">CSV Agent Workbench</h1>
+                <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{t('csvAgentWorkbench')}</h1>
               </div>
-              <p className="mt-1 text-sm text-muted-foreground">Analyze a CSV and download a Markdown report and an SVG chart.</p>
+              <p className="mt-1 text-sm text-muted-foreground">{t('csvWorkbenchSubtitle')}</p>
             </div>
           )}
           <div className="w-full min-w-0 lg:w-auto">
             <form onSubmit={openWorkspace} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-              <Label htmlFor="workspace-id" className="shrink-0 text-xs text-muted-foreground">Open by workspace ID</Label>
+              <Label htmlFor="workspace-id" className="shrink-0 text-xs text-muted-foreground">{t('openByWorkspaceId')}</Label>
               <div className="flex min-w-0 gap-2 sm:max-w-sm">
                 <Input id="workspace-id" value={openId} onChange={(event) => setOpenId(event.target.value)} disabled={busy} className="h-9 min-w-0 font-mono tabular-nums sm:w-48" />
-                <Button type="submit" size="sm" variant="outline" className="h-9" disabled={busy || !openId.trim()}>{request === 'open' ? 'Opening…' : 'Open'}</Button>
+                <Button type="submit" size="sm" variant="outline" className="h-9" disabled={busy || !openId.trim()}>{request === 'open' ? t('opening') : t('open')}</Button>
               </div>
             </form>
           </div>
@@ -150,32 +152,32 @@ export default function WorkspacePage() {
         {workspace ? (
           <>
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <div role="group" aria-label="Workspace view" className="inline-flex flex-wrap gap-1 rounded-lg border border-border/70 bg-surface-subtle p-1">
-                <Button type="button" variant="ghost" size="sm" className={cn('h-8 border border-transparent', view === 'project' ? 'border-primary/25 bg-card font-semibold text-primary shadow-xs hover:bg-card hover:text-primary' : 'text-muted-foreground')} aria-pressed={view === 'project'} onClick={() => setView('project')}>Project workflows</Button>
-                <Button type="button" variant="ghost" size="sm" className={cn('h-8 border border-transparent', view === 'csv' ? 'border-primary/25 bg-card font-semibold text-primary shadow-xs hover:bg-card hover:text-primary' : 'text-muted-foreground')} aria-pressed={view === 'csv'} onClick={() => setView('csv')}>CSV analysis</Button>
+              <div role="group" aria-label={t('workspace')} className="inline-flex flex-wrap gap-1 rounded-lg border border-border/70 bg-surface-subtle p-1">
+                <Button type="button" variant="ghost" size="sm" className={cn('h-8 border border-transparent', view === 'project' ? 'border-primary/25 bg-card font-semibold text-primary shadow-xs hover:bg-card hover:text-primary' : 'text-muted-foreground')} aria-pressed={view === 'project'} onClick={() => setView('project')}>{t('projectWorkflows')}</Button>
+                <Button type="button" variant="ghost" size="sm" className={cn('h-8 border border-transparent', view === 'csv' ? 'border-primary/25 bg-card font-semibold text-primary shadow-xs hover:bg-card hover:text-primary' : 'text-muted-foreground')} aria-pressed={view === 'csv'} onClick={() => setView('csv')}>{t('csvAnalysis')}</Button>
               </div>
               <p className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                Workspace ID <code className="break-all rounded-md border border-border/70 bg-card px-2 py-1 font-mono tabular-nums text-foreground">{workspace.id}</code>
+                {t('workspaceIdLabel')} <code className="break-all rounded-md border border-border/70 bg-card px-2 py-1 font-mono tabular-nums text-foreground">{workspace.id}</code>
               </p>
             </div>
             <WorkspaceContent key={`${workspace.id}-${openedCount}`} workspace={workspace} view={view} />
           </>
         ) : loading ? (
-          <p role="status" className="rounded-lg border border-border/80 bg-card p-5 text-sm text-muted-foreground shadow-surface">Loading workspace…</p>
+          <p role="status" className="rounded-lg border border-border/80 bg-card p-5 text-sm text-muted-foreground shadow-surface">{t('loadingWorkspace')}</p>
         ) : (
           <Card className="mx-auto mt-6 max-w-2xl rounded-xl border border-border/70 bg-card shadow-surface">
             <CardContent className="grid justify-items-start gap-4 p-6 sm:p-8">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-surface-subtle text-muted-foreground">
                 <FolderOpen className="h-5 w-5" aria-hidden="true" />
               </div>
-              <h2 className="text-lg font-semibold tracking-tight">Start a workspace</h2>
-              <p className="text-sm text-muted-foreground">Keep project context, files, and task results together.</p>
+              <h2 className="text-lg font-semibold tracking-tight">{t('startWorkspace')}</h2>
+              <p className="text-sm text-muted-foreground">{t('startWorkspaceDesc')}</p>
               <div className="my-1 grid w-full gap-4 border-y border-border/60 py-5 text-sm text-muted-foreground sm:grid-cols-3">
-                <div className="flex items-start gap-2"><FolderOpen className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>Project context &amp; decisions</span></div>
-                <div className="flex items-start gap-2"><Files className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>Shared files</span></div>
-                <div className="flex items-start gap-2"><Workflow className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>Durable workflows &amp; CSV analysis</span></div>
+                <div className="flex items-start gap-2"><FolderOpen className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>{t('workspaceFeatureContext')}</span></div>
+                <div className="flex items-start gap-2"><Files className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>{t('workspaceFeatureFiles')}</span></div>
+                <div className="flex items-start gap-2"><Workflow className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>{t('workspaceFeatureWorkflows')}</span></div>
               </div>
-              <Button type="button" disabled={busy} onClick={() => void loadWorkspace()}>{request === 'create' ? 'Creating…' : 'Create workspace'}</Button>
+              <Button type="button" disabled={busy} onClick={() => void loadWorkspace()}>{request === 'create' ? t('creating') : t('createWorkspace')}</Button>
             </CardContent>
           </Card>
         )}

@@ -57,10 +57,10 @@ export function Sidebar({
 
     unpinnedItems.forEach(item => {
         const time = item.updatedAt || item.createdAt || today
-        let key = 'Older'
-        if (time >= today) key = 'Today'
-        else if (time >= yesterday) key = 'Yesterday'
-        else if (time >= sevenDaysAgo) key = 'Previous 7 Days'
+        let key: 'today' | 'yesterday' | 'previous7Days' | 'older' = 'older'
+        if (time >= today) key = 'today'
+        else if (time >= yesterday) key = 'yesterday'
+        else if (time >= sevenDaysAgo) key = 'previous7Days'
         
         if (!groups[key]) groups[key] = []
         groups[key].push(item)
@@ -68,27 +68,29 @@ export function Sidebar({
     return groups
   }, [unpinnedItems])
 
-  const groupOrder = ['Today', 'Yesterday', 'Previous 7 Days', 'Older']
+  const groupOrder: Array<'today' | 'yesterday' | 'previous7Days' | 'older'> = ['today', 'yesterday', 'previous7Days', 'older']
 
   return (
     <>
       <ConfirmDialog 
         open={!!deleteId} 
         onOpenChange={(open) => !open && setDeleteId(null)}
-        title="Delete Chat"
-        description="Are you sure you want to delete this conversation? This action cannot be undone."
+        title={t('deleteChat')}
+        description={t('deleteChatDescription')}
         onConfirm={() => deleteId && onDeleteChat(deleteId)}
-        confirmText="Delete"
+        confirmText={t('delete')}
+        cancelText={t('cancel')}
         variant="destructive"
       />
 
       <ConfirmDialog 
         open={showClearConfirm} 
         onOpenChange={setShowClearConfirm}
-        title="Clear History"
-        description="Are you sure you want to delete all chat history? This action cannot be undone."
+        title={t('clearHistory')}
+        description={t('clearHistoryDescription')}
         onConfirm={onClearHistory}
-        confirmText="Clear All"
+        confirmText={t('clearAll')}
+        cancelText={t('cancel')}
         variant="destructive"
       />
 
@@ -117,7 +119,7 @@ export function Sidebar({
                 <Image src={logo} alt="" width={28} height={28} className="shrink-0 object-contain" />
                 <span className="text-base font-semibold tracking-tight">{t('weaver')}</span>
              </div>
-             <Button type="button" variant="ghost" size="icon" onClick={onToggle} aria-label="Collapse sidebar" className="text-muted-foreground">
+             <Button type="button" variant="ghost" size="icon" onClick={onToggle} aria-label={t('collapseSidebar')} title={t('collapseSidebar')} className="text-muted-foreground">
                 <PanelLeft className="h-4 w-4" />
              </Button>
           </div>
@@ -166,7 +168,7 @@ export function Sidebar({
                       {pinnedItems.length > 0 && (
                           <div className="space-y-1">
                               <div className="mb-2 flex items-center gap-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                                  <Pin className="h-3 w-3 fill-primary" /> Pinned
+                                  <Pin className="h-3 w-3 fill-primary" /> {t('pinned')}
                               </div>
                               {pinnedItems.map(item => (
                                   <SidebarChatItem 
@@ -182,14 +184,14 @@ export function Sidebar({
                       )}
 
                       {/* Grouped Recent Section */}
-                      {groupOrder.map(dateLabel => {
-                          const items = groupedHistory[dateLabel]
+                      {groupOrder.map(dateKey => {
+                          const items = groupedHistory[dateKey]
                           if (!items || items.length === 0) return null
                           
                           return (
-                              <div key={dateLabel} className="space-y-1">
+                              <div key={dateKey} className="space-y-1">
                                   <div className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                                      {dateLabel}
+                                      {t(dateKey)}
                                   </div>
                                   {items.map((item) => (
                                       <SidebarChatItem 

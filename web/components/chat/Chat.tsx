@@ -11,7 +11,8 @@ import { ChatInput } from './ChatInput'
 import { Loader2, ArrowDown, X, ShieldAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { ChatRun, Message, RUN_STATUS_LABELS } from '@/types/chat'
+import { ChatRun, Message, type RunStatus } from '@/types/chat'
+import { useI18n } from '@/lib/i18n/i18n-context'
 import { STORAGE_KEYS, DEFAULT_MODEL } from '@/lib/constants'
 import { StorageService } from '@/lib/storage-service'
 import { useChatHistory } from '@/hooks/useChatHistory'
@@ -25,10 +26,12 @@ import { SettingsDialog } from '@/components/settings/SettingsDialog'
 import { BrowserViewer } from './BrowserViewer'
 
 export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) {
+  const { t } = useI18n()
   const workspaceId = project?.id
   const initialMode = project ? 'agent' : ''
   // UI State
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [composerFocusSignal, setComposerFocusSignal] = useState(0)
   const [selectedModel, setSelectedModel] = useStoredPreference(STORAGE_KEYS.MODEL, DEFAULT_MODEL)
   const [searchMode, setSearchMode] = useState(initialMode)
   const [showScrollButton, setShowScrollButton] = useState(false)
@@ -264,9 +267,31 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
     void processChat(previousMessages, messages[index].attachments, currentSessionId, mode)
   }
 
+  const runStatusLabels: Record<RunStatus, string> = {
+    queued: t('runStatusQueued'),
+    running: t('runStatusRunning'),
+    awaiting_approval: t('runStatusAwaitingApproval'),
+    completed: t('runStatusCompleted'),
+    failed: t('runStatusFailed'),
+    cancelled: t('runStatusCancelled'),
+    insufficient_evidence: t('runStatusInsufficientEvidence'),
+  }
+
+  useEffect(() => {
+    const handleGlobalKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'b') {
+        event.preventDefault()
+        setSidebarOpen((open) => !open)
+      }
+    }
+    window.addEventListener('keydown', handleGlobalKeyDown)
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown)
+  }, [])
+
   const handleStarterClick = (text: string, mode: string) => {
       setInput(text)
       setSearchMode(mode)
+      setComposerFocusSignal((count) => count + 1)
   }
 
   const handleAtBottomChange = (atBottom: boolean) => {
@@ -349,6 +374,7 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
           project={project}
           sidebarOpen={sidebarOpen}
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+          onNewChat={handleNewChat}
           selectedModel={selectedModel}
           onModelChange={setSelectedModel}
           onOpenSettings={() => setShowSettings(true)}
@@ -389,7 +415,7 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
            <>
                 {/* Scroll To Bottom Button */}
                 <div className={cn("absolute bottom-44 right-5 z-30 transition-[opacity,transform] duration-150", showScrollButton ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-2 opacity-0")} inert={!showScrollButton}>
-                    <Button type="button" variant="outline" size="icon" aria-label="Scroll to latest message" className="rounded-lg border-border bg-card shadow-elevated hover:bg-accent" onClick={() => scrollToBottom()}>
+                    <Button type="button" variant="outline" size="icon" aria-label={t('scrollToLatest')} className="rounded-lg border-border bg-card shadow-elevated hover:bg-accent" onClick={() => scrollToBottom()}>
                         <ArrowDown className="h-4 w-4" />
                     </Button>
                 </div>
@@ -399,13 +425,13 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
                     {isLoading ? <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin text-primary" /> : (
                       <span aria-hidden="true" className={cn('h-1.5 w-1.5 rounded-full', runStatus === 'completed' ? 'bg-success' : runStatus === 'failed' ? 'bg-destructive' : runStatus === 'awaiting_approval' || runStatus === 'insufficient_evidence' ? 'bg-warning' : 'bg-muted-foreground')} />
                     )}
-                    {runStatus && <span role="status" aria-label="Run status" className="font-medium text-foreground">{RUN_STATUS_LABELS[runStatus]}</span>}
-                    {isStopping ? <span>Stopping…</span> : currentStatus && <span>{currentStatus}</span>}
+                    {runStatus && <span role="status" aria-label="Run status" className="font-medium text-foreground">{runStatusLabels[runStatus]}</span>}
+                    {isStopping ? <span>{t('stopping')}</span> : currentStatus && <span>{currentStatus}</span>}
                     {connectionLost && currentSessionId && activeRun && (
-                      <Button size="sm" variant="outline" onClick={() => void resumeRun(currentSessionId, activeRun, messages)}>Reconnect</Button>
+                      <Button size="sm" variant="outline" onClick={() => void resumeRun(currentSessionId, activeRun, messages)}>{t('reconnect')}</Button>
                     )}
                     {runStatus === 'insufficient_evidence' && !activeRun && (
-                      <Button size="sm" variant="outline" onClick={retryResearch}>Retry research</Button>
+                      <Button size="sm" variant="outline" onClick={retryResearch}>{t('retryResearch')}</Button>
                     )}
                   </div>
                 )}
@@ -413,7 +439,7 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
                 {pendingInterrupt && (
                 <div className={cn(columnWidthClass, 'px-4 sm:px-6')}>
                 <section aria-labelledby="tool-approval-title" className="mb-2 flex max-h-[40vh] flex-col gap-3 overflow-auto rounded-lg border border-warning/40 bg-warning-surface p-4 text-foreground shadow-surface">
-                    <h2 id="tool-approval-title" className="flex items-center gap-2 text-sm font-semibold"><ShieldAlert aria-hidden="true" className="h-4 w-4 text-warning" />Tool approval required</h2>
+                    <h2 id="tool-approval-title" className="flex items-center gap-2 text-sm font-semibold"><ShieldAlert aria-hidden="true" className="h-4 w-4 text-warning" />{t('toolApprovalRequired')}</h2>
                     {approvalPrompts.map((prompt, index) => (
                       <div key={index} className="space-y-2 text-sm leading-relaxed">
                         {prompt.message && <p>{prompt.message}</p>}
@@ -430,10 +456,10 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
                     ))}
                     <div className="flex gap-2">
                     <Button size="sm" onClick={() => void decideInterrupt(true)} disabled={!threadId || isLoading || isStopping}>
-                        Approve & Continue
+                        {t('approveAndContinue')}
                     </Button>
                     <Button size="sm" variant="outline" onClick={() => void decideInterrupt(false)} disabled={!threadId || isLoading || isStopping}>
-                        Reject
+                        {t('reject')}
                     </Button>
                     </div>
                 </section>
@@ -460,6 +486,7 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
             searchMode={searchMode}
             setSearchMode={setSearchMode}
             wide={isWideLayout}
+            focusSignal={composerFocusSignal}
             />
         )}
       </div>
@@ -482,7 +509,7 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
       {showMobileArtifacts && (
          <div className="fixed inset-0 z-50 flex flex-col bg-surface-subtle xl:hidden">
              <div className="flex h-14 shrink-0 items-center justify-between border-b border-border/80 px-4">
-                 <h2 className="font-semibold">Artifacts</h2>
+                 <h2 className="font-semibold">{t('artifactsTitle')}</h2>
                  <Button type="button" variant="ghost" size="icon" aria-label="Close artifacts" onClick={() => setShowMobileArtifacts(false)}>
                      <X className="h-5 w-5" />
                  </Button>

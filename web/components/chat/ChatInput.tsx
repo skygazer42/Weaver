@@ -23,6 +23,7 @@ interface ChatInputProps {
   searchMode: string
   setSearchMode: (mode: string) => void
   wide?: boolean
+  focusSignal?: number
 }
 
 function AttachmentImage({ file }: { file: File }) {
@@ -48,12 +49,15 @@ export function ChatInput({
   onStop,
   searchMode,
   setSearchMode,
-  wide = false
+  wide = false,
+  focusSignal = 0
 }: ChatInputProps) {
   const { t } = useI18n()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const wasLoading = useRef(isLoading)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const mcpContainerRef = useRef<HTMLDivElement>(null)
+  const commandMenuRef = useRef<HTMLDivElement>(null)
   const [showCommandMenu, setShowCommandMenu] = useState(false)
   const [isMcpOpen, setIsMcpOpen] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
@@ -107,6 +111,30 @@ export function ChatInput({
     }
     wasLoading.current = isLoading
   }, [isLoading])
+
+  useEffect(() => {
+    if (focusSignal <= 0) return
+    const el = textareaRef.current
+    if (!el) return
+    el.focus()
+    const end = el.value.length
+    el.setSelectionRange(end, end)
+  }, [focusSignal])
+
+  useEffect(() => {
+    if (!isMcpOpen && !showCommandMenu) return
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node
+      if (isMcpOpen && mcpContainerRef.current && !mcpContainerRef.current.contains(target)) {
+        setIsMcpOpen(false)
+      }
+      if (showCommandMenu && commandMenuRef.current && !commandMenuRef.current.contains(target)) {
+        setShowCommandMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handlePointerDown)
+    return () => document.removeEventListener('mousedown', handlePointerDown)
+  }, [isMcpOpen, showCommandMenu])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       const val = e.target.value
@@ -288,14 +316,14 @@ export function ChatInput({
   ]
 
   const commands = [
-      { id: 'agent', label: 'Agent Mode', icon: Bot, desc: 'Plan & web search' },
-      { id: 'ultra', label: 'Deep Research', icon: Rocket, desc: 'Deep research (agent + deep search)' },
-      { id: 'web', label: 'Web Mode', icon: Globe, desc: 'Web search only' },
-      { id: 'fix', label: 'Fix Code', icon: Bug, desc: 'Debug & Fix' },
-      { id: 'explain', label: 'Explain', icon: BookOpen, desc: 'Explain concept' },
-      { id: 'refactor', label: 'Refactor', icon: PenTool, desc: 'Optimize code' },
-      { id: 'test', label: 'Write Tests', icon: TestTube, desc: 'Generate tests' },
-      { id: 'clear', label: 'Clear Chat', icon: Trash2, desc: 'Reset conversation' },
+      { id: 'agent', label: t('agentMode'), icon: Bot, desc: t('commandAgentDesc') },
+      { id: 'ultra', label: t('ultra'), icon: Rocket, desc: t('commandUltraDesc') },
+      { id: 'web', label: t('webMode'), icon: Globe, desc: t('commandWebDesc') },
+      { id: 'fix', label: t('commandFix'), icon: Bug, desc: t('commandFixDesc') },
+      { id: 'explain', label: t('commandExplain'), icon: BookOpen, desc: t('commandExplainDesc') },
+      { id: 'refactor', label: t('commandRefactor'), icon: PenTool, desc: t('commandRefactorDesc') },
+      { id: 'test', label: t('commandTest'), icon: TestTube, desc: t('commandTestDesc') },
+      { id: 'clear', label: t('clearChat'), icon: Trash2, desc: t('resetConversation') },
   ]
   
   return (
@@ -312,7 +340,7 @@ export function ChatInput({
       }}
     >
       {showCommandMenu && (
-        <div className="absolute bottom-full left-4 z-50 mb-2 w-80 max-w-[calc(100%-2rem)] overflow-hidden rounded-lg border border-border/80 bg-popover text-popover-foreground shadow-elevated sm:left-6">
+        <div ref={commandMenuRef} className="absolute bottom-full left-4 z-50 mb-2 w-80 max-w-[calc(100%-2rem)] overflow-hidden rounded-lg border border-border/80 bg-popover text-popover-foreground shadow-elevated sm:left-6">
           <div className="border-b border-border/70 bg-surface-subtle px-3 py-2 text-[11px] font-semibold tracking-wide text-muted-foreground">{t('commands')}</div>
           <div className="max-h-80 overflow-y-auto p-1.5">
             {commands.map(cmd => (
@@ -360,7 +388,7 @@ export function ChatInput({
             </button>
           )
         })}
-        <div className="relative shrink-0">
+        <div ref={mcpContainerRef} className="relative shrink-0">
           <button
             type="button"
             aria-pressed={searchMode === 'mcp'}
@@ -385,10 +413,10 @@ export function ChatInput({
           >
             <Plug aria-hidden="true" className="h-3.5 w-3.5" />
             MCP
-            <ChevronDown aria-hidden="true" className="h-3 w-3" />
+            <ChevronDown aria-hidden="true" className={cn('h-3 w-3 transition-transform', isMcpOpen && 'rotate-180')} />
           </button>
           {isMcpOpen && (
-            <div id="composer-mcp-options" className="absolute right-0 top-full z-50 mt-2 max-h-[min(18rem,calc(100dvh-8rem))] w-44 overflow-y-auto rounded-lg border border-border/80 bg-popover p-1.5 text-popover-foreground shadow-elevated">
+            <div id="composer-mcp-options" className="absolute bottom-full left-0 z-50 mb-2 max-h-[min(18rem,calc(100dvh-8rem))] w-44 overflow-y-auto rounded-lg border border-border/80 bg-popover p-1.5 text-popover-foreground shadow-elevated">
               {mcpOptions.map(option => (
                 <button
                   key={option.id}
@@ -479,7 +507,8 @@ export function ChatInput({
               type="button"
               variant="ghost"
               size="icon"
-              aria-label="Attach files"
+              aria-label={t('attachFiles')}
+              title={t('attachFiles')}
               onClick={() => fileInputRef.current?.click()}
               className="rounded-full text-muted-foreground hover:text-foreground"
             >
