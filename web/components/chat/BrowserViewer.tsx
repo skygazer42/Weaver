@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useRef, useState, useCallback } from 'react'
+import React, { useRef, useState, useCallback, useEffect } from 'react'
 import {
   Loader2,
   Globe,
@@ -11,6 +11,8 @@ import {
   Play,
   Pause,
   Camera,
+  Images,
+  GripVertical,
   CornerDownLeft
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -26,6 +28,10 @@ interface BrowserViewerProps {
   defaultExpanded?: boolean
   mode?: 'events' | 'stream'  // 'events' = SSE screenshots, 'stream' = WebSocket live
   alwaysShow?: boolean  // Always show the viewer, even without screenshots
+  draggable?: boolean
+  onDragHandlePointerDown?: (e: React.PointerEvent) => void
+  onDragHandleDoubleClick?: () => void
+  isDragging?: boolean
 }
 
 /**
@@ -38,7 +44,11 @@ export function BrowserViewer({
   onClose,
   defaultExpanded = true,
   mode = 'events',
-  alwaysShow = false
+  alwaysShow = false,
+  draggable = false,
+  onDragHandlePointerDown,
+  onDragHandleDoubleClick,
+  isDragging = false
 }: BrowserViewerProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded)
   const [selectedScreenshot, setSelectedScreenshot] = useState<BrowserScreenshot | null>(null)
@@ -81,11 +91,21 @@ export function BrowserViewer({
   } = useBrowserStream({
     threadId: isLiveMode ? threadId : null,
     autoStart: true,
-    // Conservative defaults: 10 FPS + large base64 frames can overwhelm
-    // browsers and stall rendering in dev mode.
-    quality: 60,
-    maxFps: 5
+    quality: 55,
+    maxFps: 12
   })
+
+  const pendingWheelRef = useRef({ dx: 0, dy: 0 })
+  const wheelTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (wheelTimerRef.current) {
+        clearTimeout(wheelTimerRef.current)
+        wheelTimerRef.current = null
+      }
+    }
+  }, [])
 
   const isActive = isLiveMode ? (isStreaming || isStarting) : isEventsActive
 
@@ -178,7 +198,18 @@ export function BrowserViewer({
       const dx = Math.round(e.deltaX)
       const dy = Math.round(e.deltaY)
       if (!dx && !dy) return
-      sendAction({ action: 'scroll', dx, dy })
+      pendingWheelRef.current.dx += dx
+      pendingWheelRef.current.dy += dy
+      if (!wheelTimerRef.current) {
+        wheelTimerRef.current = setTimeout(() => {
+          wheelTimerRef.current = null
+          const { dx: totalDx, dy: totalDy } = pendingWheelRef.current
+          pendingWheelRef.current = { dx: 0, dy: 0 }
+          if (totalDx || totalDy) {
+            sendAction({ action: 'scroll', dx: totalDx, dy: totalDy })
+          }
+        }, 50)
+      }
     },
     [isLiveMode, isConnected, isInteracting, sendAction]
   )
@@ -245,7 +276,20 @@ export function BrowserViewer({
         className
       )}
     >
-      <div className="flex items-center gap-1 border-b border-border/80 bg-surface-subtle px-2 py-2">
+      <div
+        onPointerDown={draggable ? onDragHandlePointerDown : undefined}
+        onDoubleClick={draggable ? onDragHandleDoubleClick : undefined}
+        title={draggable ? 'Drag to move · Double-click to reset position' : undefined}
+        className={cn(
+          'flex items-center gap-1 border-b border-border/80 bg-surface-subtle px-2 py-2 select-none',
+          draggable && (isDragging ? 'cursor-grabbing' : 'cursor-grab')
+        )}
+      >
+        {draggable && (
+          <span aria-hidden="true" className="flex h-7 w-4 shrink-0 items-center justify-center text-muted-foreground/70">
+            <GripVertical className="h-3.5 w-3.5" />
+          </span>
+        )}
         <Button type="button" variant="ghost" size="icon" onClick={handleClose} aria-label="Close browser viewer" className="h-7 w-7 shrink-0 text-muted-foreground">
           <X className="h-3.5 w-3.5" />
         </Button>
@@ -288,7 +332,7 @@ export function BrowserViewer({
         </div>
 
         <Button type="button" variant="ghost" size="icon" onClick={toggleMode} aria-label={isLiveMode ? 'Switch to screenshots' : 'Switch to live view'} title={isLiveMode ? 'Switch to screenshots' : 'Switch to live view'} className="h-7 w-7 shrink-0 text-muted-foreground">
-          {isLiveMode ? <Camera className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+          {isLiveMode ? <Images className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
         </Button>
         {isLiveMode && isConnected && (
           <>
@@ -306,7 +350,14 @@ export function BrowserViewer({
       </div>
 
       {(isActive || (isLiveMode && isStreaming)) && (
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border/70 bg-surface-subtle/50 px-3 py-1.5 text-[11px] tabular-nums text-muted-foreground">
+        <div
+          onPointerDown={draggable ? onDragHandlePointerDown : undefined}
+          onDoubleClick={draggable ? onDragHandleDoubleClick : undefined}
+          className={cn(
+            'flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border/70 bg-surface-subtle/50 px-3 py-1.5 text-[11px] tabular-nums text-muted-foreground select-none',
+            draggable && (isDragging ? 'cursor-grabbing' : 'cursor-grab')
+          )}
+        >
           {isActive && (
             <span className="flex min-w-0 items-center gap-1.5">
               <Loader2 aria-hidden="true" className="h-3 w-3 shrink-0 animate-spin text-primary" />
@@ -536,52 +587,113 @@ export function BrowserViewer({
 }
 
 /**
- * Floating browser viewer that can be positioned anywhere
+ * Draggable floating browser viewer anchored to the bottom-left by default.
+ * Uses GPU-accelerated translate3d and clamps within its container bounds.
  */
 export function FloatingBrowserViewer({
   threadId,
-  onClose
+  onClose,
+  mode = 'stream',
+  defaultExpanded = true,
+  alwaysShow = true,
+  defaultPosition = 'bottom-left'
 }: {
   threadId: string | null
   onClose?: () => void
+  mode?: 'events' | 'stream'
+  defaultExpanded?: boolean
+  alwaysShow?: boolean
+  defaultPosition?: 'bottom-left' | 'bottom-right'
 }) {
-  const [position, setPosition] = useState({ x: 20, y: 20 })
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const dragStateRef = useRef<{
+    pointerId: number
+    startX: number
+    startY: number
+    originX: number
+    originY: number
+    minX: number
+    maxX: number
+    minY: number
+    maxY: number
+  } | null>(null)
+  const [offset, setOffset] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
 
-  // Simple drag implementation
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest('button, a, img, input')) return
+  const handleDragPointerDown = useCallback((e: React.PointerEvent) => {
+    if (e.button !== 0) return
+    if ((e.target as HTMLElement).closest('button, a, input, textarea, select, form')) return
+    const el = containerRef.current
+    const parent = el?.offsetParent as HTMLElement | null
+    if (!el || !parent) return
+
+    e.preventDefault()
+    const elRect = el.getBoundingClientRect()
+    const parentRect = parent.getBoundingClientRect()
+    const pad = 12
+    const minX = parentRect.left + pad - (elRect.left - offset.x)
+    const maxX = Math.max(minX, parentRect.right - pad - (elRect.right - offset.x))
+    const minY = parentRect.top + pad - (elRect.top - offset.y)
+    const maxY = Math.max(minY, parentRect.bottom - pad - (elRect.bottom - offset.y))
+
+    dragStateRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      originX: offset.x,
+      originY: offset.y,
+      minX,
+      maxX,
+      minY,
+      maxY
+    }
     setIsDragging(true)
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+  }, [offset.x, offset.y])
+
+  const handleDragPointerMove = useCallback((e: React.PointerEvent) => {
+    const drag = dragStateRef.current
+    if (!drag || drag.pointerId !== e.pointerId) return
+    const nextX = Math.max(drag.minX, Math.min(drag.maxX, drag.originX + (e.clientX - drag.startX)))
+    const nextY = Math.max(drag.minY, Math.min(drag.maxY, drag.originY + (e.clientY - drag.startY)))
+    setOffset({ x: nextX, y: nextY })
   }, [])
 
-  const handleMouseUp = useCallback(() => {
+  const handleDragPointerEnd = useCallback((e: React.PointerEvent) => {
+    const drag = dragStateRef.current
+    if (!drag || drag.pointerId !== e.pointerId) return
+    dragStateRef.current = null
     setIsDragging(false)
   }, [])
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!isDragging) return
-    setPosition(prev => ({
-      x: prev.x + e.movementX,
-      y: prev.y + e.movementY
-    }))
-  }, [isDragging])
+  const resetPosition = useCallback(() => {
+    setOffset({ x: 0, y: 0 })
+  }, [])
 
   return (
     <div
-      className="fixed z-50"
-      style={{ left: position.x, top: position.y }}
-      onMouseDown={handleMouseDown}
-      onMouseUp={handleMouseUp}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseUp}
+      ref={containerRef}
+      onPointerMove={handleDragPointerMove}
+      onPointerUp={handleDragPointerEnd}
+      onPointerCancel={handleDragPointerEnd}
+      style={{ transform: `translate3d(${offset.x}px, ${offset.y}px, 0)` }}
+      className={cn(
+        'absolute bottom-3 z-40 max-h-[calc(100%-1.5rem)] max-w-[calc(100%-2rem)] rounded-lg shadow-elevated will-change-transform',
+        defaultPosition === 'bottom-left' ? 'left-4' : 'right-4',
+        isDragging && 'select-none'
+      )}
     >
       <BrowserViewer
         threadId={threadId}
+        className="w-[460px] max-w-full"
+        defaultExpanded={defaultExpanded}
+        alwaysShow={alwaysShow}
+        mode={mode}
         onClose={onClose}
-        className={cn(
-          'w-96 shadow-elevated',
-          isDragging && 'cursor-grabbing'
-        )}
+        draggable={true}
+        isDragging={isDragging}
+        onDragHandlePointerDown={handleDragPointerDown}
+        onDragHandleDoubleClick={resetPosition}
       />
     </div>
   )

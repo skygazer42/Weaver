@@ -24,7 +24,7 @@ import type { Workspace } from '@/lib/workspace'
 import { Discover } from '@/components/views/Discover'
 import { Library } from '@/components/views/Library'
 import { SettingsDialog } from '@/components/settings/SettingsDialog'
-import { BrowserViewer } from './BrowserViewer'
+import { FloatingBrowserViewer } from './BrowserViewer'
 
 export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) {
   const { t } = useI18n()
@@ -405,16 +405,14 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
         <div className="relative flex min-h-0 flex-1 flex-col">
           {renderContent()}
           {currentView === 'dashboard' && threadId && showBrowserViewer && (
-            <div className="absolute bottom-3 right-4 z-40 max-h-[calc(100%-1.5rem)] w-[480px] max-w-[calc(100%-2rem)] overflow-y-auto rounded-lg shadow-elevated">
-              <BrowserViewer
-                threadId={threadId}
-                className="w-full max-w-full"
-                defaultExpanded={true}
-                alwaysShow={true}
-                mode="stream"
-                onClose={() => setShowBrowserViewer(false)}
-              />
-            </div>
+            <FloatingBrowserViewer
+              threadId={threadId}
+              defaultExpanded={true}
+              alwaysShow={true}
+              mode="stream"
+              defaultPosition="bottom-left"
+              onClose={() => setShowBrowserViewer(false)}
+            />
           )}
         </div>
 

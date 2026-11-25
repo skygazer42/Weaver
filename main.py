@@ -5834,9 +5834,9 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
         def _start():
             session = sandbox_browser_sessions.get(thread_id)
             return session.start_screencast(
-                quality=int(quality or 70),
-                max_width=1280,
-                max_height=720,
+                quality=int(quality or 60),
+                max_width=960,
+                max_height=540,
                 format="jpeg",
             )
 
@@ -5883,6 +5883,15 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
                 now_perf = time.perf_counter()
                 if now_perf < next_frame_due:
                     await asyncio.sleep(next_frame_due - now_perf)
+
+                # Pump Playwright's sync event loop briefly when idle so incoming CDP
+                # screencast frames are dispatched promptly instead of going stale.
+                pump_fn = getattr(sandbox_browser_sessions, "pump_screencast_if_idle", None)
+                if callable(pump_fn):
+                    try:
+                        await asyncio.wait_for(pump_fn(thread_id, wait_ms=10), timeout=0.06)
+                    except Exception:
+                        pass
 
                 # Prefer CDP screencast frames (smooth, low overhead). Fall back to screenshots.
                 cdp_frame = _peek_cdp_frame()
@@ -6493,18 +6502,15 @@ async def browser_stream_websocket(websocket: WebSocket, thread_id: str):
                         session = sandbox_browser_sessions.get(thread_id)
                         page = session.get_page()
                         page.mouse.wheel(dx, dy)
+                        try:
+                            # Give Chrome a brief slice to paint and flush the CDP frame.
+                            page.wait_for_timeout(16)
+                        except Exception:
+                            pass
 
                         meta: Dict[str, Any] = {}
                         try:
                             meta["url"] = page.url
-                        except Exception:
-                            pass
-                        try:
-                            meta["title"] = page.title() or ""
-                        except Exception:
-                            pass
-                        try:
-                            session.set_page_meta(url=meta.get("url"), title=meta.get("title"))
                         except Exception:
                             pass
                         return meta

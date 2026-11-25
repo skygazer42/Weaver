@@ -823,6 +823,8 @@ class SandboxBrowserSessionManager:
         # with the sync Playwright API without running it on the asyncio loop.
         self._executors: Dict[str, ThreadPoolExecutor] = {}
         self._executor_thread_id: Dict[str, int] = {}
+        self._busy_counts: Dict[str, int] = {}
+        self._pumping_threads: set[str] = set()
 
     def _normalize_thread_id(self, thread_id: str) -> str:
         return (thread_id or "").strip() or "default"
@@ -854,7 +856,16 @@ class SandboxBrowserSessionManager:
         thread_id = self._normalize_thread_id(thread_id)
         with self._lock:
             self._executor_thread_id[thread_id] = threading.get_ident()
-        return fn()
+            self._busy_counts[thread_id] = self._busy_counts.get(thread_id, 0) + 1
+        try:
+            return fn()
+        finally:
+            with self._lock:
+                remaining = self._busy_counts.get(thread_id, 1) - 1
+                if remaining > 0:
+                    self._busy_counts[thread_id] = remaining
+                else:
+                    self._busy_counts.pop(thread_id, None)
 
     def run_sync(self, thread_id: str, fn: Callable[..., _T], *args, **kwargs) -> _T:
         """
@@ -925,6 +936,48 @@ class SandboxBrowserSessionManager:
             return session.peek_screencast_frame()
         except Exception:
             return None
+
+    async def pump_screencast_if_idle(self, thread_id: str, wait_ms: int = 12) -> None:
+        """
+        Briefly tick Playwright's sync event dispatcher when the thread's executor
+        is idle so incoming CDP `Page.screencastFrame` callbacks are delivered
+        promptly between agent/user actions without ever blocking real work.
+        """
+        thread_id = self._normalize_thread_id(thread_id)
+        with self._lock:
+            if self._busy_counts.get(thread_id, 0) > 0 or thread_id in self._pumping_threads:
+                return
+            executor = self._executors.get(thread_id)
+            executor_thread_id = self._executor_thread_id.get(thread_id)
+            session = (
+                self._sessions.get((thread_id, executor_thread_id))
+                if executor_thread_id is not None
+                else None
+            )
+            if executor is None or session is None:
+                return
+            with session._screencast_lock:
+                if not session._screencast_running:
+                    return
+            self._pumping_threads.add(thread_id)
+
+        def _pump() -> None:
+            try:
+                with session._lock:
+                    handles = session._handles
+                if handles is not None and handles.page is not None:
+                    handles.page.wait_for_timeout(max(1, int(wait_ms)))
+            except Exception:
+                pass
+
+        try:
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(executor, functools.partial(self._run_and_record, thread_id, _pump))
+        except Exception:
+            pass
+        finally:
+            with self._lock:
+                self._pumping_threads.discard(thread_id)
 
     def reset(self, thread_id: str) -> None:
         thread_id = self._normalize_thread_id(thread_id)
