@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from 'react'
 import Image from 'next/image'
+import logo from '@/public/logo.png'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useI18n } from '@/lib/i18n/i18n-context'
@@ -113,9 +114,7 @@ export function Sidebar({
           {/* Sidebar Header */}
           <div className="-mx-3 flex h-14 shrink-0 items-center justify-between border-b border-border/80 px-4">
              <div className="flex items-center gap-2 select-none">
-                <div className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-md border border-border/70 bg-white shadow-xs">
-                    <Image src="/logo.png" alt="" width={24} height={24} className="object-contain" />
-                </div>
+                <Image src={logo} alt="" width={28} height={28} className="shrink-0 object-contain" />
                 <span className="text-base font-semibold tracking-tight">{t('weaver')}</span>
              </div>
              <Button type="button" variant="ghost" size="icon" onClick={onToggle} aria-label="Collapse sidebar" className="text-muted-foreground">

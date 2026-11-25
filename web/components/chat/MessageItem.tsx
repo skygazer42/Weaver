@@ -2,6 +2,7 @@
 
 import React, { useRef, useState, memo } from 'react'
 import Image from 'next/image'
+import logo from '@/public/logo.png'
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
@@ -281,9 +282,7 @@ const MessageItemBase = ({ message, onEdit, workspaceId }: MessageItemProps) => 
       )}>
         {!isUser && (
           <div className="mb-3 flex items-center gap-2.5 text-sm font-semibold tracking-tight text-foreground">
-            <span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-md border border-border/80 bg-white">
-              <Image src="/logo.png" alt="" width={20} height={20} />
-            </span>
+            <Image src={logo} alt="" width={24} height={24} className="shrink-0 object-contain" />
             Weaver
           </div>
         )}

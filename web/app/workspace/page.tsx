@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
+import logo from '@/public/logo.png'
 import { ArrowLeft, FileSpreadsheet, FolderOpen, Plus, Files, Workflow, Sun, Moon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -99,9 +100,7 @@ export default function WorkspacePage() {
         <div className="mx-auto flex h-full max-w-7xl items-center justify-between gap-2 px-4 sm:px-8">
           <div className="flex min-w-0 items-center gap-2 sm:gap-4">
             <div className="flex shrink-0 items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-md border border-border/70 bg-white shadow-xs">
-                <Image src="/logo.png" alt="" width={24} height={24} />
-              </div>
+              <Image src={logo} alt="" width={28} height={28} className="shrink-0 object-contain" />
               <span className="sr-only text-base font-semibold tracking-tight sm:not-sr-only">Weaver</span>
             </div>
             <Button variant="ghost" size="sm" asChild>

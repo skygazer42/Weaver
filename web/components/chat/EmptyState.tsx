@@ -2,6 +2,7 @@
 
 import React from 'react'
 import Image from 'next/image'
+import logo from '@/public/logo.png'
 import { ArrowRight, Sparkles, TrendingUp, Code2, BookOpen } from 'lucide-react'
 import { useI18n } from '@/lib/i18n/i18n-context'
 
@@ -40,26 +41,23 @@ export function EmptyState({ onStarterClick }: EmptyStateProps) {
   ]
 
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col items-center justify-center px-2 py-8 sm:px-6 sm:py-12">
+    <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col items-center justify-center px-2 py-4 sm:px-6 sm:py-8">
       
       {/* Hero Section */}
-      <div className="mb-8 flex flex-col items-center gap-5 text-center sm:mb-10">
-        <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-border/50 bg-white shadow-surface">
-          <Image src="/logo.png" alt="Weaver" width={52} height={52} priority className="object-contain" />
+      <div className="mb-5 flex flex-col items-center gap-2 text-center sm:mb-8">
+        <div className="flex items-center gap-3 sm:flex-col sm:gap-4">
+          <Image src={logo} alt="Weaver" width={56} height={56} priority className="h-10 w-10 object-contain sm:h-14 sm:w-14" />
+          <h2 className="text-balance text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+            {t('emptyStateTitle')}
+          </h2>
         </div>
-        
-        <div className="max-w-2xl space-y-2">
-            <h2 className="text-balance text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-                {t('emptyStateTitle')}
-            </h2>
-            <p className="text-balance text-sm leading-6 text-muted-foreground sm:text-base">
-                {t('emptyStateSubtitle')}
-            </p>
-        </div>
+        <p className="max-w-2xl text-balance text-sm leading-6 text-muted-foreground sm:text-base">
+          {t('emptyStateSubtitle')}
+        </p>
       </div>
 
       {/* Starter Grid */}
-      <div className="grid w-full max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="grid w-full max-w-2xl grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3">
         {starters.map((starter, i) => (
           <button
             key={i}
@@ -69,20 +67,18 @@ export function EmptyState({ onStarterClick }: EmptyStateProps) {
                     onStarterClick(starter.text, starter.mode)
                 }
             }}
-            className="group flex h-full flex-col justify-between gap-4 rounded-xl border border-border/60 bg-card/85 p-4 text-left transition-[background-color,border-color,box-shadow] hover:border-border hover:bg-card hover:shadow-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2"
+            className="group grid grid-cols-[1.75rem_minmax(0,1fr)_1rem] items-start gap-2.5 rounded-xl border border-border/60 bg-card/85 p-3 text-left transition-[background-color,border-color,box-shadow] hover:border-border hover:bg-card hover:shadow-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 sm:grid-cols-[2rem_minmax(0,1fr)_1rem] sm:gap-3 sm:p-4"
           >
-            <div className="flex items-start gap-3">
-              <div className="shrink-0 rounded-lg bg-surface-subtle p-2 text-muted-foreground transition-colors group-hover:text-primary">
-                <starter.icon className="h-4 w-4" />
-              </div>
-              <p className="min-w-0 flex-1 text-sm font-medium leading-6 text-foreground">
+            <div className="rounded-lg bg-surface-subtle p-1.5 text-muted-foreground transition-colors group-hover:text-primary sm:p-2">
+              <starter.icon aria-hidden="true" className="h-4 w-4" />
+            </div>
+            <div className="flex min-w-0 flex-col items-start gap-1.5 sm:gap-2">
+              <p className="text-sm font-medium leading-5 text-foreground sm:leading-6">
                 {starter.text}
               </p>
+              <span className="rounded-md bg-surface-subtle px-2 py-0.5 text-xs font-medium leading-4 text-muted-foreground">{starter.label}</span>
             </div>
-            <div className="flex items-center justify-between gap-2 pl-11">
-              <span className="rounded-full bg-surface-subtle px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">{starter.label}</span>
-              <ArrowRight aria-hidden="true" className="h-3.5 w-3.5 text-muted-foreground/60 transition-transform group-hover:translate-x-0.5 motion-reduce:transform-none" />
-            </div>
+            <ArrowRight aria-hidden="true" className="h-4 w-4 self-center text-muted-foreground/60 transition-transform group-hover:translate-x-0.5 motion-reduce:transform-none" />
           </button>
         ))}
       </div>

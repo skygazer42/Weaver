@@ -298,7 +298,7 @@ export function ChatInput({
   
   return (
     <div
-      className="relative z-20 mx-auto w-full max-w-5xl px-3 pb-4 pt-2 sm:px-5"
+      className="relative z-20 mx-auto w-full max-w-5xl shrink-0 px-3 pb-4 pt-1 sm:px-5"
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
           setShowCommandMenu(false)
