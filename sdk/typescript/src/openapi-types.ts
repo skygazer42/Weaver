@@ -411,6 +411,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/export/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Export Report Content Endpoint
+         * @description Export provided Markdown report content directly to HTML, PDF, or DOCX.
+         *
+         *     Registered before `/api/export/{thread_id}` so saved/restored reports work
+         *     even when an in-memory checkpoint is no longer present.
+         */
+        post: operations["export_report_content_endpoint_api_export_content_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/export/templates": {
         parameters: {
             query?: never;
@@ -558,13 +581,13 @@ export interface paths {
         };
         /**
          * Get Mcp Config
-         * @description Return current MCP enable flag, servers config, and loaded tool count.
+         * @description Return current MCP enable flag, normalized servers config, statuses, and loaded tool count.
          */
         get: operations["get_mcp_config_api_mcp_config_get"];
         put?: never;
         /**
          * Update Mcp Config
-         * @description Update MCP enable flag and servers config at runtime.
+         * @description Update MCP enable flag and servers config at runtime, persisting to config/mcp.json.
          */
         post: operations["update_mcp_config_api_mcp_config_post"];
         delete?: never;
@@ -1916,6 +1939,8 @@ export interface components {
             messages: components["schemas"]["Message"][];
             /** Model */
             model?: string | null;
+            /** Reasoning Model */
+            reasoning_model?: string | null;
             search_mode?: components["schemas"]["SearchMode"] | null;
             /**
              * Stream
@@ -2195,6 +2220,25 @@ export interface components {
             /** Url */
             url: string;
         };
+        /** ExportContentRequest */
+        ExportContentRequest: {
+            /** Content */
+            content: string;
+            /**
+             * Format
+             * @default pdf
+             */
+            format: string;
+            /** Sources */
+            sources?: string[] | null;
+            /** Thread Id */
+            thread_id?: string | null;
+            /**
+             * Title
+             * @default Research Report
+             */
+            title: string | null;
+        };
         /** FetchedPageItem */
         FetchedPageItem: {
             /**
@@ -2231,6 +2275,8 @@ export interface components {
             model?: string | null;
             /** Payload */
             payload: unknown;
+            /** Reasoning Model */
+            reasoning_model?: string | null;
             search_mode?: components["schemas"]["SearchMode"] | null;
             /** Thread Id */
             thread_id: string;
@@ -2270,6 +2316,15 @@ export interface components {
         MCPConfigPayload: {
             /** Enable */
             enable?: boolean | null;
+            /** Mcpservers */
+            mcpServers?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Persist
+             * @default true
+             */
+            persist: boolean;
             /** Servers */
             servers?: {
                 [key: string]: unknown;
@@ -2467,6 +2522,11 @@ export interface components {
         };
         /** PublicConfigFeatures */
         PublicConfigFeatures: {
+            /**
+             * Docker Sandbox Enabled
+             * @default false
+             */
+            docker_sandbox_enabled: boolean;
             /** Mcp Enabled */
             mcp_enabled: boolean;
             /** Prometheus Enabled */
@@ -2482,6 +2542,16 @@ export interface components {
             default: string;
             /** Options */
             options: string[];
+            /**
+             * Reasoning Default
+             * @default
+             */
+            reasoning_default: string;
+            /**
+             * Source
+             * @default static
+             */
+            source: string;
         };
         /** PublicConfigResponse */
         PublicConfigResponse: {
@@ -3721,6 +3791,39 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_report_content_endpoint_api_export_content_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportContentRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

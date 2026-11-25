@@ -1,5 +1,4 @@
 <div align="right">
-  <strong>Language / 语言:</strong>
   <strong>English</strong> |
   <a href="../README.md">简体中文</a>
 </div>
@@ -12,10 +11,10 @@
 
 **Open-source AI Agent Workbench — Deep Research · Research Studio · Visual MCP · Multi-Model Routing · Sandbox Execution**
 
-[![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB.svg?style=flat&logo=python&logoColor=white)](https://www.python.org/downloads/)
-[![Next.js 16.4+](https://img.shields.io/badge/Next.js-16.4+-000000.svg?style=flat&logo=next.js&logoColor=white)](https://nextjs.org/)
-[![MCP](https://img.shields.io/badge/MCP-Supported-10B981.svg?style=flat)](./mcp.md)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat)](../LICENSE)
+![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat&logo=python&logoColor=white)
+![Next.js](https://img.shields.io/badge/Next.js-16.4+-000000?style=flat&logo=next.js&logoColor=white)
+![MCP](https://img.shields.io/badge/MCP-Supported-10B981?style=flat)
+![License](https://img.shields.io/badge/License-MIT-green.svg?style=flat)
 
 [Key Features](#key-features) · [Screenshots](#screenshots) · [Quick Start](#quick-start) · [MCP Guide](./mcp.md) · [Configuration](./configuration.md) · [Docs](./README.md)
 
@@ -27,16 +26,18 @@
 
 ## Key Features
 
-- **Multi-Mode Deep Research & Research Plans**: Direct, Web, Agent, and iterative Deep Research modes with an optional **Plan** editor beside the composer, clean progress summaries, and verifiable citations.
+- **Multi-Mode Deep Research & Research Plans**: Direct, Web, Agent, and iterative Deep Research modes with an optional **Plan** editor beside the composer, clean collapsible progress summaries, and verifiable citations.
 - **Research Studio Split Workbench**:
-  - **Live Research Graph & Report Mind Map (`Graph`)**: Interactive research tree that grows live during exploration with node inspection and quality telemetry, one-click toggle to a Markdown conclusion mind map, and **SVG / PNG** export.
-  - **Interactive Artifacts & Multi-Format Export (`Artifacts`)**: Sandboxed preview for HTML reports, SVG charts, and code; export reports as **Markdown, HTML, Interactive Slides (with fullscreen preview), PDF, or Word (`.docx`)**.
-  - **Linked Citations & Visual Gallery (`Sources`)**: Inline `[1]` citation hover cards and click-to-highlight source navigation, domain/keyword filters, and a lightbox gallery for captured screenshots and charts.
-  - **Docked Live Agent Computer (`Live`)**: Embedded live browser stream and collapsible execution console with one-click **Dock ↔ Float** switching.
-- **Dual-Engine Sandbox (`E2B` / Local Docker)**: Run Python code, browser automation, and desktop actions in E2B cloud sandboxes or opt in to a free, isolated local Docker sandbox.
-- **Visual MCP Ecosystem**: Manage `Streamable HTTP` and `stdio` servers in Settings, import Claude Desktop / Cursor configs in one click, and toggle tools directly in the chat composer.
-- **Multi-Model Discovery & Dual-Role Routing**: Works with SiliconFlow, DeepSeek, OpenRouter, Ollama, vLLM, Anthropic, and any OpenAI-compatible gateway, with independent Primary and Reasoning model selection.
-- **Persistent Workspaces (`/workspace`)**: Organize project context, shared files, and scheduled tasks, plus a built-in CSV analysis workbench with background execution and exportable reports.
+  - **Live Research Graph & Report Mind Map (`Graph`)**: Interactive research tree that grows live during exploration with node inspection and quality telemetry; one-click toggle to a Markdown conclusion mind map with **SVG / PNG** export.
+  - **Interactive Artifacts & Multi-Format Export (`Artifacts`)**: Sandboxed preview for HTML reports, SVG charts, and code; one-click report export to **Markdown, HTML, Interactive Slides (with fullscreen preview), PDF, and Word (`.docx`)**.
+  - **Linked Citations & Visual Gallery (`Sources`)**: Inline `[1]` citation hover cards and click-to-highlight source navigation, domain/keyword filtering, and a lightbox gallery for captured screenshots and charts.
+  - **Docked Live Agent Computer (`Live`)**: Embedded live browser view and collapsible execution console with one-click **Dock ↔ Float** switching.
+- **Dual-Engine Sandbox (`E2B` / Local Docker)**: Run Python code, browser automation, and desktop actions in E2B cloud sandboxes, or opt in to a free, isolated local Docker sandbox.
+- **Visual MCP Ecosystem**: Manage `Streamable HTTP` and `stdio` servers in Web Settings, import Claude Desktop / Cursor configs in one click, and toggle tools directly in the chat composer.
+- **Multi-Model Discovery & Dual-Role Routing**: Works out of the box with SiliconFlow, DeepSeek, OpenRouter, Ollama, vLLM, Anthropic, and any OpenAI-compatible gateway, with independent Primary and Reasoning model routing.
+- **Persistent Workspaces (`/workspace`)**: Organize project context, shared files, and scheduled tasks, plus a built-in CSV analysis workbench with background execution and exportable reports and charts.
+
+---
 
 ## Screenshots
 
@@ -63,860 +64,87 @@
   </tr>
 </table>
 
-## Table of Contents
+---
 
-- [Features](#features)
-- [Quick Start](#quick-start)
-- [Architecture](#architecture)
-- [Configuration](#configuration)
-- [API Reference](#api-reference)
-- [Tool Reference](#tool-reference)
-- [Development](#development)
-- [Deployment](#deployment)
-- [Documentation](#documentation)
-- [Roadmap](#roadmap)
+## Architecture Overview
 
-## Features
-
-### Core Capabilities
-
-| Feature | Description | Status |
-|---------|-------------|--------|
-| **Smart Router**| LLM-based query classification with confidence thresholds | ✅ |
-| **Deep Search**| Multi-step research with parallel search and content scraping | ✅ |
-| **Code Execution**| Python interpreter in E2B sandbox with matplotlib, pandas, numpy | ✅ |
-| **Browser Automation**| Playwright-based browser control with real-time screenshots | ✅ |
-| **Desktop Automation**| Mouse, keyboard, and screen control via PyAutoGUI | ✅ |
-| **Task Management**| Structured task tracking with progress visualization | ✅ |
-| **Trigger System**| Scheduled (Cron), Webhook, and Event-based triggers | ✅ |
-| **MCP Integration**| Model Context Protocol tool bridge for extensibility | ✅ |
-| **Voice I/O**| ASR (DashScope Paraformer) + TTS (DashScope Sambert) | ✅ |
-| **Cancellation**| Token-based task cancellation with graceful shutdown | ✅ |
-| **Memory**| Long-term memory with PostgreSQL/Redis store + Mem0 | ✅ |
-
-### Tool Categories
-
-```
- Sandbox Tools (E2B)
-├── Browser Automation
-│   ├── sb_browser_navigate        # Navigate to URL
-│   ├── sb_browser_click           # Click elements
-│   ├── sb_browser_type            # Type text
-│   ├── sb_browser_screenshot      # Capture screenshots
-│   └── sb_browser_get_html        # Extract page content
-├── File Operations
-│   ├── sandbox_create_file        # Create files
-│   ├── sandbox_read_file          # Read content
-│   ├── sandbox_str_replace        # Find/replace
-│   └── sandbox_download_file      # Download as Base64
-├── Shell & Packages
-│   ├── sandbox_execute_command    # Run shell commands
-│   ├── sandbox_install_package    # Install npm/pip/apt packages
-│   └── sandbox_expose_port        # Expose ports for web apps
-└── Document Generation
-    ├── sandbox_create_spreadsheet # Create Excel/CSV files
-    └── sandbox_create_presentation # Create PowerPoint slides
-
- Desktop Tools
-├── computer_move_mouse            # Move cursor
-├── computer_click                 # Mouse click
-├── computer_type                  # Keyboard input
-├── computer_screenshot            # Screen capture
-└── task_list                      # Task management
-
- Search & Crawl
-├── web_search                     # Tavily API search
-├── sandbox_web_search             # Visual web search with screenshots
-└── crawl                          # URL content extraction
-
- Code Execution
-└── execute_python_code            # Sandboxed Python interpreter
+```mermaid
+graph TB
+  UI[Next.js Web Workbench<br/>Chat · Research Studio · /workspace] -->|SSE / WS / REST| API[FastAPI Backend]
+  API --> Router{Smart Router<br/>Direct · Web · Agent · Deep Research}
+  API --> Workspace[Project & CSV Workspace]
+  API --> Export[Report Export<br/>HTML · Slides · PDF · DOCX]
+  Router --> Models[Primary & Reasoning Models]
+  Router --> Tools[MCP Bridge · Web Search · E2B / Docker Sandbox]
 ```
 
-## ⚡ Quick Start
+> See [`docs/architecture.md`](./architecture.md) for the full architecture breakdown.
 
-### Prerequisites
+---
 
-- **Python 3.11+**- [Download](https://www.python.org/downloads/)
-- **Node.js 24 LTS** - [Download](https://nodejs.org/)
-- **Docker & Docker Compose**- [Install](https://docs.docker.com/get-docker/)
+## Quick Start
 
-### 1⃣ Clone & Setup
+### 1. Clone & Configure
 
 ```bash
-git clone https://github.com/skygazer42/weaver.git
-cd weaver
+git clone https://github.com/skygazer42/Weaver.git
+cd Weaver
 
-# Copy environment template
 cp .env.example .env
+cp web/.env.local.example web/.env.local
 ```
 
-### 2⃣ Configure API Keys
+Add at least one model provider key to the root `.env`:
 
-Edit `.env` with your API keys (`.env.example` only lists common starter keys; all advanced tuning parameters have built-in defaults in `common/config.py`):
-
-```bash
-# Option A: SiliconFlow (out-of-the-box catalog, default deepseek-ai/DeepSeek-V4.1-Flash)
+```env
+# SiliconFlow
 SILICONFLOW_API_KEY=sk-...
 
-# Option B: OpenAI / DeepSeek / OpenAI-compatible gateway
+# DeepSeek / OpenRouter / Ollama or any OpenAI-compatible gateway
 # OPENAI_API_KEY=sk-...
 # OPENAI_BASE_URL=https://api.deepseek.com/v1
 
-# Recommended for Web / Deep Research & sandbox execution
-TAVILY_API_KEY=tvly-...                   # https://tavily.com
-E2B_API_KEY=e2b_...                       # https://e2b.dev
-
-# Optional features
-# ANTHROPIC_API_KEY=sk-ant-...            # Claude models
-# DASHSCOPE_API_KEY=sk-...                # Voice ASR/TTS
-# ENABLE_MCP=false                        # MCP tool servers
-# ENABLE_MEMORY=false                     # Long-term memory
+# Web search & Deep Research
+TAVILY_API_KEY=tvly-...
 ```
 
-### 3⃣ Install Dependencies
+### 2. Install & Run
 
 ```bash
-# Backend (creates .venv and installs core + dev dependencies)
+# Install backend & frontend dependencies (Python 3.11+, Node.js 20+, pnpm)
 make setup
-
-# Optional: install heavy/optional tool dependencies
-make setup-full
-
-# Frontend
 pnpm -C web install --frozen-lockfile
 
-# Optional: install Playwright browsers (needed for browser automation)
-playwright install chromium
-```
-
-### 4⃣ Start Services
-
-```bash
-# Terminal 1: Start backend (use .venv)
+# Terminal 1: Start backend (Windows PowerShell: .\.venv\Scripts\python.exe main.py)
 .venv/bin/python main.py
 
-# Terminal 2: Start frontend (defaults to port 3100)
+# Terminal 2: Start frontend
 pnpm -C web dev
 ```
 
-**Access points:**
--  **Web UI**: http://localhost:3100
--  **Backend API**: http://localhost:8001
--  **API Docs**: http://localhost:8001/docs
+Access points:
 
-### 5⃣ (Optional) Enable Local Free Docker Sandbox (OFF by default)
+- **Web Workbench**: `http://localhost:3100`
+- **Project Workspace**: `http://localhost:3100/workspace`
+- **API Docs**: `http://localhost:8001/docs`
 
-If you do not have an `E2B_API_KEY`, you can opt in to Weaver's local Docker sandbox backend to run `execute_python_code`, `sandbox_files`, and `sandbox_shell` locally:
+> - Manage or import MCP servers directly in **Settings → MCP Servers**;
+> - Markdown, HTML, Interactive Slides, and Word (`.docx`) exports work out of the box; PDF export uses WeasyPrint and automatically falls back to local headless Chrome / Edge on Windows when GTK libraries are not installed;
+> - To opt in to E2B cloud sandboxes, the free local Docker sandbox, or advanced tuning, see [`docs/configuration.md`](./configuration.md).
 
-1. Start **Docker Desktop** (macOS / Windows) or **Docker Engine** (Linux), verify the daemon is running, and pull the default image:
+---
 
-```bash
-docker info
-docker pull python:3.12-slim
-```
-
-> Tip: For pandas/matplotlib workloads inside an offline container, set `DOCKER_SANDBOX_IMAGE` to a custom image with those packages preinstalled.
-
-2. Enable the sandbox in root `.env`:
-
-```env
-ENABLE_DOCKER_SANDBOX=true
-DOCKER_SANDBOX_IMAGE=python:3.12-slim
-DOCKER_SANDBOX_CPUS=1.0
-DOCKER_SANDBOX_MEMORY=512m
-DOCKER_SANDBOX_NETWORK_ENABLED=false
-```
-
-3. Restart the backend (`.venv/bin/python main.py`). Containers run with `--network none`, `--cap-drop ALL`, `--security-opt no-new-privileges`, a per-thread isolated `/workspace` mount, and are cleaned up automatically on server shutdown.
-
-### Common Dev Commands
+## Common Dev Commands
 
 ```bash
-# Run tests
-make test
+# Backend tests & lint
+make test && make lint
 
-# Lint
-make lint
-
-# (Optional) Enable pre-commit
-.venv/bin/pre-commit install
-
-# (Optional) Local secret scan
-.venv/bin/python scripts/secret_scan.py
+# Frontend tests, lint, type check & build
+pnpm -C web test && pnpm -C web lint && pnpm -C web exec tsc --noEmit && pnpm -C web build
 ```
 
-## Architecture
-
-### Project Structure
-
-```
-weaver/
-├── agent/                          # LangGraph Agent Logic
-│   ├── graph.py                    # Workflow graph (nodes + edges)
-│   ├── nodes.py                    # Agent nodes (route, plan, search, write)
-│   ├── smart_router.py             # LLM-based query routing
-│   ├── deepsearch.py               # Multi-epoch deep research
-│   ├── agent_prompts.py            # System prompts
-│   ├── agent_tools.py              # Tool builder
-│   ├── context_manager.py          # Token counting & truncation
-│   ├── events.py                   # Event emission system
-│   └── state.py                    # State definitions
-│
-├── tools/                          # Tool Implementations
-│   ├── sandbox/                    # E2B sandbox tools
-│   │   ├── browser_tools.py        # Browser automation
-│   │   ├── browser_session.py      # Session management
-│   │   ├── web_search_tool.py      # Visual web search
-│   │   ├── files_tool.py           # File operations
-│   │   ├── shell_tool.py           # Shell commands
-│   │   ├── sheets_tool.py          # Excel generation
-│   │   ├── presentation_tool.py    # PowerPoint generation
-│   │   └── vision_tool.py          # Image processing (OCR, resize)
-│   ├── computer_use_tool.py        # Desktop automation
-│   ├── task_list_tool.py           # Task management
-│   ├── screenshot_service.py       # Screenshot storage
-│   ├── crawl_tools.py              # URL crawling
-│   ├── asr.py                      # Speech recognition
-│   ├── tts.py                      # Text-to-speech
-│   ├── mcp.py                      # MCP integration
-│   └── registry.py                 # Tool registry
-│
-├── triggers/                       # Trigger System
-│   ├── models.py                   # Trigger data models
-│   ├── manager.py                  # Trigger lifecycle management
-│   ├── scheduler.py                # Cron-based scheduler
-│   └── webhook.py                  # Webhook handlers
-│
-├── common/                         # Shared Utilities
-│   ├── config.py                   # Settings & environment
-│   ├── logger.py                   # Structured logging
-│   ├── metrics.py                  # Performance metrics
-│   ├── cancellation.py             # Task cancellation
-│   └── agents_store.py             # Agent profile storage
-│
-├── web/                            # Next.js Frontend
-│   ├── app/                        # App router pages
-│   ├── components/                 # React components
-│   │   ├── chat/                   # Chat interface
-│   │   ├── views/                  # Discover, Library
-│   │   └── settings/               # Settings dialog
-│   ├── hooks/                      # React hooks
-│   │   ├── useChatStream.ts        # SSE streaming
-│   │   └── useChatHistory.ts       # LocalStorage history
-│   └── lib/                        # Utilities
-│
-├── main.py                         # FastAPI entry point
-├── docker/                         # Docker configuration
-│   ├── docker-compose.yml          # Service orchestration
-│   └── Dockerfile                  # Container image
-└── .env.example                    # Environment template
-```
-
-### Tech Stack
-
-| Layer | Technology | Version |
-|-------|------------|---------|
-| **Frontend**| Next.js | 16.4+ |
-| | React | 19+ |
-| | Tailwind CSS | 3.4+ |
-| | Radix UI / shadcn | Latest |
-| | Vercel AI SDK | 7.x (`@ai-sdk/react` 4.x) |
-| **Backend**| Python | 3.11+ |
-| | FastAPI | 0.110+ |
-| | LangGraph | 1.0+ |
-| | LangChain | 1.0+ |
-| **Database**| PostgreSQL | 15+ |
-| | pgvector | 0.5+ |
-| **Sandbox**| E2B | Latest |
-| **Search**| Tavily API | v1 |
-| **Desktop**| PyAutoGUI | 0.9+ |
-| | Pillow | 10.0+ |
-| **Browser**| Playwright | 1.40+ |
-| **Voice**| DashScope | Latest |
-
-### Agent Execution Flow
-
-```mermaid
-graph TD
-    A[User Query] --> B[Smart Router]
-    B --> C{Route Decision}
-    C -->|direct| D[Direct Answer]
-    C -->|web| E[Web Search Plan]
-    C -->|agent| F[Tool Agent]
-    C -->|deep| G[Deep Search]
-    C -->|clarify| H[Clarify Node]
-
-    E --> I[Parallel Search]
-    I --> J[Writer Node]
-    J --> K[Evaluator]
-    K -->|pass| L[Complete]
-    K -->|revise| M[Refine Plan]
-    M --> I
-
-    G --> N[Multi-Epoch Research]
-    N --> O[Query Generation]
-    O --> P[Parallel Search]
-    P --> Q[Summarization]
-    Q --> R{More Epochs?}
-    R -->|yes| O
-    R -->|no| L
-
-    F --> S[Tool Execution]
-    S --> L
-
-    D --> L
-    H --> T[User Response]
-```
-
-## ⚙ Configuration
-
-### Environment Variables
-
-#### Core Settings
-
-```bash
-# API Keys
-OPENAI_API_KEY=sk-...                     # OpenAI API key
-OPENAI_BASE_URL=https://api.openai.com/v1 # Optional: Custom endpoint
-TAVILY_API_KEY=tvly-...                   # Tavily search API
-E2B_API_KEY=e2b_...                       # E2B sandbox API
-
-# Models
-PRIMARY_MODEL=gpt-4o                      # Main LLM model
-REASONING_MODEL=o1-mini                   # Planning/reasoning model
-
-# Database
-DATABASE_URL=postgresql://user:pass@localhost:5432/weaver
-
-# Memory
-MEMORY_STORE_BACKEND=postgres             # postgres|redis|memory
-MEMORY_STORE_URL=postgresql://...         # Store connection URL
-ENABLE_MEMORY=false                       # Enable Mem0 integration
-MEM0_API_KEY=...                          # Mem0 API key (optional)
-
-# Features
-ENABLE_MCP=false                          # MCP tool servers
-DEBUG=false                               # Debug mode
-TOOL_APPROVAL=false                       # Require approval for tools
-HUMAN_REVIEW=false                        # Require review before completion
-MAX_REVISIONS=2                           # Max report revision iterations
-```
-
-#### Advanced Settings
-
-```bash
-# Context Management
-CONTEXT_MAX_TOKENS=128000                 # Token limit per request
-CONTEXT_TRUNCATION_STRATEGY=smart         # smart|fifo|middle
-
-# Search
-TOOL_RETRY=true                           # Retry failed tool calls
-TOOL_RETRY_MAX_ATTEMPTS=3                 # Max retry attempts
-TOOL_RETRY_BACKOFF=exponential            # exponential|linear|constant
-
-# Performance
-OPENAI_TIMEOUT=120                        # API timeout (seconds)
-ENABLE_PROMETHEUS=false                   # Prometheus metrics
-CORS_ORIGINS=http://localhost:3000        # CORS allowed origins
-
-# Voice
-DASHSCOPE_API_KEY=sk-...                  # DashScope for TTS/ASR
-
-# Logging
-LOG_LEVEL=INFO                            # DEBUG|INFO|WARNING|ERROR
-ENABLE_FILE_LOGGING=true                  # Log to files
-LOG_FILE=logs/weaver.log                  # Log file path
-```
-
-### Agent Profiles
-
-Configure agent tools in `data/agents.json`:
-
-```json
-{
-  "id": "default",
-  "name": "Weaver Default Agent",
-  "description": "Default tool-using agent",
-  "system_prompt": "You are a helpful AI assistant...",
-  "model": "gpt-4o",
-  "enabled_tools": {
-    "web_search": true,
-    "browser": false,
-    "sandbox_browser": true,
-    "sandbox_web_search": true,
-    "sandbox_files": true,
-    "sandbox_shell": true,
-    "sandbox_sheets": true,
-    "sandbox_presentation": true,
-    "sandbox_vision": true,
-    "python": true,
-    "crawl": true,
-    "task_list": true,
-    "computer_use": false,
-    "mcp": true
-  },
-  "metadata": {
-    "protected": true
-  }
-}
-```
-
-**Built-in Agent Profiles:**
-- `default` - Basic tools (web search, browser, python, crawl)
-- `manus` - Full-featured (compatibility id; UI name is "Weaver Full Agent")
-
-### Context Management
-
-```python
-from agent.core.context_manager import ContextManager
-
-manager = ContextManager(
-    model_name="gpt-4o",
-    max_tokens=128000,
-    truncation_strategy="smart"  # smart|fifo|middle
-)
-
-# Automatically truncate messages
-truncated_messages = manager.truncate_messages(messages)
-```
-
-**Truncation Strategies:**
-- `smart` - Keep system + first/last messages, truncate middle (default)
-- `fifo` - First In First Out, remove oldest messages
-- `middle` - Keep start and end, remove middle messages
-
-### Trigger System
-
-Create automated agent workflows:
-
-```python
-from triggers import TriggerManager, ScheduledTrigger, WebhookTrigger
-
-manager = TriggerManager()
-
-# Scheduled trigger (Cron)
-trigger = ScheduledTrigger(
-    name="hourly_report",
-    agent_id="default",
-    task="Generate hourly status report",
-    schedule="0 * * * *",  # Every hour
-    timezone="Asia/Shanghai",
-    run_immediately=False
-)
-await manager.add_trigger(trigger)
-
-# Webhook trigger
-webhook = WebhookTrigger(
-    name="github_webhook",
-    agent_id="default",
-    task="Process GitHub webhook: {payload.action}",
-    http_methods=["POST"],
-    require_auth=True,
-    rate_limit=100  # requests per hour
-)
-await manager.add_trigger(webhook)
-```
-
-## API Reference
-
-### Chat Endpoint
-
-**POST**`/api/chat`
-
-Start a new chat session with streaming response.
-
-**Request:**
-```json
-{
-  "messages": [
-    {"role": "user", "content": "Search for latest AI news"}
-  ],
-  "stream": true,
-  "model": "gpt-4o",
-  "search_mode": "deep",  // direct|web|agent|deep
-  "agent_id": "default",
-  "user_id": "user_123",
-  "images": [
-    {
-      "name": "screenshot.png",
-      "mime": "image/png",
-      "data": "base64_encoded_data"
-    }
-  ]
-}
-```
-
-**Response (SSE):**
-```
-0:{"type":"status","data":{"text":"Initializing...","step":"init"}}
-0:{"type":"text","data":{"content":"Hello"}}
-0:{"type":"tool","data":{"name":"web_search","status":"running"}}
-0:{"type":"screenshot","data":{"url":"...","image":"data:image/png;base64,..."}}
-0:{"type":"artifact","data":{"id":"...","type":"chart","content":"..."}}
-0:{"type":"done","data":{"timestamp":"..."}}
-```
-
-**SSE Event Types:**
-
-| Event | Description | Data Fields |
-|-------|-------------|-------------|
-| `status` | Status update | `text`, `step` |
-| `text` | Text chunk | `content` |
-| `message` | Full message | `content` |
-| `tool` | Tool execution | `name`, `status`, `query` |
-| `tool_start` | Tool started | `tool_name`, `args` |
-| `tool_result` | Tool completed | `tool_name`, `result` |
-| `tool_error` | Tool failed | `tool_name`, `error` |
-| `screenshot` | Screenshot available | `url`, `image` |
-| `task_update` | Task status changed | `task_id`, `status`, `progress` |
-| `research_node_start` | Deep research node started | `node_id`, `topic`, `depth` |
-| `research_node_complete` | Deep research node completed | `node_id`, `summary`, `quality` |
-| `research_tree_update` | Research tree snapshot updated | `tree`, `quality` |
-| `quality_update` | Research quality diagnostics updated | `query_coverage_score`, `freshness_summary`, etc. |
-| `search` | Search run update | `query`, `provider`, `results`, `count` |
-| `artifact` | Artifact generated | `id`, `type`, `title`, `content` |
-| `completion` | Final report | `content` |
-| `interrupt` | Requires approval | `thread_id`, `prompts` |
-| `cancelled` | Task cancelled | `message` |
-| `error` | Error occurred | `message` |
-| `done` | Stream completed | `timestamp`, `metrics` |
-
-`/api/events/{thread_id}` now emits typed SSE events (`event: <event_name>`) and includes
-resume cursor IDs (`id: <seq>`). Payload JSON keeps the `{type, data, ...}` envelope for backward compatibility.
-Client recommendation:
-- Prefer `addEventListener('<type>')` for typed events.
-- Also handle default `message` events and dispatch by envelope `type` as a fallback.
-- Treat `done` as the terminal event (`complete` can be supported as a compatibility alias).
-
-### Cancel Endpoint
-
-**POST**`/api/chat/cancel/{thread_id}`
-
-Cancel a running chat task.
-
-**Request:**
-```json
-{
-  "reason": "User requested cancellation"
-}
-```
-
-**Response:**
-```json
-{
-  "status": "cancelled",
-  "thread_id": "thread_abc123",
-  "reason": "User requested cancellation",
-  "timestamp": "2025-01-01T00:00:00"
-}
-```
-
-### Resume Interrupt
-
-**POST**`/api/interrupt/resume`
-
-Resume after tool approval interrupt.
-
-**Request:**
-```json
-{
-  "thread_id": "thread_abc123",
-  "payload": {
-    "decisions": [
-      { "type": "approve" }
-    ]
-  },
-  "model": "gpt-4o",
-  "search_mode": "agent"
-}
-```
-
-`payload.decisions` follows LangChain's `HumanInTheLoopMiddleware` schema:
-- `approve` — allow the tool call(s) as-is
-- `edit` — modify a tool call before execution:
-  - `{ "type": "edit", "edited_action": { "name": "<tool>", "args": { ... } } }`
-- `reject` — reject tool call(s) and feed an error tool message back to the model:
-  - `{ "type": "reject", "message": "Optional reason" }`
-
-Compatibility: legacy clients may still send `{ "tool_approved": true/false, "tool_calls": [...] }` and the backend
-will translate it into `decisions` automatically.
-
-### Screenshot API
-
-**GET**`/api/screenshots/{filename}`
-
-Retrieve a screenshot by filename.
-
-**Response:**Image file (PNG/JPEG)
-
-**GET**`/api/screenshots?thread_id=thread_123&limit=50`
-
-List screenshots for a thread.
-
-**Response:**
-```json
-{
-  "screenshots": [
-    {
-      "filename": "screenshot_1234567890.png",
-      "thread_id": "thread_123",
-      "url": "/api/screenshots/screenshot_1234567890.png",
-      "created_at": "2025-01-01T00:00:00"
-    }
-  ],
-  "count": 1
-}
-```
-
-### Trigger API
-
-**GET**`/api/triggers`
-
-List all triggers.
-
-**Query Parameters:**
-- `trigger_type` - Filter by type (scheduled|webhook|event)
-- `status` - Filter by status (active|paused|error)
-- `user_id` - Filter by user
-
-**POST**`/api/triggers/scheduled`
-
-Create scheduled trigger.
-
-**Request:**
-```json
-{
-  "name": "daily_summary",
-  "description": "Generate daily summary report",
-  "schedule": "0 9 * * *",
-  "agent_id": "default",
-  "task": "Generate daily summary",
-  "timezone": "Asia/Shanghai",
-  "run_immediately": false
-}
-```
-
-**POST**`/api/triggers/webhook`
-
-Create webhook trigger.
-
-**Request:**
-```json
-{
-  "name": "github_webhook",
-  "agent_id": "default",
-  "task": "Process: {payload.action}",
-  "http_methods": ["POST"],
-  "require_auth": true,
-  "rate_limit": 100
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "trigger_id": "trigger_abc123",
-  "endpoint": "/api/webhook/trigger_abc123",
-  "auth_token": "secret_token_xyz"  // if require_auth=true
-}
-```
-
-### Voice API
-
-**POST**`/api/asr/recognize`
-
-Speech recognition (ASR).
-
-**Request:**
-```json
-{
-  "audio_data": "base64_encoded_audio",
-  "format": "wav",
-  "sample_rate": 16000,
-  "language_hints": ["zh", "en"]
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "text": "Transcribed text here",
-  "metrics": {
-    "duration_ms": 123
-  }
-}
-```
-
-**POST**`/api/tts/synthesize`
-
-Text-to-speech (TTS).
-
-**Request:**
-```json
-{
-  "text": "Hello, how can I help you?",
-  "voice": "longxiaochun"  // See /api/tts/voices for options
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "audio": "base64_encoded_mp3",
-  "format": "mp3",
-  "voice": "longxiaochun"
-}
-```
-
-## Tool Reference
-
-### Complete Tool List
-
-See [TOOL_REFERENCE.md](TOOL_REFERENCE.md) for detailed tool documentation.
-
-**Quick Reference:**
-
-- **Sandbox Browser**: `sb_browser_*` (11 tools)
-- **Sandbox Files**: `sandbox_*_file` (8 tools)
-- **Sandbox Shell**: `sandbox_*_command`, `sandbox_install_package` (5 tools)
-- **Sandbox Sheets**: `sandbox_*_spreadsheet` (7 tools)
-- **Sandbox Presentation**: `sandbox_*_presentation`, `sandbox_*_slide` (8 tools)
-- **Sandbox Vision**: `sandbox_*_image`, `sandbox_extract_text` (7 tools)
-- **Computer Use**: `computer_*` (9 tools)
-- **Task Management**: `create_tasks`, `view_tasks`, `update_task` (4 tools)
-- **Search & Crawl**: `web_search`, `crawl` (2 tools)
-- **Code**: `execute_python_code` (1 tool)
-
-**Total: 62 tools**
-
-## Development
-
-### Run Tests
-
-```bash
-# Smoke test (API endpoints)
-python test_api_endpoints.py
-
-# Deep search routing test
-python scripts/test_deep_search_routing.py
-
-# Unit tests
-pytest tests/ -v
-
-# Specific test
-pytest tests/test_smoke_api.py -q
-```
-
-### Code Style
-
-```bash
-# Format
-black . --line-length 120
-isort . --profile black
-
-# Lint
-ruff check .
-
-# Type check
-mypy agent/ tools/ common/
-```
-
-### Debug Mode
-
-Enable debug logging:
-
-```bash
-# .env
-DEBUG=true
-LOG_LEVEL=DEBUG
-ENABLE_FILE_LOGGING=true
-```
-
-View logs:
-```bash
-tail -f logs/weaver.log
-tail -f logs/threads/{thread_id}.log
-```
-
-### Local Development
-
-```bash
-# Recommended
-./scripts/setup.sh
-./scripts/dev.sh
-
-# Or run separately:
-# Database
-docker compose -f docker/docker-compose.yml up -d postgres
-
-# Backend (with auto-reload)
-source .venv/bin/activate
-uvicorn main:app --reload --host 0.0.0.0 --port 8001
-
-# Frontend
-pnpm -C web dev
-```
-
-## Deployment
-
-### Docker
-
-**Build:**
-```bash
-docker build -t weaver-backend .
-```
-
-**Run:**
-```bash
-docker run -p 8001:8000 \
-  --env-file .env \
-  --name weaver \
-  weaver-backend
-```
-
-### Docker Compose (Backend + Postgres)
-
-```bash
-# Start all services
-docker compose -f docker/docker-compose.yml up -d
-
-# View logs
-docker compose -f docker/docker-compose.yml logs -f
-
-# Stop
-docker compose -f docker/docker-compose.yml down
-```
-
-**Services:**
-- `postgres` - PostgreSQL database (port 5432)
-- `backend` - FastAPI backend (port 8001)
-  - Note: the frontend is started separately with `pnpm -C web dev` (not via compose by default).
-
-### Vercel (Frontend)
-
-```bash
-cd web
-vercel deploy --prod
-```
-
-**Environment Variables (Vercel):**
-- `NEXT_PUBLIC_API_URL` - Backend API URL
-
-### Railway/Render (Backend)
-
-**Start Command:**
-```bash
-uvicorn main:app --host 0.0.0.0 --port $PORT
-```
-
-**Environment:**
-- Set all required API keys
-- Add PostgreSQL database addon
-- Set `DATABASE_URL` automatically
+---
 
 ## Documentation
 
@@ -928,239 +156,10 @@ uvicorn main:app --host 0.0.0.0 --port $PORT
 | [Architecture](./architecture.md) | Core modules and LangGraph workflow overview |
 | [Deployment](./deployment.md) | Docker Compose, reverse-proxy auth, and rate limiting |
 | [All Docs](./README.md) | API reference, streaming protocol, developer guide, and roadmap |
-| [FRONTEND_INTEGRATION.md](FRONTEND_INTEGRATION.md) | Frontend SSE integration guide |
-| [DEEP_SEARCH_TROUBLESHOOTING.md](DEEP_SEARCH_TROUBLESHOOTING.md) | Deep search diagnostic guide |
-| [TOOL_REFERENCE.md](TOOL_REFERENCE.md) | Complete tool documentation |
 
-## Roadmap
-
-### ✅ Completed (v0.9 - 92%)
-
-**Core Agent System**
-- [x] LangGraph workflow engine
-- [x] Smart query routing with LLM classification
-- [x] Context management (token counting, truncation)
-- [x] Event streaming (SSE)
-- [x] Task cancellation system
-- [x] Multi-agent profiles (GPTs-like)
-
-**Search & Research**
-- [x] Deep Search (multi-epoch iterative research)
-- [x] Smart Router (confidence-based routing)
-- [x] Parallel search with deduplication
-- [x] Result aggregation with ranking
-- [x] Web search (Tavily API)
-- [x] Visual web search (screenshots)
-- [x] URL crawling
-
-**Code Execution**
-- [x] Python interpreter (E2B sandbox)
-- [x] Matplotlib, pandas, numpy support
-- [x] Visualization artifacts
-
-**Browser Automation**
-- [x] Playwright integration
-- [x] E2B browser sandbox
-- [x] Real-time screenshots
-- [x] Session management
-- [x] Element interaction (click, type, scroll)
-
-**Desktop Automation**
-- [x] Mouse control (PyAutoGUI)
-- [x] Keyboard input
-- [x] Screen capture
-- [x] Hotkey support
-
-**Document Generation**
-- [x] Excel spreadsheets (openpyxl)
-- [x] PowerPoint presentations (python-pptx)
-- [x] CSV export
-- [x] Charts and formatting
-
-**Image Processing**
-- [x] OCR text extraction (Tesseract)
-- [x] Image resize/crop/convert
-- [x] QR code reading
-- [x] Image comparison
-
-**File & Shell**
-- [x] Sandbox file operations (CRUD)
-- [x] Shell command execution
-- [x] Package installation (npm/pip/apt)
-- [x] Port exposure for web apps
-
-**Trigger System**
-- [x] Scheduled triggers (Cron)
-- [x] Webhook triggers
-- [x] Event-based triggers
-- [x] Trigger management UI
-
-**Voice I/O**
-- [x] Speech recognition (ASR - DashScope Paraformer)
-- [x] Text-to-speech (TTS - DashScope Sambert)
-- [x] Multiple voice options
-
-**Memory & Storage**
-- [x] Short-term memory (checkpointer)
-- [x] Long-term memory (PostgreSQL/Redis store)
-- [x] Mem0 integration
-- [x] Chat history persistence
-
-**Other**
-- [x] MCP integration
-- [x] Task management
-- [x] Prometheus metrics (optional)
-- [x] Structured logging
-- [x] Docker deployment
-
-### In Progress (v1.0)
-
-**Frontend**
-- [ ] Message alignment fixes for Deep Research
-- [ ] Artifact gallery view
-- [ ] Advanced search filters
-- [ ] Theme customization
-
-**Backend**
-- [ ] Agent runs persistence (database)
-- [ ] Advanced image editing (filters, effects)
-- [ ] Web development scaffolding
-- [ ] Deploy to Vercel/Netlify from sandbox
-
-### Future Plans
-
-We are continuously improving Weaver. Feel free to contribute or suggest new features!
-
-## Contributing
-
-We welcome contributions! Please see [CONTRIBUTING.md](../.github/CONTRIBUTING.md) for guidelines.
-
-**Quick Start:**
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-**Development Setup:**
-```bash
-# Clone your fork
-git clone https://github.com/skygazer42/weaver.git
-cd weaver
-
-# Install dependencies
-pnpm run install:all
-
-# Create .env
-cp .env.example .env
-
-# Start development
-pnpm run dev
-```
-
-**Code Standards:**
-- Follow PEP 8 for Python
-- Use Black for formatting
-- Add type hints
-- Write tests for new features
-- Update documentation
+---
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](../LICENSE) file for details.
-
-## Acknowledgments
-
-- **Inspired by**: [Manus](https://manus.im) - The best AI agent platform
-- **Built with**: [LangGraph](https://github.com/langchain-ai/langgraph) - Agent orchestration
-- **Powered by**: [E2B](https://e2b.dev) - Code execution sandbox
-- **Search**: [Tavily](https://tavily.com) - AI-optimized search API
-- **UI Components**: [Shadcn UI](https://ui.shadcn.com) - Beautiful React components
-
-## Contact & Support
-
-- **Issues**: [GitHub Issues](https://github.com/skygazer42/weaver/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/skygazer42/weaver/discussions)
-- **Twitter**: [@WeaverAI](https://twitter.com/WeaverAI)
-- **Discord**: [Join our community](https://discord.gg/weaver)
-
----
-
-<div align="center">
-
-**[⬆ Back to Top](#weaver---ai-agent-platform)**
-
-Made by the Weaver Team
-
-</div>
-
----
-
-## Deep Research VNext (2026-02)
-
-### What Changed
-
-- Multi-provider search orchestration (`fallback|parallel|round_robin|best_first`)
-- Freshness-aware ranking for time-sensitive queries
-- Domain-aware provider profiles
-- Provider reliability guardrails (retry + circuit breaker)
-- Evidence-based claim verification + citation gate
-- DeepSearch budget guards (time/token)
-- Session-level search cache with TTL
-- Deep research artifact persistence and resume support
-- Benchmark loader and golden regression runner
-
-### Key Configuration
-
-```bash
-# Deep mode selection
-DEEPSEARCH_MODE=auto                     # auto|tree|linear
-TREE_EXPLORATION_ENABLED=true
-
-# Budget guards
-DEEPSEARCH_MAX_SECONDS=0                 # 0 = disabled
-DEEPSEARCH_MAX_TOKENS=0                  # 0 = disabled
-
-# Search orchestration
-SEARCH_STRATEGY=fallback                 # fallback|parallel|round_robin|best_first
-SEARCH_ENABLE_FRESHNESS_RANKING=true
-SEARCH_FRESHNESS_HALF_LIFE_DAYS=30
-SEARCH_FRESHNESS_WEIGHT=0.35
-
-# Session cache
-SEARCH_CACHE_MAX_SIZE=200
-SEARCH_CACHE_TTL_SECONDS=1800
-SEARCH_CACHE_SIMILARITY_THRESHOLD=0.9
-
-# Citation gate
-CITATION_GATE_MIN_COVERAGE=0.6
-```
-
-### Benchmark Smoke
-
-```bash
-python scripts/benchmark_deep_research.py \
-  --max-cases 3 \
-  --mode auto \
-  --output /tmp/bench.json
-```
-
-- Sample tasks: `eval/benchmarks/sample_tasks.jsonl`
-- Golden baseline: `eval/golden_queries.json`
-- Full benchmark notes: `docs/benchmarks/README.md`
-
-### Rollback / Troubleshooting
-
-- Unstable deep research flow:
-  - set `DEEPSEARCH_MODE=linear`
-  - disable tree default with `TREE_EXPLORATION_ENABLED=false`
-- Stale results:
-  - enable freshness ranking
-  - reduce `SEARCH_FRESHNESS_HALF_LIFE_DAYS`
-- Noisy search reliability:
-  - pin `SEARCH_STRATEGY=fallback`
-- Citation gate blocks completion too often:
-  - review citation coverage in report output
-  - temporarily lower `CITATION_GATE_MIN_COVERAGE`
-- Cache too sticky during rollout:
-  - reduce `SEARCH_CACHE_TTL_SECONDS` (e.g., 120-300)
+- Contributing: [`CONTRIBUTING.md`](../.github/CONTRIBUTING.md) · Security: [`SECURITY.md`](../.github/SECURITY.md)
+- Released under the **MIT License** — see [`LICENSE`](../LICENSE).
