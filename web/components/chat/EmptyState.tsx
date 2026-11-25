@@ -41,7 +41,7 @@ export function EmptyState({ onStarterClick }: EmptyStateProps) {
   ]
 
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col items-center justify-center px-2 py-4 sm:px-6 sm:py-8">
+    <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col items-center justify-center px-4 py-6 sm:px-6 sm:py-8">
       
       {/* Hero Section */}
       <div className="mb-5 flex flex-col items-center gap-2 text-center sm:mb-8">
@@ -57,7 +57,7 @@ export function EmptyState({ onStarterClick }: EmptyStateProps) {
       </div>
 
       {/* Starter Grid */}
-      <div className="grid w-full max-w-2xl grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3">
+      <div className="grid w-full grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3">
         {starters.map((starter, i) => (
           <button
             key={i}

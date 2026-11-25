@@ -293,7 +293,7 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
       return (
         <div className="flex-1 flex flex-col min-h-0">
           {messages.length === 0 ? (
-            <div className="h-full w-full p-4 overflow-y-auto">
+            <div className="h-full w-full overflow-y-auto">
                <EmptyState
                   onStarterClick={handleStarterClick}
                />
@@ -306,7 +306,7 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
                 atBottomStateChange={handleAtBottomChange}
                 className="scrollbar-thin scrollbar-thumb-muted/20"
                 itemContent={(index, message) => (
-                    <div className="mx-auto max-w-5xl px-4 sm:px-8">
+                    <div className="mx-auto w-full max-w-3xl px-4 sm:px-6">
                         <MessageItem key={message.id} message={message} onEdit={handleEditMessage} workspaceId={workspaceId} />
                     </div>
                 )}
@@ -389,7 +389,7 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
                 </div>
 
                 {(runStatus || currentStatus || isStopping) && (
-                  <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-2 border-t border-border/70 px-4 py-2.5 text-xs text-muted-foreground sm:px-5">
+                  <div className="mx-auto flex w-full max-w-3xl flex-wrap items-center gap-2 border-t border-border/70 px-4 py-2.5 text-xs text-muted-foreground sm:px-6">
                     {isLoading ? <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin text-primary" /> : (
                       <span aria-hidden="true" className={cn('h-1.5 w-1.5 rounded-full', runStatus === 'completed' ? 'bg-success' : runStatus === 'failed' ? 'bg-destructive' : runStatus === 'awaiting_approval' || runStatus === 'insufficient_evidence' ? 'bg-warning' : 'bg-muted-foreground')} />
                     )}
@@ -405,7 +405,8 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
                 )}
 
                 {pendingInterrupt && (
-                <section aria-labelledby="tool-approval-title" className="mx-3 mb-2 flex max-h-[40vh] flex-col gap-3 overflow-auto rounded-lg border border-warning/40 bg-warning-surface p-4 text-foreground shadow-surface sm:mx-5">
+                <div className="mx-auto w-full max-w-3xl px-4 sm:px-6">
+                <section aria-labelledby="tool-approval-title" className="mb-2 flex max-h-[40vh] flex-col gap-3 overflow-auto rounded-lg border border-warning/40 bg-warning-surface p-4 text-foreground shadow-surface">
                     <h2 id="tool-approval-title" className="flex items-center gap-2 text-sm font-semibold"><ShieldAlert aria-hidden="true" className="h-4 w-4 text-warning" />Tool approval required</h2>
                     {approvalPrompts.map((prompt, index) => (
                       <div key={index} className="space-y-2 text-sm leading-relaxed">
@@ -430,6 +431,7 @@ export function Chat({ project }: { project?: Pick<Workspace, 'id' | 'name'> }) 
                     </Button>
                     </div>
                 </section>
+                </div>
                 )}
            </>
         )}

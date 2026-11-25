@@ -298,7 +298,7 @@ export function ChatInput({
   
   return (
     <div
-      className="relative z-20 mx-auto w-full max-w-5xl shrink-0 px-3 pb-4 pt-1 sm:px-5"
+      className="relative z-20 mx-auto w-full max-w-3xl shrink-0 px-4 pb-4 pt-1 sm:px-6"
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
           setShowCommandMenu(false)
@@ -307,7 +307,7 @@ export function ChatInput({
       }}
     >
       {showCommandMenu && (
-        <div className="absolute bottom-full left-3 z-50 mb-2 w-80 max-w-[calc(100%-2rem)] overflow-hidden rounded-lg border border-border/80 bg-popover text-popover-foreground shadow-elevated sm:left-5">
+        <div className="absolute bottom-full left-4 z-50 mb-2 w-80 max-w-[calc(100%-2rem)] overflow-hidden rounded-lg border border-border/80 bg-popover text-popover-foreground shadow-elevated sm:left-6">
           <div className="border-b border-border/70 bg-surface-subtle px-3 py-2 text-[11px] font-semibold tracking-wide text-muted-foreground">{t('commands')}</div>
           <div className="max-h-80 overflow-y-auto p-1.5">
             {commands.map(cmd => (
