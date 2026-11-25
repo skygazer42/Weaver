@@ -99,7 +99,7 @@ export default function WorkspacePage() {
   return (
     <main className="min-h-dvh bg-surface-subtle/50">
       <header className="sticky top-0 z-30 h-14 border-b border-border/80 bg-background/90 backdrop-blur-md">
-        <div className="mx-auto flex h-full max-w-7xl items-center justify-between gap-2 px-4 sm:px-8">
+        <div className="flex h-full w-full items-center justify-between gap-2 px-4 sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-2 sm:gap-4">
             <div className="flex shrink-0 items-center gap-2">
               <Image src={logo} alt="" width={28} height={28} className="shrink-0 object-contain" />
@@ -121,7 +121,7 @@ export default function WorkspacePage() {
         </div>
       </header>
 
-      <div className="mx-auto max-w-7xl px-4 py-5 sm:px-8 sm:py-6">
+      <div className="w-full max-w-[1440px] px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
         <div className="mb-4 flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
           {view === 'project' ? (
             <div className="flex items-center gap-2.5">
@@ -165,7 +165,7 @@ export default function WorkspacePage() {
         ) : loading ? (
           <p role="status" className="rounded-lg border border-border/80 bg-card p-5 text-sm text-muted-foreground shadow-surface">{t('loadingWorkspace')}</p>
         ) : (
-          <Card className="mx-auto mt-6 max-w-2xl rounded-xl border border-border/70 bg-card shadow-surface">
+          <Card className="max-w-2xl rounded-xl border border-border/70 bg-card shadow-surface">
             <CardContent className="grid justify-items-start gap-4 p-6 sm:p-8">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-surface-subtle text-muted-foreground">
                 <FolderOpen className="h-5 w-5" aria-hidden="true" />

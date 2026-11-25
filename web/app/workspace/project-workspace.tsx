@@ -241,10 +241,10 @@ export function ProjectWorkspace({ initialWorkspace, files, setFiles }: {
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
         <div className="min-w-0 space-y-4">
           <Card>
-            <CardHeader className="mb-3 rounded-t-lg border-b border-border/70 bg-surface-subtle/40 px-4 py-3">
+            <CardHeader className="mb-3 rounded-t-lg border-b border-border/70 bg-surface-subtle/40 px-5 py-3">
               <h2 className="text-sm font-semibold tracking-tight">{revision ? 'Revise deliverable' : 'New task'}</h2>
             </CardHeader>
-            <CardContent className="px-4 pb-4">
+            <CardContent className="px-5 pb-4">
               <form onSubmit={runTask}>
                 <fieldset disabled={submitting} className="space-y-3">
                   {revision ? (
@@ -376,7 +376,7 @@ export function ProjectWorkspace({ initialWorkspace, files, setFiles }: {
             <CardContent className="space-y-3 px-5 pb-5">
               {historyError && <p role="alert" className="break-words rounded-lg border border-destructive-border bg-destructive-surface p-3 text-sm text-destructive">{historyError}</p>}
               {!history && !historyError && <p role="status" className="text-sm text-muted-foreground">Loading tasks…</p>}
-              {history?.tasks.length === 0 && <p className="rounded-lg border border-dashed border-border/80 bg-surface-subtle/60 p-4 text-center text-sm text-muted-foreground">No tasks yet.</p>}
+              {history?.tasks.length === 0 && <p className="rounded-lg border border-dashed border-border/80 bg-surface-subtle/60 p-4 text-left text-sm text-muted-foreground">No tasks yet.</p>}
               {history && history.tasks.length > 0 && (
                 <ul className="-mx-1 max-h-96 space-y-2 overflow-y-auto p-1">
                   {history.tasks.map((task) => (
@@ -462,7 +462,7 @@ export function ProjectWorkspace({ initialWorkspace, files, setFiles }: {
                 )}
               </>
             ) : (
-              <div className="flex min-h-56 flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border/80 bg-surface-subtle/60 p-6 text-center">
+              <div className="flex flex-col items-start gap-3 rounded-lg border border-dashed border-border/80 bg-surface-subtle/60 p-4 text-left">
                 <FileText className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
                 <p className="text-sm text-muted-foreground">Run a task to see its deliverable and sources here.</p>
               </div>

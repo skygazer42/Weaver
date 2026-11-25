@@ -12,7 +12,7 @@ type ArtifactState = { error: string } | { report: string; reportUrl: string; ch
 
 export function WorkspaceMarkdown({ content }: { content: string }) {
   return (
-    <div className="prose min-w-0 rounded-lg border border-border/80 bg-card p-5 sm:p-6">
+    <div className="prose min-w-0 rounded-lg border border-border/80 bg-card p-5 text-left sm:p-6">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{ table: ({ children }) => <table className="whitespace-nowrap">{children}</table> }}

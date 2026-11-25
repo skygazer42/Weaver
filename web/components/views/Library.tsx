@@ -89,7 +89,7 @@ export function Library({ workspaceId, chatHistory, onNewChat, onSelectChat, onD
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
-      <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col gap-5 p-4 sm:p-6 lg:p-8">
+      <div className="flex h-full min-h-0 w-full max-w-6xl flex-col gap-5 p-4 sm:p-6 lg:p-8">
         
         {/* Header */}
         <div className="flex shrink-0 items-start justify-between gap-4">
@@ -131,7 +131,7 @@ export function Library({ workspaceId, chatHistory, onNewChat, onSelectChat, onD
         <div className="flex-1 min-h-0">
           <ScrollArea className="h-full pr-4">
             {isLoading ? (
-              <div role="status" className="flex h-40 items-center justify-center text-sm text-muted-foreground">
+              <div role="status" className="p-5 text-left text-sm text-muted-foreground">
                 {t('libraryLoading')}
               </div>
             ) : filteredItems.length > 0 ? (
@@ -156,10 +156,10 @@ export function Library({ workspaceId, chatHistory, onNewChat, onSelectChat, onD
                 ))}
               </div>
             ) : (
-              <div className="flex min-h-56 flex-col items-center justify-center rounded-lg border border-dashed border-border/80 bg-surface-subtle/60 p-5 text-center">
+              <div className="rounded-lg border border-dashed border-border/80 bg-surface-subtle/60 p-5 text-left">
                 <History className="mb-3 h-5 w-5 text-muted-foreground" aria-hidden="true" />
                 <h3 className="text-sm font-semibold">{t('noItemsFound')}</h3>
-                <p className="mt-1 max-w-xs break-words text-center text-sm text-muted-foreground">
+                <p className="mt-1 break-words text-sm text-muted-foreground">
                     {searchQuery ? t('libraryNoMatches').replace('{query}', searchQuery) : t('libraryEmpty')}
                 </p>
               </div>

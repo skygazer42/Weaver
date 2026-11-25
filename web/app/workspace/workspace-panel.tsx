@@ -172,8 +172,8 @@ export function WorkspacePanel({ initialWorkspace, files, setFiles }: {
 
   return (
     <div>
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
-        <div className="min-w-0 space-y-5">
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
+        <div className="min-w-0 space-y-4">
           <Card>
             <CardHeader className="mb-4 rounded-t-lg border-b border-border/70 bg-surface-subtle/40 px-5 py-3.5">
               <h2 className="text-sm font-semibold tracking-tight">New analysis</h2>
@@ -248,7 +248,7 @@ export function WorkspacePanel({ initialWorkspace, files, setFiles }: {
                     </li>
                   ))}
                 </ul>
-              ) : <p className="rounded-lg border border-dashed border-border/80 bg-surface-subtle/60 p-4 text-center text-sm text-muted-foreground">No runs yet.</p>}
+              ) : <p className="rounded-lg border border-dashed border-border/80 bg-surface-subtle/60 p-4 text-left text-sm text-muted-foreground">No runs yet.</p>}
             </CardContent>
           </Card>
         </div>
@@ -270,7 +270,7 @@ export function WorkspacePanel({ initialWorkspace, files, setFiles }: {
                 {selectedRun.status === 'completed' && <WorkspaceArtifacts key={selectedRun.id} url={`${workspaceUrl}/runs/${encodeURIComponent(selectedRun.id)}/artifacts`} />}
               </div>
             ) : (
-              <div className="flex min-h-56 flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border/80 bg-surface-subtle/60 p-6 text-center">
+              <div className="flex flex-col items-start gap-3 rounded-lg border border-dashed border-border/80 bg-surface-subtle/60 p-4 text-left">
                 <FileSpreadsheet className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
                 <p role={submitting ? 'status' : undefined} className="text-sm text-muted-foreground">
                   {submitting ? 'Preparing analysis…' : 'Run an analysis to see its report and chart here.'}

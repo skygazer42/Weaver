@@ -38,7 +38,7 @@ export function Discover() {
 
   return (
     <div className="h-full min-h-0 flex-1 overflow-y-auto bg-background p-4 sm:p-6 lg:p-8">
-      <div className="mx-auto max-w-5xl space-y-6">
+      <div className="w-full max-w-5xl space-y-6">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">{t('discover')}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -71,13 +71,13 @@ export function Discover() {
               </Button>
             </div>
           ))}
+          {filteredTemplates.length === 0 && (
+            <div role="status" className="col-span-full rounded-lg border border-dashed border-border/80 bg-surface-subtle/60 p-5 text-left">
+              <h2 className="text-sm font-semibold">{t('noTemplatesFound')}</h2>
+              <p className="mt-1 break-words text-sm text-muted-foreground">{t('noTemplatesHint')}</p>
+            </div>
+          )}
         </div>
-        {filteredTemplates.length === 0 && (
-          <div role="status" className="rounded-lg border border-dashed border-border/80 bg-surface-subtle/60 px-5 py-12 text-center">
-            <h2 className="text-sm font-semibold">{t('noTemplatesFound')}</h2>
-            <p className="mt-1 break-words text-sm text-muted-foreground">{t('noTemplatesHint')}</p>
-          </div>
-        )}
       </div>
     </div>
   )
