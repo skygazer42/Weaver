@@ -109,9 +109,10 @@ def _worker(dsn, tmp_path, *, first):
     port_file = tmp_path / f"{label}.port"
     env = {
         **os.environ,
+        "APP_ENV": "production",
         "DATABASE_URL": dsn,
         "OPENAI_API_KEY": "fixture",
-        "INTERNAL_API_KEY": "",
+        "SILICONFLOW_API_KEY": "",
         "ENABLE_MCP": "false",
         "ENABLE_FILE_LOGGING": "false",
         "LOG_FORMAT": "%(message)s",

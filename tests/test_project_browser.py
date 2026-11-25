@@ -61,8 +61,12 @@ def test_project_workflows_and_chat_across_browser_sessions(monkeypatch, tmp_pat
     async def noop():
         pass
 
+    async def model_catalog(_settings):
+        return [], "static"
+
     monkeypatch.setattr(main, "startup_event", noop)
     monkeypatch.setattr(main, "shutdown_event", noop)
+    monkeypatch.setattr(main, "discover_gateway_models", model_catalog)
     workflow_requests = []
     chat_contexts = []
     github_calls = []
@@ -374,10 +378,12 @@ def drive_project_chat(page):
         expect(page.get_by_role("status", name="Run status")).to_have_text(
             "Completed", timeout=30_000
         )
-        expect(transcript.get_by_text(DECISION, exact=False)).to_be_visible()
-        expect(
-            transcript.get_by_role("link", name="Revised monthly export specification", exact=True)
-        ).to_be_visible()
+        spec_link = page.get_by_role(
+            "link", name="Revised monthly export specification", exact=True
+        )
+        reply = transcript.get_by_role("paragraph").filter(has=spec_link)
+        expect(reply).to_be_visible()
+        expect(reply).to_contain_text(DECISION)
         if prompt.startswith("Summarize"):
             page.get_by_role("button", name="New Investigation", exact=True).click()
 
