@@ -10,15 +10,14 @@
 
 # Weaver
 
-**Open-source AI Agent Workbench — Deep Research · Visual MCP Ecosystem · Free Local Docker Sandbox · Interactive Artifact Preview**
+**Open-source AI Agent Workbench — Deep Research · Visual MCP · Multi-Model Routing · Interactive Artifacts**
 
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB.svg?style=flat&logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![Next.js 16.4+](https://img.shields.io/badge/Next.js-16.4+-000000.svg?style=flat&logo=next.js&logoColor=white)](https://nextjs.org/)
-[![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP%20%7C%20stdio-10B981.svg?style=flat)](./mcp.md)
-[![Docker Sandbox](https://img.shields.io/badge/Sandbox-Local%20Docker%20%7C%20E2B-2496ED.svg?style=flat&logo=docker&logoColor=white)](./configuration.md)
+[![MCP](https://img.shields.io/badge/MCP-Supported-10B981.svg?style=flat)](./mcp.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat)](../LICENSE)
 
-[Quick Start](#quick-start) · [Local Docker Sandbox](#5-optional-enable-local-free-docker-sandbox-off-by-default) · [MCP Guide](./mcp.md) · [Configuration](./configuration.md) · [Docs](./README.md)
+[Quick Start](#quick-start) · [MCP Guide](./mcp.md) · [Configuration](./configuration.md) · [Docs](./README.md)
 
 <img src="images/dashboard.png" alt="Weaver Workbench" width="100%" style="border-radius: 10px; margin-top: 16px;" />
 
@@ -26,14 +25,14 @@
 
 ---
 
-## Why Weaver
+## Key Features
 
-- **Visual MCP Tool Ecosystem**: Native `Streamable HTTP` (custom headers) and `stdio` (env vars & cwd) support persisted in `config/mcp.json`. Manage servers visually in Settings, import Claude Desktop / Cursor `mcpServers` JSON in one click, and toggle active tools directly from the chat composer.
-- **Dual Sandbox Code Execution (Free Local Docker + E2B)**: Run Python, shell commands, and CSV analysis without an E2B key via the opt-in **Local Docker Sandbox** (OFF by default), sharing the exact same `execute_python_code`, `sandbox_files`, and `sandbox_shell` interfaces with hardened isolation (`--network none`, `--cap-drop ALL`, CPU/memory/PID limits, per-thread `/workspace`).
-- **Interactive Artifact Preview & Execution Console**: Render model-generated interactive HTML reports, charts, and SVGs safely inside a CSP-isolated sandboxed `<iframe>` with Preview/Code toggle, reload, fullscreen viewer, and collapsible monospace execution logs.
-- **Universal Multi-Model Discovery & Dual-Role Routing**: Auto-discovers `/v1/models` from SiliconFlow and any OpenAI-compatible gateway (DeepSeek, OpenRouter, OneAPI, Ollama, vLLM) plus Anthropic, with separate **Primary** and **Reasoning** model selectors in the UI.
-- **Deep Research & Persistent Project Workspaces (`/workspace`)**: Direct, Web, Agent, and iterative Deep Research modes with evidence verification, plus resumable project workspaces and an integrated CSV analysis workbench.
-- **Modern Workbench UI**: Next.js 16 + React 19 with light/dark themes, 4 locales (`en`, `zh`, `ja`, `ko`), focus sidebar collapse (`Ctrl/Cmd + B`), and live SSE streaming.
+- **Deep Research & Agent Modes**: Direct, Web, Agent, and iterative Deep Research modes with clean progress summaries and verifiable citations.
+- **Visual MCP Ecosystem**: Manage `Streamable HTTP` and `stdio` servers in Settings, import Claude Desktop / Cursor configs in one click, and toggle tools directly in the chat composer.
+- **Interactive Artifact Preview**: Render model-generated HTML reports, SVG charts, and code directly in the side panel with Preview/Code switching and fullscreen view.
+- **Multi-Model Discovery & Dual-Role Routing**: Works with SiliconFlow, DeepSeek, OpenRouter, Ollama, vLLM, and Anthropic, with independent Primary and Reasoning model selection.
+- **Persistent Workspaces (`/workspace`)**: Organize project context and files, plus a built-in CSV analysis workbench with background execution and exportable reports.
+- **Modern Workbench UI**: Light/dark themes, 4 locales (`en`, `zh`, `ja`, `ko`), and collapsible focus layout.
 
 ## Table of Contents
 
