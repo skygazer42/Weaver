@@ -249,15 +249,40 @@ function ReportExportMenu({ artifact, threadId }: { artifact: Artifact; threadId
 
   async function downloadReport(format: 'html' | 'pdf' | 'docx') {
     const name = format === 'docx' ? 'Word' : format.toUpperCase()
+    const apiBase = getApiBaseUrl()
     try {
       if (reportThreadId) {
-        const response = await fetch(getApiBaseUrl() + '/api/export/' + encodeURIComponent(reportThreadId) + '?format=' + format)
+        const response = await fetch(apiBase + '/api/export/' + encodeURIComponent(reportThreadId) + '?format=' + format)
         if (response.ok) {
           downloadBlob(await response.blob(), filename + '.' + format)
           return
         }
         if (format !== 'html' && response.status !== 404 && response.status !== 501) {
           toast.error(t('studioExportFailed'))
+          return
+        }
+      }
+      if (artifact.content.trim()) {
+        const directResponse = await fetch(apiBase + '/api/export/content', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: artifact.title,
+            content: artifact.content,
+            format,
+            thread_id: reportThreadId ?? undefined,
+          }),
+        })
+        if (directResponse.ok) {
+          downloadBlob(await directResponse.blob(), filename + '.' + format)
+          return
+        }
+        if (format !== 'html') {
+          toast.error(
+            directResponse.status === 501
+              ? t('studioExportUnavailable').replace('{format}', name)
+              : t('studioExportFailed'),
+          )
           return
         }
       }

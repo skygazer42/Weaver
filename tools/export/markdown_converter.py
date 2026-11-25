@@ -7,7 +7,11 @@ Converts markdown research reports to various export formats with styling.
 import base64
 import io
 import logging
+import os
 import re
+import shutil
+import subprocess
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
@@ -26,7 +30,7 @@ try:
     from weasyprint import CSS
     from weasyprint import HTML as WeasyprintHTML
     WEASYPRINT_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError):
     WeasyprintHTML = None
     CSS = None
     WEASYPRINT_AVAILABLE = False
@@ -478,6 +482,79 @@ class MarkdownConverter:
 
         return html
 
+    @staticmethod
+    def _find_pdf_browser() -> Optional[str]:
+        """Locate a local Chromium/Chrome/Edge binary for headless PDF fallback."""
+        candidates = [
+            os.environ.get("WEAVER_PDF_BROWSER"),
+            os.environ.get("CHROME_BIN"),
+            shutil.which("google-chrome"),
+            shutil.which("chromium"),
+            shutil.which("chromium-browser"),
+            shutil.which("chrome"),
+            shutil.which("msedge"),
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+            r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+            "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+        ]
+        for candidate in candidates:
+            if candidate and Path(candidate).is_file():
+                return str(candidate)
+        return None
+
+    def _render_html_to_pdf_with_browser(self, html_content: str) -> bytes:
+        """Render self-contained HTML to PDF bytes using headless Chrome/Edge."""
+        browser = self._find_pdf_browser()
+        if not browser:
+            raise ImportError(
+                "PDF export requires WeasyPrint (with GTK/Pango libraries) or a local Chrome/Edge browser."
+            )
+
+        # Prevent external network fetches during headless print-to-pdf.
+        csp_tag = (
+            '<meta http-equiv="Content-Security-Policy" '
+            'content="default-src \'none\'; style-src \'unsafe-inline\'; img-src data: blob:; font-src data:;">'
+        )
+        safe_html = html_content.replace("<head>", f"<head>\n    {csp_tag}", 1) if "<head>" in html_content else html_content
+
+        with tempfile.TemporaryDirectory(prefix="weaver_pdf_") as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            html_file = tmp_path / "report.html"
+            pdf_file = tmp_path / "report.pdf"
+            user_data_dir = tmp_path / "profile"
+            html_file.write_text(safe_html, encoding="utf-8")
+
+            cmd = [
+                browser,
+                "--headless=new",
+                "--disable-gpu",
+                "--disable-extensions",
+                "--no-first-run",
+                "--no-default-browser-check",
+                "--no-pdf-header-footer",
+                f"--user-data-dir={user_data_dir}",
+                f"--print-to-pdf={pdf_file}",
+                html_file.as_uri(),
+            ]
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=45,
+                check=False,
+            )
+            if not pdf_file.is_file() or pdf_file.stat().st_size == 0:
+                stderr = (result.stderr or "").strip()[:300]
+                raise RuntimeError(f"Headless browser PDF generation failed (code {result.returncode}): {stderr}")
+
+            pdf_bytes = pdf_file.read_bytes()
+            if not pdf_bytes.startswith(b"%PDF"):
+                raise RuntimeError("Headless browser produced invalid PDF output.")
+            return pdf_bytes
+
     def to_pdf(
         self,
         markdown_text: str,
@@ -489,6 +566,9 @@ class MarkdownConverter:
         """
         Convert markdown to PDF.
 
+        Uses WeasyPrint when available, and falls back to headless Chrome/Edge
+        printing when WeasyPrint or its native GTK libraries are unavailable.
+
         Args:
             markdown_text: Markdown content
             output_path: Optional file path to save PDF
@@ -499,26 +579,24 @@ class MarkdownConverter:
         Returns:
             PDF bytes if no output_path, else the output path
         """
-        if not WEASYPRINT_AVAILABLE or WeasyprintHTML is None:
-            raise ImportError(
-                "WeasyPrint is required for PDF export. "
-                "Install with: pip install weasyprint"
-            )
-
         html_content = self.to_html(markdown_text, title, thread_id, sources)
 
-        # Create PDF
-        html_doc = WeasyprintHTML(string=html_content)
+        if WEASYPRINT_AVAILABLE and WeasyprintHTML is not None:
+            html_doc = WeasyprintHTML(string=html_content)
+            if output_path:
+                html_doc.write_pdf(output_path)
+                logger.info(f"[Export] PDF saved to: {output_path}")
+                return output_path
+            pdf_buffer = io.BytesIO()
+            html_doc.write_pdf(pdf_buffer)
+            return pdf_buffer.getvalue()
 
+        pdf_bytes = self._render_html_to_pdf_with_browser(html_content)
         if output_path:
-            html_doc.write_pdf(output_path)
+            Path(output_path).write_bytes(pdf_bytes)
             logger.info(f"[Export] PDF saved to: {output_path}")
             return output_path
-
-        # Return bytes
-        pdf_buffer = io.BytesIO()
-        html_doc.write_pdf(pdf_buffer)
-        return pdf_buffer.getvalue()
+        return pdf_bytes
 
     def to_docx(
         self,

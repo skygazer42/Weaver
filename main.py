@@ -3814,6 +3814,104 @@ async def list_export_templates():
     }
 
 
+class ExportContentRequest(BaseModel):
+    content: str = Field(..., min_length=1, max_length=2_000_000)
+    format: str = "pdf"
+    title: Optional[str] = "Research Report"
+    thread_id: Optional[str] = None
+    sources: Optional[List[str]] = None
+
+
+def _build_export_response(
+    *,
+    markdown_text: str,
+    format_lower: str,
+    report_title: str,
+    thread_id: Optional[str],
+    source_urls: List[str],
+) -> StreamingResponse:
+    from tools.export import export_report as do_export
+
+    safe_slug = re.sub(r"[^a-zA-Z0-9._-]+", "_", (thread_id or "report")).strip("_") or "report"
+
+    if format_lower == "html":
+        html_content = do_export(
+            markdown_text,
+            format="html",
+            title=report_title,
+            thread_id=thread_id,
+            sources=source_urls,
+        )
+        return StreamingResponse(
+            iter([html_content.encode("utf-8") if isinstance(html_content, str) else html_content]),
+            media_type="text/html",
+            headers={"Content-Disposition": f'inline; filename="report_{safe_slug}.html"'},
+        )
+
+    if format_lower == "pdf":
+        try:
+            pdf_bytes = do_export(
+                markdown_text,
+                format="pdf",
+                title=report_title,
+                thread_id=thread_id,
+                sources=source_urls,
+            )
+            return StreamingResponse(
+                iter([pdf_bytes if isinstance(pdf_bytes, bytes) else pdf_bytes.encode("utf-8")]),
+                media_type="application/pdf",
+                headers={"Content-Disposition": f'attachment; filename="report_{safe_slug}.pdf"'},
+            )
+        except ImportError as e:
+            raise HTTPException(status_code=501, detail=f"PDF export unavailable: {e}")
+
+    if format_lower in ("docx", "doc"):
+        try:
+            docx_bytes = do_export(
+                markdown_text,
+                format="docx",
+                title=report_title,
+                thread_id=thread_id,
+                sources=source_urls,
+            )
+            return StreamingResponse(
+                iter([docx_bytes if isinstance(docx_bytes, bytes) else docx_bytes.encode("utf-8")]),
+                media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                headers={"Content-Disposition": f'attachment; filename="report_{safe_slug}.docx"'},
+            )
+        except ImportError as e:
+            raise HTTPException(status_code=501, detail=f"DOCX export requires python-docx: {e}")
+
+    raise HTTPException(status_code=400, detail=f"Unsupported format: {format_lower}. Use html, pdf, or docx.")
+
+
+@app.post("/api/export/content")
+async def export_report_content_endpoint(payload: ExportContentRequest):
+    """
+    Export provided Markdown report content directly to HTML, PDF, or DOCX.
+
+    Registered before `/api/export/{thread_id}` so saved/restored reports work
+    even when an in-memory checkpoint is no longer present.
+    """
+    format_lower = (payload.format or "pdf").lower().strip()
+    report_title = (payload.title or "").strip() or "Research Report"
+    source_urls = [s for s in (payload.sources or []) if isinstance(s, str) and s.strip()]
+    try:
+        return await run_in_threadpool(
+            _build_export_response,
+            markdown_text=payload.content,
+            format_lower=format_lower,
+            report_title=report_title,
+            thread_id=payload.thread_id,
+            source_urls=source_urls,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Direct content export error ({format_lower}): {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/export/{thread_id}")
 async def export_report_endpoint(
     thread_id: str,
@@ -3923,53 +4021,14 @@ async def export_report_endpoint(
                 headers={"Content-Disposition": f'attachment; filename="report_{thread_id}.json"'},
             )
 
-        if format_lower == "html":
-            from tools.export import export_report as do_export
-
-            html_content = do_export(
-                final_report, format="html", title=report_title,
-                thread_id=thread_id, sources=source_urls,
-            )
-            return StreamingResponse(
-                iter([html_content.encode("utf-8") if isinstance(html_content, str) else html_content]),
-                media_type="text/html",
-                headers={"Content-Disposition": f'inline; filename="report_{thread_id}.html"'},
-            )
-
-        elif format_lower == "pdf":
-            try:
-                from tools.export import export_report as do_export
-
-                pdf_bytes = do_export(
-                    final_report, format="pdf", title=report_title,
-                    thread_id=thread_id, sources=source_urls,
-                )
-                return StreamingResponse(
-                    iter([pdf_bytes if isinstance(pdf_bytes, bytes) else pdf_bytes.encode("utf-8")]),
-                    media_type="application/pdf",
-                    headers={"Content-Disposition": f'attachment; filename="report_{thread_id}.pdf"'},
-                )
-            except ImportError as e:
-                raise HTTPException(status_code=501, detail=f"PDF export requires WeasyPrint: {e}")
-
-        elif format_lower in ("docx", "doc"):
-            try:
-                from tools.export import export_report as do_export
-
-                docx_bytes = do_export(
-                    final_report, format="docx", title=report_title,
-                    thread_id=thread_id, sources=source_urls,
-                )
-                return StreamingResponse(
-                    iter([docx_bytes if isinstance(docx_bytes, bytes) else docx_bytes.encode("utf-8")]),
-                    media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    headers={"Content-Disposition": f'attachment; filename="report_{thread_id}.docx"'},
-                )
-            except ImportError as e:
-                raise HTTPException(status_code=501, detail=f"DOCX export requires python-docx: {e}")
-
-        else:
-            raise HTTPException(status_code=400, detail=f"Unsupported format: {format}. Use html, pdf, or docx.")
+        return await run_in_threadpool(
+            _build_export_response,
+            markdown_text=final_report,
+            format_lower=format_lower,
+            report_title=report_title,
+            thread_id=thread_id,
+            source_urls=source_urls,
+        )
 
     except HTTPException:
         raise
