@@ -161,5 +161,5 @@ pnpm -C web test && pnpm -C web lint && pnpm -C web exec tsc --noEmit && pnpm -C
 
 ## 开源协议
 
-- 贡献指南：[`CONTRIBUTING.md`](CONTRIBUTING.md) · 安全说明：[`SECURITY.md`](SECURITY.md)
+- 贡献指南：[`CONTRIBUTING.md`](.github/CONTRIBUTING.md) · 安全说明：[`SECURITY.md`](.github/SECURITY.md)
 - 本项目基于 **MIT License** 开源，详见 [`LICENSE`](LICENSE)。

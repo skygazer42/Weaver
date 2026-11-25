@@ -1033,7 +1033,7 @@ We are continuously improving Weaver. Feel free to contribute or suggest new fea
 
 ## Contributing
 
-We welcome contributions! Please see [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines.
+We welcome contributions! Please see [CONTRIBUTING.md](../.github/CONTRIBUTING.md) for guidelines.
 
 **Quick Start:**
 1. Fork the repository

@@ -8,7 +8,7 @@ PY := $(VENV_BIN)/python
 help:
 	@echo "Targets:"
 	@echo "  setup       - Create venv and install core + dev dependencies"
-	@echo "  setup-full  - Install optional tool dependencies (if requirements-optional.txt exists)"
+	@echo "  setup-full  - Install optional tool dependencies (if tools/requirements-optional.txt exists)"
 	@echo "  dev         - Start backend (no hot reload)"
 	@echo "  dev-reload  - Start backend with opt-in hot reload"
 	@echo "  verify      - Run real full-stack verification (headless)"
@@ -31,7 +31,7 @@ setup:
 	@$(PY) -m pip install -r requirements.txt -r requirements-dev.txt
 
 setup-full: setup
-	@test -f requirements-optional.txt && $(PY) -m pip install -r requirements-optional.txt || true
+	@test -f tools/requirements-optional.txt && $(PY) -m pip install -r tools/requirements-optional.txt || true
 
 dev:
 	@$(PY) main.py

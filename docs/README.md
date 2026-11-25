@@ -36,5 +36,5 @@
 
 ## 其他
 
-- 安全相关：见根目录 `SECURITY.md`
-- 贡献指南：见根目录 `CONTRIBUTING.md`
+- 安全相关：见 [`.github/SECURITY.md`](../.github/SECURITY.md)
+- 贡献指南：见 [`.github/CONTRIBUTING.md`](../.github/CONTRIBUTING.md)

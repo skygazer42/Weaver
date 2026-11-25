@@ -43,3 +43,6 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["agent", "common", "tools", "triggers", "web"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

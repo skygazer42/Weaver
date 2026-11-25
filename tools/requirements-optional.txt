@@ -1,6 +1,6 @@
 # Optional / heavy dependencies for extra tools.
 # Install with:
-#   pip install -r requirements-optional.txt
+#   pip install -r tools/requirements-optional.txt
 #
 # Notes:
 # - `browser-use` can cause pip backtracking if left unconstrained; keep it pinned.

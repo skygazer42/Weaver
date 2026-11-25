@@ -33,7 +33,7 @@ pydantic==2.12.5
 pydantic-settings==2.13.1
 httpx==0.28.1
 
-# Optional heavy tool deps moved to requirements-optional.txt
+# Optional heavy tool deps moved to tools/requirements-optional.txt
 # Async support
 aiofiles>=24.1.0
 prometheus-client==0.24.1
